@@ -1183,6 +1183,73 @@ describe("group administration - review follow-ups", () => {
   );
 
   integrationTest(
+    "participant contact IDs follow the same visibility rule as contact details",
+    async () => {
+      await withTenantAndUsers(async ({ companyId, createMember }) => {
+        const { contactId, connectionId } = await setupGroup(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const restricted = await createMember({ can_view_all_chats: false });
+        const participant = await tenantDb
+          .insertInto("contacts")
+          .values({
+            whatsapp_connection_id: connectionId,
+            jid: MEMBER_JID,
+            phone_number: "15550000002",
+            push_name: "Visible group member",
+            is_group: false,
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        await tenantDb
+          .insertInto("contact_assignments")
+          .values({
+            contact_id: contactId,
+            assigned_to: restricted.userId,
+            assigned_by: restricted.userId,
+          })
+          .execute();
+
+        const hidden = await app.request(`/api/groups/${contactId}`, {
+          headers: restricted.headers,
+        });
+        expect(hidden.status).toBe(200);
+        const hiddenBody = (await hidden.json()) as {
+          data: {
+            participants: Array<{ jid: string; contactId: string | null }>;
+          };
+        };
+        expect(
+          hiddenBody.data.participants.find(
+            (candidate) => candidate.jid === MEMBER_JID,
+          )?.contactId,
+        ).toBeNull();
+
+        await tenantDb
+          .insertInto("contact_assignments")
+          .values({
+            contact_id: participant.id,
+            assigned_to: restricted.userId,
+            assigned_by: restricted.userId,
+          })
+          .execute();
+        const visible = await app.request(`/api/groups/${contactId}`, {
+          headers: restricted.headers,
+        });
+        const visibleBody = (await visible.json()) as {
+          data: {
+            participants: Array<{ jid: string; contactId: string | null }>;
+          };
+        };
+        expect(
+          visibleBody.data.participants.find(
+            (candidate) => candidate.jid === MEMBER_JID,
+          )?.contactId,
+        ).toBe(participant.id);
+      });
+    },
+  );
+
+  integrationTest(
     "the invite link needs the caller's outbound permission, not just an admin account",
     async () => {
       await withTenantAndUsers(async ({ companyId, createMember, ownerId }) => {

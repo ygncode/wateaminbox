@@ -133,7 +133,7 @@ crudRoutes.post("/", zValidator("json", createGroupSchema), async (c) => {
  * GET /:id - Get a specific group with participants
  */
 crudRoutes.get("/:id", async (c) => {
-  const { tenantDb, companyId, permissions } = getRouteContext(c);
+  const { tenantDb, companyId, permissions, user } = getRouteContext(c);
   const contactId = c.req.param("id");
 
   // Get contact (group)
@@ -182,9 +182,43 @@ crudRoutes.get("/:id", async (c) => {
     .where("contact_tags.contact_id", "=", contactId)
     .execute();
 
+  // A group-visible participant contact is not automatically a conversation
+  // the viewer may open. Backfilled member contacts deliberately have no
+  // assignment, while GET /contacts/:id requires either can_view_all_chats or
+  // an active assignment. Mask unauthorized IDs here so restricted users see
+  // the member identity but are not given a broken link or a contact UUID they
+  // cannot otherwise discover.
+  const participantContactIds = [
+    ...new Set(
+      participants
+        .map((participant) => participant.contactId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const visibleParticipantContactIds = permissions.can_view_all_chats
+    ? new Set(participantContactIds)
+    : participantContactIds.length > 0
+      ? new Set(
+          (
+            await tenantDb
+              .selectFrom("contact_assignments")
+              .select("contact_id")
+              .where("contact_id", "in", participantContactIds)
+              .where("assigned_to", "=", user.id)
+              .where("unassigned_at", "is", null)
+              .execute()
+          ).map((assignment) => assignment.contact_id),
+        )
+      : new Set<string>();
+
   const authorizedParticipants = await Promise.all(
     participants.map(async (participant) => ({
       ...participant,
+      contactId:
+        participant.contactId &&
+        visibleParticipantContactIds.has(participant.contactId)
+          ? participant.contactId
+          : null,
       profilePictureUrl: await getAuthorizedMediaUrlOrNull(
         participant.profilePictureUrl,
         companyId,

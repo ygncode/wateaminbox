@@ -5,6 +5,7 @@ import {
 } from "@wateaminbox/shared";
 import { type Kysely, sql } from "kysely";
 import type { TenantDatabase } from "./tenant.service.js";
+import { fetchStoredWhatsAppNames } from "./whatsapp-stored-names.js";
 
 export interface ListGroupsOptions {
   search?: string;
@@ -64,6 +65,13 @@ export interface EnrichedGroupParticipant {
   phoneNumber: string | null;
   /** Raw WhatsApp mention tokens, including LIDs mapped to this participant. */
   mentionIds: string[];
+  /**
+   * The workspace contact this member resolves to on the group's own
+   * connection, when one exists. Null for a member nobody has a contact record
+   * for yet, which is why the client must treat the profile affordance as
+   * conditional rather than assuming every member is openable.
+   */
+  contactId: string | null;
   displayName: string;
   profilePictureUrl: string | null;
   isAdmin: boolean;
@@ -248,7 +256,13 @@ export async function getEnrichedGroupParticipants(
       options.connectionId
         ? tenantDb
             .selectFrom("contacts")
-            .select(["jid", "custom_name", "push_name", "profile_picture_url"])
+            .select([
+              "id",
+              "jid",
+              "custom_name",
+              "push_name",
+              "profile_picture_url",
+            ])
             .where("whatsapp_connection_id", "=", options.connectionId)
             .where("jid", "in", participantJids)
             .execute()
@@ -261,36 +275,12 @@ export async function getEnrichedGroupParticipants(
         .orderBy("timestamp", "desc")
         .execute(),
       options.connectionId
-        ? sql<{ jid: string; name: string | null }>`
-          SELECT DISTINCT ON (normalized_jid)
-            normalized_jid AS jid,
-            coalesce(
-              nullif(stored.full_name, ''),
-              nullif(stored.push_name, ''),
-              nullif(stored.first_name, ''),
-              nullif(stored.business_name, '')
-            ) AS name
-          FROM (
-            SELECT
-              contacts.*,
-              regexp_replace(
-                coalesce(mapping.jid, contacts.their_jid),
-                ':[0-9]+@',
-                '@'
-              ) AS normalized_jid
-            FROM whatsapp_sessions.whatsmeow_contacts AS contacts
-            LEFT JOIN whatsapp_sessions.whatsmeow_lid_mappings AS mapping
-              ON mapping.connection_id::text = contacts.connection_id::text
-              AND regexp_replace(mapping.lid, ':[0-9]+@', '@') =
-                  regexp_replace(contacts.their_jid, ':[0-9]+@', '@')
-            WHERE contacts.connection_id::text = ${options.connectionId}
-          ) AS stored
-          WHERE normalized_jid IN (${sql.join(
-            participantJids.map((jid) => sql`${jid}`),
-          )})
-          ORDER BY normalized_jid
-        `.execute(tenantDb)
-        : Promise.resolve({ rows: [] }),
+        ? fetchStoredWhatsAppNames(
+            tenantDb,
+            options.connectionId,
+            participantJids,
+          )
+        : Promise.resolve(new Map<string, string>()),
       options.connectionId
         ? sql<{ jid: string; lid: string }>`
           WITH candidate_tokens AS MATERIALIZED (
@@ -371,9 +361,7 @@ export async function getEnrichedGroupParticipants(
     const jid = normalizeJid(sender.sender_jid);
     if (jid && !senderByJid.has(jid)) senderByJid.set(jid, sender);
   }
-  const storedNameByJid = new Map(
-    storedNames.rows.map((stored) => [stored.jid, stored.name]),
-  );
+  const storedNameByJid = storedNames;
   const mentionIdsByJid = new Map<string, Set<string>>();
   for (const mapping of lidMappings.rows) {
     const jid = normalizeJid(mapping.jid);
@@ -411,6 +399,10 @@ export async function getEnrichedGroupParticipants(
         jid,
         phoneNumber,
         mentionIds: [...mentionIds],
+        // Only the contact record on this group's own connection: the same
+        // number reached through a different connection is a different
+        // conversation, and opening that one would show the wrong history.
+        contactId: contact?.id ?? null,
         displayName,
         profilePictureUrl:
           contact?.profile_picture_url || sender?.sender_avatar_url || null,

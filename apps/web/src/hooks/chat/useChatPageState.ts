@@ -46,6 +46,12 @@ export interface ChatPageState {
 
   // Panel visibility
   isProfileOpen: boolean;
+  /**
+   * Contact the profile panel is describing. Usually the open conversation,
+   * but a group member opened from the thread or the participant list points
+   * it at that member instead, the way tapping a sender does on WhatsApp.
+   */
+  profileContactId: string | undefined;
   isSearchOpen: boolean;
   highlightedMessageId: string | null;
 
@@ -73,6 +79,8 @@ export interface ChatPageActions {
 
   // Profile panel
   handleOpenProfile: () => void;
+  /** Opens the profile panel on a group member rather than the conversation. */
+  handleOpenParticipantProfile: (participantContactId: string) => void;
   handleCloseProfile: () => void;
 
   // Search panel
@@ -124,6 +132,11 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
 
   // Panel visibility state
   const [isProfileOpen, setIsProfileOpen] = React.useState(false);
+  // Null means "the open conversation". Held separately from `selectedChatId`
+  // so that opening a member's profile does not move the thread underneath it.
+  const [participantProfileId, setParticipantProfileId] = React.useState<
+    string | null
+  >(null);
   const [isSearchOpen, setIsSearchOpen] = React.useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = React.useState<
     string | null
@@ -279,12 +292,33 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
 
   // Profile panel handlers
   const handleOpenProfile = React.useCallback(() => {
+    // Re-opening from the header always means the conversation itself, even if
+    // the panel last showed a member.
+    setParticipantProfileId(null);
     setIsProfileOpen(true);
   }, []);
 
+  const handleOpenParticipantProfile = React.useCallback(
+    (participantContactId: string) => {
+      setParticipantProfileId(participantContactId);
+      setIsProfileOpen(true);
+    },
+    [],
+  );
+
   const handleCloseProfile = React.useCallback(() => {
     setIsProfileOpen(false);
+    // Dropped on close so the next open starts from the conversation rather
+    // than re-showing whichever member was last inspected.
+    setParticipantProfileId(null);
   }, []);
+
+  // Switching conversations must not leave the panel pointed at a member of
+  // the group that was just closed - the member is unrelated to the thread now
+  // on screen, and the panel is shared between them.
+  React.useEffect(() => {
+    setParticipantProfileId(null);
+  }, [selectedChatId]);
 
   // Search panel handlers
   const handleOpenSearch = React.useCallback(() => {
@@ -497,6 +531,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
     contactLoadError,
     isContactTyping,
     isProfileOpen,
+    profileContactId: participantProfileId ?? selectedChatId,
     isSearchOpen,
     highlightedMessageId,
     replyToMessage,
@@ -512,6 +547,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
     handleChatSelect,
     retryContactLoad,
     handleOpenProfile,
+    handleOpenParticipantProfile,
     handleCloseProfile,
     handleOpenSearch,
     handleCloseSearch,

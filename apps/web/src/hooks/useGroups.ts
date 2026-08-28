@@ -15,6 +15,11 @@ export interface GroupParticipant {
   phoneNumber: string | null;
   /** Raw WhatsApp mention tokens, including mapped private LIDs. */
   mentionIds?: string[];
+  /**
+   * Workspace contact this member resolves to, or null when nobody has a
+   * contact record for them yet. Drives whether their identity opens a profile.
+   */
+  contactId?: string | null;
   displayName: string;
   profilePictureUrl: string | null;
   isAdmin: boolean;

@@ -59,6 +59,7 @@ export function ChatPage() {
     contactLoadError,
     isContactTyping,
     isProfileOpen,
+    profileContactId,
     isSearchOpen,
     highlightedMessageId,
     replyToMessage,
@@ -72,6 +73,7 @@ export function ChatPage() {
     handleChatSelect,
     retryContactLoad,
     handleOpenProfile,
+    handleOpenParticipantProfile,
     handleCloseProfile,
     handleOpenSearch,
     handleCloseSearch,
@@ -174,6 +176,9 @@ export function ChatPage() {
               onDelete={handleDeleteMessage}
               onStar={handleStarMessage}
               onReact={canSend ? handleReactMessage : undefined}
+              // Read-only: opening a member's profile is a detail view, so it
+              // is offered regardless of whether this user can send here.
+              onOpenParticipantProfile={handleOpenParticipantProfile}
             >
               <MessageThread
                 conversationId={selectedChatId}
@@ -217,9 +222,10 @@ export function ChatPage() {
   // Build the right panel component (contact profile)
   const rightPanel = (
     <ContactProfile
-      contactId={selectedChatId || null}
+      contactId={profileContactId || null}
       isOpen={isProfileOpen}
       onClose={handleCloseProfile}
+      onOpenParticipantProfile={handleOpenParticipantProfile}
     />
   );
 
