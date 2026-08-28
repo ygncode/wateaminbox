@@ -3,9 +3,11 @@
  *
  * Environment variables:
  * - RATE_LIMIT_ENABLED: Enable/disable rate limiting globally (default: true)
- * - RATE_LIMIT_STORE_TYPE: Store type - "memory" or "redis" (default: "memory")
+ * - RATE_LIMIT_STORE_TYPE: "memory", "postgres", or "redis" (default: "memory")
  * - RATE_LIMIT_REDIS_URL: Redis connection URL for distributed rate limiting
  * - RATE_LIMIT_MEMORY_MAX_ITEMS: Max items in memory LRU cache (default: 10000)
+ * - RATE_LIMIT_POSTGRES_CLEANUP_INTERVAL_SECONDS: Cleanup cadence (default: 60)
+ * - RATE_LIMIT_POSTGRES_CLEANUP_BATCH_SIZE: Maximum rows per cleanup (default: 1000)
  *
  * Tier-specific overrides (use window_seconds_* format for window duration):
  * - RATE_LIMIT_GLOBAL_REQUESTS: Global tier requests per window (default: 100)
@@ -39,6 +41,14 @@ import { createLogger } from "../lib/logger.js";
 
 const logger = createLogger("RateLimitConfig");
 
+export const MAX_RATE_LIMIT_REQUESTS = Number.MAX_SAFE_INTEGER - 1;
+export const MAX_RATE_LIMIT_WINDOW_SECONDS = Math.floor(
+  Number.MAX_SAFE_INTEGER / 1000,
+);
+export const MAX_RATE_LIMIT_MEMORY_ITEMS = 1_000_000;
+export const MAX_RATE_LIMIT_CLEANUP_INTERVAL_SECONDS = 86_400;
+export const MAX_RATE_LIMIT_CLEANUP_BATCH_SIZE = 10_000;
+
 /**
  * Rate limit tier definition
  */
@@ -53,9 +63,11 @@ export interface RateLimitTier {
 export interface RateLimitConfig {
   enabled: boolean;
   store: {
-    type: "memory" | "redis";
+    type: "memory" | "postgres" | "redis";
     redisUrl?: string;
     memoryMaxItems: number;
+    postgresCleanupIntervalSeconds: number;
+    postgresCleanupBatchSize: number;
   };
   tiers: {
     global: RateLimitTier;
@@ -87,16 +99,22 @@ export interface RateLimitConfig {
 function parsePositiveInt(
   value: string | undefined,
   defaultValue: number,
+  maxValue: number = MAX_RATE_LIMIT_WINDOW_SECONDS,
 ): number {
   if (value === undefined || value === "") {
     return defaultValue;
   }
 
-  const parsed = Number.parseInt(value, 10);
+  const parsed = Number(value);
 
-  if (Number.isNaN(parsed) || parsed <= 0) {
+  if (
+    !Number.isSafeInteger(parsed) ||
+    parsed <= 0 ||
+    parsed > maxValue ||
+    !/^\d+$/.test(value)
+  ) {
     logger.warn(
-      { value, defaultValue },
+      { value, defaultValue, maxValue },
       "Invalid value for environment variable, using default",
     );
     return defaultValue;
@@ -121,7 +139,7 @@ function getDefaultRequests(
   devMultiplier: number = 10,
 ): number {
   if (envValue !== undefined && envValue !== "") {
-    return parsePositiveInt(envValue, prodDefault);
+    return parsePositiveInt(envValue, prodDefault, MAX_RATE_LIMIT_REQUESTS);
   }
   return isDevelopment() ? prodDefault * devMultiplier : prodDefault;
 }
@@ -134,12 +152,9 @@ function getDefaultRequests(
 export function getRateLimitConfig(): RateLimitConfig {
   const enabled = process.env.RATE_LIMIT_ENABLED !== "false";
 
-  const storeType = process.env.RATE_LIMIT_STORE_TYPE as
-    | "memory"
-    | "redis"
-    | undefined;
-  const validStoreType: "memory" | "redis" =
-    storeType === "redis" ? "redis" : "memory";
+  const storeType = process.env.RATE_LIMIT_STORE_TYPE;
+  const validStoreType: "memory" | "postgres" | "redis" =
+    storeType === "redis" || storeType === "postgres" ? storeType : "memory";
 
   return {
     enabled,
@@ -149,6 +164,17 @@ export function getRateLimitConfig(): RateLimitConfig {
       memoryMaxItems: parsePositiveInt(
         process.env.RATE_LIMIT_MEMORY_MAX_ITEMS,
         10000,
+        MAX_RATE_LIMIT_MEMORY_ITEMS,
+      ),
+      postgresCleanupIntervalSeconds: parsePositiveInt(
+        process.env.RATE_LIMIT_POSTGRES_CLEANUP_INTERVAL_SECONDS,
+        60,
+        MAX_RATE_LIMIT_CLEANUP_INTERVAL_SECONDS,
+      ),
+      postgresCleanupBatchSize: parsePositiveInt(
+        process.env.RATE_LIMIT_POSTGRES_CLEANUP_BATCH_SIZE,
+        1000,
+        MAX_RATE_LIMIT_CLEANUP_BATCH_SIZE,
       ),
     },
     tiers: {
@@ -305,7 +331,7 @@ export function isValidRateLimitConfig(config: RateLimitConfig): boolean {
     return false;
   }
 
-  const validStoreTypes = ["memory", "redis"];
+  const validStoreTypes = ["memory", "postgres", "redis"];
   if (!validStoreTypes.includes(config.store.type)) {
     return false;
   }
@@ -315,19 +341,28 @@ export function isValidRateLimitConfig(config: RateLimitConfig): boolean {
   }
 
   if (
-    typeof config.store.memoryMaxItems !== "number" ||
-    config.store.memoryMaxItems <= 0
+    !Number.isSafeInteger(config.store.memoryMaxItems) ||
+    config.store.memoryMaxItems <= 0 ||
+    config.store.memoryMaxItems > MAX_RATE_LIMIT_MEMORY_ITEMS ||
+    !Number.isSafeInteger(config.store.postgresCleanupIntervalSeconds) ||
+    config.store.postgresCleanupIntervalSeconds <= 0 ||
+    config.store.postgresCleanupIntervalSeconds >
+      MAX_RATE_LIMIT_CLEANUP_INTERVAL_SECONDS ||
+    !Number.isSafeInteger(config.store.postgresCleanupBatchSize) ||
+    config.store.postgresCleanupBatchSize <= 0 ||
+    config.store.postgresCleanupBatchSize > MAX_RATE_LIMIT_CLEANUP_BATCH_SIZE
   ) {
     return false;
   }
 
-  // Validate all tiers have positive integers
   const validateTier = (tier: RateLimitTier): boolean => {
     return (
-      typeof tier.requests === "number" &&
+      Number.isSafeInteger(tier.requests) &&
       tier.requests > 0 &&
-      typeof tier.windowSeconds === "number" &&
-      tier.windowSeconds > 0
+      tier.requests <= MAX_RATE_LIMIT_REQUESTS &&
+      Number.isSafeInteger(tier.windowSeconds) &&
+      tier.windowSeconds > 0 &&
+      tier.windowSeconds <= MAX_RATE_LIMIT_WINDOW_SECONDS
     );
   };
 
@@ -357,6 +392,8 @@ export const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
     type: "memory",
     redisUrl: undefined,
     memoryMaxItems: 10000,
+    postgresCleanupIntervalSeconds: 60,
+    postgresCleanupBatchSize: 1000,
   },
   tiers: {
     global: {

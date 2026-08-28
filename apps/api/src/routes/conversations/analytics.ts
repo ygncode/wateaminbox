@@ -5,14 +5,23 @@ import { Hono } from "hono";
 import { successData } from "../../lib/response.js";
 import { resolutionTrendQuerySchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
+import { requirePermission } from "../../middleware/tenant.js";
 import {
   getCaseResolutionStats,
   getCaseResolutionTrend,
   getOverdueActiveCases,
   getTeamCaseResolutionStats,
 } from "../../services/analytics/case-resolution.js";
+import { PERMISSIONS } from "../../services/permission.service.js";
 
 export const analyticsRoutes = new Hono();
+export const requireConversationAnalyticsPermission = requirePermission(
+  PERMISSIONS.CAN_VIEW_DASHBOARD,
+);
+
+// These workspace-wide aggregates back the dashboard and must not inherit the
+// per-contact `/:id/*` visibility middleware from the parent router.
+analyticsRoutes.use("/stats/*", requireConversationAnalyticsPermission);
 
 function resolveRange(startDateStr?: string, endDateStr?: string) {
   const endDateDayjs = (endDateStr ? parseDate(endDateStr) : null) ?? now();

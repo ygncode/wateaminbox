@@ -19,6 +19,7 @@ import { Pool } from "pg";
  * Main database interface for public schema tables
  */
 export interface Database {
+  api_rate_limit_buckets: ApiRateLimitBucketsTable;
   companies: CompaniesTable;
   users: UsersTable;
   company_members: CompanyMembersTable;
@@ -32,6 +33,13 @@ export interface Database {
 // Type alias for backward compatibility (deprecated - import from @wateaminbox/shared instead)
 /** @deprecated Use CompanyMemberRole from @wateaminbox/shared instead */
 export type MemberRole = CompanyMemberRole;
+
+export interface ApiRateLimitBucketsTable {
+  bucket_key: string;
+  request_count: string;
+  window_started_at: Date;
+  expires_at: Date;
+}
 
 export interface CompaniesTable {
   id: Generated<string>;
@@ -710,11 +718,21 @@ export interface NatsOutboxTable {
 /**
  * Creates a Kysely database instance for the public schema
  */
-export function createDatabase(connectionString: string): Kysely<Database> {
+export function createDatabase(
+  connectionString: string,
+  maxConnections: number = 10,
+): Kysely<Database> {
+  if (
+    !Number.isSafeInteger(maxConnections) ||
+    maxConnections <= 0 ||
+    maxConnections > 50
+  ) {
+    throw new RangeError("Database pool maximum must be between 1 and 50");
+  }
   const dialect = new PostgresDialect({
     pool: new Pool({
       connectionString,
-      max: 10,
+      max: maxConnections,
     }),
   });
 
@@ -751,5 +769,23 @@ export function getTenantSchemaName(companyId: string): string {
   return `tenant_${companyId.replace(/-/g, "_")}`;
 }
 
-// Default database instance using environment variable
-export const db = createDatabase(process.env.DATABASE_URL || "");
+function configuredPublicPoolMax(value: string | undefined): number {
+  if (value === undefined || value === "") return 10;
+  const parsed = Number(value);
+  if (
+    !/^\d+$/.test(value) ||
+    !Number.isSafeInteger(parsed) ||
+    parsed <= 0 ||
+    parsed > 50
+  ) {
+    throw new Error("PUBLIC_DB_POOL_MAX must be an integer between 1 and 50");
+  }
+  return parsed;
+}
+
+// Default database instance using environment variables. This pool is per API
+// replica, so production supplies a deliberately bounded value.
+export const db = createDatabase(
+  process.env.DATABASE_URL || "",
+  configuredPublicPoolMax(process.env.PUBLIC_DB_POOL_MAX),
+);

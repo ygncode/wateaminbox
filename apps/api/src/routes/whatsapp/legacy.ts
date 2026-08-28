@@ -15,10 +15,6 @@ import {
 import { createLogger, formatError } from "../../lib/logger.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import {
-  legacyMessageSendRemoved,
-  requireMessageSendPermission,
-} from "../../middleware/message-send-policy.js";
-import {
   requirePermission,
   tenantFromHeader,
 } from "../../middleware/tenant.js";
@@ -147,61 +143,6 @@ legacyRoutes.get(
       );
       throw new HTTPException(500, {
         message: "Failed to get connection status",
-      });
-    }
-  },
-);
-
-/**
- * POST /send - Send a WhatsApp message (backward compatible)
- */
-legacyRoutes.post(
-  "/send",
-  authMiddleware,
-  tenantFromHeader("X-Company-ID"),
-  requireMessageSendPermission,
-  legacyMessageSendRemoved,
-);
-
-/**
- * GET /connection - Get detailed connection info (backward compatible)
- */
-legacyRoutes.get(
-  "/connection",
-  authMiddleware,
-  tenantFromHeader("X-Company-ID"),
-  async (c) => {
-    const tenantDb = c.get("tenantDb");
-
-    try {
-      const connection = await whatsappService.getActiveConnection(tenantDb);
-
-      if (!connection) {
-        return c.json({
-          success: true,
-          data: null,
-          message: "No active connection found",
-        });
-      }
-
-      return c.json({
-        success: true,
-        data: {
-          id: connection.id,
-          phoneNumber: connection.phoneNumber,
-          jid: connection.jid,
-          status: connection.status,
-          connectedAt: connection.connectedAt,
-          lastSyncAt: connection.lastSyncAt,
-        },
-      });
-    } catch (error) {
-      logger.error(
-        { err: formatError(error) },
-        "Failed to get connection info",
-      );
-      throw new HTTPException(500, {
-        message: "Failed to get connection information",
       });
     }
   },

@@ -13,6 +13,7 @@ import { Hono } from "hono";
 import { sql } from "kysely";
 import { env } from "../lib/env.js";
 import { natsLifecycle } from "../lib/nats/index.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { isCentrifugoReachable } from "../lib/realtime.js";
 import {
   getCommandOutboxBacklog,
@@ -25,6 +26,7 @@ export const healthRoutes = new Hono();
 
 export type ReadinessChecks = {
   postgres: boolean;
+  rateLimiter?: boolean;
   nats: boolean;
   eventConsumer: boolean;
   centrifugo: { configured: boolean; reachable: boolean };
@@ -33,7 +35,7 @@ export type ReadinessChecks = {
 export function evaluateReadiness(
   checks: ReadinessChecks,
 ): "ready" | "degraded" | "unready" {
-  if (!checks.postgres) return "unready";
+  if (!checks.postgres || checks.rateLimiter === false) return "unready";
   if (!checks.nats || !checks.eventConsumer) return "unready";
   return !checks.centrifugo.configured || !checks.centrifugo.reachable
     ? "degraded"
@@ -63,6 +65,7 @@ healthRoutes.get("/ready", async (c) => {
   const natsState = natsLifecycle.getReadinessState();
   const checks = {
     postgres: false,
+    rateLimiter: !rateLimitConfig.enabled,
     nats: natsState.nats.connected,
     eventConsumer: natsState.eventConsumer.active,
     outbox: getCommandOutboxHealth(),
@@ -83,6 +86,9 @@ healthRoutes.get("/ready", async (c) => {
     await sql`SELECT 1`.execute(db);
     checks.postgres = true;
     checks.outboxBacklog = await getCommandOutboxBacklog();
+    checks.rateLimiter = rateLimitStore.healthCheck
+      ? await rateLimitStore.healthCheck()
+      : true;
   } catch {
     // PostgreSQL is the source of truth and therefore gates readiness.
   }

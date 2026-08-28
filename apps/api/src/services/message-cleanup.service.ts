@@ -4,8 +4,8 @@ import {
   getCleanupConfig,
   type MessageCleanupConfig,
 } from "../config/cleanup.config.js";
-import { createLogger } from "../lib/logger.js";
 import { MEDIA_DOWNLOAD_LEASE_MS } from "../config/media.config.js";
+import { createLogger } from "../lib/logger.js";
 import { broadcastToContactViewers } from "./message-broadcast.service.js";
 import { getTenantConnection, tenantSchemaExists } from "./tenant.service.js";
 
@@ -18,8 +18,10 @@ export type { MessageCleanupConfig };
 // Service State
 // ============================================================================
 
-let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+let cleanupTimerId: ReturnType<typeof setTimeout> | null = null;
+let inFlightCycle: Promise<void> | null = null;
 let isInitialized = false;
+let lifecycleGeneration = 0;
 let currentConfig: MessageCleanupConfig = getCleanupConfig();
 
 // ============================================================================
@@ -83,44 +85,29 @@ export function getMessageCleanupStatus(): "running" | "stopped" | "disabled" {
  */
 export async function initializeMessageCleanup(
   config?: Partial<MessageCleanupConfig>,
+  cycleOverrides: Partial<CleanupCycleDeps> = {},
 ): Promise<void> {
   if (isInitialized) {
     logger.debug("Already initialized");
     return;
   }
 
-  // Apply any custom configuration overrides
   if (config) {
     currentConfig = { ...getCleanupConfig(), ...config };
   }
 
-  // Check if cleanup is disabled
   if (!currentConfig.enabled) {
     logger.info("Disabled by configuration");
     return;
   }
 
   logger.info({ config: currentConfig }, "Initializing with config");
+  isInitialized = true;
+  const generation = ++lifecycleGeneration;
 
-  // Run initial cleanup cycle
-  try {
-    const result = await runCleanupCycle();
-    logger.info(
-      {
-        totalExpired: result.totalExpired,
-        companyCount: result.companies.length,
-      },
-      "Initial cleanup complete",
-    );
-  } catch (error) {
-    logger.error({ err: error }, "Initial cleanup failed");
-  }
-
-  // Start periodic cleanup cycles
-  const intervalMs = currentConfig.intervalMinutes * 60 * 1000;
-  cleanupIntervalId = setInterval(async () => {
+  const runAndLog = async (initial: boolean): Promise<void> => {
     try {
-      const result = await runCleanupCycle();
+      const result = await runCleanupCycle(cycleOverrides);
       if (result.skipped) {
         logger.debug("Cleanup cycle skipped (no active companies)");
       } else {
@@ -130,15 +117,42 @@ export async function initializeMessageCleanup(
             companyCount: result.companies.length,
             durationMs: result.durationMs,
           },
-          "Cleanup cycle complete",
+          initial ? "Initial cleanup complete" : "Cleanup cycle complete",
         );
       }
     } catch (error) {
-      logger.error({ err: error }, "Cleanup cycle failed");
+      logger.error(
+        { err: error },
+        initial ? "Initial cleanup failed" : "Cleanup cycle failed",
+      );
     }
-  }, intervalMs);
+  };
 
-  isInitialized = true;
+  const runTracked = async (initial: boolean): Promise<void> => {
+    const cycle = runAndLog(initial);
+    inFlightCycle = cycle;
+    try {
+      await cycle;
+    } finally {
+      if (inFlightCycle === cycle) inFlightCycle = null;
+    }
+  };
+
+  const intervalMs = currentConfig.intervalMinutes * 60 * 1000;
+  const scheduleNext = (): void => {
+    if (!isInitialized || lifecycleGeneration !== generation) return;
+    cleanupTimerId = setTimeout(async () => {
+      cleanupTimerId = null;
+      await runTracked(false);
+      // Schedule from completion, not from start. A slow cycle can therefore
+      // never overlap the next cycle in this replica.
+      scheduleNext();
+    }, intervalMs);
+  };
+
+  await runTracked(true);
+  scheduleNext();
+
   logger.info(
     { intervalMinutes: currentConfig.intervalMinutes },
     "Initialized and running",
@@ -150,11 +164,15 @@ export async function initializeMessageCleanup(
  * Stops the periodic interval and cleans up resources
  */
 export async function shutdownMessageCleanup(): Promise<void> {
-  if (cleanupIntervalId) {
-    clearInterval(cleanupIntervalId);
-    cleanupIntervalId = null;
-  }
   isInitialized = false;
+  lifecycleGeneration++;
+  if (cleanupTimerId) {
+    clearTimeout(cleanupTimerId);
+    cleanupTimerId = null;
+  }
+  // Do not report a stopped service while its previous timer callback can
+  // still be mutating tenant rows or broadcasting events.
+  await inFlightCycle;
   logger.info("Shutdown complete");
 }
 
@@ -339,10 +357,13 @@ export async function releaseStrandedMediaDownloads(
  * Updates messages that have been pending for longer than the timeout
  * and broadcasts realtime notifications for affected messages
  */
+type CleanupBroadcaster = typeof broadcastToContactViewers;
+
 export async function cleanupCompanyMessages(
   companyId: string,
   timeoutMinutes: number,
   batchSize: number,
+  broadcast: CleanupBroadcaster = broadcastToContactViewers,
 ): Promise<number> {
   const timeoutThreshold = new Date(
     Date.now() - timeoutMinutes * 60 * 1000,
@@ -357,46 +378,53 @@ export async function cleanupCompanyMessages(
 
   const tenantDb = getTenantConnection(companyId);
 
-  // First, fetch the messages that will be expired (for realtime notifications)
-  // We need to get these before the update so we can include their details in the notification
-  const messagesToExpire = await tenantDb
-    .selectFrom("messages")
-    .select(["id", "contact_id", "message_id", "status"])
-    .where("status", "=", "pending")
-    .where("from_me", "=", true)
-    .where("timestamp", "<", new Date(timeoutThreshold))
-    .where("metadata", "is", null) // Only update messages without existing metadata
-    .limit(batchSize)
-    .execute();
-
-  if (messagesToExpire.length === 0) {
-    return 0;
-  }
-
-  // Extract message IDs for the update query
-  const messageIds = messagesToExpire.map((m) => m.id);
-
-  // Update stale pending messages to failed status
-  // Only target messages sent by the user (from_me = true)
-  // that have been pending for longer than the timeout
+  const cutoff = new Date(timeoutThreshold);
   const errorMessage = `Message delivery timed out after ${timeoutMinutes} minutes`;
-  const result = await tenantDb
-    .updateTable("messages")
-    .set({
-      status: "failed",
-      metadata: sql<Record<string, unknown>>`jsonb_build_object(
-        'error', 'delivery_timeout',
-        'error_message', ${errorMessage}::text,
-        'failed_at', now()
-      )`,
-    })
-    .where("id", "in", messageIds)
-    .execute();
 
-  // result from execute() - handle both array and single result for test compatibility
-  const expiredCount = Array.isArray(result)
-    ? result.reduce((sum, r) => sum + Number(r.numUpdatedRows), 0)
-    : Number((result as { numUpdatedRows: bigint }).numUpdatedRows);
+  // Select and transition inside one short transaction. Row locks plus
+  // SKIP LOCKED give concurrent replicas disjoint, strictly bounded batches.
+  // Repeating every eligibility predicate on UPDATE makes a newer receipt win
+  // rather than allowing cleanup to overwrite it.
+  const messagesToExpire = await tenantDb.transaction().execute(async (trx) => {
+    const candidates = await trx
+      .selectFrom("messages")
+      .select("id")
+      .where("status", "=", "pending")
+      .where("from_me", "=", true)
+      .where("timestamp", "<", cutoff)
+      .where("metadata", "is", null)
+      .orderBy("timestamp", "asc")
+      .orderBy("id", "asc")
+      .limit(batchSize)
+      .forUpdate()
+      .skipLocked()
+      .execute();
+    if (candidates.length === 0) return [];
+
+    return trx
+      .updateTable("messages")
+      .set({
+        status: "failed",
+        metadata: sql<Record<string, unknown>>`jsonb_build_object(
+          'error', 'delivery_timeout',
+          'error_message', ${errorMessage}::text,
+          'failed_at', now()
+        )`,
+      })
+      .where(
+        "id",
+        "in",
+        candidates.map((candidate) => candidate.id),
+      )
+      .where("status", "=", "pending")
+      .where("from_me", "=", true)
+      .where("timestamp", "<", cutoff)
+      .where("metadata", "is", null)
+      .returning(["id", "contact_id", "message_id", "status"])
+      .execute();
+  });
+
+  const expiredCount = messagesToExpire.length;
 
   if (expiredCount > 0) {
     logger.info(
@@ -417,7 +445,7 @@ export async function cleanupCompanyMessages(
 
     // Send notification per contact (conversation)
     for (const [contactId, messages] of messagesByContact) {
-      await broadcastToContactViewers(companyId, contactId, "message:status", {
+      await broadcast(companyId, contactId, "message:status", {
         messageIds: messages.map((m) => m.message_id || m.id),
         status: "failed",
         error: "delivery_timeout",

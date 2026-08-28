@@ -42,9 +42,6 @@ groupRoutes.use("/:id/*", requireContactVisibility());
 groupRoutes.post("/", requireMessageSendPermission);
 groupRoutes.post("/:id/*", requireMessageSendPermission);
 groupRoutes.patch("/:id/*", requireMessageSendPermission);
-// The deprecated single-participant remove route is a DELETE; it needs the same
-// guard as its POST replacement.
-groupRoutes.delete("/:id/*", requireMessageSendPermission);
 
 // Mount CRUD routes at root level (GET /, POST /, GET /:id, PATCH /:id)
 groupRoutes.route("/", crudRoutes);

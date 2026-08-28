@@ -267,8 +267,40 @@ describe("production environment validation", () => {
     expectInvalid({ RATE_LIMIT_ENABLED: false }, /must be true/);
     expectInvalid(
       { RATE_LIMIT_STORE_TYPE: "invalid" },
-      /must be one of: memory, redis/,
+      /must be one of: memory, postgres, redis/,
     );
+    expectInvalid(
+      { API_REPLICA_COUNT: 2, RATE_LIMIT_STORE_TYPE: "memory" },
+      /postgres is required when API_REPLICA_COUNT is greater than 1/,
+    );
+    expectInvalid(
+      {
+        API_REPLICA_COUNT: 2,
+        RATE_LIMIT_STORE_TYPE: "redis",
+        RATE_LIMIT_REDIS_URL: "redis://redis.internal:6379",
+      },
+      /postgres is required when API_REPLICA_COUNT is greater than 1/,
+    );
+    expectInvalid(
+      { API_REPLICA_COUNT: 11, RATE_LIMIT_STORE_TYPE: "postgres" },
+      /between 1 and 10/,
+    );
+    expectInvalid(
+      { PUBLIC_DB_POOL_MAX: 51 },
+      /pool limits must be integers between 1 and 50/,
+    );
+    expectInvalid(
+      { TENANT_DB_POOL_MAX: 0 },
+      /pool limits must be integers between 1 and 50/,
+    );
+    expect(() =>
+      validateProductionEnv(
+        productionEnv({
+          API_REPLICA_COUNT: 3,
+          RATE_LIMIT_STORE_TYPE: "postgres",
+        }),
+      ),
+    ).not.toThrow();
     expectInvalid(
       { RATE_LIMIT_STORE_TYPE: "redis", RATE_LIMIT_REDIS_URL: "" },
       /RATE_LIMIT_REDIS_URL is required/,

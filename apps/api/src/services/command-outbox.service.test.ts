@@ -35,8 +35,15 @@ describe("command outbox", () => {
     expect(source).toContain('status: "claimed"');
     expect(source).toContain("publish(row.subject, row.payload, row.id)");
     expect(source).toContain('.where("status", "=", "claimed")');
+    expect(source).toContain('.where("next_attempt_at", "=", row.claimUntil)');
+    expect(
+      source.match(/\.where\("next_attempt_at", "=", claimUntil\)/g),
+    ).toHaveLength(2);
     expect(source.indexOf("await publish(")).toBeLessThan(
       source.indexOf('status: "published"'),
+    );
+    expect(source).toContain(
+      "Published outbox command but could not persist its outcome",
     );
   });
 
