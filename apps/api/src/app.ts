@@ -32,7 +32,7 @@ app.use(
   }),
 );
 
-// Global rate limiting (applied to all /api/* routes)
+// Global rate limiting (applied to application /api/* routes; health probes are excluded)
 // Positioned after CORS and before route-specific middleware
 if (rateLimitConfig.enabled) {
   const globalRateLimiter = createRateLimitMiddleware({
@@ -40,8 +40,16 @@ if (rateLimitConfig.enabled) {
     tier: rateLimitConfig.tiers.global,
     keyStrategy: "ip",
     keyPrefix: "global",
-    // Skip rate limiting for non-API routes
-    skip: (c) => !c.req.path.startsWith("/api"),
+    // Infrastructure probes must remain observable when PostgreSQL-backed
+    // limiting is unavailable. Readiness performs its own authoritative
+    // dependency checks; liveness must never turn a database outage into a
+    // restart loop.
+    skip: (c) => {
+      const path = c.req.path;
+      const isHealthProbe =
+        path === "/api/health" || path.startsWith("/api/health/");
+      return !path.startsWith("/api") || isHealthProbe;
+    },
   });
 
   app.use("*", globalRateLimiter);

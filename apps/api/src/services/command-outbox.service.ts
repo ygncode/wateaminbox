@@ -1,6 +1,6 @@
 import { db } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
-import type { Kysely, Transaction } from "kysely";
+import { type Kysely, sql, type Transaction } from "kysely";
 import { createLogger, formatError } from "../lib/logger.js";
 import {
   forConnection,
@@ -130,6 +130,7 @@ export async function enqueueCommand(
   payload: Record<string, unknown>,
 ): Promise<string> {
   const id = crypto.randomUUID();
+  const databaseNow = sql<Date>`statement_timestamp()`;
   await executor
     .insertInto("nats_outbox")
     .values({
@@ -138,8 +139,8 @@ export async function enqueueCommand(
       payload: prepareOutboxPayload(payload, id),
       status: "pending",
       attempts: 0,
-      next_attempt_at: toDbDate(),
-      created_at: toDbDate(),
+      next_attempt_at: databaseNow,
+      created_at: databaseNow,
     })
     .execute();
   return id;
@@ -192,11 +193,16 @@ export async function dispatchCompany(
     publishOutboxCommand(subject, payload, outboxId),
 ): Promise<number> {
   const tenantDb = getTenantConnection(companyId);
-  const now = toDbDate();
-  const claimUntil = new Date(Date.now() + CLAIM_LEASE_MS);
+  const databaseNow = sql<Date>`statement_timestamp()`;
+  const nextLease = sql<Date>`date_trunc(
+    'milliseconds',
+    statement_timestamp() + (${CLAIM_LEASE_MS} * interval '1 millisecond')
+  )`;
 
   // Claim under a short transaction, then publish after committing so network
   // latency never holds row locks or a PostgreSQL connection transaction open.
+  // Database time avoids replica clock skew; millisecond truncation keeps the
+  // returned timestamp usable as an exact lease-fencing token through pg Date.
   const rows = await tenantDb.transaction().execute(async (trx) => {
     const claimed = await trx
       .selectFrom("nats_outbox")
@@ -205,11 +211,11 @@ export async function dispatchCompany(
         eb.or([
           eb.and([
             eb("status", "=", "pending"),
-            eb("next_attempt_at", "<=", now),
+            eb("next_attempt_at", "<=", databaseNow),
           ]),
           eb.and([
             eb("status", "=", "claimed"),
-            eb("next_attempt_at", "<=", now),
+            eb("next_attempt_at", "<=", databaseNow),
           ]),
         ]),
       )
@@ -219,96 +225,140 @@ export async function dispatchCompany(
       .skipLocked()
       .execute();
 
-    if (claimed.length > 0) {
-      await trx
-        .updateTable("nats_outbox")
-        .set({ status: "claimed", next_attempt_at: claimUntil })
-        .where(
-          "id",
-          "in",
-          claimed.map((row) => row.id),
-        )
-        .execute();
-    }
-    return claimed;
+    if (claimed.length === 0) return [];
+    const leases = await trx
+      .updateTable("nats_outbox")
+      .set({ status: "claimed", next_attempt_at: nextLease })
+      .where(
+        "id",
+        "in",
+        claimed.map((row) => row.id),
+      )
+      .returning(["id", "next_attempt_at"])
+      .execute();
+    const leaseById = new Map(
+      leases.map((lease) => [lease.id, lease.next_attempt_at]),
+    );
+    return claimed.flatMap((row) => {
+      const claimUntil = leaseById.get(row.id);
+      return claimUntil ? [{ ...row, claimUntil }] : [];
+    });
   });
 
   for (const row of rows) {
+    // A batch is published serially to preserve command ordering. Renew each
+    // row immediately before its network call so later rows cannot expire just
+    // because earlier publications consumed most of the original batch lease.
+    const refreshedClaim = await tenantDb
+      .updateTable("nats_outbox")
+      .set({ next_attempt_at: nextLease })
+      .where("id", "=", row.id)
+      .where("status", "=", "claimed")
+      .where("next_attempt_at", "=", row.claimUntil)
+      .returning("next_attempt_at")
+      .executeTakeFirst();
+    if (!refreshedClaim) continue;
+    const claimUntil = refreshedClaim.next_attempt_at;
+
     const startedAt = performance.now();
+    let publishFailure: { error: unknown } | undefined;
     try {
       await publish(row.subject, row.payload, row.id);
       lastPublishLatencyMs = performance.now() - startedAt;
-      publishedTotal++;
-      await tenantDb
-        .updateTable("nats_outbox")
-        .set({
-          status: "published",
-          attempts: row.attempts + 1,
-          last_error: null,
-          published_at: toDbDate(),
-        })
-        .where("id", "=", row.id)
-        .where("status", "=", "claimed")
-        .execute();
     } catch (error) {
-      const attempts = row.attempts + 1;
-      const exhausted = attempts >= MAX_ATTEMPTS;
-      if (exhausted) failedTotal++;
-      await tenantDb
-        .updateTable("nats_outbox")
-        .set({
-          status: exhausted ? "failed" : "pending",
-          attempts,
-          last_error:
-            error instanceof Error
-              ? error.message.slice(0, 2_000)
-              : String(error),
-          next_attempt_at: new Date(
-            Date.now() + getOutboxRetryDelayMs(attempts),
-          ),
-        })
-        .where("id", "=", row.id)
-        .where("status", "=", "claimed")
-        .execute();
+      publishFailure = { error };
+    }
 
-      logger.warn(
-        {
-          companyId,
-          outboxId: row.id,
-          attempts,
-          exhausted,
-          err: formatError(error),
-        },
-        "Failed to publish outbox command",
-      );
-      if (exhausted) {
-        const failure = {
-          commandId: row.id,
-          commandType: String(row.payload.type || "unknown"),
-          success: false,
-          error: "Unable to deliver command to WhatsApp services",
-        };
-        const pendingMessageId =
-          typeof row.payload.message_id === "string"
-            ? row.payload.message_id
-            : undefined;
-        if (pendingMessageId) {
-          await tenantDb
-            .updateTable("messages")
-            .set({ status: "failed" })
-            .where("message_id", "=", pendingMessageId)
-            .where("status", "=", "pending")
-            .execute();
-        }
-        await Promise.all([
-          broadcastToCompany(companyId, "command:failed", failure),
-          broadcastToCompany(companyId, "notification:toast", {
-            type: "error",
-            title: "WhatsApp action failed",
-            message: failure.error,
-          }),
-        ]);
+    if (!publishFailure) {
+      try {
+        const result = await tenantDb
+          .updateTable("nats_outbox")
+          .set({
+            status: "published",
+            attempts: row.attempts + 1,
+            last_error: null,
+            published_at: toDbDate(),
+          })
+          .where("id", "=", row.id)
+          .where("status", "=", "claimed")
+          // next_attempt_at is both the lease deadline and the claim token. A
+          // dispatcher that outlived its lease must not finish a newer claim.
+          .where("next_attempt_at", "=", claimUntil)
+          .executeTakeFirst();
+        if (result.numUpdatedRows > 0n) publishedTotal++;
+      } catch (error) {
+        // The broker accepted this command. Never reinterpret a persistence
+        // failure as a publish failure: leave the row leased for an idempotent
+        // replay under its stable JetStream message ID.
+        logger.error(
+          { companyId, outboxId: row.id, err: formatError(error) },
+          "Published outbox command but could not persist its outcome",
+        );
       }
+      continue;
+    }
+
+    const error = publishFailure.error;
+    const attempts = row.attempts + 1;
+    const exhausted = attempts >= MAX_ATTEMPTS;
+    const result = await tenantDb
+      .updateTable("nats_outbox")
+      .set({
+        status: exhausted ? "failed" : "pending",
+        attempts,
+        last_error:
+          error instanceof Error
+            ? error.message.slice(0, 2_000)
+            : String(error),
+        next_attempt_at: sql<Date>`statement_timestamp() + (
+          ${getOutboxRetryDelayMs(attempts)} * interval '1 millisecond'
+        )`,
+      })
+      .where("id", "=", row.id)
+      .where("status", "=", "claimed")
+      .where("next_attempt_at", "=", claimUntil)
+      .executeTakeFirst();
+    const claimWasCurrent = result.numUpdatedRows > 0n;
+
+    logger.warn(
+      {
+        companyId,
+        outboxId: row.id,
+        attempts,
+        exhausted,
+        claimWasCurrent,
+        err: formatError(error),
+      },
+      "Failed to publish outbox command",
+    );
+    if (exhausted && claimWasCurrent) {
+      failedTotal++;
+      const failure = {
+        commandId: row.id,
+        commandType: String(row.payload.type || "unknown"),
+        success: false,
+        error: "Unable to deliver command to WhatsApp services",
+      };
+      const pendingMessageId =
+        typeof row.payload.message_id === "string"
+          ? row.payload.message_id
+          : undefined;
+      if (pendingMessageId) {
+        await tenantDb
+          .updateTable("messages")
+          .set({ status: "failed" })
+          .where("message_id", "=", pendingMessageId)
+          .where("status", "=", "pending")
+          .execute();
+      }
+      await Promise.all([
+        broadcastToCompany(companyId, "command:failed", failure),
+        broadcastToCompany(companyId, "notification:toast", {
+          type: "error",
+          title: "WhatsApp action failed",
+          message: failure.error,
+        }),
+      ]);
     }
   }
 

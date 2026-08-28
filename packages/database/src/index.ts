@@ -7,6 +7,7 @@ export type {
   ScheduledMessageStatus,
 } from "@wateaminbox/shared";
 export type {
+  ApiRateLimitBucketsTable,
   AuditLogsTable,
   AuthTokensTable,
   AuthTokenType,
