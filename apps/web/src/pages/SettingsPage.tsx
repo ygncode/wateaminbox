@@ -8,6 +8,7 @@ import {
   ImagePlus,
   Keyboard,
   LoaderCircle,
+  MessageSquareHeart,
   MessageSquareText,
   Package,
   Plug,
@@ -25,6 +26,7 @@ import { toast } from "sonner";
 import { AnalyticsPreferences } from "../components/analytics";
 import { ThemeToggle } from "../components/chat/ThemeToggle";
 import { ContactImport } from "../components/contacts";
+import { FeedbackSettings } from "../components/feedback";
 import {
   AccountSettings,
   CatalogManager,
@@ -78,7 +80,8 @@ type SettingsSection =
   | "notifications"
   | "data"
   | "appearance"
-  | "privacy";
+  | "privacy"
+  | "feedback";
 
 interface SectionDefinition {
   id: SettingsSection;
@@ -96,6 +99,7 @@ const SECTION_GROUP_LABELS: Record<string, string> = {
   "Inbox tools": "settings.groups.inboxTools",
   Personal: "settings.groups.personal",
   Data: "settings.groups.data",
+  Help: "settings.groups.help",
 };
 
 function groupLabel(t: TFunction, group: string): string {
@@ -201,6 +205,16 @@ export function SettingsPage() {
       group: "Data",
       icon: Database,
       visible: can("can_assign_contacts") || can("can_export"),
+    },
+    {
+      id: "feedback",
+      labelKey: "settings.sections.feedback",
+      label: "Send feedback",
+      group: "Help",
+      icon: MessageSquareHeart,
+      // Always reachable: the floating feedback tab can be dismissed for good,
+      // so this is the durable way back to the form.
+      visible: true,
     },
   ];
   const visibleSections = sections.filter((item) => item.visible);
@@ -414,6 +428,18 @@ function SettingsSectionContent({
       );
     case "data":
       return <DataSettings />;
+    case "feedback":
+      return (
+        <Panel
+          title={t("settings.feedbackPanel.title", "Send feedback")}
+          description={t(
+            "settings.feedbackPanel.description",
+            "Tell us what's working and what we can improve. Feedback reaches the team directly, and this form stays here even if you dismissed the floating feedback tab.",
+          )}
+        >
+          <FeedbackSettings />
+        </Panel>
+      );
   }
 }
 

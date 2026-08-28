@@ -384,7 +384,8 @@
       "workspace": "工作区",
       "inboxTools": "收件箱工具",
       "personal": "个人",
-      "data": "数据"
+      "data": "数据",
+      "help": "帮助"
     },
     "sections": {
       "general": "通用",
@@ -397,7 +398,12 @@
       "notifications": "通知",
       "appearance": "外观与语言",
       "privacy": "隐私与分析",
-      "data": "数据工具"
+      "data": "数据工具",
+      "feedback": "发送反馈"
+    },
+    "feedbackPanel": {
+      "title": "发送反馈",
+      "description": "告诉我们哪些功能好用，哪些需要改进。反馈会直接送达团队；即使您关闭了悬浮的反馈标签，也可以在这里提交。"
     },
     "connections": {
       "title": "WhatsApp 连接",
@@ -1705,10 +1711,14 @@
     "messageLabel": "内容",
     "messagePlaceholder": "分享您的想法…",
     "emailLabel": "邮箱（可选）",
+    "emailHint": "如果希望我们回复，请留下您的邮箱。",
+    "counter": "{{current}}/{{max}}",
     "submit": "提交反馈",
     "submitting": "发送中…",
     "success": "感谢您的反馈！",
     "minLength": "反馈内容至少需要 10 个字符。",
+    "maxLength": "反馈内容最多 5000 个字符。",
+    "invalidEmail": "请输入有效的邮箱地址。",
     "error": "提交反馈失败，请稍后重试。"
   }
 }

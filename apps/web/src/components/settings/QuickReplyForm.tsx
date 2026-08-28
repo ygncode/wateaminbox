@@ -228,7 +228,7 @@ export function QuickReplyForm({
             )}
             rows={5}
             maxLength={5000}
-            className="min-h-32 resize-none rounded-xl px-3.5 py-3 leading-6 transition-[border-color,box-shadow] focus-visible:border-[#0a7c43] focus-visible:ring-[3px] focus-visible:ring-[#25d366]/20 focus-visible:ring-offset-0 dark:focus-visible:border-[#52df83] dark:focus-visible:ring-[#25d366]/15"
+            className="min-h-32 rounded-xl px-3.5 py-3 leading-6"
             data-testid="quick-reply-content-input"
             aria-describedby="content-hint"
             aria-invalid={errors.content ? "true" : "false"}
