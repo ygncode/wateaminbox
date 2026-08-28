@@ -178,10 +178,10 @@ func TestUnlinkProcesslessFailedWorkerRunsOneShotPurge(t *testing.T) {
 
 func TestFailedLiveWorkerUnlinkRetainsDurableIntent(t *testing.T) {
 	registry, mock := newMockRegistry(t)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry WHERE connection_id = $1")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id FROM worker_registry WHERE connection_id = $1")).
 		WithArgs("connection").WillReturnRows(sqlmock.NewRows([]string{
-		"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status", "started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
-	}).AddRow("connection", "company", "tenant_company", "", 1, types.StatusConnected, time.Now(), time.Now(), 0, "launch", DesiredStateRunning, "bootstrap", strings.Repeat("a", 64), 100000, 100000))
+		"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status", "started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid", "node_id",
+	}).AddRow("connection", "company", "tenant_company", "", 1, types.StatusConnected, time.Now(), time.Now(), 0, "launch", DesiredStateRunning, "bootstrap", strings.Repeat("a", 64), 100000, 100000, "test-node-1"))
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET desired_state = $1, last_heartbeat = now()")).
 		WithArgs(DesiredStateUnlinking, "connection", "company", "tenant_company", "launch").
@@ -286,13 +286,16 @@ func TestRecoveryClearsStoppedIntentAfterProcessIsGone(t *testing.T) {
 	digest, err := sha256File(binary)
 	require.NoError(t, err)
 	registry, mock := newMockRegistry(t)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry")).
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET node_id = $1 WHERE node_id IS NULL")).
+		WithArgs("test-node-1").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id FROM worker_registry")).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status",
-			"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
+			"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid", "node_id",
 		}).AddRow(
 			"connection", "company", "tenant_company", "", 999999, types.StatusStopping,
-			time.Now(), time.Now(), 0, "launch", DesiredStateStopped, "embedded", "", 100000, 100000,
+			time.Now(), time.Now(), 0, "launch", DesiredStateStopped, "embedded", "", 100000, 100000, "test-node-1",
 		))
 	mock.ExpectQuery(regexp.QuoteMeta("FROM worker_upgrade_batches WHERE completed_at IS NULL")).
 		WillReturnError(sql.ErrNoRows)
@@ -320,13 +323,16 @@ func TestRecoveryRetainsStoppedLaunchWhenCleanupFails(t *testing.T) {
 	digest, err := sha256File(binary)
 	require.NoError(t, err)
 	registry, mock := newMockRegistry(t)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry")).
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET node_id = $1 WHERE node_id IS NULL")).
+		WithArgs("test-node-1").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id FROM worker_registry")).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status",
-			"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
+			"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid", "node_id",
 		}).AddRow(
 			"connection", "company", "tenant_company", "", 999999, types.StatusStopping,
-			time.Now(), time.Now(), 0, "launch", DesiredStateStopped, "embedded", "", 100001, 100001,
+			time.Now(), time.Now(), 0, "launch", DesiredStateStopped, "embedded", "", 100001, 100001, "test-node-1",
 		))
 	mock.ExpectQuery(regexp.QuoteMeta("FROM worker_upgrade_batches WHERE completed_at IS NULL")).
 		WillReturnError(sql.ErrNoRows)
@@ -379,10 +385,10 @@ func TestRestartCarriesIncrementedAttemptIntoNewLaunch(t *testing.T) {
 
 func TestKillCommandReturnsPersistenceFailureForRedelivery(t *testing.T) {
 	registry, mock := newMockRegistry(t)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry WHERE connection_id = $1")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id FROM worker_registry WHERE connection_id = $1")).
 		WithArgs("connection").WillReturnRows(sqlmock.NewRows([]string{
-		"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status", "started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
-	}).AddRow("connection", "company", "tenant_company", "", 999999, types.StatusConnected, time.Now(), time.Now(), 0, "launch", DesiredStateRunning, "bootstrap", strings.Repeat("b", 64), 100000, 100000))
+		"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status", "started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid", "node_id",
+	}).AddRow("connection", "company", "tenant_company", "", 999999, types.StatusConnected, time.Now(), time.Now(), 0, "launch", DesiredStateRunning, "bootstrap", strings.Repeat("b", 64), 100000, 100000, "test-node-1"))
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET desired_state = $1, last_heartbeat = now()")).
 		WithArgs(DesiredStateStopped, "connection", "company", "tenant_company", "launch").
@@ -403,7 +409,7 @@ func TestKillCommandReturnsPersistenceFailureForRedelivery(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = h.handleKillCommand(context.Background(), payload)
+	err = h.handleKillCommand(context.Background(), payload, 0)
 	require.ErrorContains(t, err, "persist stopped intent")
 	retained, exists := m.GetWorkerStatus("connection")
 	require.True(t, exists)
@@ -442,10 +448,10 @@ func TestMissingOrStaleMapAuthoritativeLifecycleRollbackFailureIsRedeliverable(t
 			root := t.TempDir()
 			digest := writeArtifact(t, root, "bootstrap", []byte("#!/bin/sh\nexit 0\n"))
 			registry, mock := newMockRegistry(t)
-			mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry WHERE connection_id = $1")).
+			mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id FROM worker_registry WHERE connection_id = $1")).
 				WithArgs("connection").WillReturnRows(sqlmock.NewRows([]string{
-				"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status", "started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
-			}).AddRow("connection", "company", "tenant_company", "", 0, types.StatusError, time.Now(), time.Now(), 0, "launch", DesiredStateRunning, "bootstrap", digest, 100000, 100000))
+				"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status", "started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state", "artifact_version", "artifact_sha256", "worker_uid", "worker_gid", "node_id",
+			}).AddRow("connection", "company", "tenant_company", "", 0, types.StatusError, time.Now(), time.Now(), 0, "launch", DesiredStateRunning, "bootstrap", digest, 100000, 100000, "test-node-1"))
 			mock.ExpectBegin()
 			mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET desired_state = $1, last_heartbeat = now()")).
 				WithArgs(testCase.desiredState, "connection", "company", "tenant_company", "launch").
@@ -482,7 +488,7 @@ func TestKillCommandAcknowledgesAlreadyMissingWorker(t *testing.T) {
 		CompanyID: "company", ConnectionID: "missing", Reason: "test stop",
 	})
 	require.NoError(t, err)
-	assert.NoError(t, h.handleKillCommand(context.Background(), payload))
+	assert.NoError(t, h.handleKillCommand(context.Background(), payload, 0))
 }
 
 func TestReconnectCommandReplacesProcesslessFailedLaunch(t *testing.T) {
@@ -503,7 +509,7 @@ func TestReconnectCommandReplacesProcesslessFailedLaunch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, h.handleSpawnCommand(context.Background(), payload))
+	require.NoError(t, h.handleSpawnCommand(context.Background(), payload, 0))
 	restarted, exists := m.GetWorkerStatus("connection")
 	require.True(t, exists)
 	assert.NotEqual(t, "failed-launch", restarted.LaunchID)
@@ -518,7 +524,7 @@ func TestTransientClaimFailureRestoresPreviousFailedLaunch(t *testing.T) {
 		WithArgs(
 			"connection", "company", "tenant_company", "", 0, types.StatusStarting,
 			sqlmock.AnyArg(), 1, sqlmock.AnyArg(), DesiredStateRunning,
-			defaultArtifactVersion, "", "old-launch",
+			defaultArtifactVersion, "", "old-launch", "test-node-1",
 		).
 		WillReturnError(assert.AnError)
 
@@ -645,6 +651,7 @@ func TestSpawnDoesNotStartProcessWhenDurableOwnershipFails(t *testing.T) {
 			sqlmock.AnyArg(),
 			// A first launch expects no prior launch: a typed NULL, not "".
 			nil,
+			"test-node-1",
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"worker_uid", "worker_gid"}))
 

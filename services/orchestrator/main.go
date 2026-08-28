@@ -77,6 +77,14 @@ func main() {
 	defaultArtifactSHA256 := config.GetEnv("WORKER_DEFAULT_ARTIFACT_SHA256", "")
 	rolloutReadyTimeout := config.GetDurationEnv("WORKER_ROLLOUT_READY_TIMEOUT", 2*time.Minute)
 	rootManagerApproved := config.GetBoolEnv("ORCHESTRATOR_ROOT_MANAGER_APPROVED", false)
+	// The node identity scopes durable worker ownership and per-node command
+	// routing. It must be stable across restarts of the same instance, so it is
+	// explicit configuration rather than a derived value like the container
+	// hostname, which changes on recreate and would strand owned records.
+	nodeID := strings.TrimSpace(config.GetEnv("ORCHESTRATOR_NODE_ID", ""))
+	if databaseURL != "" && nodeID == "" {
+		log.Fatalf("ORCHESTRATOR_NODE_ID is required when DATABASE_URL is configured")
+	}
 	if maxWorkers < 0 {
 		log.Fatalf("ORCHESTRATOR_MAX_WORKERS must be non-negative, got %d", maxWorkers)
 	}
@@ -116,6 +124,7 @@ func main() {
 		DefaultArtifactSHA256:  defaultArtifactSHA256,
 		RolloutReadyTimeout:    rolloutReadyTimeout,
 		RootManagerApproved:    rootManagerApproved,
+		NodeID:                 nodeID,
 	})
 
 	// Start the manager

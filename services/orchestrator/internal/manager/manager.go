@@ -44,6 +44,10 @@ type Config struct {
 	DefaultArtifactSHA256  string        // Optional digest for the default artifact.
 	RolloutReadyTimeout    time.Duration // Process + authenticated WhatsApp readiness deadline.
 	RootManagerApproved    bool          // Explicit approval for Linux root credential isolation.
+	// NodeID is this orchestrator instance's stable identity. It scopes durable
+	// worker ownership, recovery, and per-node command routing. Required
+	// whenever the registry (DatabaseURL) is configured.
+	NodeID string
 }
 
 // Manager handles WhatsApp worker process lifecycle.
@@ -199,6 +203,9 @@ func (m *Manager) Start(ctx context.Context) error {
 	log.Println("Starting process manager...")
 
 	if m.config.DatabaseURL != "" {
+		if err := validateNodeID(m.config.NodeID); err != nil {
+			return fmt.Errorf("ORCHESTRATOR_NODE_ID is required for durable worker ownership: %w", err)
+		}
 		if strings.TrimSpace(m.config.WorkerDatabaseURL) == "" {
 			return errors.New("WORKER_DATABASE_URL is required for durable worker isolation")
 		}
@@ -237,7 +244,7 @@ func (m *Manager) Start(ctx context.Context) error {
 
 	// Initialize worker registry for persistence (optional - works without it)
 	if m.config.DatabaseURL != "" {
-		registry, err := NewWorkerRegistry(m.config.DatabaseURL)
+		registry, err := NewWorkerRegistry(m.config.DatabaseURL, m.config.NodeID)
 		if err != nil {
 			return fmt.Errorf("failed to initialize required worker registry: %w", err)
 		} else {
@@ -1884,13 +1891,26 @@ func (m *Manager) normalizeLegacyWorker(ctx context.Context, w *WorkerRecord) er
 	return nil
 }
 
-// recoverOrphanedWorkers recovers workers from the database after orchestrator restart.
+// recoverOrphanedWorkers recovers this node's workers from the database after
+// orchestrator restart. Rows owned by other nodes are never read: their PIDs
+// are host-local, and adopting or respawning them here would run a duplicate
+// whatsmeow client against a connection another node still manages.
 func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 	if m.registry == nil {
 		return nil
 	}
 
-	workers, err := m.registry.GetAllWorkers(ctx)
+	// Claim pre-migration rows first. NULL node_id is the CAS predicate, so a
+	// concurrently starting node can never adopt the same row.
+	adopted, err := m.registry.AdoptUnassignedWorkers(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to adopt unassigned workers: %w", err)
+	}
+	if adopted > 0 {
+		log.Printf("Adopted %d worker record(s) with no node owner as node %s", adopted, m.config.NodeID)
+	}
+
+	workers, err := m.registry.GetNodeWorkers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get workers from registry: %w", err)
 	}
@@ -1900,7 +1920,7 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 		return nil
 	}
 
-	log.Printf("Found %d workers in registry, checking status...", len(workers))
+	log.Printf("Found %d workers owned by node %s in registry, checking status...", len(workers), m.config.NodeID)
 
 	// An unfinished artifact upgrade owns its connections before ordinary crash
 	// recovery. Otherwise a dead source generation could be auto-restarted with

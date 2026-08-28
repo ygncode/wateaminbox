@@ -24,7 +24,7 @@ func launchClaimRegistry(t *testing.T) *WorkerRegistry {
 		t.Skip("WR_TEST_DATABASE_URL is not set")
 	}
 
-	registry, err := NewWorkerRegistry(databaseURL)
+	registry, err := NewWorkerRegistry(databaseURL, "itest-node-1")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = registry.Close() })
 	return registry

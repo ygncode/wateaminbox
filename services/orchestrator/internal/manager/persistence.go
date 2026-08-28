@@ -11,9 +11,12 @@ import (
 	"github.com/lib/pq"
 )
 
-// WorkerRegistry provides persistent storage for worker state.
+// WorkerRegistry provides persistent storage for worker state. Every registry
+// is bound to one orchestrator node identity: claims record it as the owner
+// and recovery reads only rows it owns.
 type WorkerRegistry struct {
-	db *sql.DB
+	db     *sql.DB
+	nodeID string
 }
 
 var (
@@ -114,9 +117,29 @@ type WorkerRecord struct {
 	ArtifactSHA256  string
 	WorkerUID       int
 	WorkerGID       int
+	NodeID          string // owning orchestrator node; empty only for pre-adoption legacy rows
 }
 
-func NewWorkerRegistry(databaseURL string) (*WorkerRegistry, error) {
+// validateNodeID accepts only NATS-token- and consumer-name-safe identities so
+// a node ID can appear verbatim in subjects and durable consumer names.
+func validateNodeID(nodeID string) error {
+	if nodeID == "" || len(nodeID) > 64 {
+		return errors.New("orchestrator node ID must be 1-64 characters")
+	}
+	for _, r := range nodeID {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+		default:
+			return fmt.Errorf("orchestrator node ID contains invalid character %q; use letters, digits, '-' or '_'", r)
+		}
+	}
+	return nil
+}
+
+func NewWorkerRegistry(databaseURL, nodeID string) (*WorkerRegistry, error) {
+	if err := validateNodeID(nodeID); err != nil {
+		return nil, err
+	}
 	db, err := sql.Open("postgres", databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database connection: %w", err)
@@ -234,11 +257,30 @@ func NewWorkerRegistry(databaseURL string) (*WorkerRegistry, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("worker identity schema is not collision-safe")
 	}
+	var nodeIdentityColumns int
+	if err := db.QueryRow(`
+		SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'worker_registry'
+			AND column_name = 'node_id'
+	`).Scan(&nodeIdentityColumns); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to verify worker node identity schema: %w", err)
+	}
+	if nodeIdentityColumns != 1 {
+		_ = db.Close()
+		return nil, fmt.Errorf("worker registry node identity migration is not applied")
+	}
 	db.SetMaxOpenConns(5)
 	db.SetMaxIdleConns(2)
 	db.SetConnMaxLifetime(5 * time.Minute)
-	log.Println("Worker registry connected to database")
-	return &WorkerRegistry{db: db}, nil
+	log.Printf("Worker registry connected to database as node %s", nodeID)
+	return &WorkerRegistry{db: db, nodeID: nodeID}, nil
+}
+
+// NodeID reports the orchestrator node identity this registry claims for.
+func (r *WorkerRegistry) NodeID() string {
+	return r.nodeID
 }
 
 func (r *WorkerRegistry) Close() error {
@@ -260,8 +302,8 @@ func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess
 		expected = expectedLaunchID
 	}
 	err := r.db.QueryRowContext(ctx, `
-		INSERT INTO worker_registry (connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, artifact_normalized)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, true)
+		INSERT INTO worker_registry (connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, artifact_normalized, node_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, true, $14)
 		ON CONFLICT (connection_id) DO UPDATE SET
 			tenant_schema = EXCLUDED.tenant_schema,
 			database_url = EXCLUDED.database_url,
@@ -275,11 +317,12 @@ func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess
 			artifact_version = EXCLUDED.artifact_version,
 			artifact_sha256 = EXCLUDED.artifact_sha256,
 			artifact_normalized = true,
-			worker_uid = EXCLUDED.worker_uid
+			worker_uid = EXCLUDED.worker_uid,
+			node_id = EXCLUDED.node_id
 		WHERE worker_registry.company_id = EXCLUDED.company_id
 			AND worker_registry.launch_id IS NOT DISTINCT FROM $13::uuid
 		RETURNING worker_uid, worker_gid
-	`, w.ConnectionID, w.CompanyID, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.LaunchID, w.DesiredState, w.ArtifactVersion, w.ArtifactSHA256, expected).Scan(&w.WorkerUID, &w.WorkerGID)
+	`, w.ConnectionID, w.CompanyID, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.LaunchID, w.DesiredState, w.ArtifactVersion, w.ArtifactSHA256, expected, r.nodeID).Scan(&w.WorkerUID, &w.WorkerGID)
 	if err == sql.ErrNoRows {
 		return ErrWorkerLaunchConflict
 	}
@@ -293,7 +336,8 @@ func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess
 }
 
 // ActivateWorkerLaunch records the PID only if the caller still owns the exact
-// tenant-scoped generation it reserved before starting the child.
+// tenant-scoped generation it reserved before starting the child, and only
+// while that generation is still assigned to this node.
 func (r *WorkerRegistry) ActivateWorkerLaunch(ctx context.Context, w *WorkerProcess) error {
 	now := time.Now()
 	result, err := r.db.ExecContext(ctx, `
@@ -302,8 +346,8 @@ func (r *WorkerRegistry) ActivateWorkerLaunch(ctx context.Context, w *WorkerProc
 			started_at = $5, last_heartbeat = $5, restart_count = $6,
 			desired_state = $7, artifact_version = $8, artifact_sha256 = $9
 		WHERE connection_id = $10 AND company_id = $11 AND launch_id = $12
-			AND worker_uid = $13 AND worker_gid = $14
-	`, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.DesiredState, w.ArtifactVersion, w.ArtifactSHA256, w.ConnectionID, w.CompanyID, w.LaunchID, w.WorkerUID, w.WorkerGID)
+			AND worker_uid = $13 AND worker_gid = $14 AND node_id = $15
+	`, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.DesiredState, w.ArtifactVersion, w.ArtifactSHA256, w.ConnectionID, w.CompanyID, w.LaunchID, w.WorkerUID, w.WorkerGID, r.nodeID)
 	if err != nil {
 		return fmt.Errorf("failed to activate worker launch: %w", err)
 	}
@@ -356,28 +400,68 @@ func (r *WorkerRegistry) RemoveWorkerLaunch(ctx context.Context, connectionID, c
 	return removed == 1, nil
 }
 
-func (r *WorkerRegistry) GetAllWorkers(ctx context.Context) ([]*WorkerRecord, error) {
-	rows, err := r.db.QueryContext(ctx, `
-		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid
-		FROM worker_registry
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query workers: %w", err)
-	}
+func (r *WorkerRegistry) scanWorkerRows(rows *sql.Rows) ([]*WorkerRecord, error) {
 	defer rows.Close()
-
 	var workers []*WorkerRecord
 	for rows.Next() {
 		w := &WorkerRecord{}
-		if err := rows.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState, &w.ArtifactVersion, &w.ArtifactSHA256, &w.WorkerUID, &w.WorkerGID); err != nil {
+		var nodeID sql.NullString
+		if err := rows.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState, &w.ArtifactVersion, &w.ArtifactSHA256, &w.WorkerUID, &w.WorkerGID, &nodeID); err != nil {
 			return nil, fmt.Errorf("failed to scan worker: %w", err)
 		}
+		w.NodeID = nodeID.String
 		workers = append(workers, w)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating workers: %w", err)
 	}
 	return workers, nil
+}
+
+func (r *WorkerRegistry) GetAllWorkers(ctx context.Context) ([]*WorkerRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id
+		FROM worker_registry
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query workers: %w", err)
+	}
+	return r.scanWorkerRows(rows)
+}
+
+// GetNodeWorkers returns only the launches this node owns. Recovery must never
+// see, adopt, or respawn a row owned by another orchestrator node: PIDs are
+// host-local, so a foreign row's dead-looking PID may be a live process on its
+// owner's host, and respawning it would run two whatsmeow clients against one
+// connection's device rows.
+func (r *WorkerRegistry) GetNodeWorkers(ctx context.Context) ([]*WorkerRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id
+		FROM worker_registry
+		WHERE node_id = $1
+	`, r.nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query node workers: %w", err)
+	}
+	return r.scanWorkerRows(rows)
+}
+
+// AdoptUnassignedWorkers claims every row written before the node identity
+// migration. NULL node_id is the compare-and-swap predicate, so two nodes
+// starting concurrently can never both adopt one row. Rows already assigned to
+// another node are never touched.
+func (r *WorkerRegistry) AdoptUnassignedWorkers(ctx context.Context) (int64, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry SET node_id = $1 WHERE node_id IS NULL
+	`, r.nodeID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to adopt unassigned workers: %w", err)
+	}
+	adopted, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("inspect unassigned worker adoption: %w", err)
+	}
+	return adopted, nil
 }
 
 func (r *WorkerRegistry) UpdateStatusLaunch(
@@ -571,17 +655,19 @@ func (r *WorkerRegistry) NormalizeLegacyWorkerArtifact(
 
 func (r *WorkerRegistry) GetWorker(ctx context.Context, connectionID string) (*WorkerRecord, error) {
 	row := r.db.QueryRowContext(ctx, `
-		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid
+		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id
 		FROM worker_registry WHERE connection_id = $1
 	`, connectionID)
 	w := &WorkerRecord{}
-	err := row.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState, &w.ArtifactVersion, &w.ArtifactSHA256, &w.WorkerUID, &w.WorkerGID)
+	var nodeID sql.NullString
+	err := row.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState, &w.ArtifactVersion, &w.ArtifactSHA256, &w.WorkerUID, &w.WorkerGID, &nodeID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get worker: %w", err)
 	}
+	w.NodeID = nodeID.String
 	return w, nil
 }
 

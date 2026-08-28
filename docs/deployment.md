@@ -33,16 +33,24 @@ requests need outbound Internet access. The orchestrator image does not contain
 the WhatsApp worker. A one-shot installer copies the worker from its independently
 tagged image into an immutable version directory in the retained
 `whatsapp_worker_artifacts` volume; the orchestrator mounts that volume read-only
-and starts the configured artifact as a child process. Do not scale the
-orchestrator horizontally without changing that ownership model. Orchestrator
-replacements must remain stop-first: never overlap old and new orchestrator
-binaries. Migration 070 adds generation-scoped ownership, but pre-070 binaries
-still write registry rows by connection ID and are not safe to run concurrently
-with a post-070 orchestrator. Migration 071 adds additive artifact identity and
-upgrade intent tables; old orchestrators ignore those additions, while the new
-orchestrator refuses to start until they exist. Compose orders migration,
-artifact installation, and orchestrator startup in that order. Do not bypass
-those gates.
+and starts the configured artifact as a child process. Orchestrator
+replacements must remain stop-first per node: never overlap old and new
+orchestrator binaries for the same `ORCHESTRATOR_NODE_ID`. Migration 070 adds
+generation-scoped ownership, but pre-070 binaries still write registry rows by
+connection ID and are not safe to run concurrently with a post-070
+orchestrator. Migration 071 adds additive artifact identity and upgrade intent
+tables; old orchestrators ignore those additions, while the new orchestrator
+refuses to start until they exist. Migration 077 adds per-node worker
+ownership: every orchestrator requires a stable `ORCHESTRATOR_NODE_ID`
+(default `node-1` in compose), claims its workers under that identity, recovers
+only rows it owns, and forwards commands for connections owned by another node
+to that node's command consumer. Do not run multiple orchestrator nodes in
+production yet: fleet-wide capacity enforcement, node liveness/fencing, and
+rollout coordination for multi-node deployments are not implemented (see
+`docs/orchestrator-horizontal-scaling-plan.md`), and changing a node's ID
+strands the rows it owns until an operator reassigns them. Compose orders
+migration, artifact installation, and orchestrator startup in that order. Do
+not bypass those gates.
 
 The R2 `whatsapp-media` bucket is private. Browser access uses API-authorized,
 short-lived R2 signatures; neither `r2.dev` nor a public bucket/custom domain is

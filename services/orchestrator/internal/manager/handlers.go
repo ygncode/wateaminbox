@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,17 +21,42 @@ type Handlers struct {
 	manager *Manager
 	nats    *natsclient.Client
 	sub     *nats.Subscription
+	nodeSub *nats.Subscription
+
+	// forwardCommand republishes a command onto another node's subject. It is a
+	// field rather than a direct client call so ownership routing can be
+	// exercised without a NATS connection.
+	forwardCommand func(nodeID, companyID, connectionID string, data []byte, hops int) error
+
+	// publishEvent publishes to the events stream. It is a field rather than a
+	// direct client call so registry-answered status can be exercised without a
+	// NATS connection.
+	publishEvent func(subject string, data []byte) error
 }
+
+// maxForwardHops bounds ownership forwarding between orchestrator nodes. A
+// command normally forwards at most once; repeated hops mean ownership is
+// moving under the command, and redelivery should retry from the registry
+// rather than bouncing the message forever.
+const maxForwardHops = 3
 
 // NewHandlers creates a new Handlers instance.
 func NewHandlers(mgr *Manager, nc *natsclient.Client) *Handlers {
-	return &Handlers{
+	h := &Handlers{
 		manager: mgr,
 		nats:    nc,
 	}
+	if nc != nil {
+		h.forwardCommand = nc.ForwardCommandToNode
+		h.publishEvent = nc.PublishEvent
+	}
+	return h
 }
 
-// StartSubscription starts listening for commands on the WHATSAPP_COMMANDS stream.
+// StartSubscription starts listening for commands on the WHATSAPP_COMMANDS
+// stream: the shared placement consumer that any orchestrator instance may
+// serve, and — when a node identity is configured — this node's own consumer
+// for commands whose connections it owns.
 func (h *Handlers) StartSubscription(ctx context.Context) error {
 	log.Println("Starting NATS command subscription...")
 
@@ -39,25 +65,38 @@ func (h *Handlers) StartSubscription(ctx context.Context) error {
 		return err
 	}
 	h.sub = sub
+	go h.processCommands(ctx, sub, "WHATSAPP.commands")
 
-	// Start the command processing loop
-	go h.processCommands(ctx)
+	if nodeID := h.manager.config.NodeID; nodeID != "" {
+		nodeSub, err := h.nats.SubscribeToNodeCommands(nodeID)
+		if err != nil {
+			return err
+		}
+		h.nodeSub = nodeSub
+		go h.processCommands(ctx, nodeSub, natsclient.NodeCommandSubjectPrefix+nodeID)
+	}
 
 	log.Println("NATS command subscription started")
 	return nil
 }
 
-// StopSubscription stops the command subscription.
+// StopSubscription stops the command subscriptions.
 func (h *Handlers) StopSubscription() error {
+	var err error
 	if h.sub != nil {
-		return h.sub.Drain()
+		err = h.sub.Drain()
 	}
-	return nil
+	if h.nodeSub != nil {
+		if nodeErr := h.nodeSub.Drain(); err == nil {
+			err = nodeErr
+		}
+	}
+	return err
 }
 
-// processCommands continuously processes commands from the stream.
-func (h *Handlers) processCommands(ctx context.Context) {
-	log.Println("Command processing loop started, waiting for messages on WHATSAPP.commands...")
+// processCommands continuously processes commands from one subscription.
+func (h *Handlers) processCommands(ctx context.Context, sub *nats.Subscription, label string) {
+	log.Printf("Command processing loop started, waiting for messages on %s...", label)
 
 	for {
 		select {
@@ -66,7 +105,7 @@ func (h *Handlers) processCommands(ctx context.Context) {
 			return
 		default:
 			// Fetch messages with timeout
-			msgs, err := h.sub.Fetch(10, nats.MaxWait(5*time.Second))
+			msgs, err := sub.Fetch(10, nats.MaxWait(5*time.Second))
 			if err != nil {
 				if err == nats.ErrTimeout {
 					continue
@@ -84,7 +123,7 @@ func (h *Handlers) processCommands(ctx context.Context) {
 			}
 
 			if len(msgs) > 0 {
-				log.Printf("Fetched %d message(s) from NATS commands stream", len(msgs))
+				log.Printf("Fetched %d message(s) from NATS commands stream (%s)", len(msgs), label)
 			}
 
 			for _, msg := range msgs {
@@ -94,8 +133,39 @@ func (h *Handlers) processCommands(ctx context.Context) {
 	}
 }
 
+// forwardHops reads how many times a command has already been forwarded
+// between nodes. Absent or malformed headers count as zero.
+func forwardHops(msg *nats.Msg) int {
+	raw := msg.Header.Get(natsclient.ForwardHopsHeader)
+	if raw == "" {
+		return 0
+	}
+	hops, err := strconv.Atoi(raw)
+	if err != nil || hops < 0 {
+		return 0
+	}
+	return hops
+}
+
+// isForeignNodeSubject reports whether a subject addresses a different
+// orchestrator node's command consumer.
+func (h *Handlers) isForeignNodeSubject(subject string) bool {
+	nodeID := h.manager.config.NodeID
+	return nodeID != "" && natsclient.IsNodeCommandSubject(subject) &&
+		!strings.HasPrefix(subject, natsclient.NodeCommandSubjectPrefix+nodeID+".")
+}
+
 // handleMessage routes a message to the appropriate handler.
 func (h *Handlers) handleMessage(ctx context.Context, msg *nats.Msg) {
+	// The shared consumer's filter also matches node-addressed subjects. Those
+	// are processed by the owning node's own consumer, which receives them
+	// independently; here they are acknowledged without action so the shared
+	// consumer does not redeliver another node's work.
+	if h.isForeignNodeSubject(msg.Subject) {
+		msg.Ack()
+		return
+	}
+
 	// Parse the command type from the message
 	var envelope struct {
 		Type string `json:"type"`
@@ -107,15 +177,17 @@ func (h *Handlers) handleMessage(ctx context.Context, msg *nats.Msg) {
 		return
 	}
 
+	hops := forwardHops(msg)
+
 	var handlerErr error
 
 	switch envelope.Type {
 	case types.CommandSpawn:
-		handlerErr = h.handleSpawnCommand(ctx, msg.Data)
+		handlerErr = h.handleSpawnCommand(ctx, msg.Data, hops)
 	case types.CommandKill:
-		handlerErr = h.handleKillCommand(ctx, msg.Data)
+		handlerErr = h.handleKillCommand(ctx, msg.Data, hops)
 	case types.CommandStatus:
-		handlerErr = h.handleStatusCommand(ctx, msg.Data)
+		handlerErr = h.handleStatusCommand(ctx, msg.Data, hops)
 	default:
 		// Unknown command types (e.g., "text", "image", "reaction") are handled by
 		// WhatsApp worker consumers, not the orchestrator. ACK to prevent redelivery
@@ -136,14 +208,65 @@ func (h *Handlers) handleMessage(ctx context.Context, msg *nats.Msg) {
 	}
 }
 
+// resolveOwnership reads the durable record deciding which node must execute a
+// command. It returns the record (nil when no durable row exists) and whether
+// a different node owns the connection. Without a registry every command is
+// local: a persistence-free orchestrator is single-instance by definition.
+func (h *Handlers) resolveOwnership(ctx context.Context, companyID, connectionID string) (*WorkerRecord, bool, error) {
+	if h.manager.registry == nil || h.manager.config.NodeID == "" {
+		return nil, false, nil
+	}
+	record, err := h.manager.registry.GetWorker(ctx, connectionID)
+	if err != nil {
+		return nil, false, fmt.Errorf("resolve owner for connection %s: %w", connectionID, err)
+	}
+	if record == nil {
+		return nil, false, nil
+	}
+	if record.CompanyID != companyID {
+		return nil, false, fmt.Errorf("worker %s belongs to another company", connectionID)
+	}
+	ownedElsewhere := record.NodeID != "" && record.NodeID != h.manager.config.NodeID
+	return record, ownedElsewhere, nil
+}
+
+// forwardToOwner republishes a command onto its owning node's subject. The
+// returned error (past the hop bound) surfaces as a NAK, so redelivery
+// re-resolves ownership from the registry instead of looping between nodes.
+func (h *Handlers) forwardToOwner(record *WorkerRecord, data []byte, hops int) error {
+	if hops >= maxForwardHops {
+		return fmt.Errorf("command for connection %s exceeded %d forwarding hops", record.ConnectionID, maxForwardHops)
+	}
+	if h.forwardCommand == nil {
+		return fmt.Errorf("cannot forward command for connection %s: no NATS forwarding configured", record.ConnectionID)
+	}
+	if err := h.forwardCommand(record.NodeID, record.CompanyID, record.ConnectionID, data, hops+1); err != nil {
+		return err
+	}
+	log.Printf("Forwarded command for connection %s to owning node %s", record.ConnectionID, record.NodeID)
+	return nil
+}
+
 // handleSpawnCommand handles a spawn worker command.
-func (h *Handlers) handleSpawnCommand(ctx context.Context, data []byte) error {
+func (h *Handlers) handleSpawnCommand(ctx context.Context, data []byte, hops int) error {
 	var cmd types.SpawnWorkerCommand
 	if err := json.Unmarshal(data, &cmd); err != nil {
 		return err
 	}
 
 	log.Printf("Received spawn command for company %s, connection %s", cmd.CompanyID, cmd.ConnectionID)
+
+	// A connection owned by another node must be (re)spawned there: its session
+	// affinity, durable launch generation, and any live process are that node's.
+	// A connection with no durable row is claimed under this node by the
+	// registry CAS inside SpawnWorker.
+	record, ownedElsewhere, err := h.resolveOwnership(ctx, cmd.CompanyID, cmd.ConnectionID)
+	if err != nil {
+		return err
+	}
+	if ownedElsewhere {
+		return h.forwardToOwner(record, data, hops)
+	}
 
 	// A reconnect is an explicit request for a fresh pairing attempt. Replace a
 	// worker that is still starting/erroring rather than reporting it as active:
@@ -167,7 +290,7 @@ func (h *Handlers) handleSpawnCommand(ctx context.Context, data []byte) error {
 
 	// Spawn the worker with the restricted URL from manager configuration. A
 	// command payload can never select or smuggle database credentials.
-	err := h.manager.SpawnWorker(ctx, cmd.CompanyID, cmd.ConnectionID, cmd.TenantSchema, databaseURL)
+	err = h.manager.SpawnWorker(ctx, cmd.CompanyID, cmd.ConnectionID, cmd.TenantSchema, databaseURL)
 	if err != nil {
 		log.Printf("Failed to spawn worker for company %s, connection %s: %v", cmd.CompanyID, cmd.ConnectionID, err)
 
@@ -180,7 +303,7 @@ func (h *Handlers) handleSpawnCommand(ctx context.Context, data []byte) error {
 }
 
 // handleKillCommand handles a kill worker command.
-func (h *Handlers) handleKillCommand(ctx context.Context, data []byte) error {
+func (h *Handlers) handleKillCommand(ctx context.Context, data []byte, hops int) error {
 	var cmd types.KillWorkerCommand
 	if err := json.Unmarshal(data, &cmd); err != nil {
 		return err
@@ -188,9 +311,22 @@ func (h *Handlers) handleKillCommand(ctx context.Context, data []byte) error {
 
 	log.Printf("Received kill command for company %s, connection %s: %s", cmd.CompanyID, cmd.ConnectionID, cmd.Reason)
 
+	// "Not mine" and "no such connection" are different answers. A kill for a
+	// connection owned by another node must reach that node rather than being
+	// acknowledged as already satisfied here — acking it would silently discard
+	// stop intent for a live worker on another host. A registry read failure
+	// surfaces as an error so redelivery retries; only an authoritative "no
+	// durable row anywhere" may fall through to the idempotent local path.
+	record, ownedElsewhere, err := h.resolveOwnership(ctx, cmd.CompanyID, cmd.ConnectionID)
+	if err != nil {
+		return err
+	}
+	if ownedElsewhere {
+		return h.forwardToOwner(record, data, hops)
+	}
+
 	// Unlink performs a WhatsApp logout and credential purge before the worker
 	// exits. A normal kill preserves credentials for reconnect.
-	var err error
 	if cmd.Unlink {
 		databaseURL := h.manager.config.WorkerDatabaseURL
 		if h.manager.registry == nil && databaseURL == "" {
@@ -222,13 +358,46 @@ func (h *Handlers) handleKillCommand(ctx context.Context, data []byte) error {
 }
 
 // handleStatusCommand handles a worker status request.
-func (h *Handlers) handleStatusCommand(ctx context.Context, data []byte) error {
+func (h *Handlers) handleStatusCommand(ctx context.Context, data []byte, hops int) error {
 	var cmd types.WorkerStatusCommand
 	if err := json.Unmarshal(data, &cmd); err != nil {
 		return err
 	}
+	_ = hops // status is answered from the registry, never forwarded
 
 	log.Printf("Received status command for company %s, connection %s", cmd.CompanyID, cmd.ConnectionID)
+
+	// A remotely-owned connection is answered from the registry: the owning
+	// node writes status and heartbeats there, and a registry answer stays
+	// available even while that node is down.
+	record, ownedElsewhere, err := h.resolveOwnership(ctx, cmd.CompanyID, cmd.ConnectionID)
+	if err != nil {
+		return err
+	}
+	if ownedElsewhere {
+		status := record.Status
+		if status == WorkerStatusRecovering {
+			// Registry-only lifecycle state; the API vocabulary has no
+			// "recovering", and the owner is about to bring the worker back.
+			status = types.StatusConnecting
+		}
+		response := types.WorkerStatusResponse{
+			CompanyID:    record.CompanyID,
+			ConnectionID: record.ConnectionID,
+			Status:       status,
+			ConnectedAt:  record.StartedAt,
+			LastActivity: record.LastHeartbeat,
+			PID:          record.PID,
+		}
+		responseData, err := json.Marshal(response)
+		if err != nil {
+			return err
+		}
+		if h.publishEvent == nil {
+			return errors.New("cannot publish registry-answered status: no NATS client configured")
+		}
+		return h.publishEvent(types.SubjectEvents, responseData)
+	}
 
 	worker, exists := h.manager.GetWorkerStatus(cmd.ConnectionID)
 	if !exists {
