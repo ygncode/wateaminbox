@@ -415,6 +415,8 @@ start_dev_servers() {
     print_status "  Starting Orchestrator (→ logs/orchestrator.log)..."
     WHATSAPP_BINARY_PATH="$(pwd)/services/whatsapp/whatsapp-worker"
     export WHATSAPP_BINARY_PATH
+    # Stable node identity for durable worker ownership (single dev node).
+    export ORCHESTRATOR_NODE_ID="${ORCHESTRATOR_NODE_ID:-dev-node-1}"
     (cd services/orchestrator && air) > "$LOGS_DIR/orchestrator.log" 2>&1 &
     PIDS+=($!)
     

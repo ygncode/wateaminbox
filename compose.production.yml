@@ -268,6 +268,18 @@ services:
       AUTO_RESTART_MAX_RETRIES: "5"
       AUTO_RESTART_BACKOFF: 5s
       ORCHESTRATOR_MAX_WORKERS: ${ORCHESTRATOR_MAX_WORKERS:-15}
+      # Stable node identity for durable worker ownership and per-node command
+      # routing. Must not change across restarts of the same instance; each
+      # additional orchestrator instance needs its own distinct value.
+      ORCHESTRATOR_NODE_ID: ${ORCHESTRATOR_NODE_ID:-node-1}
+      # Fleet-wide connection ceiling enforced atomically in the registry
+      # claim across all nodes; ORCHESTRATOR_MAX_WORKERS stays per-host.
+      ORCHESTRATOR_FLEET_MAX_CONNECTIONS: ${ORCHESTRATOR_FLEET_MAX_CONNECTIONS:-15}
+      # Node lease TTL and how long past expiry a peer waits before taking
+      # over a failed node's connections. The margin must exceed the fencing
+      # detection interval plus the worker stop budget.
+      ORCHESTRATOR_NODE_LEASE_DURATION: ${ORCHESTRATOR_NODE_LEASE_DURATION:-60s}
+      ORCHESTRATOR_NODE_TAKEOVER_MARGIN: ${ORCHESTRATOR_NODE_TAKEOVER_MARGIN:-60s}
       WORKER_DB_MAX_OPEN_CONNS: ${WORKER_DB_MAX_OPEN_CONNS:-}
       WORKER_DB_MAX_IDLE_CONNS: ${WORKER_DB_MAX_IDLE_CONNS:-}
       WORKER_DB_CONN_MAX_LIFETIME: ${WORKER_DB_CONN_MAX_LIFETIME:-}

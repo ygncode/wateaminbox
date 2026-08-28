@@ -17,7 +17,7 @@ func newMockRegistry(t *testing.T) (*WorkerRegistry, sqlmock.Sqlmock) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-	return &WorkerRegistry{db: db}, mock
+	return &WorkerRegistry{db: db, nodeID: "test-node-1"}, mock
 }
 
 func TestClaimWorkerLaunchRefusesConflict(t *testing.T) {
@@ -49,6 +49,7 @@ func TestClaimWorkerLaunchRefusesConflict(t *testing.T) {
 			worker.ArtifactVersion,
 			worker.ArtifactSHA256,
 			"observed-launch",
+			"test-node-1",
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"worker_uid", "worker_gid"}))
 
@@ -65,7 +66,7 @@ func TestClaimWorkerLaunchReturnsFreshDurableCredentials(t *testing.T) {
 		ArtifactVersion: "v2", ArtifactSHA256: "digest",
 	}
 	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO worker_registry")).
-		WithArgs("connection", "company", "tenant_company", "", 0, "starting", sqlmock.AnyArg(), 0, "new-launch", DesiredStateRunning, "v2", "digest", "old-launch").
+		WithArgs("connection", "company", "tenant_company", "", 0, "starting", sqlmock.AnyArg(), 0, "new-launch", DesiredStateRunning, "v2", "digest", "old-launch", "test-node-1").
 		WillReturnRows(sqlmock.NewRows([]string{"worker_uid", "worker_gid"}).AddRow(100123, 100123))
 
 	require.NoError(t, registry.ClaimWorkerLaunch(context.Background(), worker, "old-launch"))
@@ -99,6 +100,7 @@ func TestActivateWorkerLaunchRejectsLostClaim(t *testing.T) {
 			worker.LaunchID,
 			worker.WorkerUID,
 			worker.WorkerGID,
+			"test-node-1",
 		).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
@@ -379,13 +381,13 @@ func TestResumeHaltedWorkerUpgradeRollbackIsAtomic(t *testing.T) {
 func TestGetWorkerCarriesArtifactIdentityForRecovery(t *testing.T) {
 	registry, mock := newMockRegistry(t)
 	now := time.Now()
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry WHERE connection_id = $1")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id FROM worker_registry WHERE connection_id = $1")).
 		WithArgs("connection").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status",
 			"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state",
-			"artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
-		}).AddRow("connection", "company", "tenant_company", "", 42, "connected", now, now, 0, "launch", DesiredStateRunning, "v2", "digest", 100000, 100000))
+			"artifact_version", "artifact_sha256", "worker_uid", "worker_gid", "node_id",
+		}).AddRow("connection", "company", "tenant_company", "", 42, "connected", now, now, 0, "launch", DesiredStateRunning, "v2", "digest", 100000, 100000, "test-node-1"))
 
 	worker, err := registry.GetWorker(context.Background(), "connection")
 	require.NoError(t, err)

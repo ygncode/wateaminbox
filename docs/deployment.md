@@ -33,14 +33,35 @@ requests need outbound Internet access. The orchestrator image does not contain
 the WhatsApp worker. A one-shot installer copies the worker from its independently
 tagged image into an immutable version directory in the retained
 `whatsapp_worker_artifacts` volume; the orchestrator mounts that volume read-only
-and starts the configured artifact as a child process. Do not scale the
-orchestrator horizontally without changing that ownership model. Orchestrator
-replacements must remain stop-first: never overlap old and new orchestrator
-binaries. Migration 070 adds generation-scoped ownership, but pre-070 binaries
-still write registry rows by connection ID and are not safe to run concurrently
-with a post-070 orchestrator. Migration 071 adds additive artifact identity and
-upgrade intent tables; old orchestrators ignore those additions, while the new
-orchestrator refuses to start until they exist. Compose orders migration,
+and starts the configured artifact as a child process. Orchestrator
+replacements must remain stop-first per node: never overlap old and new
+orchestrator binaries for the same `ORCHESTRATOR_NODE_ID`. Migration 070 adds
+generation-scoped ownership, but pre-070 binaries still write registry rows by
+connection ID and are not safe to run concurrently with a post-070
+orchestrator. Migration 071 adds additive artifact identity and upgrade intent
+tables; old orchestrators ignore those additions, while the new orchestrator
+refuses to start until they exist. Migrations 077 and 078 add per-node worker
+ownership and node leases: every orchestrator requires a stable
+`ORCHESTRATOR_NODE_ID` (default `node-1` in compose), claims its workers under
+that identity, recovers only rows it owns, and forwards commands for
+connections owned by another node to that node's command consumer. Node lease
+registration refuses a node identity whose lease is still live, which enforces
+per-node stop-first replacement; an instance that cannot renew its lease
+(`ORCHESTRATOR_NODE_LEASE_DURATION`, default 60s) self-fences — it stops its
+workers and exits — and a peer adopts a failed node's connections only after
+the lease has been expired past `ORCHESTRATOR_NODE_TAKEOVER_MARGIN` (default
+60s). `ORCHESTRATOR_FLEET_MAX_CONNECTIONS` (default 15) is enforced across all
+nodes atomically inside the launch claim, while `ORCHESTRATOR_MAX_WORKERS`
+remains per-host capacity; a full node places brand-new connections on a live
+peer with free slots, and existing connections keep node affinity because a
+worker's outbound IP is part of its WhatsApp identity. The operator API adds
+`/nodes` for lease liveness, and `/workers` reports the durable fleet with
+per-row `node_id`. Do not run multiple orchestrator nodes in production yet:
+worker rollouts still cover one node at a time, and genuine multi-host
+operation additionally needs NATS clustering, PostgreSQL availability
+planning, and per-host worker-artifact installation (see
+`docs/orchestrator-horizontal-scaling-plan.md`). Changing a node's ID strands
+the rows it owns until an operator reassigns them. Compose orders migration,
 artifact installation, and orchestrator startup in that order. Do not bypass
 those gates.
 

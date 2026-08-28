@@ -241,6 +241,11 @@ func TestRecoverWorkerUpgradeOwnsWriterGateBeforeReturning(t *testing.T) {
 			"item", "batch", 0, "company", "tenant_company", "connection", "source",
 			"v1", "source-digest", "", "", "", WorkerUpgradePhaseLaunch, "", "", now, now, nil,
 		))
+	// Recovery verifies each unfinished item is still owned by this node
+	// before resuming; no durable row means nothing owns it elsewhere.
+	mock.ExpectQuery(regexp.QuoteMeta("FROM worker_registry WHERE connection_id = $1")).
+		WithArgs("connection").
+		WillReturnRows(sqlmock.NewRows(workerRecordColumns))
 	// The asynchronous runner blocks on this load while retaining rolloutMu.
 	mock.ExpectQuery(regexp.QuoteMeta("FROM worker_upgrade_batches WHERE id = $1::uuid")).
 		WithArgs("batch").WillDelayFor(100 * time.Millisecond).WillReturnError(assert.AnError)

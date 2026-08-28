@@ -43,13 +43,13 @@ func TestRollbackRefusesToSignalNewerUnownedGeneration(t *testing.T) {
 		WorkerUID: 100002, WorkerGID: 100002, PID: cmd.Process.Pid, cmd: cmd,
 	}
 	now := time.Now()
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid FROM worker_registry WHERE connection_id = $1")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id FROM worker_registry WHERE connection_id = $1")).
 		WithArgs("connection").WillReturnRows(sqlmock.NewRows([]string{
 		"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status",
 		"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state",
-		"artifact_version", "artifact_sha256", "worker_uid", "worker_gid",
+		"artifact_version", "artifact_sha256", "worker_uid", "worker_gid", "node_id",
 	}).AddRow("connection", "company", "tenant_company", "", cmd.Process.Pid, "connected", now, now, 0,
-		"newer-generation", DesiredStateRunning, "other", "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", 100002, 100002))
+		"newer-generation", DesiredStateRunning, "other", "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", 100002, 100002, "test-node-1"))
 	batch := &WorkerUpgradeBatch{ID: "batch", TargetArtifactVersion: "target", TargetArtifactSHA256: "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", Phase: WorkerUpgradePhaseRollback}
 	item := &WorkerUpgradeItem{
 		BatchID: "batch", CompanyID: "company", TenantSchema: "tenant_company",
