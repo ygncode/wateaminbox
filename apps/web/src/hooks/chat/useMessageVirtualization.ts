@@ -12,6 +12,7 @@ import {
   type BubbleGroupPosition,
   resolveBubbleGroupPositions,
 } from "@/components/chat/message-grouping";
+import { MESSAGE_LIST_END_ANCHOR } from "./message-list-end-anchor";
 import { resolveNewestMessageAnchor } from "./message-scroll-anchor";
 
 // Estimated row heights for virtualization
@@ -145,6 +146,9 @@ export function useMessageVirtualization({
     estimateSize,
     overscan: 10,
     getItemKey,
+    // Keep the viewport pinned to the newest message when media rows grow
+    // after their lazily loaded asset decodes. See message-list-end-anchor.ts.
+    ...MESSAGE_LIST_END_ANCHOR,
   });
 
   // TanStack's getters may notify the React adapter when their memoized inputs
