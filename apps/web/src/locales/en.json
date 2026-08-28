@@ -388,7 +388,8 @@
       "workspace": "Workspace",
       "inboxTools": "Inbox tools",
       "personal": "Personal",
-      "data": "Data"
+      "data": "Data",
+      "help": "Help"
     },
     "sections": {
       "general": "General",
@@ -401,7 +402,12 @@
       "notifications": "Notifications",
       "appearance": "Appearance & language",
       "privacy": "Privacy & analytics",
-      "data": "Data tools"
+      "data": "Data tools",
+      "feedback": "Send feedback"
+    },
+    "feedbackPanel": {
+      "title": "Send feedback",
+      "description": "Tell us what's working and what we can improve. Feedback reaches the team directly, and this form stays here even if you dismissed the floating feedback tab."
     },
     "connections": {
       "title": "WhatsApp connections",
@@ -1722,10 +1728,14 @@
     "messageLabel": "Message",
     "messagePlaceholder": "Share your thoughts…",
     "emailLabel": "Email (optional)",
+    "emailHint": "Add your email if you'd like a reply from us.",
+    "counter": "{{current}}/{{max}}",
     "submit": "Submit feedback",
     "submitting": "Sending…",
     "success": "Thank you for your feedback!",
     "minLength": "Feedback must be at least 10 characters.",
+    "maxLength": "Feedback must be at most 5000 characters.",
+    "invalidEmail": "Enter a valid email address.",
     "error": "Failed to submit feedback. Please try again later."
   }
 }
