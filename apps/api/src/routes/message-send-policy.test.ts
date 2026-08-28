@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import {
-  legacyMessageSendRemoved,
   MESSAGE_SEND_SURFACES,
   requireMessageSendPermission,
 } from "../middleware/message-send-policy.js";
@@ -48,19 +47,5 @@ describe("message-send route policy", () => {
       expect(response.status, path).toBe(403);
       expect(handlerCalled, path).toBe(false);
     }
-  });
-
-  test("legacy JID-based send surfaces direct authorized clients to the canonical endpoint", async () => {
-    const app = new Hono();
-    app.post("/legacy-send", legacyMessageSendRemoved);
-
-    const response = await app.request("/legacy-send", { method: "POST" });
-    expect(response.status).toBe(410);
-    expect(response.headers.get("Deprecation")).toBe("true");
-    expect(response.headers.get("Link")).toContain("/api/messages");
-    expect(await response.json()).toEqual({
-      error: "This message-send endpoint has been removed",
-      replacement: "/api/messages",
-    });
   });
 });

@@ -1,12 +1,12 @@
 # Groups API
 
-> Base path: `/api/groups` · 19 endpoints
+> Base path: `/api/groups` · 16 endpoints
 
 WhatsApp group administration: list/create/rename, participant add/remove/promote/demote, settings, invite links, join requests, leave, and sync. WhatsApp-affecting mutations enqueue asynchronous commands and are persisted only after worker events; the group alias update is local and synchronous. Every mutation requires `can_send_messages`, and applicable administration handlers also verify the connected account is a group admin.
 
 ## Endpoints
 
-**Methods:** GET 4 · POST 12 · DELETE 1 · PATCH 2 · PUT 0
+**Methods:** GET 4 · POST 10 · DELETE 0 · PATCH 2 · PUT 0
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
@@ -21,9 +21,6 @@ WhatsApp group administration: list/create/rename, participant add/remove/promot
 | POST | `/groups/:id/join-requests/refresh` | Authenticated · Tenant context · Contact visibility · `can_send_messages` · WhatsApp group admin | Re-read pending join requests from WhatsApp |
 | POST | `/groups/:id/leave` | Authenticated · Tenant context · Contact visibility · `can_send_messages` | Leave the group |
 | POST | `/groups/:id/participants` | Authenticated · Tenant context · Contact visibility · `can_send_messages` · WhatsApp group admin | Request adding participants; returns 200 with `{message, data: {participantJids, pending: true}}` |
-| DELETE | `/groups/:id/participants/:participantJid` | Authenticated · Tenant context · Contact visibility · `can_send_messages` · WhatsApp group admin | Remove a single participant (deprecated; use `POST /groups/:id/participants/remove`) |
-| POST | `/groups/:id/participants/:participantJid/demote` | Authenticated · Tenant context · Contact visibility · `can_send_messages` · WhatsApp group admin | Demote a single admin to member |
-| POST | `/groups/:id/participants/:participantJid/promote` | Authenticated · Tenant context · Contact visibility · `can_send_messages` · WhatsApp group admin | Promote a single member to admin |
 | POST | `/groups/:id/participants/demote` | Authenticated · Tenant context · Contact visibility · `can_send_messages` · WhatsApp group admin | Demote admins to regular members |
 | POST | `/groups/:id/participants/promote` | Authenticated · Tenant context · Contact visibility · `can_send_messages` · WhatsApp group admin | Promote members to admin |
 | POST | `/groups/:id/participants/remove` | Authenticated · Tenant context · Contact visibility · `can_send_messages` · WhatsApp group admin | Remove members from the group |

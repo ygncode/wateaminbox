@@ -106,19 +106,17 @@ class ActualRouteAccessTests(unittest.TestCase):
                 self.assertIn(label, self.endpoints[endpoint])
 
     def test_documented_route_count_is_stable(self):
-        self.assertEqual(len(self.endpoints), 227)
+        self.assertEqual(len(self.endpoints), 220)
 
 
 class RenderedAccuracyTests(unittest.TestCase):
     def test_high_risk_description_overrides(self):
         items = [
             ("", "post", "/messages", "wrong", ["Authenticated"]),
-            ("", "post", "/actions/messages/send", "wrong", ["Authenticated"]),
             ("", "get", "/debug/nats/messages/:stream", "wrong", ["Public"]),
         ]
         table = generator.endpoint_table(items)
         self.assertIn("pending message (200)", table)
-        self.assertIn("always returns 410", table)
         self.assertIn("not message content", table)
 
     def test_hand_authored_flows_preserve_audited_contracts(self):
