@@ -69,6 +69,41 @@ func TestNodeLeaseLossTriggersSelfFence(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+// A PostgreSQL request can remain stuck on a half-open connection without
+// returning an error. The absolute watchdog must fence at the lease deadline
+// independently of that in-flight renewal; otherwise a peer can take over while
+// this node's workers continue running.
+func TestNodeLeaseBlockedRenewalStillFencesAtDeadline(t *testing.T) {
+	registry, mock := newMockRegistry(t)
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE orchestrator_nodes")).
+		WithArgs("test-node-1", sqlmock.AnyArg()).
+		WillDelayFor(5 * time.Second).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	leaseDuration := 1500 * time.Millisecond
+	m := New(Config{NodeID: "test-node-1", NodeLeaseDuration: leaseDuration})
+	m.ctx, m.cancel = context.WithCancel(context.Background())
+	m.registry = registry
+
+	fenced := make(chan string, 1)
+	m.fatal = func(reason string) { fenced <- reason }
+
+	started := time.Now()
+	m.wg.Add(1)
+	go m.runNodeLease(m.ctx)
+	t.Cleanup(m.cancel)
+
+	select {
+	case reason := <-fenced:
+		assert.Contains(t, reason, "lease")
+		assert.Less(t, time.Since(started), 3*time.Second,
+			"fencing must not wait for the blocked five-second renewal")
+	case <-time.After(3 * time.Second):
+		t.Fatal("blocked lease renewal prevented deadline self-fencing")
+	}
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 // Takeover adopts a failed node's running connection: the ownership CAS moves
 // the row here and the connection re-enters the ordinary delayed-restart path.
 func TestTakeOverFailedNodesFlow(t *testing.T) {

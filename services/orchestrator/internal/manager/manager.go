@@ -2360,32 +2360,81 @@ func (m *Manager) runNodeLease(ctx context.Context) {
 	if interval < time.Second {
 		interval = time.Second
 	}
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
 
-	lastRenewed := time.Now()
+	// Renewal I/O must not be the lease watchdog. A half-open PostgreSQL
+	// connection can leave ExecContext blocked well past the database lease and
+	// takeover margin, while this node's workers keep running. Keep an absolute
+	// deadline in this goroutine and perform each renewal asynchronously so the
+	// deadline can self-fence even when the driver never returns.
+	leaseDeadline := time.Now().Add(m.config.NodeLeaseDuration)
+	renewTimer := time.NewTimer(interval)
+	deadlineTimer := time.NewTimer(time.Until(leaseDeadline))
+	defer renewTimer.Stop()
+	defer deadlineTimer.Stop()
+
+	type renewalResult struct {
+		renewed bool
+		err     error
+	}
+	fence := func(reason string) {
+		go m.selfFence(reason)
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			// The wall clock is the fencing authority: a long stall (database
-			// outage, suspended VM) must fence even if the next renewal would
-			// succeed, because peers may already be inside the takeover window.
-			if time.Since(lastRenewed) >= m.config.NodeLeaseDuration {
-				go m.selfFence("node lease could not be renewed within its duration")
+		case <-deadlineTimer.C:
+			fence("node lease could not be renewed within its duration")
+			return
+		case <-renewTimer.C:
+			// Bound the database request too, so a cooperative driver releases its
+			// connection promptly. The independent deadlineTimer remains the
+			// authority when the driver does not honor cancellation.
+			renewCtx, cancelRenew := context.WithDeadline(ctx, leaseDeadline)
+			resultCh := make(chan renewalResult, 1)
+			go func() {
+				renewed, err := m.registry.RenewNodeLease(renewCtx, m.config.NodeLeaseDuration)
+				resultCh <- renewalResult{renewed: renewed, err: err}
+			}()
+
+			select {
+			case <-ctx.Done():
+				cancelRenew()
 				return
-			}
-			renewed, err := m.registry.RenewNodeLease(ctx, m.config.NodeLeaseDuration)
-			if err != nil {
-				log.Printf("Warning: node lease renewal failed (will retry): %v", err)
-				continue
-			}
-			if !renewed {
-				go m.selfFence("node lease expired or was taken")
+			case <-deadlineTimer.C:
+				cancelRenew()
+				fence("node lease could not be renewed within its duration")
 				return
+			case result := <-resultCh:
+				cancelRenew()
+				// A result racing the deadline cannot restore authority. Fence
+				// conservatively even if the delayed query reports success: a peer
+				// may already have observed expiry and entered takeover.
+				if !time.Now().Before(leaseDeadline) {
+					fence("node lease could not be renewed within its duration")
+					return
+				}
+				if result.err != nil {
+					log.Printf("Warning: node lease renewal failed (will retry): %v", result.err)
+					renewTimer.Reset(interval)
+					continue
+				}
+				if !result.renewed {
+					fence("node lease expired or was taken")
+					return
+				}
+
+				leaseDeadline = time.Now().Add(m.config.NodeLeaseDuration)
+				if !deadlineTimer.Stop() {
+					select {
+					case <-deadlineTimer.C:
+					default:
+					}
+				}
+				deadlineTimer.Reset(time.Until(leaseDeadline))
+				renewTimer.Reset(interval)
 			}
-			lastRenewed = time.Now()
 		}
 	}
 }
