@@ -188,23 +188,26 @@ func TestStatusCommandForRemotelyOwnedConnectionAnswersFromRegistry(t *testing.T
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-// The shared placement consumer sees node-addressed subjects because its
-// filter overlaps them; it must skip foreign nodes' messages and process its
-// own and unaddressed ones.
-func TestForeignNodeSubjectsAreSkippedByTheSharedConsumer(t *testing.T) {
+// The shared placement consumer's filter overlaps every node-addressed
+// subject, and each node consumer receives an independent copy of the same
+// message. The shared consumer must therefore skip ALL node-addressed
+// subjects — foreign and its own alike — or every forwarded command would be
+// executed twice (a forwarded spawn's second run stops the just-spawned
+// worker as a "restart requested for pairing").
+func TestNodeSubjectsAreSkippedByTheSharedConsumer(t *testing.T) {
 	m := New(Config{NodeID: "test-node-1"})
 	h := &Handlers{manager: m}
 
-	assert.True(t, h.isForeignNodeSubject("WHATSAPP.commands.node.test-node-2.company.connection"))
-	assert.False(t, h.isForeignNodeSubject("WHATSAPP.commands.node.test-node-1.company.connection"))
-	assert.False(t, h.isForeignNodeSubject("WHATSAPP.commands.company.connection"))
-	// A node ID sharing a prefix with ours is still foreign.
-	assert.True(t, h.isForeignNodeSubject("WHATSAPP.commands.node.test-node-11.company.connection"))
+	assert.True(t, h.sharedConsumerSkips("WHATSAPP.commands.node.test-node-2.company.connection"))
+	assert.True(t, h.sharedConsumerSkips("WHATSAPP.commands.node.test-node-1.company.connection"),
+		"own-node subjects are executed by the node consumer's copy, never the shared one")
+	assert.True(t, h.sharedConsumerSkips("WHATSAPP.commands.node.test-node-11.company.connection"))
+	assert.False(t, h.sharedConsumerSkips("WHATSAPP.commands.company.connection"))
 
-	// Without a node identity (persistence-free single instance) nothing is
-	// skipped: there is no other node to defer to.
+	// Without a node identity (persistence-free single instance) there is no
+	// node consumer, so nothing may be skipped.
 	single := &Handlers{manager: New(Config{})}
-	assert.False(t, single.isForeignNodeSubject("WHATSAPP.commands.node.test-node-2.company.connection"))
+	assert.False(t, single.sharedConsumerSkips("WHATSAPP.commands.node.test-node-2.company.connection"))
 }
 
 // Recovery must read only rows this node owns, after adopting only ownerless

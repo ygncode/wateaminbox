@@ -65,7 +65,7 @@ func (h *Handlers) StartSubscription(ctx context.Context) error {
 		return err
 	}
 	h.sub = sub
-	go h.processCommands(ctx, sub, "WHATSAPP.commands")
+	go h.processCommands(ctx, sub, "WHATSAPP.commands", true)
 
 	if nodeID := h.manager.config.NodeID; nodeID != "" {
 		nodeSub, err := h.nats.SubscribeToNodeCommands(nodeID)
@@ -73,7 +73,7 @@ func (h *Handlers) StartSubscription(ctx context.Context) error {
 			return err
 		}
 		h.nodeSub = nodeSub
-		go h.processCommands(ctx, nodeSub, natsclient.NodeCommandSubjectPrefix+nodeID)
+		go h.processCommands(ctx, nodeSub, natsclient.NodeCommandSubjectPrefix+nodeID, false)
 	}
 
 	log.Println("NATS command subscription started")
@@ -95,7 +95,9 @@ func (h *Handlers) StopSubscription() error {
 }
 
 // processCommands continuously processes commands from one subscription.
-func (h *Handlers) processCommands(ctx context.Context, sub *nats.Subscription, label string) {
+// sharedConsumer marks the placement consumer, whose filter overlaps the
+// node-addressed subjects that only the node consumers may execute.
+func (h *Handlers) processCommands(ctx context.Context, sub *nats.Subscription, label string, sharedConsumer bool) {
 	log.Printf("Command processing loop started, waiting for messages on %s...", label)
 
 	for {
@@ -127,7 +129,7 @@ func (h *Handlers) processCommands(ctx context.Context, sub *nats.Subscription, 
 			}
 
 			for _, msg := range msgs {
-				h.handleMessage(ctx, msg)
+				h.handleMessage(ctx, msg, sharedConsumer)
 			}
 		}
 	}
@@ -147,21 +149,22 @@ func forwardHops(msg *nats.Msg) int {
 	return hops
 }
 
-// isForeignNodeSubject reports whether a subject addresses a different
-// orchestrator node's command consumer.
-func (h *Handlers) isForeignNodeSubject(subject string) bool {
-	nodeID := h.manager.config.NodeID
-	return nodeID != "" && natsclient.IsNodeCommandSubject(subject) &&
-		!strings.HasPrefix(subject, natsclient.NodeCommandSubjectPrefix+nodeID+".")
+// sharedConsumerSkips reports whether the shared placement consumer must
+// ack-and-skip a subject. Every node-addressed subject qualifies — including
+// this node's own: the node consumer receives an independent copy of the same
+// message, so executing it here as well would run each forwarded command
+// twice (a forwarded spawn's second run would stop the just-spawned worker as
+// a "restart requested for pairing").
+func (h *Handlers) sharedConsumerSkips(subject string) bool {
+	return h.manager.config.NodeID != "" && natsclient.IsNodeCommandSubject(subject)
 }
 
 // handleMessage routes a message to the appropriate handler.
-func (h *Handlers) handleMessage(ctx context.Context, msg *nats.Msg) {
+func (h *Handlers) handleMessage(ctx context.Context, msg *nats.Msg, sharedConsumer bool) {
 	// The shared consumer's filter also matches node-addressed subjects. Those
-	// are processed by the owning node's own consumer, which receives them
-	// independently; here they are acknowledged without action so the shared
-	// consumer does not redeliver another node's work.
-	if h.isForeignNodeSubject(msg.Subject) {
+	// are executed exclusively by the owning node's consumer, which receives
+	// them independently; here they are acknowledged without action.
+	if sharedConsumer && h.sharedConsumerSkips(msg.Subject) {
 		msg.Ack()
 		return
 	}

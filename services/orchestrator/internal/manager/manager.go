@@ -300,14 +300,25 @@ func (m *Manager) Start(ctx context.Context) error {
 
 			// Recovery must finish before commands are consumed. Continuing after
 			// an ambiguous durable intent could start a duplicate worker.
-			if err := m.recoverOrphanedWorkers(m.ctx); err != nil {
+			// A failed startup exits through log.Fatalf without reaching
+			// Stop(), so the fresh lease must be released here or the
+			// replacement container crash-loops on ErrNodeLeaseHeld until the
+			// TTL runs out. A failed release falls back to natural expiry.
+			releaseLeaseOnStartupFailure := func() {
 				m.cancel()
+				releaseCtx, cancelRelease := context.WithTimeout(context.Background(), markRecoveringTimeout)
+				if releaseErr := registry.ReleaseNodeLease(releaseCtx); releaseErr != nil {
+					log.Printf("Warning: failed to release node lease after startup failure: %v", releaseErr)
+				}
+				cancelRelease()
 				_ = registry.Close()
+			}
+			if err := m.recoverOrphanedWorkers(m.ctx); err != nil {
+				releaseLeaseOnStartupFailure()
 				return fmt.Errorf("failed to recover workers: %w", err)
 			}
 			if err := m.RecoverWorkerUpgrade(m.ctx); err != nil {
-				m.cancel()
-				_ = registry.Close()
+				releaseLeaseOnStartupFailure()
 				return fmt.Errorf("failed to recover worker upgrade: %w", err)
 			}
 			m.registryReady.Store(true)
@@ -2474,16 +2485,24 @@ func (m *Manager) takeOverFailedNodes(ctx context.Context) {
 		}
 		log.Printf("Took over connection %s from failed node %s", record.ConnectionID, record.NodeID)
 
+		// Carry the durable artifact identity into the respawn: with it set,
+		// scheduleRestart resolves exactly the persisted artifact (and refuses
+		// loudly when this host lacks it) instead of silently rewriting the
+		// row to this node's default artifact through the claim upsert.
 		workerProcess := &WorkerProcess{
-			ID:           record.ConnectionID,
-			LaunchID:     record.LaunchID,
-			DesiredState: record.DesiredState,
-			ConnectionID: record.ConnectionID,
-			CompanyID:    record.CompanyID,
-			TenantSchema: record.TenantSchema,
-			DatabaseURL:  m.config.WorkerDatabaseURL,
-			Status:       types.StatusError,
-			RestartCount: record.RestartCount,
+			ID:              record.ConnectionID,
+			LaunchID:        record.LaunchID,
+			DesiredState:    record.DesiredState,
+			ConnectionID:    record.ConnectionID,
+			CompanyID:       record.CompanyID,
+			TenantSchema:    record.TenantSchema,
+			DatabaseURL:     m.config.WorkerDatabaseURL,
+			Status:          types.StatusError,
+			RestartCount:    record.RestartCount,
+			ArtifactVersion: record.ArtifactVersion,
+			ArtifactSHA256:  record.ArtifactSHA256,
+			WorkerUID:       record.WorkerUID,
+			WorkerGID:       record.WorkerGID,
 		}
 		m.mu.Lock()
 		if _, exists := m.workers[record.ConnectionID]; exists {

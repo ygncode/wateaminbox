@@ -106,6 +106,12 @@ func TestTakeOverFailedNodesFlow(t *testing.T) {
 	assert.Equal(t, "dead-launch", adopted.LaunchID)
 	assert.Equal(t, types.StatusError, adopted.Status)
 	assert.Equal(t, DesiredStateRunning, adopted.DesiredState)
+	// The durable artifact identity must survive takeover, or the respawn
+	// would silently rewrite the row to this node's default artifact.
+	assert.Equal(t, "v1", adopted.ArtifactVersion)
+	assert.Equal(t, "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", adopted.ArtifactSHA256)
+	assert.Equal(t, 100000, adopted.WorkerUID)
+	assert.Equal(t, 100000, adopted.WorkerGID)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
