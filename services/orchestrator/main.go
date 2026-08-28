@@ -85,8 +85,19 @@ func main() {
 	if databaseURL != "" && nodeID == "" {
 		log.Fatalf("ORCHESTRATOR_NODE_ID is required when DATABASE_URL is configured")
 	}
+	// Fleet-wide connection ceiling enforced atomically inside the registry
+	// claim; per-process ORCHESTRATOR_MAX_WORKERS remains host capacity.
+	fleetMaxConnections := config.GetIntEnv("ORCHESTRATOR_FLEET_MAX_CONNECTIONS", 15)
+	nodeLeaseDuration := config.GetDurationEnv("ORCHESTRATOR_NODE_LEASE_DURATION", 60*time.Second)
+	nodeTakeoverMargin := config.GetDurationEnv("ORCHESTRATOR_NODE_TAKEOVER_MARGIN", 60*time.Second)
 	if maxWorkers < 0 {
 		log.Fatalf("ORCHESTRATOR_MAX_WORKERS must be non-negative, got %d", maxWorkers)
+	}
+	if fleetMaxConnections < 0 {
+		log.Fatalf("ORCHESTRATOR_FLEET_MAX_CONNECTIONS must be non-negative, got %d", fleetMaxConnections)
+	}
+	if nodeLeaseDuration <= 0 || nodeTakeoverMargin <= 0 {
+		log.Fatalf("ORCHESTRATOR_NODE_LEASE_DURATION and ORCHESTRATOR_NODE_TAKEOVER_MARGIN must be positive")
 	}
 	if rolloutReadyTimeout <= 0 {
 		log.Fatalf("WORKER_ROLLOUT_READY_TIMEOUT must be positive, got %s", rolloutReadyTimeout)
@@ -125,6 +136,9 @@ func main() {
 		RolloutReadyTimeout:    rolloutReadyTimeout,
 		RootManagerApproved:    rootManagerApproved,
 		NodeID:                 nodeID,
+		FleetMaxConnections:    fleetMaxConnections,
+		NodeLeaseDuration:      nodeLeaseDuration,
+		NodeTakeoverMargin:     nodeTakeoverMargin,
 	})
 
 	// Start the manager

@@ -22,7 +22,7 @@ func TestWorkerRegistryAcceptsRealMigration071IdentitySchema(t *testing.T) {
 	if os.Getenv("RUN_DB_INTEGRATION") != "1" {
 		t.Skip("set RUN_DB_INTEGRATION=1")
 	}
-	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1")
+	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1", 0)
 	require.NoError(t, err)
 	require.NoError(t, registry.Close())
 }
@@ -31,7 +31,7 @@ func TestRealPostgresVerifyRefreshFencesExactTargetGeneration(t *testing.T) {
 	if os.Getenv("RUN_DB_INTEGRATION") != "1" {
 		t.Skip("set RUN_DB_INTEGRATION=1")
 	}
-	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1")
+	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1", 0)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = registry.Close() })
 	ctx := context.Background()
@@ -102,7 +102,7 @@ func TestRealPostgresCompletionCASRejectsStaleGenerationArtifactAndCredentials(t
 	if os.Getenv("RUN_DB_INTEGRATION") != "1" {
 		t.Skip("set RUN_DB_INTEGRATION=1")
 	}
-	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1")
+	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1", 0)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = registry.Close() })
 	ctx := context.Background()
@@ -223,7 +223,7 @@ func TestRealPostgresReservedGenerationCrashBoundariesRetrySameIdentity(t *testi
 	}
 	newFixture := func(t *testing.T) fixture {
 		t.Helper()
-		registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1")
+		registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1", 0)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = registry.Close() })
 		companyID, _ := newLaunchID()
@@ -388,7 +388,7 @@ func TestRealPostgresAuthoritativeStopAbandonsHaltedBatchAndBlocksRetryResurrect
 	if os.Getenv("RUN_DB_INTEGRATION") != "1" {
 		t.Skip("set RUN_DB_INTEGRATION=1")
 	}
-	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1")
+	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1", 0)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = registry.Close() })
 	ctx := context.Background()
@@ -503,7 +503,7 @@ func TestRealPostgresAuthoritativeUnlinkAbandonsHaltedBatchAndIsIdempotent(t *te
 	if os.Getenv("RUN_DB_INTEGRATION") != "1" {
 		t.Skip("set RUN_DB_INTEGRATION=1")
 	}
-	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1")
+	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1", 0)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = registry.Close() })
 	ctx := context.Background()
@@ -563,7 +563,7 @@ func TestRealPostgresBatchWideRollbackTerminalContract(t *testing.T) {
 	if os.Getenv("RUN_DB_INTEGRATION") != "1" {
 		t.Skip("set RUN_DB_INTEGRATION=1")
 	}
-	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1")
+	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1", 0)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = registry.Close() })
 	ctx := context.Background()
@@ -710,7 +710,7 @@ func TestRealPostgresVerifyRefreshPersistenceFailureKeepsRecoveryGenerationRetry
 	if os.Getenv("RUN_DB_INTEGRATION") != "1" {
 		t.Skip("set RUN_DB_INTEGRATION=1")
 	}
-	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1")
+	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1", 0)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = registry.Close() })
 	ctx := context.Background()
@@ -797,7 +797,7 @@ func TestRealPostgresVerifyRefreshPersistenceFailureKeepsRecoveryGenerationRetry
 
 	// A replacement orchestrator must accept only the exact claimed recovery
 	// generation as the rollback predecessor.
-	restarted, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1")
+	restarted, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1", 0)
 	require.NoError(t, err)
 	defer restarted.Close()
 	newerGeneration, _ := newLaunchID()
@@ -834,7 +834,7 @@ func TestRealPostgresLegacyArtifactNormalizationGatesRolloutAndRejectsLiveMismat
 	if os.Getenv("RUN_DB_INTEGRATION") != "1" {
 		t.Skip("set RUN_DB_INTEGRATION=1")
 	}
-	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1")
+	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1", 0)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = registry.Close() })
 	ctx := context.Background()
@@ -908,7 +908,7 @@ func TestRealPostgresPreservedRolloutStopDeactivatesPIDBeforeEmptyMapLifecycle(t
 			if operation == "unlink" && runtime.GOOS != "linux" {
 				t.Skip("durable unlink process isolation requires Linux")
 			}
-			registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1")
+			registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1", 0)
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = registry.Close() })
 			ctx := context.Background()
@@ -1002,7 +1002,7 @@ func TestRealPostgresEmptyMapStopRollsBackFailedAbandonmentThenRedelivers(t *tes
 	if os.Getenv("RUN_DB_INTEGRATION") != "1" {
 		t.Skip("set RUN_DB_INTEGRATION=1")
 	}
-	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1")
+	registry, err := NewWorkerRegistry(os.Getenv("DATABASE_URL"), "itest-node-1", 0)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = registry.Close() })
 	ctx := context.Background()

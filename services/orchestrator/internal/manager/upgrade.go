@@ -195,6 +195,26 @@ func (m *Manager) RecoverWorkerUpgrade(ctx context.Context) error {
 		log.Printf("Worker upgrade %s remains halted for operator intervention: %s", batch.ID, batch.LastError)
 		return nil
 	}
+	// Resume only items belonging to this node. A batch is snapshotted from
+	// the starting node's own workers, but ownership is durable state: after a
+	// rename or an operator reassignment, driving another node's generation
+	// from here would signal PIDs that live on a different host.
+	for _, item := range batch.Items {
+		if item.CompletedAt != nil {
+			continue
+		}
+		record, err := m.registry.GetWorker(ctx, item.ConnectionID)
+		if err != nil {
+			return fmt.Errorf("inspect rollout item ownership for %s: %w", item.ConnectionID, err)
+		}
+		if record != nil && record.NodeID != "" && record.NodeID != m.config.NodeID {
+			log.Printf(
+				"Worker upgrade %s has unfinished item %s owned by node %s; leaving recovery to that node",
+				batch.ID, item.ConnectionID, record.NodeID,
+			)
+			return nil
+		}
+	}
 	// Acquire the writer gate synchronously. Start() invokes this before command
 	// subscription, so no command or delayed crash callback can mutate a launch
 	// between durable recovery discovery and runner ownership.

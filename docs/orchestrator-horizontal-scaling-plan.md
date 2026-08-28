@@ -6,11 +6,36 @@ Allow more than one Go orchestrator instance to run concurrently against one
 fleet, so that WhatsApp worker capacity is no longer bound to a single host and
 orchestrator replacement no longer requires a full stop-first outage.
 
-Implementation status: workstreams 1 and 2 are implemented (migration 077,
-`ORCHESTRATOR_NODE_ID`, node-scoped recovery with NULL-owner adoption, per-node
-command consumers, and ownership-aware routing with hop-bounded forwarding).
-Workstreams 3 through 6 remain design only, so multi-node production deployment
-is still not permitted; the single-node stop-first constraint is now per node.
+Implementation status:
+
+- Workstreams 1-2 implemented: migration 077, `ORCHESTRATOR_NODE_ID`,
+  node-scoped recovery with NULL-owner adoption, per-node command consumers,
+  and ownership-aware routing with hop-bounded forwarding.
+- Workstream 3 implemented: `ORCHESTRATOR_FLEET_MAX_CONNECTIONS` is enforced
+  inside the launch-claim transaction behind a fleet advisory lock (reclaims
+  never count as new capacity), and a node at local capacity places a
+  brand-new connection on the live peer with the most free slots. Existing
+  connections keep node affinity.
+- Workstream 4 implemented: migration 078 adds `orchestrator_nodes` leases.
+  Registration refuses a node identity with a live lease (per-node stop-first
+  in shared state), a node that cannot renew within the lease duration
+  self-fences (stops its workers and exits; Linux parent-death SIGKILL is the
+  kernel backstop), and peers take over a failed node's desired-running
+  connections only after the lease has been expired past
+  `ORCHESTRATOR_NODE_TAKEOVER_MARGIN`, via a single-winner ownership CAS that
+  re-checks the owner's expiry. Connections inside an unfinished rollout item
+  are never taken over.
+- Workstream 5 partial: rollout recovery resumes only items owned by the
+  recovering node, and batches snapshot only local workers. Fleet-wide
+  (multi-node) rollout coordination is still open; a rollout covers one
+  node's workers at a time.
+- Workstream 6 implemented: `/workers` and `/workers/:id` serve the durable
+  fleet view with node ownership (local rows enriched with runtime state),
+  `/nodes` reports lease liveness, and `/rollouts` was already durable.
+
+Multi-node production deployment additionally requires the infrastructure
+scope below (NATS clustering, PostgreSQL availability, per-host artifacts)
+and remains prohibited on the current single-droplet topology.
 
 ## Current state
 
@@ -99,7 +124,7 @@ another host, producing two whatsmeow clients against one set of device rows.
   discards stop intent, so it must distinguish "no such connection" from "not
   mine".
 
-### 3. Placement and global capacity
+### 3. Placement and global capacity (implemented)
 
 - Separate per-node capacity from the fleet-wide connection ceiling. The
   effective-connection cap of 15 is a commercial invariant and must be enforced
@@ -109,7 +134,7 @@ another host, producing two whatsmeow clients against one set of device rows.
 - Select a target node by live capacity, subject to the affinity rule in the
   risks section below.
 
-### 4. Node liveness and fencing
+### 4. Node liveness and fencing (implemented)
 
 This is the workstream with real correctness risk.
 
@@ -124,7 +149,7 @@ This is the workstream with real correctness risk.
   one connection's device rows can corrupt the session or force a logout, which
   is a customer-visible reconnect and re-pair.
 
-### 5. Rollout and upgrade coordination
+### 5. Rollout and upgrade coordination (partial: per-node only)
 
 - Make the batch in `upgrade.go` node-aware, either by electing one coordinator
   that drives the batch while each node executes its own items through the node
@@ -134,7 +159,7 @@ This is the workstream with real correctness risk.
 - Preserve the existing durable stop-first item semantics; overlap between a
   source and target generation remains prohibited.
 
-### 6. Operator surface and deployment
+### 6. Operator surface and deployment (implemented)
 
 - Serve `/workers` and `/rollouts` from the registry rather than in-process
   state, so an operator sees the fleet instead of one instance.

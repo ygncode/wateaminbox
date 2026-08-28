@@ -230,21 +230,26 @@ func (h *Handlers) resolveOwnership(ctx context.Context, companyID, connectionID
 	return record, ownedElsewhere, nil
 }
 
-// forwardToOwner republishes a command onto its owning node's subject. The
+// forwardToNode republishes a command onto another node's subject. The
 // returned error (past the hop bound) surfaces as a NAK, so redelivery
-// re-resolves ownership from the registry instead of looping between nodes.
-func (h *Handlers) forwardToOwner(record *WorkerRecord, data []byte, hops int) error {
+// re-resolves routing from the registry instead of looping between nodes.
+func (h *Handlers) forwardToNode(nodeID, companyID, connectionID string, data []byte, hops int) error {
 	if hops >= maxForwardHops {
-		return fmt.Errorf("command for connection %s exceeded %d forwarding hops", record.ConnectionID, maxForwardHops)
+		return fmt.Errorf("command for connection %s exceeded %d forwarding hops", connectionID, maxForwardHops)
 	}
 	if h.forwardCommand == nil {
-		return fmt.Errorf("cannot forward command for connection %s: no NATS forwarding configured", record.ConnectionID)
+		return fmt.Errorf("cannot forward command for connection %s: no NATS forwarding configured", connectionID)
 	}
-	if err := h.forwardCommand(record.NodeID, record.CompanyID, record.ConnectionID, data, hops+1); err != nil {
+	if err := h.forwardCommand(nodeID, companyID, connectionID, data, hops+1); err != nil {
 		return err
 	}
-	log.Printf("Forwarded command for connection %s to owning node %s", record.ConnectionID, record.NodeID)
+	log.Printf("Forwarded command for connection %s to node %s", connectionID, nodeID)
 	return nil
+}
+
+// forwardToOwner routes a command to the node the registry names as owner.
+func (h *Handlers) forwardToOwner(record *WorkerRecord, data []byte, hops int) error {
+	return h.forwardToNode(record.NodeID, record.CompanyID, record.ConnectionID, data, hops)
 }
 
 // handleSpawnCommand handles a spawn worker command.
@@ -266,6 +271,25 @@ func (h *Handlers) handleSpawnCommand(ctx context.Context, data []byte, hops int
 	}
 	if ownedElsewhere {
 		return h.forwardToOwner(record, data, hops)
+	}
+
+	// Placement: a brand-new connection lands on the node that pulled it from
+	// the shared consumer, unless that node is at local capacity and a live
+	// peer has free slots. Existing connections are never moved here — node
+	// affinity is the default because a worker's outbound IP is part of its
+	// WhatsApp identity.
+	if record == nil && h.manager.registry != nil && h.manager.config.NodeID != "" &&
+		h.manager.config.MaxWorkers > 0 && h.manager.WorkerCount() >= h.manager.config.MaxWorkers {
+		target, found, placementErr := h.manager.registry.SelectSpawnNode(ctx)
+		if placementErr != nil {
+			return placementErr
+		}
+		if found {
+			log.Printf("Node at local capacity; placing new connection %s on node %s", cmd.ConnectionID, target)
+			return h.forwardToNode(target, cmd.CompanyID, cmd.ConnectionID, data, hops)
+		}
+		// No peer has capacity either: fall through so the local spawn fails
+		// with the ordinary worker-limit error and reports it to the API.
 	}
 
 	// A reconnect is an explicit request for a fresh pairing attempt. Replace a
