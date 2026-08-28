@@ -11,8 +11,15 @@ local development stack and is intentionally not an input to production.
 Only Caddy publishes host ports (`80` and `443`, including HTTP/3 UDP). Caddy
 terminates TLS and routes:
 
-- `APP_DOMAIN`: `/api/*` to the Bun API, `/connection/*` to Centrifugo, and all
-  other paths to the web SPA.
+- `APP_DOMAIN`: `/api/*` to the internal HAProxy API router,
+  `/connection/*` to Centrifugo, and all other paths to the web SPA.
+
+The API router discovers scaled `api` containers through Docker DNS, balances
+requests without session affinity, and admits only replicas whose
+`/api/health/ready` probe returns HTTP 200. API replicas are homogeneous: the
+shared NATS durable queue distributes WhatsApp events, and PostgreSQL row claims,
+leases, and fencing coordinate periodic work. The orchestrator remains a
+singleton and is not part of API scaling.
 
 Media is never proxied by this stack. Private media URLs are presigned directly
 against R2's account S3 API endpoint and fetched by the browser from R2.
@@ -493,7 +500,12 @@ the complete readiness chain, so replayed or reordered pre-disconnect positive
 signals cannot restore rollout readiness.
 
 Use an application-only rollback only when that exact old image has been
-explicitly verified against every migration already applied. Migration 070 is a
+explicitly verified against every migration already applied. When rolling back
+to the immediately preceding API image that predates the PostgreSQL limiter,
+override `API_REPLICA_COUNT=1` and `RATE_LIMIT_STORE_TYPE=memory` together; that
+image cannot start with the new `postgres` store value, and memory limiting is
+not authoritative across replicas. Later releases must use the replica and
+limiter settings documented for the selected image. Migration 070 is a
 known compatibility boundary: a pre-070 orchestrator does not understand
 persisted `stopped` or `unlinking` intent and can resurrect or abandon workers.
 Never roll back across that boundary by changing `APP_IMAGE_TAG` alone. Stop all
@@ -526,6 +538,35 @@ Alert on repeated worker restarts, NATS/outbox backlog, API readiness degradatio
 capacity. Pin and regularly review all base/service image tags; image scanning
 and host vulnerability management remain operator responsibilities.
 
-For more than one API replica, replace the in-memory rate-limit store with a
-supported shared Redis deployment and test background-service concurrency. The
-provided baseline intentionally runs one API and one orchestrator.
+## API replica operations
+
+`API_REPLICA_COUNT` controls the number of homogeneous API containers and is
+bounded to 1–10. Production defaults to the PostgreSQL fixed-window rate-limit
+store, which is required when the replica count exceeds one. Keep
+`REALTIME_MEMBERSHIP_CACHE_TTL_MS=0` until cross-replica invalidation exists.
+
+Database pool limits are per replica. Budget the upper bound as:
+
+```text
+API_REPLICA_COUNT × (PUBLIC_DB_POOL_MAX + TENANT_DB_POOL_MAX)
++ cloud-control + orchestrator + worker pools + migration/operator reserve
+```
+
+The supplied starting values are five public and ten tenant connections per API
+replica. Validate them against PostgreSQL `max_connections` and measured pool
+waits before increasing replicas. HAProxy reserves ten Docker-DNS server slots,
+matching the application validation ceiling.
+
+Introduce this topology in two deployments: first deploy the PostgreSQL limiter
+and router with `API_REPLICA_COUNT=1`; after readiness, rate-limit, outbox, and
+pool metrics are stable, set the count to two and deploy again. Docker Compose
+does not provide a start-first rolling update for scaled services: `compose up`
+may replace all API containers before their replacements become ready. HAProxy
+will exclude unready replacements, but that does not guarantee uninterrupted
+capacity when no old backend remains, so schedule ordinary image upgrades for a
+maintenance window unless a separately tested blue/green procedure is used.
+Never overlap incompatible schemas or bypass coordinated NATS credential
+rotation. Reduce capacity only after checking traffic and allowing SIGTERM to
+drain the removed replica. Two replicas on one host improve process resilience
+but do not provide host HA or justify an SLA. The orchestrator must remain one
+replica.

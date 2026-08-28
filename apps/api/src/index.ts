@@ -3,6 +3,7 @@ import { setVerifiedRequestIp } from "./lib/client-ip.js";
 import { env } from "./lib/env.js";
 import { createLogger, formatError } from "./lib/logger.js";
 import { natsLifecycle } from "./lib/nats/index.js";
+import { rateLimitStore } from "./lib/rate-limit-store.js";
 import { runShutdown, type ShutdownStep } from "./lib/shutdown.js";
 import {
   initializeCommandOutbox,
@@ -105,6 +106,9 @@ function shutdownSteps(): ShutdownStep[] {
     { name: "scheduled-messages", run: shutdownScheduledMessages },
     // Drains the event supervisor, then the NATS connection itself.
     { name: "nats", run: () => natsLifecycle.shutdown() },
+    // Stops PostgreSQL cleanup (or closes the optional Redis connection)
+    // before the database pools used by the store are released.
+    { name: "rate-limit-store", run: () => rateLimitStore.close() },
     // Every step above can touch the database, so the pools close last.
     { name: "tenant-connections", run: shutdownTenantConnections },
   ];

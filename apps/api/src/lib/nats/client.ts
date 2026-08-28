@@ -397,13 +397,24 @@ export const API_EVENTS_QUEUE = "whatsapp-api-events";
  * group ensures that horizontally-scaled API instances process each event
  * once, while explicit acknowledgements only advance after persistence.
  */
+export interface EventConsumerIdentity {
+  durable: string;
+  deliverSubject: string;
+  queue: string;
+}
+
 export function buildEventConsumerOptions(
   subject: string,
+  identity: EventConsumerIdentity = {
+    durable: API_EVENTS_CONSUMER,
+    deliverSubject: API_EVENTS_DELIVER_SUBJECT,
+    queue: API_EVENTS_QUEUE,
+  },
 ): ConsumerOptsBuilder {
   const opts = consumerOpts();
-  opts.durable(API_EVENTS_CONSUMER);
-  opts.deliverTo(API_EVENTS_DELIVER_SUBJECT);
-  opts.queue(API_EVENTS_QUEUE);
+  opts.durable(identity.durable);
+  opts.deliverTo(identity.deliverSubject);
+  opts.queue(identity.queue);
   opts.deliverAll();
   opts.manualAck();
   opts.ackExplicit();

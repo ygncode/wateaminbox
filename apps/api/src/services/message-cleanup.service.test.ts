@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   getMessageCleanupConfig,
   getMessageCleanupStatus,
+  initializeMessageCleanup,
   isMessageCleanupInitialized,
   runCleanupCycle,
   setMessageCleanupConfig,
@@ -134,11 +135,68 @@ describe("cleanup cycle error isolation", () => {
 });
 
 /**
- * The cycle runs on a `setInterval`. A timer that outlives shutdown keeps the
- * process alive and keeps hitting the database after the service is meant to
- * be stopped.
+ * The completion-driven timer must neither overlap a slow cycle nor outlive
+ * shutdown.
  */
 describe("cleanup service lifecycle", () => {
+  test("a slow cycle cannot overlap and shutdown awaits its completion", async () => {
+    const original = getMessageCleanupConfig();
+    let cleanupCalls = 0;
+    let releaseSlowCycle!: () => void;
+    let signalSlowCycleStarted!: () => void;
+    let signalSlowCycleFinished!: () => void;
+    const slowCycleStarted = new Promise<void>((resolve) => {
+      signalSlowCycleStarted = resolve;
+    });
+    const slowCycleFinished = new Promise<void>((resolve) => {
+      signalSlowCycleFinished = resolve;
+    });
+    const slowCycleGate = new Promise<void>((resolve) => {
+      releaseSlowCycle = resolve;
+    });
+
+    try {
+      await initializeMessageCleanup(
+        { enabled: true, intervalMinutes: 0.0001 },
+        {
+          listCompanies: async () => [{ id: "company-a" }],
+          cleanupMessages: async () => {
+            cleanupCalls++;
+            if (cleanupCalls === 2) {
+              signalSlowCycleStarted();
+              await slowCycleGate;
+              signalSlowCycleFinished();
+            }
+            return 0;
+          },
+          releaseMedia: async () => 0,
+        },
+      );
+
+      await slowCycleStarted;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      // Several nominal intervals elapsed while call two was blocked. An
+      // interval-driven scheduler would have started calls three and four.
+      expect(cleanupCalls).toBe(2);
+
+      let shutdownResolved = false;
+      const shutdown = shutdownMessageCleanup().then(() => {
+        shutdownResolved = true;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(shutdownResolved).toBe(false);
+
+      releaseSlowCycle();
+      await slowCycleFinished;
+      await shutdown;
+      expect(shutdownResolved).toBe(true);
+    } finally {
+      releaseSlowCycle();
+      await shutdownMessageCleanup();
+      setMessageCleanupConfig(original);
+    }
+  });
+
   test("shutdown is safe before initialization and is idempotent", async () => {
     await shutdownMessageCleanup();
     await shutdownMessageCleanup();

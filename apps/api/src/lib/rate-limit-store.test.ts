@@ -58,12 +58,38 @@ describe("MemoryRateLimitStore counting", () => {
 
   test("a lapsed window starts a fresh count", async () => {
     const store = new MemoryRateLimitStore();
-    // A zero-length window is already elapsed on the next call.
-    await store.increment("a", 1, 0);
-    expect(await store.increment("a", 1, 0)).toMatchObject({
-      allowed: true,
-      currentCount: 1,
+    const originalNow = Date.now;
+    let now = 1_000;
+    Date.now = () => now;
+    try {
+      await store.increment("a", 1, 1);
+      now += 1_000;
+      expect(await store.increment("a", 1, 1)).toMatchObject({
+        allowed: true,
+        currentCount: 1,
+      });
+    } finally {
+      Date.now = originalNow;
+    }
+  });
+
+  test("caps denied counters at limit plus one", async () => {
+    const store = new MemoryRateLimitStore();
+    for (let index = 0; index < 20; index++) {
+      await store.increment("a", 2, 60);
+    }
+    expect(await store.increment("a", 2, 60)).toMatchObject({
+      allowed: false,
+      currentCount: 3,
     });
+  });
+
+  test("rejects unsafe integer arguments", async () => {
+    const store = new MemoryRateLimitStore();
+    expect(store.increment("a", Number.MAX_SAFE_INTEGER, 60)).rejects.toThrow(
+      /positive safe integer/,
+    );
+    expect(store.increment("a", 1, 0)).rejects.toThrow(/positive safe integer/);
   });
 });
 
