@@ -46,7 +46,7 @@ interface VirtualMessageListProps {
   onBackgroundContextMenu?: (e: React.MouseEvent) => void;
   mentionParticipants?: Pick<
     GroupParticipant,
-    "jid" | "phoneNumber" | "mentionIds" | "displayName"
+    "jid" | "phoneNumber" | "mentionIds" | "displayName" | "contactId"
   >[];
   onNavigateToMessage?: (target: MessageNavigationTarget) => void;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { sql } from "kysely";
+import { getContactDisplayName } from "@wateaminbox/shared";
 import type { ContactEvent } from "../lib/nats/index.js";
 import {
   getEnrichedGroupParticipants,
@@ -96,6 +97,9 @@ describe("group synchronization", () => {
             },
           ])
           .execute();
+        // The group snapshot above already backfilled a bare contact for every
+        // phone-addressable member, so this names the member rather than
+        // introducing them - the name is what the assertion below is about.
         await tenantDb
           .insertInto("contacts")
           .values({
@@ -104,6 +108,13 @@ describe("group synchronization", () => {
             phone_number: "222",
             push_name: "Alice from contacts",
           })
+          .onConflict((oc) =>
+            oc
+              .columns(["whatsapp_connection_id", "jid"])
+              .where("whatsapp_connection_id", "is not", null)
+              .where("jid", "is not", null)
+              .doUpdateSet({ push_name: "Alice from contacts" }),
+          )
           .execute();
         await sql`
           INSERT INTO whatsapp_sessions.whatsmeow_lid_mappings (
@@ -523,6 +534,466 @@ describe("group synchronization", () => {
         expect(result.groups[0]?.displayName).toBe("Legacy Project Group");
         expect(result.groups[0]?.participantCount).toBeNull();
       } finally {
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      }
+    },
+    30_000,
+  );
+  integrationTest(
+    "gives every phone-addressable member a contact so their identity is openable",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+      const groupJid = `${randomNumericId()}@g.us`;
+      const ownNumber = randomNumericId();
+      const speaker = randomNumericId();
+      const silentMember = randomNumericId();
+      const lidOnlyMember = randomNumericId();
+
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: connectionId,
+            name: "Primary",
+            phone_number: ownNumber,
+            // Connected rows from older event flows can temporarily lack jid;
+            // self-filtering must fall back to this phone number.
+            jid: null,
+            status: "connected",
+          })
+          .execute();
+
+        const contactEvent: ContactEvent = {
+          contractVersion: 1,
+          type: "contact",
+          companyId,
+          connectionId,
+          timestamp: new Date().toISOString(),
+          payload: {
+            jid: groupJid,
+            displayName: "Backfill Group",
+            isGroup: true,
+            participants: [
+              // Already has a direct conversation - historically the ONLY
+              // member with a contact row, and so the only clickable one.
+              { jid: `${speaker}@s.whatsapp.net`, isAdmin: false },
+              { jid: `${silentMember}@s.whatsapp.net`, isAdmin: true },
+              // WhatsApp has not disclosed this member's number.
+              { jid: `${lidOnlyMember}@lid`, isAdmin: false },
+              // The connected account itself.
+              { jid: `${ownNumber}@s.whatsapp.net`, isAdmin: true },
+            ],
+          },
+        };
+
+        await tenantDb
+          .insertInto("contacts")
+          .values({
+            whatsapp_connection_id: connectionId,
+            jid: `${speaker}@s.whatsapp.net`,
+            phone_number: speaker,
+            push_name: "Existing Contact",
+          })
+          .execute();
+
+        await handleContactEvent(contactEvent);
+
+        const groupContact = await tenantDb
+          .selectFrom("contacts")
+          .select(["id"])
+          .where("jid", "=", groupJid)
+          .executeTakeFirstOrThrow();
+        const groupRecord = await tenantDb
+          .selectFrom("groups")
+          .select("id")
+          .where("contact_id", "=", groupContact.id)
+          .executeTakeFirstOrThrow();
+
+        const participants = await getEnrichedGroupParticipants(tenantDb, {
+          groupId: groupRecord.id,
+          contactId: groupContact.id,
+          connectionId,
+          connectionJid: `${ownNumber}@s.whatsapp.net`,
+        });
+        const contactIdByJid = new Map(
+          participants.map((participant) => [
+            participant.jid,
+            participant.contactId,
+          ]),
+        );
+
+        // The member who was already reachable stays reachable, and keeps the
+        // contact that already carried their name rather than gaining a second.
+        expect(contactIdByJid.get(`${speaker}@s.whatsapp.net`)).toBeTruthy();
+        // The regression this fixes: a member who never messaged is openable.
+        expect(
+          contactIdByJid.get(`${silentMember}@s.whatsapp.net`),
+        ).toBeTruthy();
+        // No stable key exists for a LID-only member, so none is invented.
+        expect(contactIdByJid.get(`${lidOnlyMember}@lid`)).toBeNull();
+
+        const ownContact = await tenantDb
+          .selectFrom("contacts")
+          .select(["id"])
+          .where("jid", "=", `${ownNumber}@s.whatsapp.net`)
+          .executeTakeFirst();
+        expect(ownContact).toBeUndefined();
+
+        const backfilled = await tenantDb
+          .selectFrom("contacts")
+          .select(["id", "is_group", "phone_number"])
+          .where("jid", "=", `${silentMember}@s.whatsapp.net`)
+          .executeTakeFirstOrThrow();
+        expect(backfilled.is_group).toBe(false);
+        expect(backfilled.phone_number).toBe(silentMember);
+
+        // A backfilled member carries no conversation state, so the default
+        // "open" inbox does not gain an empty conversation for them.
+        const conversationState = await tenantDb
+          .selectFrom("conversation_states")
+          .select(["contact_id"])
+          .where("contact_id", "=", backfilled.id)
+          .executeTakeFirst();
+        expect(conversationState).toBeUndefined();
+
+        // Re-running the same snapshot is a no-op: no duplicate rows, and the
+        // member keeps the identity the first pass gave them.
+        await handleContactEvent(contactEvent);
+        const afterReplay = await tenantDb
+          .selectFrom("contacts")
+          .select(["id"])
+          .where("jid", "=", `${silentMember}@s.whatsapp.net`)
+          .execute();
+        expect(afterReplay).toHaveLength(1);
+        expect(afterReplay[0]?.id).toBe(backfilled.id);
+      } finally {
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      }
+    },
+    30_000,
+  );
+  integrationTest(
+    "names a backfilled member so their profile matches the identity that was clicked",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const otherConnectionId = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+      const groupJid = `${randomNumericId()}@g.us`;
+      const ownNumber = randomNumericId();
+      const storedNamed = randomNumericId();
+      const messageNamed = randomNumericId();
+      const anonymous = randomNumericId();
+      const customNamed = randomNumericId();
+
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values([
+            {
+              id: connectionId,
+              name: "Primary",
+              jid: `${ownNumber}@s.whatsapp.net`,
+              status: "connected",
+            },
+            {
+              id: otherConnectionId,
+              name: "Secondary",
+              jid: `${randomNumericId()}@s.whatsapp.net`,
+              status: "connected",
+            },
+          ])
+          .execute();
+
+        // WhatsApp's own address book, owned by the OTHER connection. Its name
+        // must never reach a member on this connection.
+        await sql`
+          INSERT INTO whatsapp_sessions.whatsmeow_contacts (
+            connection_id, our_jid, their_jid, full_name
+          ) VALUES (
+            ${otherConnectionId},
+            ${`${ownNumber}@s.whatsapp.net`},
+            ${`${storedNamed}@s.whatsapp.net`},
+            'Leaked From Other Connection'
+          )
+        `.execute(db);
+        await sql`
+          INSERT INTO whatsapp_sessions.whatsmeow_contacts (
+            connection_id, our_jid, their_jid, full_name
+          ) VALUES (
+            ${connectionId},
+            ${`${ownNumber}@s.whatsapp.net`},
+            ${`${storedNamed}@s.whatsapp.net`},
+            'Stored Address Book Name'
+          )
+        `.execute(db);
+
+        const contactEvent: ContactEvent = {
+          contractVersion: 1,
+          type: "contact",
+          companyId,
+          connectionId,
+          timestamp: new Date().toISOString(),
+          payload: {
+            jid: groupJid,
+            displayName: "Naming Group",
+            isGroup: true,
+            participants: [
+              { jid: `${storedNamed}@s.whatsapp.net`, isAdmin: false },
+              { jid: `${messageNamed}@s.whatsapp.net`, isAdmin: false },
+              { jid: `${anonymous}@s.whatsapp.net`, isAdmin: false },
+              { jid: `${customNamed}@s.whatsapp.net`, isAdmin: false },
+            ],
+          },
+        };
+        await handleContactEvent(contactEvent);
+
+        const groupContact = await tenantDb
+          .selectFrom("contacts")
+          .select(["id"])
+          .where("jid", "=", groupJid)
+          .executeTakeFirstOrThrow();
+
+        // A member whose only name is the one WhatsApp put on their messages.
+        await tenantDb
+          .insertInto("messages")
+          .values({
+            whatsapp_connection_id: connectionId,
+            contact_id: groupContact.id,
+            message_id: `msg-${messageNamed}`,
+            from_me: false,
+            sender_jid: `${messageNamed}@s.whatsapp.net`,
+            sender_name: "Name From Messages",
+            message_type: "text",
+            content: "hi",
+            timestamp: new Date("2026-02-01T00:00:00Z"),
+          })
+          .execute();
+
+        // A historical blank is still unnamed and should be repaired.
+        await tenantDb
+          .updateTable("contacts")
+          .set({ push_name: "   " })
+          .where("jid", "=", `${storedNamed}@s.whatsapp.net`)
+          .where("whatsapp_connection_id", "=", connectionId)
+          .execute();
+
+        // A member an agent already renamed by hand.
+        await tenantDb
+          .updateTable("contacts")
+          .set({ custom_name: "Agent Chosen Name" })
+          .where("jid", "=", `${customNamed}@s.whatsapp.net`)
+          .where("whatsapp_connection_id", "=", connectionId)
+          .execute();
+
+        // Re-running the sync is what names the members already created.
+        await handleContactEvent(contactEvent);
+
+        const nameOf = async (number: string) =>
+          tenantDb
+            .selectFrom("contacts")
+            .select(["push_name", "custom_name"])
+            .where("jid", "=", `${number}@s.whatsapp.net`)
+            .where("whatsapp_connection_id", "=", connectionId)
+            .executeTakeFirstOrThrow();
+
+        // The profile reads push_name, so this is what the opened panel shows.
+        expect((await nameOf(storedNamed)).push_name).toBe(
+          "Stored Address Book Name",
+        );
+        expect((await nameOf(messageNamed)).push_name).toBe(
+          "Name From Messages",
+        );
+        // No WhatsApp name anywhere: left null rather than stamped with digits.
+        expect((await nameOf(anonymous)).push_name).toBeNull();
+
+        // A hand-chosen name is never overwritten, and never demoted.
+        const renamed = await nameOf(customNamed);
+        expect(renamed.custom_name).toBe("Agent Chosen Name");
+
+        // Connection isolation: the other connection's address book entry did
+        // not name this member, and no contact was created over there.
+        expect((await nameOf(storedNamed)).push_name).not.toBe(
+          "Leaked From Other Connection",
+        );
+        const foreign = await tenantDb
+          .selectFrom("contacts")
+          .select(["id"])
+          .where("whatsapp_connection_id", "=", otherConnectionId)
+          .execute();
+        expect(foreign).toEqual([]);
+      } finally {
+        await sql`
+          DELETE FROM whatsapp_sessions.whatsmeow_contacts
+          WHERE connection_id IN (${connectionId}, ${otherConnectionId})
+        `.execute(db);
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      }
+    },
+    30_000,
+  );
+  integrationTest(
+    "the clicked row and the opened profile cannot disagree, LID-filed names included",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+      const groupJid = `${randomNumericId()}@g.us`;
+      const ownNumber = randomNumericId();
+      const lidNamed = randomNumericId();
+      const lidToken = randomNumericId();
+      const bookNamed = randomNumericId();
+      const messageNamed = randomNumericId();
+
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: connectionId,
+            name: "Primary",
+            jid: `${ownNumber}@s.whatsapp.net`,
+            status: "connected",
+          })
+          .execute();
+
+        // An unnamed direct cache row must not hide the useful name WhatsApp
+        // filed under this member's LID.
+        await sql`
+          INSERT INTO whatsapp_sessions.whatsmeow_contacts
+            (connection_id, our_jid, their_jid, full_name)
+          VALUES (${connectionId}, ${`${ownNumber}@s.whatsapp.net`},
+                  ${`${lidNamed}@s.whatsapp.net`}, '   ')
+        `.execute(db);
+        await sql`
+          INSERT INTO whatsapp_sessions.whatsmeow_contacts
+            (connection_id, our_jid, their_jid, full_name)
+          VALUES (${connectionId}, ${`${ownNumber}@s.whatsapp.net`},
+                  ${`${lidToken}@lid`}, 'Alice Behind A LID')
+        `.execute(db);
+        await sql`
+          INSERT INTO whatsapp_sessions.whatsmeow_lid_mappings
+            (connection_id, lid, jid)
+          VALUES (${connectionId}, ${`${lidToken}@lid`},
+                  ${`${lidNamed}@s.whatsapp.net`})
+        `.execute(db);
+        await sql`
+          INSERT INTO whatsapp_sessions.whatsmeow_contacts
+            (connection_id, our_jid, their_jid, full_name)
+          VALUES (${connectionId}, ${`${ownNumber}@s.whatsapp.net`},
+                  ${`${bookNamed}@s.whatsapp.net`}, 'Bob From The Book')
+        `.execute(db);
+
+        const contactEvent: ContactEvent = {
+          contractVersion: 1,
+          type: "contact",
+          companyId,
+          connectionId,
+          timestamp: new Date().toISOString(),
+          payload: {
+            jid: groupJid,
+            displayName: "Agreement Group",
+            isGroup: true,
+            participants: [
+              { jid: `${lidNamed}@s.whatsapp.net`, isAdmin: false },
+              { jid: `${bookNamed}@s.whatsapp.net`, isAdmin: false },
+              { jid: `${messageNamed}@s.whatsapp.net`, isAdmin: false },
+            ],
+          },
+        };
+        await handleContactEvent(contactEvent);
+
+        const groupContact = await tenantDb
+          .selectFrom("contacts")
+          .select(["id"])
+          .where("jid", "=", groupJid)
+          .executeTakeFirstOrThrow();
+        await tenantDb
+          .insertInto("messages")
+          .values({
+            whatsapp_connection_id: connectionId,
+            contact_id: groupContact.id,
+            message_id: `msg-${messageNamed}`,
+            from_me: false,
+            sender_jid: `${messageNamed}@s.whatsapp.net`,
+            sender_name: "Carol From Messages",
+            message_type: "text",
+            content: "hi",
+            timestamp: new Date("2026-03-01T00:00:00Z"),
+          })
+          .execute();
+        await handleContactEvent(contactEvent);
+
+        const groupRecord = await tenantDb
+          .selectFrom("groups")
+          .select("id")
+          .where("contact_id", "=", groupContact.id)
+          .executeTakeFirstOrThrow();
+
+        // What the participant row renders.
+        const participants = await getEnrichedGroupParticipants(tenantDb, {
+          groupId: groupRecord.id,
+          contactId: groupContact.id,
+          connectionId,
+          connectionJid: `${ownNumber}@s.whatsapp.net`,
+        });
+
+        // What the profile the row opens renders, from the contact row alone.
+        for (const participant of participants) {
+          expect(participant.contactId).toBeTruthy();
+          const contact = await tenantDb
+            .selectFrom("contacts")
+            .select([
+              "jid",
+              "custom_name",
+              "push_name",
+              "username",
+              "phone_number",
+            ])
+            .where("id", "=", participant.contactId as string)
+            .executeTakeFirstOrThrow();
+          expect([participant.jid, getContactDisplayName(contact)]).toEqual([
+            participant.jid,
+            participant.displayName,
+          ]);
+        }
+
+        // And the names really are the WhatsApp ones, not phone-number
+        // fallbacks that would agree only by both being empty.
+        const nameByJid = new Map(
+          participants.map((participant) => [
+            participant.jid,
+            participant.displayName,
+          ]),
+        );
+        expect(nameByJid.get(`${lidNamed}@s.whatsapp.net`)).toBe(
+          "Alice Behind A LID",
+        );
+        expect(nameByJid.get(`${bookNamed}@s.whatsapp.net`)).toBe(
+          "Bob From The Book",
+        );
+        expect(nameByJid.get(`${messageNamed}@s.whatsapp.net`)).toBe(
+          "Carol From Messages",
+        );
+      } finally {
+        await sql`
+          DELETE FROM whatsapp_sessions.whatsmeow_lid_mappings
+          WHERE connection_id = ${connectionId}
+        `.execute(db);
+        await sql`
+          DELETE FROM whatsapp_sessions.whatsmeow_contacts
+          WHERE connection_id = ${connectionId}
+        `.execute(db);
         await clearTenantConnection(companyId);
         await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
       }

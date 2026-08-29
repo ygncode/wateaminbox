@@ -18,6 +18,10 @@ import {
   endsGroup,
   startsGroup,
 } from "./message-grouping";
+import {
+  type ParticipantIdentity,
+  resolveParticipantContactId,
+} from "./group-participant-identity";
 
 // Lazy load emoji reaction picker - only loaded when user opens it
 const EmojiReactionPicker = lazy(() => import("./EmojiReactionPicker"));
@@ -92,7 +96,7 @@ interface MessageBubbleProps {
   /** Resolved group members used to display WhatsApp mentions by name. */
   mentionParticipants?: Pick<
     GroupParticipant,
-    "jid" | "phoneNumber" | "mentionIds" | "displayName"
+    "jid" | "phoneNumber" | "mentionIds" | "displayName" | "contactId"
   >[];
   /** Navigate the thread to the original message referenced by a reply. */
   onNavigateToMessage?: (target: MessageNavigationTarget) => void;
@@ -245,7 +249,12 @@ export const MessageBubble = memo(function MessageBubble({
       )}
 
       {isGroup && !isOwn && (
-        <GroupParticipantAvatar message={message} hidden={!isRunEnd} />
+        <GroupParticipantAvatar
+          message={message}
+          hidden={!isRunEnd}
+          participants={mentionParticipants}
+          selectionMode={selectionMode}
+        />
       )}
 
       <div
@@ -273,7 +282,11 @@ export const MessageBubble = memo(function MessageBubble({
           />
         )}
         {isGroup && !isOwn && isRunStart && !message.isDeleted && (
-          <GroupParticipantLabel message={message} />
+          <GroupParticipantLabel
+            message={message}
+            participants={mentionParticipants}
+            selectionMode={selectionMode}
+          />
         )}
 
         {/* Forwarded indicator */}
@@ -875,14 +888,24 @@ function getParticipantLabel(t: TFunction, message: Message): string {
 function GroupParticipantAvatar({
   message,
   hidden = false,
+  participants = [],
+  selectionMode = false,
 }: {
   message: Message;
   hidden?: boolean;
+  participants?: ParticipantIdentity[];
+  selectionMode?: boolean;
 }) {
   const { t } = useTranslation();
+  const { onOpenParticipantProfile } = useMessageActions();
 
   const label = getParticipantLabel(t, message);
-  return (
+  const contactId = resolveParticipantContactId(
+    message.senderJid || message.senderId,
+    participants,
+  );
+
+  const avatar = (
     <SenderAvatar
       label={label}
       identity={message.senderJid || message.senderId}
@@ -890,6 +913,32 @@ function GroupParticipantAvatar({
       side="left"
       hidden={hidden}
     />
+  );
+
+  // The gutter placeholder that keeps a run aligned carries no identity, so it
+  // must never become a control. While messages are being selected the whole
+  // row is the selection target, so the identity stops being one.
+  if (hidden || selectionMode || !contactId || !onOpenParticipantProfile) {
+    return avatar;
+  }
+
+  return (
+    <button
+      type="button"
+      // Selection mode and the long-press menu both live on the row that wraps
+      // this avatar, so the click must stop here.
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpenParticipantProfile(contactId);
+      }}
+      aria-label={t("chat.openParticipantProfile", {
+        defaultValue: "Open {{name}}'s contact info",
+        name: label,
+      })}
+      className="flex shrink-0 self-end rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/50"
+    >
+      {avatar}
+    </button>
   );
 }
 
@@ -969,20 +1018,55 @@ function SenderAvatar({
   );
 }
 
-function GroupParticipantLabel({ message }: { message: Message }) {
+function GroupParticipantLabel({
+  message,
+  participants = [],
+  selectionMode = false,
+}: {
+  message: Message;
+  participants?: ParticipantIdentity[];
+  selectionMode?: boolean;
+}) {
   const { t } = useTranslation();
+  const { onOpenParticipantProfile } = useMessageActions();
 
   const senderIdentity = message.senderJid || message.senderId;
   const label = getParticipantLabel(t, message);
   const color = getSenderColor(senderIdentity, label, participantColors);
+  const contactId = resolveParticipantContactId(senderIdentity, participants);
+
+  // A sender the workspace holds no contact for stays plain text: a control
+  // that opened an empty profile would be worse than no control. The same
+  // applies while selecting, where the row itself is the target.
+  if (selectionMode || !contactId || !onOpenParticipantProfile) {
+    return (
+      <div
+        className={`mb-1 truncate text-[13px] font-semibold leading-4 ${color}`}
+        title={senderIdentity || label}
+      >
+        {label}
+      </div>
+    );
+  }
 
   return (
-    <div
-      className={`mb-1 truncate text-[13px] font-semibold leading-4 ${color}`}
+    <button
+      type="button"
+      // The bubble itself handles click for selection mode and long-press for
+      // the context menu; this control must not hand it either.
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpenParticipantProfile(contactId);
+      }}
+      aria-label={t("chat.openParticipantProfile", {
+        defaultValue: "Open {{name}}'s contact info",
+        name: label,
+      })}
       title={senderIdentity || label}
+      className={`mb-1 block max-w-full truncate rounded text-left text-[13px] font-semibold leading-4 underline-offset-2 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/50 ${color}`}
     >
       {label}
-    </div>
+    </button>
   );
 }
 
