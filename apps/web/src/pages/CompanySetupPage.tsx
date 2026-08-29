@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { BrandMark } from "../components/brand/BrandMark";
 import { Button } from "../components/ui/button";
@@ -21,10 +22,7 @@ import { FormField } from "../components/ui/form-field";
 import { useAuth } from "../contexts/auth-context";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useCreateCompany } from "../hooks/useTeam";
-import {
-  getWorkspaceBillingUrl,
-  isBillingRequiredAfterSetup,
-} from "../lib/billing-url";
+import { getWorkspaceBillingUrl } from "../lib/billing-url";
 import {
   type CompanySetupFormData,
   companySetupSchema,
@@ -36,7 +34,6 @@ import {
   WORKSPACE_LOGO_SIZE,
 } from "../lib/workspace-logo";
 import { workspacePath } from "../lib/workspace-routes";
-import { useTranslation } from "react-i18next";
 
 function workspaceMonogram(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -126,7 +123,10 @@ export function CompanySetupPage() {
           const billingUrl = getWorkspaceBillingUrl(created.id, {
             onboarding: true,
           });
-          if (billingUrl && isBillingRequiredAfterSetup()) {
+          // Private Cloud deployments use the configured billing destination to
+          // present the post-setup start choice. OSS remains unaware of plans,
+          // prices, trial policy, and payment providers.
+          if (billingUrl) {
             window.location.assign(billingUrl);
             return;
           }
