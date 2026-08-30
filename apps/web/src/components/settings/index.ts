@@ -1,4 +1,5 @@
 export { AccountSettings } from "./AccountSettings";
+export { ApiTokensSection } from "./ApiTokensSection";
 export { CatalogManager } from "./CatalogManager";
 
 export {

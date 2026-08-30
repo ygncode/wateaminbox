@@ -400,7 +400,8 @@
       "appearance": "外观与语言",
       "privacy": "隐私与分析",
       "data": "数据工具",
-      "feedback": "发送反馈"
+      "feedback": "发送反馈",
+      "apiTokens": "AI 智能体（MCP）"
     },
     "feedbackPanel": {
       "title": "发送反馈",
@@ -505,7 +506,11 @@
     "themeDark": "深色",
     "themeSystem": "跟随系统",
     "themeChanged": "主题已切换为{{theme}}",
-    "themeToggleAria": "当前主题：{{current}}。点击切换为{{next}}"
+    "themeToggleAria": "当前主题：{{current}}。点击切换为{{next}}",
+    "apiTokensPanel": {
+      "title": "AI 智能体（MCP）",
+      "description": "通过 MCP 端点，使用个人可吊销令牌将 AI 智能体连接到此工作区。"
+    }
   },
   "dashboard": {
     "totalMessages": "消息总数",
@@ -1722,5 +1727,52 @@
     "maxLength": "反馈内容最多 5000 个字符。",
     "invalidEmail": "请输入有效的邮箱地址。",
     "error": "提交反馈失败，请稍后重试。"
+  },
+  "apiTokens": {
+    "endpointTitle": "MCP 端点",
+    "endpointDescription": "将此 URL 作为远程 MCP 服务器添加到你的 AI 智能体（Claude、Cursor 等），并使用下方令牌作为 Bearer 令牌。工具会遵循你的工作区角色和会话可见性。",
+    "createTitle": "创建令牌",
+    "nameLabel": "名称",
+    "namePlaceholder": "例如 Claude Desktop",
+    "nameRequired": "请为令牌命名",
+    "writeScopeLabel": "允许写入操作（发送消息、分配、打标签、群发）",
+    "expiryLabel": "过期时间",
+    "expiry": {
+      "never": "永不过期",
+      "days30": "30 天",
+      "days90": "90 天",
+      "days365": "1 年"
+    },
+    "createButton": "创建令牌",
+    "createFailed": "创建令牌失败",
+    "listTitle": "你的令牌",
+    "listAllTitle": "工作区全部令牌",
+    "showMine": "仅显示我的",
+    "showAll": "显示工作区全部令牌",
+    "empty": "还没有活跃的令牌。",
+    "scopeWrite": "读 + 写",
+    "scopeRead": "只读",
+    "lastUsed": "最近使用 {{date}}",
+    "neverUsed": "从未使用",
+    "expires": "过期于 {{date}}",
+    "revoked": "令牌已吊销",
+    "revokeFailed": "吊销令牌失败",
+    "secretTitle": "请立即复制你的令牌",
+    "secretDescription": "完整令牌只显示这一次。请将它保存到智能体的 MCP 配置中。",
+    "secretDone": "我已复制",
+    "setup": {
+      "title": "设置指南",
+      "copy": "复制",
+      "copied": "已复制",
+      "terminal": "终端",
+      "tokenCaption": "API 令牌",
+      "placeholderHint": "请将 wti_YOUR_TOKEN 替换为下方创建的令牌。",
+      "claudeCodeStep1": "在终端运行一次以下命令：",
+      "claudeCodeStep2": "启动新的 Claude Code 会话，即可立即使用 WATeamInbox 工具。",
+      "cursorStep1": "将以下内容添加到 ~/.cursor/mcp.json（大多数其他 MCP 客户端使用相同格式）：",
+      "cursorStep2": "重启 Cursor，并在提示时启用该服务器。",
+      "claudeWebStep1": "打开 Claude → 设置 → 连接器 → 添加自定义连接器（ChatGPT：设置 → 连接器），粘贴此 URL：",
+      "claudeWebStep2": "当要求认证时，选择 Bearer 令牌 / API 密钥并粘贴你的令牌："
+    }
   }
 }

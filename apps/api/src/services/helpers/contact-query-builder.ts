@@ -24,6 +24,8 @@ export interface ContactFilterOptions {
   restrictToAssigned?: boolean;
   /** Filter by conversation lifecycle status. "all" (or omitted) applies no filter. */
   conversationStatus?: "open" | "pending" | "resolved" | "all";
+  /** Filter to conversations with unread messages. */
+  unreadOnly?: boolean;
 }
 
 /**
@@ -118,6 +120,7 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
     userId,
     restrictToAssigned,
     conversationStatus,
+    unreadOnly,
   } = options;
 
   const conditions: RawBuilder<unknown>[] = [];
@@ -139,6 +142,10 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
   }
   if (conversationStatus && conversationStatus !== "all") {
     conditions.push(buildConversationStatusClause(conversationStatus));
+  }
+  if (unreadOnly) {
+    // A contact with no conversation_states row has nothing unread.
+    conditions.push(sql`COALESCE(cs.unread_count, 0) > 0`);
   }
 
   const hasAssignmentFilter = Boolean(

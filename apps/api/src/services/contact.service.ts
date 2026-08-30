@@ -31,6 +31,8 @@ export interface GetContactsWithLastMessageOptions {
   restrictToAssigned?: boolean;
   /** Filter by conversation lifecycle status. "all" (or omitted) applies no filter. */
   conversationStatus?: "open" | "pending" | "resolved" | "all";
+  /** Filter to conversations with unread messages. */
+  unreadOnly?: boolean;
 }
 
 /**
@@ -101,6 +103,7 @@ export async function getContactsWithLastMessage(
     userId,
     restrictToAssigned = false,
     conversationStatus,
+    unreadOnly = false,
   } = options;
 
   // Use raw SQL for the complex CTE query with window function
@@ -130,6 +133,7 @@ export async function getContactsWithLastMessage(
       userId,
       restrictToAssigned,
       conversationStatus,
+      unreadOnly,
     });
 
   const result = await sql<{
@@ -338,6 +342,11 @@ export async function getContactsWithLastMessage(
   if (conversationStatus && conversationStatus !== "all") {
     countQuery = countQuery.where(
       sql<boolean>`COALESCE(conversation_states.status::text, 'resolved') = ${conversationStatus}`,
+    );
+  }
+  if (unreadOnly) {
+    countQuery = countQuery.where(
+      sql<boolean>`COALESCE(conversation_states.unread_count, 0) > 0`,
     );
   }
 

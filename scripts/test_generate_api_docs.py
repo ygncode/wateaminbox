@@ -106,7 +106,7 @@ class ActualRouteAccessTests(unittest.TestCase):
                 self.assertIn(label, self.endpoints[endpoint])
 
     def test_documented_route_count_is_stable(self):
-        self.assertEqual(len(self.endpoints), 220)
+        self.assertEqual(len(self.endpoints), 226)
 
 
 class RenderedAccuracyTests(unittest.TestCase):

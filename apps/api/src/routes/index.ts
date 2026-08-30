@@ -23,6 +23,8 @@ import { debugRoutes } from "./debug.js";
 import { feedbackRoutes } from "./feedback.js";
 import { realtimeRoutes } from "./realtime/index.js";
 import { actionsRoutes } from "./actions/index.js";
+import { apiTokenRoutes } from "./api-tokens.js";
+import { mcpRoutes } from "./mcp/index.js";
 
 export const routes = new Hono();
 
@@ -53,6 +55,12 @@ routes.route("/conversations", conversationRoutes);
 
 // Tag routes
 routes.route("/tags", tagRoutes);
+
+// API token management routes (web session authenticated)
+routes.route("/api-tokens", apiTokenRoutes);
+
+// MCP endpoint (API token authenticated)
+routes.route("/mcp", mcpRoutes);
 
 // Audit routes
 routes.route("/audit", auditRoutes);

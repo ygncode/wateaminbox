@@ -27,6 +27,7 @@ export interface Database {
   company_stats: CompanyStatsTable;
   user_sessions: UserSessionsTable;
   auth_tokens: AuthTokensTable;
+  api_tokens: ApiTokensTable;
   sla_policies: SlaPoliciesTable;
 }
 
@@ -142,6 +143,24 @@ export interface AuthTokensTable {
   token_hash: string;
   expires_at: Date;
   used_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+export type ApiTokenScope = "read" | "write";
+
+export interface ApiTokensTable {
+  id: Generated<string>;
+  user_id: string;
+  company_id: string;
+  name: string;
+  /** SHA-256 hash of the raw token; the raw value is never persisted. */
+  token_hash: string;
+  /** First characters of the raw token, kept for display in token lists. */
+  token_prefix: string;
+  scopes: ApiTokenScope[];
+  last_used_at: Date | null;
+  expires_at: Date | null;
+  revoked_at: Date | null;
   created_at: Generated<Date>;
 }
 

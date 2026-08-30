@@ -77,6 +77,8 @@ Durable, state-changing WhatsApp actions persist state and enqueue a command in 
 | Bulk Broadcast Jobs | [`bulk-jobs.md`](bulk-jobs.md) | 7 |
 | Catalogs | [`catalogs.md`](catalogs.md) | 9 |
 | Labels | [`labels.md`](labels.md) | 10 |
+| API tokens | [`api-tokens.md`](api-tokens.md) | 3 |
+| MCP | [`mcp.md`](mcp.md) | 3 |
 | Tags | [`tags.md`](tags.md) | 4 |
 | Quick Replies | [`quick-replies.md`](quick-replies.md) | 6 |
 | Search | [`search.md`](search.md) | 5 |

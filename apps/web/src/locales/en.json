@@ -404,7 +404,8 @@
       "appearance": "Appearance & language",
       "privacy": "Privacy & analytics",
       "data": "Data tools",
-      "feedback": "Send feedback"
+      "feedback": "Send feedback",
+      "apiTokens": "AI agents (MCP)"
     },
     "feedbackPanel": {
       "title": "Send feedback",
@@ -509,7 +510,11 @@
     "themeDark": "Dark",
     "themeSystem": "Follow System",
     "themeChanged": "Theme changed to {{theme}}",
-    "themeToggleAria": "Current theme: {{current}}. Click to switch to {{next}}"
+    "themeToggleAria": "Current theme: {{current}}. Click to switch to {{next}}",
+    "apiTokensPanel": {
+      "title": "AI agents (MCP)",
+      "description": "Connect AI agents to this workspace through the MCP endpoint with personal, revocable tokens."
+    }
   },
   "dashboard": {
     "totalMessages": "Total Messages",
@@ -1739,5 +1744,52 @@
     "maxLength": "Feedback must be at most 5000 characters.",
     "invalidEmail": "Enter a valid email address.",
     "error": "Failed to submit feedback. Please try again later."
+  },
+  "apiTokens": {
+    "endpointTitle": "MCP endpoint",
+    "endpointDescription": "Add this URL to your AI agent (Claude, Cursor, …) as a remote MCP server, using a token below as the Bearer token. Tools respect your workspace role and conversation visibility.",
+    "createTitle": "Create token",
+    "nameLabel": "Name",
+    "namePlaceholder": "e.g. Claude Desktop",
+    "nameRequired": "Give the token a name",
+    "writeScopeLabel": "Allow write actions (send messages, assign, tag, broadcasts)",
+    "expiryLabel": "Expires",
+    "expiry": {
+      "never": "Never",
+      "days30": "30 days",
+      "days90": "90 days",
+      "days365": "1 year"
+    },
+    "createButton": "Create token",
+    "createFailed": "Failed to create the token",
+    "listTitle": "Your tokens",
+    "listAllTitle": "All workspace tokens",
+    "showMine": "Show only mine",
+    "showAll": "Show all workspace tokens",
+    "empty": "No active tokens yet.",
+    "scopeWrite": "read + write",
+    "scopeRead": "read-only",
+    "lastUsed": "Last used {{date}}",
+    "neverUsed": "Never used",
+    "expires": "Expires {{date}}",
+    "revoked": "Token revoked",
+    "revokeFailed": "Failed to revoke token",
+    "secretTitle": "Copy your token now",
+    "secretDescription": "This is the only time the full token is shown. Store it in your agent's MCP configuration.",
+    "secretDone": "I've copied it",
+    "setup": {
+      "title": "Setup instructions",
+      "copy": "Copy",
+      "copied": "Copied",
+      "terminal": "Terminal",
+      "tokenCaption": "API token",
+      "placeholderHint": "Replace wti_YOUR_TOKEN with a token created below.",
+      "claudeCodeStep1": "Run this once in your terminal:",
+      "claudeCodeStep2": "Start a new Claude Code session — the WATeamInbox tools are available right away.",
+      "cursorStep1": "Add this to ~/.cursor/mcp.json (most other MCP clients accept the same shape):",
+      "cursorStep2": "Restart Cursor and enable the server when prompted.",
+      "claudeWebStep1": "Open Claude → Settings → Connectors → Add custom connector (in ChatGPT: Settings → Connectors), and paste this URL:",
+      "claudeWebStep2": "When asked for authentication, choose Bearer token / API key and paste your token:"
+    }
   }
 }

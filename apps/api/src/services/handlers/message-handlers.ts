@@ -517,7 +517,11 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       messageId: payload.messageId,
       content: payload.content || null,
       messageType: payload.messageType || "text",
-      timestamp: toDate(payload.timestamp)?.getTime() || Date.now(),
+      // Unix SECONDS - must match the reindex path (routes/search.ts) and the
+      // second-based filters/parsing in meilisearch.service.ts.
+      timestamp: Math.floor(
+        (toDate(payload.timestamp)?.getTime() || Date.now()) / 1000,
+      ),
       fromMe: payload.fromMe,
     };
 
