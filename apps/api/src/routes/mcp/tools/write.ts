@@ -1,10 +1,21 @@
 import { getContactDisplayName, toDbDate } from "@wateaminbox/shared";
+import type { Context } from "hono";
 import { z } from "zod";
 import {
   buildCommandSubject,
   buildSendMessageCommand,
 } from "../../../lib/nats/index.js";
+import {
+  rateLimitConfig,
+  type RateLimitResult,
+  rateLimitStore,
+  RateLimitStoreUnavailableError,
+} from "../../../lib/rate-limit-store.js";
 import { broadcastToCompany } from "../../../lib/realtime.js";
+import {
+  SCHEDULE_MAX_HORIZON_MS,
+  SCHEDULE_MIN_LEAD_MS,
+} from "../../../lib/schemas/index.js";
 import { getRouteContext } from "../../../middleware/context.js";
 import {
   broadcastAutoAssignment,
@@ -12,7 +23,11 @@ import {
 } from "../../../services/assignment-broadcast.service.js";
 import { getAssignmentNotificationInputs } from "../../../services/assignment-notification.service.js";
 import { decideContactAssignment } from "../../../services/assignment-policy.js";
-import { createAuditLog, getClientIp } from "../../../services/audit.service.js";
+import {
+  createAuditLog,
+  type CreateAuditLogInput,
+  getClientIp,
+} from "../../../services/audit.service.js";
 import {
   createBulkJob,
   formatBulkJob,
@@ -43,6 +58,65 @@ import { requireSendAccess } from "../../../services/send-access.service.js";
 import { getActiveSessionId } from "../../../services/whatsapp/session.js";
 import { type McpToolDefinition, McpToolError } from "../tool-context.js";
 import { requireVisibleContact } from "./read.js";
+
+async function createMcpAuditLog(
+  c: Context,
+  input: CreateAuditLogInput,
+): Promise<void> {
+  await createAuditLog({
+    ...input,
+    details: {
+      ...input.details,
+      authSource: "mcp",
+      apiTokenId: c.get("apiToken").id,
+    },
+  });
+}
+
+async function enforceBulkRateLimit(c: Context): Promise<void> {
+  if (!rateLimitConfig.enabled) return;
+
+  const { user } = getRouteContext(c);
+  const tier = rateLimitConfig.tiers.messaging.bulk;
+  let result: RateLimitResult;
+  try {
+    // Match the REST bulk limiter's key exactly so browser and MCP requests
+    // consume one per-user budget rather than separate per-token budgets.
+    result = await rateLimitStore.increment(
+      `bulk-jobs:user:${user.id}`,
+      tier.requests,
+      tier.windowSeconds,
+    );
+  } catch (error) {
+    if (error instanceof RateLimitStoreUnavailableError) {
+      throw new McpToolError(
+        "Broadcast rate limiting is temporarily unavailable; retry shortly",
+      );
+    }
+    throw error;
+  }
+
+  if (!result.allowed) {
+    throw new McpToolError(
+      `Broadcast rate limit exceeded; retry in ${result.retryAfter} seconds`,
+    );
+  }
+}
+
+export function validateBroadcastSchedule(
+  scheduledAt: Date,
+  now: number = Date.now(),
+): void {
+  const scheduleLead = scheduledAt.getTime() - now;
+  if (scheduleLead < SCHEDULE_MIN_LEAD_MS) {
+    throw new McpToolError(
+      "scheduledAt must be at least 30 seconds in the future",
+    );
+  }
+  if (scheduleLead > SCHEDULE_MAX_HORIZON_MS) {
+    throw new McpToolError("scheduledAt must be within one year");
+  }
+}
 
 async function loadContactForCase(
   tenantDb: ReturnType<typeof getRouteContext>["tenantDb"],
@@ -207,7 +281,12 @@ export const writeTools: McpToolDefinition[] = [
       args: {
         contactId: string;
         action: "resolve" | "open" | "reopen" | "pending" | "resume";
-        outcome?: "handled" | "no_reply_needed" | "spam" | "duplicate" | "other";
+        outcome?:
+          | "handled"
+          | "no_reply_needed"
+          | "spam"
+          | "duplicate"
+          | "other";
         notes?: string;
         reason?: string;
       },
@@ -230,7 +309,7 @@ export const writeTools: McpToolDefinition[] = [
           notes: args.notes,
           resolvedBy: user.id,
         });
-        await createAuditLog({
+        await createMcpAuditLog(c, {
           companyId,
           userId: user.id,
           action: "conversation.resolved",
@@ -272,7 +351,7 @@ export const writeTools: McpToolDefinition[] = [
           },
         );
         const wasReopen = Boolean(newCase.reopenedFromCaseId);
-        await createAuditLog({
+        await createMcpAuditLog(c, {
           companyId,
           userId: user.id,
           action: wasReopen ? "conversation.reopened" : "conversation.opened",
@@ -318,7 +397,7 @@ export const writeTools: McpToolDefinition[] = [
           args.contactId,
           user.id,
         );
-        await createAuditLog({
+        await createMcpAuditLog(c, {
           companyId,
           userId: user.id,
           action: "conversation.pending",
@@ -349,7 +428,7 @@ export const writeTools: McpToolDefinition[] = [
         args.contactId,
         user.id,
       );
-      await createAuditLog({
+      await createMcpAuditLog(c, {
         companyId,
         userId: user.id,
         action: "conversation.resumed",
@@ -388,10 +467,7 @@ export const writeTools: McpToolDefinition[] = [
         .optional()
         .describe("Member to assign to; defaults to the token owner"),
     },
-    handler: async (
-      args: { contactId: string; targetUserId?: string },
-      c,
-    ) => {
+    handler: async (args: { contactId: string; targetUserId?: string }, c) => {
       const { tenantDb, user, companyId, permissions } = getRouteContext(c);
       const targetUserId = args.targetUserId ?? user.id;
 
@@ -509,7 +585,7 @@ export const writeTools: McpToolDefinition[] = [
           assignedBy: user.id,
         });
       }
-      await createAuditLog({
+      await createMcpAuditLog(c, {
         companyId,
         userId: user.id,
         action: "contact.assigned",
@@ -588,7 +664,7 @@ export const writeTools: McpToolDefinition[] = [
           newAssignee: null,
           assignedBy: user.id,
         });
-        await createAuditLog({
+        await createMcpAuditLog(c, {
           companyId,
           userId: user.id,
           action: "contact.unassigned",
@@ -664,7 +740,7 @@ export const writeTools: McpToolDefinition[] = [
           "updated_at",
         ])
         .executeTakeFirstOrThrow();
-      await createAuditLog({
+      await createMcpAuditLog(c, {
         companyId,
         userId: user.id,
         action: "contact.note.created",
@@ -770,24 +846,24 @@ export const writeTools: McpToolDefinition[] = [
   {
     name: "create_broadcast",
     description:
-      "Schedule a bulk text broadcast to many contacts. HIGH IMPACT: this messages every recipient in the audience; double-check the audience (tag ids and/or contact ids) and schedule before calling. Requires a scheduled time at least 30 seconds in the future. Also requires the can_send_messages permission.",
+      "Schedule a bulk text broadcast to many contacts. HIGH IMPACT: this messages every recipient in the audience; double-check the audience (tag ids and/or contact ids) and schedule before calling. Requires a stable idempotency key and a scheduled time from 30 seconds to one year in the future. Also requires the can_send_messages permission.",
     scope: "write",
     permission: "can_send_bulk_messages",
     inputSchema: {
-      name: z.string().min(1).max(200),
-      content: z.string().min(1).max(65536),
+      name: z.string().trim().min(1).max(200),
+      content: z.string().trim().min(1).max(65536),
       tagIds: z.array(z.string().uuid()).max(50).optional(),
       contactIds: z.array(z.string().uuid()).max(500).optional(),
       scheduledAt: z
         .string()
         .datetime({ offset: true })
-        .describe("ISO datetime, at least 30s in the future"),
+        .describe("ISO datetime, from 30s to one year in the future"),
       idempotencyKey: z
         .string()
+        .trim()
         .min(8)
         .max(128)
-        .optional()
-        .describe("Provide to make retries safe; auto-generated otherwise"),
+        .describe("Stable client-generated key that makes retries safe"),
     },
     handler: async (
       args: {
@@ -796,7 +872,7 @@ export const writeTools: McpToolDefinition[] = [
         tagIds?: string[];
         contactIds?: string[];
         scheduledAt: string;
-        idempotencyKey?: string;
+        idempotencyKey: string;
       },
       c,
     ) => {
@@ -808,6 +884,7 @@ export const writeTools: McpToolDefinition[] = [
           "Your workspace role does not grant the 'can_send_messages' permission required by this tool",
         );
       }
+      await enforceBulkRateLimit(c);
 
       const tagIds = args.tagIds ?? [];
       const contactIds = args.contactIds ?? [];
@@ -817,11 +894,7 @@ export const writeTools: McpToolDefinition[] = [
         );
       }
       const scheduledAt = new Date(args.scheduledAt);
-      if (scheduledAt.getTime() - Date.now() < 30_000) {
-        throw new McpToolError(
-          "scheduledAt must be at least 30 seconds in the future",
-        );
-      }
+      validateBroadcastSchedule(scheduledAt);
 
       const audience = { tagIds, contactIds };
       const resolved = await resolveBulkAudience(tenantDb, audience);
@@ -833,7 +906,7 @@ export const writeTools: McpToolDefinition[] = [
 
       const result = await createBulkJob(tenantDb, {
         companyId,
-        name: args.name.trim(),
+        name: args.name,
         audience,
         content: args.content,
         messageType: "text",
@@ -842,12 +915,12 @@ export const writeTools: McpToolDefinition[] = [
         mediaFileName: null,
         scheduledAt,
         audienceHash: resolved.audienceHash,
-        idempotencyKey: args.idempotencyKey ?? `mcp_${crypto.randomUUID()}`,
+        idempotencyKey: args.idempotencyKey,
         createdBy: user.id,
       });
 
       if (result.created) {
-        await createAuditLog({
+        await createMcpAuditLog(c, {
           companyId,
           userId: user.id,
           action: "bulk_job.created",

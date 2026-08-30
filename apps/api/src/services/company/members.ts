@@ -182,15 +182,27 @@ export async function removeMember(
     throw new InsufficientPermissionsError("remove the company owner");
   }
 
-  const result = await db
-    .deleteFrom("company_members")
-    .where("company_id", "=", companyId)
-    .where("user_id", "=", userId)
-    .executeTakeFirst();
+  await db.transaction().execute(async (transaction) => {
+    const result = await transaction
+      .deleteFrom("company_members")
+      .where("company_id", "=", companyId)
+      .where("user_id", "=", userId)
+      .executeTakeFirst();
 
-  if (!result.numDeletedRows) {
-    throw new CompanyNotFoundError(companyId);
-  }
+    if (!result.numDeletedRows) {
+      throw new CompanyNotFoundError(companyId);
+    }
+
+    // Membership removal is a permanent credential boundary. Revoke every
+    // token now so re-inviting the same user cannot reactivate an old secret.
+    await transaction
+      .updateTable("api_tokens")
+      .set({ revoked_at: toDbDate() })
+      .where("company_id", "=", companyId)
+      .where("user_id", "=", userId)
+      .where("revoked_at", "is", null)
+      .execute();
+  });
   invalidateCompanyMembership(companyId);
 
   // Update company stats

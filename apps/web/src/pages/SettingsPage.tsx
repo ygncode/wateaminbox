@@ -430,7 +430,7 @@ function SettingsSectionContent({
             "Connect AI agents to this workspace through the MCP endpoint with personal, revocable tokens.",
           )}
         >
-          <ApiTokensSection />
+          <ApiTokensSection key={workspaceId} />
         </Panel>
       );
     case "notifications":

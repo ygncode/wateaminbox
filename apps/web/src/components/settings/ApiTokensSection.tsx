@@ -6,6 +6,7 @@ import { useWorkspace } from "../../contexts/workspace-context";
 import { useApiTokens } from "../../hooks/useApiTokens";
 import { API_BASE_URL } from "../../lib/api/client";
 import type { ApiTokenScope, ApiTokenWithSecret } from "../../lib/api/types";
+import { resolveMcpEndpointUrl } from "../../lib/mcp-url";
 import {
   Badge,
   Button,
@@ -38,7 +39,12 @@ function CopyField({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="flex items-center gap-2">
-      <Input readOnly value={value} aria-label={label} className="font-mono text-xs" />
+      <Input
+        readOnly
+        value={value}
+        aria-label={label}
+        className="font-mono text-xs"
+      />
       <Button
         type="button"
         variant="outline"
@@ -231,11 +237,7 @@ function McpSetupGuide({ mcpUrl, token }: { mcpUrl: string; token?: string }) {
                 "Add this to ~/.cursor/mcp.json (most other MCP clients accept the same shape):",
               )}
             </p>
-            <CopyBlock
-              label="mcp.json"
-              caption="mcp.json"
-              value={mcpJson}
-            />
+            <CopyBlock label="mcp.json" caption="mcp.json" value={mcpJson} />
             {tokenHint && (
               <p className="text-xs text-muted-foreground">{tokenHint}</p>
             )}
@@ -260,7 +262,11 @@ export function ApiTokensSection() {
   const isAdmin =
     activeWorkspace?.role === "owner" || activeWorkspace?.role === "admin";
 
-  const [showAll, setShowAll] = useState(false);
+  const [showAllForWorkspaceId, setShowAllForWorkspaceId] = useState<
+    string | null
+  >(null);
+  const showAll =
+    isAdmin && showAllForWorkspaceId === (activeWorkspace?.id ?? null);
   const {
     tokens,
     isLoading,
@@ -277,7 +283,7 @@ export function ApiTokensSection() {
     null,
   );
 
-  const mcpUrl = `${API_BASE_URL}/mcp`;
+  const mcpUrl = resolveMcpEndpointUrl(API_BASE_URL, window.location.origin);
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -301,7 +307,12 @@ export function ApiTokensSection() {
     }
   };
 
-  const activeTokens = tokens.filter((token) => !token.revokedAt);
+  const now = Date.now();
+  const activeTokens = tokens.filter(
+    (token) =>
+      !token.revokedAt &&
+      (!token.expiresAt || new Date(token.expiresAt).getTime() > now),
+  );
 
   return (
     <div className="space-y-8">
@@ -316,7 +327,10 @@ export function ApiTokensSection() {
             "Add this URL to your AI agent (Claude, Cursor, …) as a remote MCP server, using a token below as the Bearer token. Tools respect your workspace role and conversation visibility.",
           )}
         </p>
-        <CopyField value={mcpUrl} label={t("apiTokens.endpointTitle", "MCP endpoint")} />
+        <CopyField
+          value={mcpUrl}
+          label={t("apiTokens.endpointTitle", "MCP endpoint")}
+        />
         <div className="pt-2">
           <h4 className="mb-2 text-xs font-medium text-muted-foreground">
             {t("apiTokens.setup.title", "Setup instructions")}
@@ -339,7 +353,10 @@ export function ApiTokensSection() {
               id="api-token-name"
               value={name}
               maxLength={100}
-              placeholder={t("apiTokens.namePlaceholder", "e.g. Claude Desktop")}
+              placeholder={t(
+                "apiTokens.namePlaceholder",
+                "e.g. Claude Desktop",
+              )}
               onChange={(event) => setName(event.target.value)}
             />
           </div>
@@ -392,7 +409,11 @@ export function ApiTokensSection() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setShowAll((value) => !value)}
+              onClick={() =>
+                setShowAllForWorkspaceId(
+                  showAll ? null : (activeWorkspace?.id ?? null),
+                )
+              }
             >
               {showAll
                 ? t("apiTokens.showMine", "Show only mine")
@@ -449,9 +470,7 @@ export function ApiTokensSection() {
                   onClick={async () => {
                     try {
                       await revokeToken(token.id);
-                      toast.success(
-                        t("apiTokens.revoked", "Token revoked"),
-                      );
+                      toast.success(t("apiTokens.revoked", "Token revoked"));
                     } catch {
                       toast.error(
                         t("apiTokens.revokeFailed", "Failed to revoke token"),
@@ -493,7 +512,9 @@ export function ApiTokensSection() {
                 label={t("apiTokens.secretTitle", "Copy your token now")}
               />
               <div className="space-y-1">
-                <Label>{t("apiTokens.setup.title", "Setup instructions")}</Label>
+                <Label>
+                  {t("apiTokens.setup.title", "Setup instructions")}
+                </Label>
                 <McpSetupGuide mcpUrl={mcpUrl} token={createdToken.token} />
               </div>
             </div>

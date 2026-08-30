@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { forbidden, notFound } from "../lib/errors.js";
 import { created, successData, successMessage } from "../lib/response.js";
 import {
+  apiTokenIdParamSchema,
   createApiTokenSchema,
   listApiTokensQuerySchema,
 } from "../lib/schemas/index.js";
@@ -39,20 +40,24 @@ function serialize(token: ApiTokenSummary) {
 /**
  * POST /api-tokens - Create an API token; the secret is returned only once
  */
-apiTokenRoutes.post("/", zValidator("json", createApiTokenSchema), async (c) => {
-  const { user, companyId } = getRouteContext(c);
-  const body = c.req.valid("json");
+apiTokenRoutes.post(
+  "/",
+  zValidator("json", createApiTokenSchema),
+  async (c) => {
+    const { user, companyId } = getRouteContext(c);
+    const body = c.req.valid("json");
 
-  const { token, summary } = await createApiToken({
-    userId: user.id,
-    companyId,
-    name: body.name,
-    scopes: body.scopes,
-    expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
-  });
+    const { token, summary } = await createApiToken({
+      userId: user.id,
+      companyId,
+      name: body.name,
+      scopes: body.scopes,
+      expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
+    });
 
-  return created(c, { token, ...serialize(summary) });
-});
+    return created(c, { token, ...serialize(summary) });
+  },
+);
 
 /**
  * GET /api-tokens - List own tokens; ?all=true lists all workspace tokens (admin/owner)
@@ -78,18 +83,22 @@ apiTokenRoutes.get(
 /**
  * DELETE /api-tokens/:id - Revoke a token (own; admins may revoke any)
  */
-apiTokenRoutes.delete("/:id", async (c) => {
-  const { user, companyId, role } = getRouteContext(c);
+apiTokenRoutes.delete(
+  "/:id",
+  zValidator("param", apiTokenIdParamSchema),
+  async (c) => {
+    const { user, companyId, role } = getRouteContext(c);
 
-  const revoked = await revokeApiToken({
-    tokenId: c.req.param("id"),
-    companyId,
-    requesterId: user.id,
-    isAdmin: role !== "member",
-  });
+    const revoked = await revokeApiToken({
+      tokenId: c.req.valid("param").id,
+      companyId,
+      requesterId: user.id,
+      isAdmin: role !== "member",
+    });
 
-  if (!revoked) {
-    return notFound(c, "API token");
-  }
-  return successMessage(c, "API token revoked");
-});
+    if (!revoked) {
+      return notFound(c, "API token");
+    }
+    return successMessage(c, "API token revoked");
+  },
+);

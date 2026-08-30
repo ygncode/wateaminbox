@@ -29,7 +29,10 @@ export async function up(db: Kysely<unknown>): Promise<void> {
     )
     .addCheckConstraint(
       "api_tokens_scopes_check",
-      sql`scopes <@ ARRAY['read', 'write']::text[] AND array_length(scopes, 1) >= 1`,
+      sql`scopes <@ ARRAY['read', 'write']::text[]
+        AND scopes @> ARRAY['read']::text[]
+        AND cardinality(scopes) BETWEEN 1 AND 2
+        AND (cardinality(scopes) = 1 OR scopes @> ARRAY['write']::text[])`,
     )
     .execute();
 

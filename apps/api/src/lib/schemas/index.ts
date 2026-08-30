@@ -181,6 +181,7 @@ export {
 
 // API token
 export {
+  apiTokenIdParamSchema,
   apiTokenScopeSchema,
   type CreateApiTokenInput,
   createApiTokenSchema,

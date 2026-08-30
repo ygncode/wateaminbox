@@ -64,6 +64,18 @@ function compactConversation(contact: ContactWithLastMessage) {
   };
 }
 
+export function memberDisplayName(name: string | null | undefined): string {
+  return name?.trim() || "Team member";
+}
+
+export function fallbackInboundSenderLabel(senderJid: string): string {
+  const [identifier, domain] = senderJid.split("@");
+  if (identifier && (domain === "s.whatsapp.net" || domain === "c.us")) {
+    return `+${identifier}`;
+  }
+  return senderJid;
+}
+
 export const readTools: McpToolDefinition[] = [
   {
     name: "search",
@@ -147,7 +159,7 @@ export const readTools: McpToolDefinition[] = [
   {
     name: "get_conversation_messages",
     description:
-      "Read a conversation's messages, newest first, with cursor pagination. Long message bodies are truncated to 2000 characters. sentBy is the teammate name for outbound messages and the sender's contact name (or +number) for inbound ones, including group participants; senderJid identifies inbound senders stably.",
+      "Read a conversation's messages, newest first, with cursor pagination. Long message bodies are truncated to 2000 characters. sentBy is the teammate name for outbound messages and the best stored contact/sender name (or a safe JID label) for inbound ones, including group participants; senderJid identifies inbound senders stably.",
     scope: "read",
     inputSchema: {
       contactId: z.string().uuid().describe("The conversation's contact id"),
@@ -172,6 +184,7 @@ export const readTools: McpToolDefinition[] = [
           "id",
           "from_me",
           "sender_jid",
+          "sender_name",
           "sent_by_user_id",
           "message_type",
           "content",
@@ -210,9 +223,9 @@ export const readTools: McpToolDefinition[] = [
         .filter((id): id is string => Boolean(id));
       const userNames = await getUserNames(senderIds);
 
-      // Attribute inbound group messages: resolve participant JIDs to
-      // contact display names where a contact row exists, else fall back
-      // to the JID's phone-number part.
+      // Attribute inbound group messages: prefer the workspace contact name,
+      // then the sender name captured with the message, and only then a safe
+      // JID label. Opaque LIDs must never be presented as phone numbers.
       const senderJids = [
         ...new Set(
           messages
@@ -245,18 +258,26 @@ export const readTools: McpToolDefinition[] = [
       const conversationName = getContactDisplayName(
         await tenantDb
           .selectFrom("contacts")
-          .select(["custom_name", "push_name", "username", "phone_number", "jid"])
+          .select([
+            "custom_name",
+            "push_name",
+            "username",
+            "phone_number",
+            "jid",
+          ])
           .where("id", "=", args.contactId)
           .executeTakeFirstOrThrow(),
         "Unknown",
       );
       const inboundSenderName = (m: {
         sender_jid: string | null;
+        sender_name: string | null;
       }): string => {
-        if (!m.sender_jid) return conversationName;
+        if (!m.sender_jid) return m.sender_name?.trim() || conversationName;
         return (
-          jidNames.get(m.sender_jid) ??
-          `+${m.sender_jid.split("@")[0] ?? m.sender_jid}`
+          jidNames.get(m.sender_jid) ||
+          m.sender_name?.trim() ||
+          fallbackInboundSenderLabel(m.sender_jid)
         );
       };
 
@@ -489,7 +510,7 @@ export const readTools: McpToolDefinition[] = [
   {
     name: "list_members",
     description:
-      "List workspace members (id, name, email, role). Use member ids as targets for assign_contact.",
+      "List the minimal workspace member identity directory (id and display name). Use member ids as targets for assign_contact.",
     scope: "read",
     inputSchema: {},
     handler: async (_args, c) => {
@@ -498,9 +519,7 @@ export const readTools: McpToolDefinition[] = [
       return {
         members: members.map((member) => ({
           userId: member.user_id,
-          name: member.name ?? null,
-          email: member.email,
-          role: member.role,
+          name: memberDisplayName(member.name),
         })),
       };
     },

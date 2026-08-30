@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { db, type ApiTokenScope } from "@wateaminbox/database";
+import { ForbiddenError } from "../lib/errors.js";
 
 export const API_TOKEN_PREFIX = "wti_";
 const TOKEN_RANDOM_LENGTH = 40;
@@ -7,8 +8,7 @@ const DISPLAY_PREFIX_LENGTH = 10;
 /** Skip last_used_at writes when the stored value is fresher than this. */
 const LAST_USED_UPDATE_INTERVAL_MS = 60_000;
 
-const BASE62 =
-  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
 export interface ApiTokenSummary {
   id: string;
@@ -86,21 +86,36 @@ export async function createApiToken(input: {
   expiresAt?: Date | null;
 }): Promise<{ token: string; summary: ApiTokenSummary }> {
   const { token, hash, prefix } = generateApiToken();
-  const row = await db
-    .insertInto("api_tokens")
-    .values({
-      user_id: input.userId,
-      company_id: input.companyId,
-      name: input.name,
-      token_hash: hash,
-      token_prefix: prefix,
-      scopes: input.scopes,
-      expires_at: input.expiresAt ?? null,
-      last_used_at: null,
-      revoked_at: null,
-    })
-    .returningAll()
-    .executeTakeFirstOrThrow();
+  const row = await db.transaction().execute(async (trx) => {
+    // Share-lock the membership so removal cannot race this insert. If token
+    // creation wins, removal waits and revokes it; if removal wins, this fails.
+    const membership = await trx
+      .selectFrom("company_members")
+      .select("id")
+      .where("company_id", "=", input.companyId)
+      .where("user_id", "=", input.userId)
+      .forShare()
+      .executeTakeFirst();
+    if (!membership) {
+      throw new ForbiddenError("Workspace membership is no longer active");
+    }
+
+    return trx
+      .insertInto("api_tokens")
+      .values({
+        user_id: input.userId,
+        company_id: input.companyId,
+        name: input.name,
+        token_hash: hash,
+        token_prefix: prefix,
+        scopes: input.scopes,
+        expires_at: input.expiresAt ?? null,
+        last_used_at: null,
+        revoked_at: null,
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+  });
   return { token, summary: toSummary(row) };
 }
 
