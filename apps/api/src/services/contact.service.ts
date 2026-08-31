@@ -1,6 +1,7 @@
 import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
+import { normalizePhoneNumber } from "../lib/schemas.js";
 import { buildContactWhereClause } from "./helpers/contact-query-builder.js";
 import { getSchemaName, type TenantDatabase } from "./tenant.service.js";
 import { getUserNames } from "./user.service.js";
@@ -444,4 +445,159 @@ export async function ensureContactAssignment(
   }
 
   return false;
+}
+
+/**
+ * Why a phone number could not be turned into a usable contact.
+ *
+ * Callers map these to their own transport: HTTP routes to 400/409, MCP tools
+ * to McpToolError.
+ */
+export type OutboundContactErrorCode =
+  | "invalid_phone"
+  | "no_connection"
+  | "ambiguous_connection";
+
+export class OutboundContactError extends Error {
+  constructor(
+    message: string,
+    readonly code: OutboundContactErrorCode,
+  ) {
+    super(message);
+    this.name = "OutboundContactError";
+  }
+}
+
+export interface FindOrCreateContactByPhoneOptions {
+  phoneNumber: string;
+  /** Required when the workspace has more than one connected account. */
+  connectionId?: string;
+  customName?: string;
+  notesShared?: string;
+}
+
+export interface FindOrCreateContactByPhoneResult {
+  contact: {
+    id: string;
+    jid: string | null;
+    phone_number: string | null;
+    custom_name: string | null;
+    push_name: string | null;
+    notes_shared: string | null;
+    is_group: boolean;
+    created_at: Date;
+    updated_at: Date;
+  };
+  /** False when an existing contact was reused rather than inserted. */
+  created: boolean;
+  connectionId: string;
+}
+
+/**
+ * Resolve a raw phone number to a contact on a connected account, creating the
+ * contact when it does not exist yet.
+ *
+ * Shared by the create-contact route and the MCP start_conversation tool so
+ * that connection resolution, duplicate handling, and the insert column list
+ * stay in one place.
+ */
+export async function findOrCreateContactByPhone(
+  tenantDb: Kysely<TenantDatabase>,
+  options: FindOrCreateContactByPhoneOptions,
+): Promise<FindOrCreateContactByPhoneResult> {
+  const phoneResult = normalizePhoneNumber(options.phoneNumber);
+  if (!phoneResult.isValid) {
+    throw new OutboundContactError(
+      phoneResult.error || "Invalid phone number",
+      "invalid_phone",
+    );
+  }
+  const { cleanedPhone, jid } = phoneResult;
+
+  const activeConnections = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select("id")
+    .where("status", "=", "connected")
+    .$if(Boolean(options.connectionId), (query) =>
+      query.where("id", "=", options.connectionId as string),
+    )
+    .limit(2)
+    .execute();
+  if (activeConnections.length === 0) {
+    throw new OutboundContactError(
+      "No matching active WhatsApp connection",
+      "no_connection",
+    );
+  }
+  if (!options.connectionId && activeConnections.length !== 1) {
+    throw new OutboundContactError(
+      "connectionId is required when multiple accounts are active",
+      "ambiguous_connection",
+    );
+  }
+  const connectionId = activeConnections[0].id;
+
+  const selection = [
+    "id",
+    "jid",
+    "phone_number",
+    "custom_name",
+    "push_name",
+    "notes_shared",
+    "is_group",
+    "created_at",
+    "updated_at",
+  ] as const;
+
+  const existing = await tenantDb
+    .selectFrom("contacts")
+    .select(selection)
+    .where("whatsapp_connection_id", "=", connectionId)
+    .where((eb) =>
+      eb.or([eb("jid", "=", jid), eb("phone_number", "=", cleanedPhone)]),
+    )
+    .executeTakeFirst();
+  if (existing) {
+    return { contact: existing, created: false, connectionId };
+  }
+
+  // A concurrent caller can win the race between the lookup above and this
+  // insert. The partial unique index on (whatsapp_connection_id, jid) turns
+  // that into a conflict rather than a duplicate row, so absorb it and fall
+  // back to reading whichever row landed first.
+  const inserted = await tenantDb
+    .insertInto("contacts")
+    .values({
+      whatsapp_connection_id: connectionId,
+      jid,
+      phone_number: cleanedPhone,
+      custom_name: options.customName || null,
+      notes_shared: options.notesShared || null,
+      is_group: false,
+    })
+    .onConflict((oc) =>
+      oc
+        .columns(["whatsapp_connection_id", "jid"])
+        // The unique index is partial, so Postgres only accepts it as the
+        // conflict arbiter when the predicate is restated here.
+        .where("whatsapp_connection_id", "is not", null)
+        .where("jid", "is not", null)
+        .doNothing(),
+    )
+    .returning(selection)
+    .executeTakeFirst();
+  if (inserted) {
+    return { contact: inserted, created: true, connectionId };
+  }
+
+  const raced = await tenantDb
+    .selectFrom("contacts")
+    .select(selection)
+    .where("whatsapp_connection_id", "=", connectionId)
+    .where("jid", "=", jid)
+    .executeTakeFirst();
+  if (!raced) {
+    throw new OutboundContactError("Failed to create contact", "invalid_phone");
+  }
+  return { contact: raced, created: false, connectionId };
 }
