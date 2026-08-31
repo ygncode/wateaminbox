@@ -36,6 +36,7 @@ import {
 } from "../../../services/bulk-job.service.js";
 import { enqueueCommand } from "../../../services/command-outbox.service.js";
 import {
+  ensureActiveCaseWithin,
   reopenAsNewCase,
   resolveActiveCase,
   resumePendingCase,
@@ -156,6 +157,7 @@ async function queueTextMessage(
   c: Context,
   contactId: string,
   content: string,
+  options: { openCaseIfMissing?: boolean } = {},
 ): Promise<{
   messageId: string;
   contactId: string;
@@ -167,7 +169,7 @@ async function queueTextMessage(
 
   const contact = await tenantDb
     .selectFrom("contacts")
-    .select(["id", "jid", "whatsapp_connection_id"])
+    .select(["id", "jid", "is_group", "whatsapp_connection_id"])
     .where("id", "=", contactId)
     .executeTakeFirst();
   if (!contact || !contact.jid) {
@@ -202,6 +204,22 @@ async function queueTextMessage(
   let autoAssigned = false;
   await tenantDb.transaction().execute(async (trx) => {
     await reserveMediaReferences(trx, companyId, [null]);
+    if (options.openCaseIfMissing) {
+      // requireSendAccess ends at requireActiveCaseForSend, which rejects a
+      // contact with no open or pending case. A conversation this workspace
+      // starts has none yet, so open it here - in this transaction, so the
+      // contact, the case, the assignment, the message row, and the outbox
+      // entry all land together or not at all.
+      await ensureActiveCaseWithin(
+        trx,
+        { id: contactId, isGroup: contact.is_group },
+        {
+          companyId,
+          openedBy: user.id,
+          reason: "Outbound conversation started from the API",
+        },
+      );
+    }
     const result = await requireSendAccess(trx, contactId, user.id);
     autoAssigned = result.autoAssigned;
     await trx
@@ -330,7 +348,14 @@ export const writeTools: McpToolDefinition[] = [
         throw error;
       }
 
-      const sent = await queueTextMessage(c, resolved.contact.id, args.content);
+      const sent = await queueTextMessage(
+        c,
+        resolved.contact.id,
+        args.content,
+        {
+          openCaseIfMissing: true,
+        },
+      );
       return {
         ...sent,
         contactCreated: resolved.created,
