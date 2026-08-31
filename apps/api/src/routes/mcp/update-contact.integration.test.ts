@@ -37,6 +37,7 @@ async function withContact(
     tenantDb: ReturnType<typeof getTenantConnection>;
     c: Context;
   }) => Promise<void>,
+  contactOverrides: Record<string, unknown> = {},
 ): Promise<void> {
   const companyId = crypto.randomUUID();
   const schemaName = getSchemaName(companyId);
@@ -102,6 +103,7 @@ async function withContact(
         push_name: "WhatsApp Supplied Name",
         custom_name: "Easy Travel &amp; Tours",
         is_group: false,
+        ...contactOverrides,
       })
       .returning("id")
       .executeTakeFirstOrThrow();
@@ -198,6 +200,32 @@ describe("update_contact", () => {
         // customName was not passed, so it must survive unchanged.
         expect(row.custom_name).toBe("Easy Travel &amp; Tours");
       }),
+    TEST_TIMEOUT_MS,
+  );
+
+  integrationTest(
+    "falls back to the username when there is no push_name",
+    () =>
+      withContact(
+        async ({ contactId, c }) => {
+          const result = (await updateContact.handler(
+            { contactId, customName: null },
+            c,
+          )) as { customName: string | null; displayName: string };
+
+          expect(result.customName).toBeNull();
+          // custom_name -> push_name -> @username -> phone. With the first two
+          // gone the handle is what the app shows, so the tool must report it
+          // rather than the raw LID label.
+          expect(result.displayName).toBe("@easytravelsg");
+        },
+        {
+          jid: "199999999999999@lid",
+          phone_number: null,
+          push_name: null,
+          username: "easytravelsg",
+        },
+      ),
     TEST_TIMEOUT_MS,
   );
 

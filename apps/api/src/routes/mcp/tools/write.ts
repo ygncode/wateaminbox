@@ -837,6 +837,11 @@ export const writeTools: McpToolDefinition[] = [
           "phone_number",
           "custom_name",
           "push_name",
+          // getContactDisplayName falls back custom_name -> push_name ->
+          // @username -> phone. Omitting username makes a LID contact with no
+          // push_name report the raw LID label instead of the handle it
+          // actually shows in the app.
+          "username",
           "notes_shared",
           "is_group",
         ])
