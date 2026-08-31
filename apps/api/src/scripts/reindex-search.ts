@@ -8,8 +8,14 @@
  *
  * Usage in production (the image ships only `dist`, so run the bundle):
  *
- *   docker exec wateaminbox-production-api-1 \
+ *   docker exec wateaminbox-production-api-1 /usr/local/bin/secret-entrypoint \
  *     bun run apps/api/dist/scripts/reindex-search.js verify --all
+ *
+ * The secret-entrypoint prefix is required, not decoration. The container's
+ * DATABASE_URL, JWT_SECRET and the rest are derived from mounted *_FILE secrets
+ * by that entrypoint, which only runs for the container's own command. A plain
+ * `docker exec ... bun run ...` starts a process that never passes through it
+ * and dies on "Missing required production environment variables".
  *
  * Usage in development:
  *
