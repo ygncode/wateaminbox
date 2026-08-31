@@ -784,6 +784,84 @@ export const writeTools: McpToolDefinition[] = [
     },
   },
   {
+    name: "update_contact",
+    description:
+      "Update a contact's saved display name or its shared profile note. Pass null to clear a field; omit a field to leave it unchanged. Blocking is deliberately not exposed here - it sends a command to WhatsApp and is a different class of action from an edit.",
+    scope: "write",
+    inputSchema: {
+      contactId: z.string().uuid(),
+      customName: z
+        .string()
+        .max(255)
+        .nullish()
+        .describe(
+          "The name the team sees, overriding the name WhatsApp supplies. null clears it.",
+        ),
+      notesShared: z
+        .string()
+        .nullish()
+        .describe("Team-visible profile note on the contact. null clears it."),
+    },
+    handler: async (
+      args: {
+        contactId: string;
+        customName?: string | null;
+        notesShared?: string | null;
+      },
+      c,
+    ) => {
+      const { tenantDb } = getRouteContext(c);
+      await requireVisibleContact(c, args.contactId);
+
+      if (args.customName === undefined && args.notesShared === undefined) {
+        throw new McpToolError(
+          "Pass customName or notesShared - nothing to update",
+        );
+      }
+
+      const updated = await tenantDb
+        .updateTable("contacts")
+        .set({
+          ...(args.customName !== undefined
+            ? { custom_name: args.customName?.trim() || null }
+            : {}),
+          ...(args.notesShared !== undefined
+            ? { notes_shared: args.notesShared?.trim() || null }
+            : {}),
+          updated_at: toDbDate(),
+        })
+        .where("id", "=", args.contactId)
+        .returning([
+          "id",
+          "jid",
+          "phone_number",
+          "custom_name",
+          "push_name",
+          // getContactDisplayName falls back custom_name -> push_name ->
+          // @username -> phone. Omitting username makes a LID contact with no
+          // push_name report the raw LID label instead of the handle it
+          // actually shows in the app.
+          "username",
+          "notes_shared",
+          "is_group",
+        ])
+        .executeTakeFirst();
+      if (!updated) {
+        throw new McpToolError("Contact not found");
+      }
+
+      // PATCH /contacts/:id only broadcasts on block/unblock, so a rename
+      // stays consistent with it and leaves clients to refetch.
+      return {
+        contactId: updated.id,
+        phoneNumber: updated.phone_number,
+        customName: updated.custom_name,
+        notesShared: updated.notes_shared,
+        displayName: getContactDisplayName(updated),
+      };
+    },
+  },
+  {
     name: "add_contact_note",
     description:
       "Add a note to a contact. Shared notes are visible to the whole team; private notes only to the token owner.",
