@@ -36,12 +36,18 @@ import {
 } from "../../../services/bulk-job.service.js";
 import { enqueueCommand } from "../../../services/command-outbox.service.js";
 import {
+  ensureActiveCaseWithin,
   reopenAsNewCase,
   resolveActiveCase,
   resumePendingCase,
   setActiveCasePending,
 } from "../../../services/conversation-case.service.js";
-import { getCurrentAssignment } from "../../../services/contact.service.js";
+import {
+  type FindOrCreateContactByPhoneResult,
+  findOrCreateContactByPhone,
+  getCurrentAssignment,
+  OutboundContactError,
+} from "../../../services/contact.service.js";
 import { reserveMediaReferences } from "../../../services/media-reference-lock.js";
 import {
   broadcastNewMessageToViewers,
@@ -141,123 +147,220 @@ async function loadContactForCase(
   return contact;
 }
 
+/**
+ * Queue an outbound text message on an existing contact.
+ *
+ * Shared by send_message and start_conversation so both take the same path
+ * through case assignment, the command outbox, and the realtime broadcast.
+ */
+async function queueTextMessage(
+  c: Context,
+  contactId: string,
+  content: string,
+  options: { openCaseIfMissing?: boolean } = {},
+): Promise<{
+  messageId: string;
+  contactId: string;
+  status: "queued";
+  autoAssigned: boolean;
+  note: string;
+}> {
+  const { tenantDb, user, companyId } = getRouteContext(c);
+
+  const contact = await tenantDb
+    .selectFrom("contacts")
+    .select(["id", "jid", "is_group", "whatsapp_connection_id"])
+    .where("id", "=", contactId)
+    .executeTakeFirst();
+  if (!contact || !contact.jid) {
+    throw new McpToolError("Contact not found");
+  }
+  const connection = contact.whatsapp_connection_id
+    ? await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select(["id", "jid"])
+        .where("id", "=", contact.whatsapp_connection_id)
+        .where("status", "=", "connected")
+        .executeTakeFirst()
+    : null;
+  if (!connection) {
+    throw new McpToolError("The contact's WhatsApp connection is not active");
+  }
+
+  const messageId = crypto.randomUUID();
+  const waMessageId = `pending_${messageId}`;
+  const createdAt = toDbDate();
+  const sessionId = await getActiveSessionId(tenantDb, connection.id);
+  const sendCommand = await buildSendMessageCommand(
+    companyId,
+    sessionId,
+    contact.jid,
+    content,
+    "text",
+    user.id,
+    waMessageId,
+  );
+
+  let autoAssigned = false;
+  await tenantDb.transaction().execute(async (trx) => {
+    await reserveMediaReferences(trx, companyId, [null]);
+    if (options.openCaseIfMissing) {
+      // requireSendAccess ends at requireActiveCaseForSend, which rejects a
+      // contact with no open or pending case. A conversation this workspace
+      // starts has none yet, so open it here - in this transaction, so the
+      // contact, the case, the assignment, the message row, and the outbox
+      // entry all land together or not at all.
+      await ensureActiveCaseWithin(
+        trx,
+        { id: contactId, isGroup: contact.is_group },
+        {
+          companyId,
+          openedBy: user.id,
+          reason: "Outbound conversation started from the API",
+        },
+      );
+    }
+    const result = await requireSendAccess(trx, contactId, user.id);
+    autoAssigned = result.autoAssigned;
+    await trx
+      .insertInto("messages")
+      .values({
+        id: messageId,
+        whatsapp_connection_id: connection.id,
+        contact_id: contactId,
+        message_id: waMessageId,
+        from_me: true,
+        sender_jid: connection.jid,
+        message_type: "text",
+        content,
+        sent_by_user_id: user.id,
+        status: "pending",
+        timestamp: createdAt,
+        created_at: createdAt,
+        case_id: result.caseId,
+      })
+      .execute();
+    await enqueueCommand(
+      trx,
+      buildCommandSubject(companyId, sessionId),
+      sendCommand,
+    );
+  });
+  if (autoAssigned) {
+    await broadcastAutoAssignment(tenantDb, companyId, contactId, user.id);
+  }
+  await broadcastNewMessageToViewers(
+    companyId,
+    contactId,
+    {
+      message: {
+        id: messageId,
+        messageId: waMessageId,
+        conversationId: contactId,
+        contactId,
+        senderId: user.id,
+        senderType: "user" as const,
+        sentByUserId: user.id,
+        sentByUserName: user.name || user.email.split("@")[0],
+        messageType: "text",
+        content,
+        status: "pending" as const,
+        createdAt,
+        updatedAt: createdAt,
+      },
+      conversationId: contactId,
+    },
+    connection.id,
+  );
+
+  return {
+    messageId,
+    contactId,
+    status: "queued",
+    autoAssigned,
+    note: "The message is queued; delivery to WhatsApp is asynchronous.",
+  };
+}
+
 export const writeTools: McpToolDefinition[] = [
   {
     name: "send_message",
     description:
-      "Send a text WhatsApp message to a contact. The message is queued for delivery (status 'pending'); delivery happens asynchronously. Sending to an unassigned contact may auto-assign it to the token owner.",
+      "Send a text WhatsApp message to a contact that already exists. The message is queued for delivery (status 'pending'); delivery happens asynchronously. Sending to an unassigned contact may auto-assign it to the token owner. To message a number that is not a contact yet, use start_conversation.",
     scope: "write",
     permission: "can_send_messages",
     inputSchema: {
       contactId: z.string().uuid(),
       content: z.string().min(1).max(65536),
     },
-    handler: async (args: { contactId: string; content: string }, c) => {
-      const { tenantDb, user, companyId } = getRouteContext(c);
+    handler: async (args: { contactId: string; content: string }, c) =>
+      queueTextMessage(c, args.contactId, args.content),
+  },
+  {
+    name: "start_conversation",
+    description:
+      "Start a WhatsApp conversation with a phone number that is not a contact yet: creates the contact, then queues the first message. HIGH IMPACT - this initiates outbound contact with someone who has not messaged this workspace, so confirm the number and the wording before calling. If the number is already a contact, the existing contact is reused and no duplicate is created. The number is NOT checked against WhatsApp's registry first, so a landline or a typo will create a contact whose message never delivers.",
+    scope: "write",
+    permission: "can_send_messages",
+    inputSchema: {
+      phoneNumber: z
+        .string()
+        .min(1)
+        .describe(
+          "Digits in international format, e.g. 6589001305. A leading + or 00 is accepted.",
+        ),
+      content: z.string().min(1).max(65536),
+      connectionId: z
+        .string()
+        .uuid()
+        .optional()
+        .describe(
+          "Required when the workspace has more than one connected account",
+        ),
+      customName: z
+        .string()
+        .max(255)
+        .optional()
+        .describe("Display name to save with the new contact"),
+    },
+    handler: async (
+      args: {
+        phoneNumber: string;
+        content: string;
+        connectionId?: string;
+        customName?: string;
+      },
+      c,
+    ) => {
+      const { tenantDb } = getRouteContext(c);
 
-      const contact = await tenantDb
-        .selectFrom("contacts")
-        .select(["id", "jid", "whatsapp_connection_id"])
-        .where("id", "=", args.contactId)
-        .executeTakeFirst();
-      if (!contact || !contact.jid) {
-        throw new McpToolError("Contact not found");
-      }
-      const connection = contact.whatsapp_connection_id
-        ? await tenantDb
-            .selectFrom("whatsapp_connections")
-            .select(["id", "jid"])
-            .where("id", "=", contact.whatsapp_connection_id)
-            .where("status", "=", "connected")
-            .executeTakeFirst()
-        : null;
-      if (!connection) {
-        throw new McpToolError(
-          "The contact's WhatsApp connection is not active",
-        );
+      let resolved: FindOrCreateContactByPhoneResult;
+      try {
+        resolved = await findOrCreateContactByPhone(tenantDb, {
+          phoneNumber: args.phoneNumber,
+          connectionId: args.connectionId,
+          customName: args.customName,
+        });
+      } catch (error) {
+        if (error instanceof OutboundContactError) {
+          throw new McpToolError(error.message);
+        }
+        throw error;
       }
 
-      const messageId = crypto.randomUUID();
-      const waMessageId = `pending_${messageId}`;
-      const createdAt = toDbDate();
-      const sessionId = await getActiveSessionId(tenantDb, connection.id);
-      const sendCommand = await buildSendMessageCommand(
-        companyId,
-        sessionId,
-        contact.jid,
+      const sent = await queueTextMessage(
+        c,
+        resolved.contact.id,
         args.content,
-        "text",
-        user.id,
-        waMessageId,
-      );
-
-      let autoAssigned = false;
-      await tenantDb.transaction().execute(async (trx) => {
-        await reserveMediaReferences(trx, companyId, [null]);
-        const result = await requireSendAccess(trx, args.contactId, user.id);
-        autoAssigned = result.autoAssigned;
-        await trx
-          .insertInto("messages")
-          .values({
-            id: messageId,
-            whatsapp_connection_id: connection.id,
-            contact_id: args.contactId,
-            message_id: waMessageId,
-            from_me: true,
-            sender_jid: connection.jid,
-            message_type: "text",
-            content: args.content,
-            sent_by_user_id: user.id,
-            status: "pending",
-            timestamp: createdAt,
-            created_at: createdAt,
-            case_id: result.caseId,
-          })
-          .execute();
-        await enqueueCommand(
-          trx,
-          buildCommandSubject(companyId, sessionId),
-          sendCommand,
-        );
-      });
-      if (autoAssigned) {
-        await broadcastAutoAssignment(
-          tenantDb,
-          companyId,
-          args.contactId,
-          user.id,
-        );
-      }
-      await broadcastNewMessageToViewers(
-        companyId,
-        args.contactId,
         {
-          message: {
-            id: messageId,
-            messageId: waMessageId,
-            conversationId: args.contactId,
-            contactId: args.contactId,
-            senderId: user.id,
-            senderType: "user" as const,
-            sentByUserId: user.id,
-            sentByUserName: user.name || user.email.split("@")[0],
-            messageType: "text",
-            content: args.content,
-            status: "pending" as const,
-            createdAt,
-            updatedAt: createdAt,
-          },
-          conversationId: args.contactId,
+          openCaseIfMissing: true,
         },
-        connection.id,
       );
-
       return {
-        messageId,
-        contactId: args.contactId,
-        status: "queued",
-        autoAssigned,
-        note: "The message is queued; delivery to WhatsApp is asynchronous.",
+        ...sent,
+        contactCreated: resolved.created,
+        phoneNumber: resolved.contact.phone_number,
+        displayName: getContactDisplayName(resolved.contact),
       };
     },
   },

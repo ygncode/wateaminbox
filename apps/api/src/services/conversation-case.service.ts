@@ -90,7 +90,10 @@ import {
   ValidationError,
 } from "../lib/errors.js";
 import { getCurrentAssignment, unassignContact } from "./contact.service.js";
-import { getCurrentSlaPolicy, resolveCaseTargets } from "./sla-policy/policy.service.js";
+import {
+  getCurrentSlaPolicy,
+  resolveCaseTargets,
+} from "./sla-policy/policy.service.js";
 import { getSchemaName, type TenantDatabase } from "./tenant.service.js";
 
 export type {
@@ -388,7 +391,8 @@ async function syncProjection(
   };
   if (sync.resolvedAt !== undefined) updateSet.resolved_at = sync.resolvedAt;
   if (sync.resolvedBy !== undefined) updateSet.resolved_by = sync.resolvedBy;
-  if (sync.resolutionNotes !== undefined) updateSet.resolution_notes = sync.resolutionNotes;
+  if (sync.resolutionNotes !== undefined)
+    updateSet.resolution_notes = sync.resolutionNotes;
   if (sync.reopenedAt !== undefined) updateSet.reopened_at = sync.reopenedAt;
   if (sync.reopenedBy !== undefined) updateSet.reopened_by = sync.reopenedBy;
 
@@ -406,11 +410,13 @@ async function syncProjection(
       updated_at: toDbDate(),
     })
     .onConflict((oc) =>
-      oc.column("contact_id").doUpdateSet(
-        updateSet as Parameters<
-          ReturnType<typeof oc.column>["doUpdateSet"]
-        >[0],
-      ),
+      oc
+        .column("contact_id")
+        .doUpdateSet(
+          updateSet as Parameters<
+            ReturnType<typeof oc.column>["doUpdateSet"]
+          >[0],
+        ),
     )
     .execute();
 }
@@ -476,7 +482,9 @@ export async function openOrReopenCaseForInboundMessage(
   // unique index's ON CONFLICT clause) is emitted verbatim, so the target
   // table must be schema-qualified explicitly or this would silently run
   // against the wrong schema's search_path.
-  const casesTable = sql.table(`${getSchemaName(companyId)}.conversation_cases`);
+  const casesTable = sql.table(
+    `${getSchemaName(companyId)}.conversation_cases`,
+  );
   const insertResult = await sql<ConversationCaseRow>`
     INSERT INTO ${casesTable} (
       contact_id, kind, status, opened_at, opening_message_id,
@@ -560,7 +568,10 @@ export async function openOrReopenCaseForInboundMessage(
         .returningAll()
         .executeTakeFirst();
       if (updated) {
-        await syncProjection(trx, contact.id, { activeCaseId: activeCase.id, status: "open" });
+        await syncProjection(trx, contact.id, {
+          activeCaseId: activeCase.id,
+          status: "open",
+        });
         finalCaseId = activeCase.id;
         result = {
           case: toConversationCase(updated as unknown as ConversationCaseRow),
@@ -572,7 +583,10 @@ export async function openOrReopenCaseForInboundMessage(
     if (!finalCaseId) {
       const current = activeCase ?? (await getActiveCase(trx, contact.id));
       if (current) {
-        await syncProjection(trx, contact.id, { activeCaseId: current.id, status: current.status });
+        await syncProjection(trx, contact.id, {
+          activeCaseId: current.id,
+          status: current.status,
+        });
         finalCaseId = current.id;
       }
     }
@@ -620,7 +634,9 @@ export async function resolveActiveCase(
     await assertActorOwnsContact(trx, contactId, input.resolvedBy);
     const active = await getActiveCase(trx, contactId);
     if (!active) {
-      throw new ConflictError("This conversation has no active case to resolve");
+      throw new ConflictError(
+        "This conversation has no active case to resolve",
+      );
     }
 
     if (input.outcome === "handled") {
@@ -691,7 +707,10 @@ export async function setActiveCasePending(
 
     if (updated) {
       const pendingCase = updated as unknown as ConversationCaseRow;
-      await syncProjection(trx, contactId, { activeCaseId: pendingCase.id, status: "pending" });
+      await syncProjection(trx, contactId, {
+        activeCaseId: pendingCase.id,
+        status: "pending",
+      });
       return toConversationCase(pendingCase);
     }
 
@@ -737,7 +756,10 @@ export async function resumePendingCase(
 
     if (updated) {
       const openCase = updated as unknown as ConversationCaseRow;
-      await syncProjection(trx, contactId, { activeCaseId: openCase.id, status: "open" });
+      await syncProjection(trx, contactId, {
+        activeCaseId: openCase.id,
+        status: "open",
+      });
       return toConversationCase(openCase);
     }
 
@@ -788,7 +810,26 @@ export async function reopenAsNewCase(
   contact: { id: string; isGroup: boolean },
   input: ManualOpenCaseInput,
 ): Promise<ConversationCase> {
-  return tenantDb.transaction().execute(async (trx) => {
+  return tenantDb
+    .transaction()
+    .execute((trx) => openCaseWithin(trx, contact, input));
+}
+
+/**
+ * The body of {@link reopenAsNewCase}, taking a transaction instead of opening
+ * one.
+ *
+ * Callers that must land a case and something else atomically - an outbound
+ * message that starts the conversation, for instance - need the case insert
+ * inside their own transaction, not in a second one that could commit while
+ * theirs rolls back.
+ */
+export async function openCaseWithin(
+  trx: Transaction<TenantDatabase>,
+  contact: { id: string; isGroup: boolean },
+  input: ManualOpenCaseInput,
+): Promise<ConversationCase> {
+  {
     await lockContact(trx, contact.id);
     await assertActorOwnsContact(trx, contact.id, input.openedBy);
     const priorCase = await getMostRecentCase(trx, contact.id);
@@ -849,7 +890,40 @@ export async function reopenAsNewCase(
         : {}),
     });
     return toConversationCase(created);
+  }
+}
+
+/**
+ * Return the contact's active case, opening one when there is none.
+ *
+ * An outbound message can be the first thing that ever happens on a contact,
+ * which is exactly the case the inbound path handles via
+ * openOrReopenCaseForInboundMessage. This is the outbound-initiated mirror of
+ * it: a contact with no history gets a first-ever open, and one whose last case
+ * was resolved gets a reopen carrying `reason`.
+ */
+export async function ensureActiveCaseWithin(
+  trx: Transaction<TenantDatabase>,
+  contact: { id: string; isGroup: boolean },
+  // expectedMode is derived here from the real history, so callers neither
+  // supply nor guess it.
+  input: Omit<ManualOpenCaseInput, "expectedMode" | "reason"> & {
+    reason: string;
+  },
+): Promise<string> {
+  const activeCaseId = await resolveActiveCaseIdForContact(trx, contact.id);
+  if (activeCaseId) return activeCaseId;
+
+  const priorCase = await getMostRecentCase(trx, contact.id);
+  const opened = await openCaseWithin(trx, contact, {
+    ...input,
+    // openCaseWithin asserts this against the real history under the contact
+    // lock, so read it there rather than trusting anything the caller believes.
+    expectedMode: priorCase ? "reopen" : "open",
+    // A first-ever open takes no reason; a reopen requires one.
+    reason: priorCase ? input.reason : null,
   });
+  return opened.id;
 }
 
 export async function getConversationCaseHistory(
@@ -862,7 +936,9 @@ export async function getConversationCaseHistory(
     .where("contact_id", "=", contactId)
     .orderBy("created_at", "desc")
     .execute();
-  return rows.map((row) => toConversationCase(row as unknown as ConversationCaseRow));
+  return rows.map((row) =>
+    toConversationCase(row as unknown as ConversationCaseRow),
+  );
 }
 
 export class CaseNotFoundError extends NotFoundError {
