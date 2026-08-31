@@ -5,6 +5,12 @@
  * Usage: import { ... } from "@/lib/api"
  */
 
+// Re-export API token (MCP) functions
+export {
+  createApiToken,
+  getApiTokens,
+  revokeApiToken,
+} from "./api-tokens.js";
 // Re-export analytics functions
 export {
   getResponseTimeStats,

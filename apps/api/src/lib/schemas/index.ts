@@ -179,6 +179,15 @@ export {
   weeklyScheduleSchema,
 } from "./sla-policy.js";
 
+// API token
+export {
+  apiTokenIdParamSchema,
+  apiTokenScopeSchema,
+  type CreateApiTokenInput,
+  createApiTokenSchema,
+  type ListApiTokensQuery,
+  listApiTokensQuerySchema,
+} from "./api-token.js";
 // Status
 export {
   type PostStatusInput,

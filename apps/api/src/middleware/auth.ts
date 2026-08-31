@@ -25,7 +25,7 @@ declare module "hono" {
 /**
  * Extract Bearer token from Authorization header
  */
-function extractToken(authHeader: string | undefined): string | null {
+export function extractToken(authHeader: string | undefined): string | null {
   if (!authHeader) {
     return null;
   }

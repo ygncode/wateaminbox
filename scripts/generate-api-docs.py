@@ -931,6 +931,60 @@ GROUPS = [
         ],
     },
     {
+        "key": "api-tokens",
+        "title": "API tokens",
+        "prefixes": ["/api-tokens"],
+        "overview": (
+            "Personal, revocable API tokens (`wti_...`) that authenticate the MCP "
+            "endpoint. Managed with the normal web session; the raw secret is "
+            "returned exactly once at creation and only its SHA-256 hash is stored. "
+            "Members manage their own tokens; admins/owners can list and revoke any "
+            "workspace token (`?all=true`)."
+        ),
+        "flows": [
+            ("Token lifecycle", """sequenceDiagram
+    participant U as User (web app)
+    participant A as API (Hono)
+    participant D as Postgres (public schema)
+    U->>A: POST /api/api-tokens {name,scopes,expiresAt?}
+    A->>D: INSERT api_tokens (hash + prefix only)
+    A-->>U: 201 {token: "wti_...", ...} (secret shown once)
+    U->>A: DELETE /api/api-tokens/:id
+    A->>D: SET revoked_at = now()
+    Note over A,D: revocation is immediate - the MCP endpoint rejects the hash
+"""),
+        ],
+    },
+    {
+        "key": "mcp",
+        "title": "MCP",
+        "prefixes": ["/mcp"],
+        "overview": (
+            "Stateless Streamable HTTP MCP endpoint for AI agents. Authenticated "
+            "with an API token (`Authorization: Bearer wti_...`) instead of a JWT; "
+            "the workspace is resolved from the token, so no `X-Company-ID` header "
+            "is used. Tools are filtered by token scope (`read`/`write`) at listing "
+            "time, and the owner's live role/permissions and contact visibility are "
+            "re-checked on every call. POST-only: GET/DELETE return 405 (no SSE "
+            "stream or session lifecycle)."
+        ),
+        "flows": [
+            ("Tool call", """sequenceDiagram
+    participant G as AI agent (MCP client)
+    participant A as API (Hono /api/mcp)
+    participant T as api-token.service
+    participant P as permission.service
+    participant D as Postgres (tenantDb)
+    G->>A: POST /api/mcp (JSON-RPC tools/call)
+    A->>T: verifyApiToken(sha256(token))
+    A->>P: getMemberWithPermissions(companyId, userId)
+    A->>A: filter tools by token scope, check tool permission
+    A->>D: run tool via the same services as the REST routes
+    A-->>G: tool result (compact JSON) or isError content
+"""),
+        ],
+    },
+    {
         "key": "tags",
         "title": "Tags",
         "prefixes": ["/tags"],

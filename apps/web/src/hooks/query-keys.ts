@@ -260,6 +260,14 @@ export const queryKeys = {
       ["quick-replies", getCompanyId(), "search", shortcut] as const,
   },
 
+  // API tokens (MCP) - personal and workspace token management
+  apiTokens: {
+    get all() {
+      return ["api-tokens", getCompanyId()] as const;
+    },
+    list: (all: boolean) => ["api-tokens", getCompanyId(), { all }] as const,
+  },
+
   // Notifications - custom keys for in-app notifications
   notifications: {
     get all() {

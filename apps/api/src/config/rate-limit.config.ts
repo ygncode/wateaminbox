@@ -83,6 +83,7 @@ export interface RateLimitConfig {
       export: RateLimitTier;
       import: RateLimitTier;
       analytics: RateLimitTier;
+      mcp: RateLimitTier;
     };
     messaging: {
       send: RateLimitTier;
@@ -285,6 +286,16 @@ export function getRateLimitConfig(): RateLimitConfig {
             60,
           ),
         },
+        mcp: {
+          requests: getDefaultRequests(
+            process.env.RATE_LIMIT_RESOURCE_MCP_REQUESTS,
+            60,
+          ),
+          windowSeconds: parsePositiveInt(
+            process.env.RATE_LIMIT_RESOURCE_MCP_WINDOW_SECONDS,
+            60,
+          ),
+        },
       },
       messaging: {
         send: {
@@ -436,6 +447,10 @@ export const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
         windowSeconds: 60,
       },
       analytics: {
+        requests: 60,
+        windowSeconds: 60,
+      },
+      mcp: {
         requests: 60,
         windowSeconds: 60,
       },

@@ -631,3 +631,32 @@ export interface SyncCatalogsResponse {
 export interface CatalogActionResponse {
   message: string;
 }
+
+// ============================================================================
+// API Tokens (MCP)
+// ============================================================================
+
+export type ApiTokenScope = "read" | "write";
+
+export interface ApiToken {
+  id: string;
+  userId: string;
+  name: string;
+  tokenPrefix: string;
+  scopes: ApiTokenScope[];
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+export interface ApiTokenWithSecret extends ApiToken {
+  /** Full secret, returned only once at creation time. */
+  token: string;
+}
+
+export interface CreateApiTokenInput {
+  name: string;
+  scopes: ApiTokenScope[];
+  expiresAt?: string;
+}

@@ -7,6 +7,7 @@ import {
   Globe2,
   ImagePlus,
   Keyboard,
+  KeyRound,
   LoaderCircle,
   MessageSquareHeart,
   MessageSquareText,
@@ -29,6 +30,7 @@ import { ContactImport } from "../components/contacts";
 import { FeedbackSettings } from "../components/feedback";
 import {
   AccountSettings,
+  ApiTokensSection,
   CatalogManager,
   LabelSyncManager,
   LanguageSwitcher,
@@ -81,6 +83,7 @@ type SettingsSection =
   | "data"
   | "appearance"
   | "privacy"
+  | "api-tokens"
   | "feedback";
 
 interface SectionDefinition {
@@ -197,6 +200,14 @@ export function SettingsPage() {
       // Analytics is an optional, deployer-enabled integration; render no
       // settings control at all when it is not configured.
       visible: productAnalytics.isConfigured(),
+    },
+    {
+      id: "api-tokens",
+      labelKey: "settings.sections.apiTokens",
+      label: "AI agents (MCP)",
+      group: "Personal",
+      icon: KeyRound,
+      visible: true,
     },
     {
       id: "data",
@@ -408,6 +419,18 @@ function SettingsSectionContent({
           )}
         >
           <CatalogManager />
+        </Panel>
+      );
+    case "api-tokens":
+      return (
+        <Panel
+          title={t("settings.apiTokensPanel.title", "AI agents (MCP)")}
+          description={t(
+            "settings.apiTokensPanel.description",
+            "Connect AI agents to this workspace through the MCP endpoint with personal, revocable tokens.",
+          )}
+        >
+          <ApiTokensSection key={workspaceId} />
         </Panel>
       );
     case "notifications":
