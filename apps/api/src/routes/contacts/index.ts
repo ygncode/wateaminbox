@@ -23,7 +23,7 @@ import {
   type RawContactFromDb,
   transformContacts,
 } from "../../lib/data-transformers.js";
-import { badRequest, notFound, serverError } from "../../lib/errors.js";
+import { badRequest, notFound } from "../../lib/errors.js";
 import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import { created, successData, successPaginated } from "../../lib/response.js";
 import { createPaginationMeta } from "../../lib/route-helpers.js";
@@ -32,7 +32,6 @@ import {
   listContactsQuerySchema,
   updateContactSchema,
 } from "../../lib/schemas/index.js";
-import { normalizePhoneNumber } from "../../lib/schemas.js";
 import { getAuthorizedMediaUrlOrNull } from "../../lib/storage.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { getRouteContext } from "../../middleware/context.js";
@@ -40,7 +39,12 @@ import { requireContactVisibility } from "../../middleware/resource-visibility.j
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
-import { getContactsWithLastMessage } from "../../services/contact.service.js";
+import {
+  type FindOrCreateContactByPhoneResult,
+  findOrCreateContactByPhone,
+  getContactsWithLastMessage,
+  OutboundContactError,
+} from "../../services/contact.service.js";
 import { assignmentRoutes } from "./assignment.js";
 import { importRoutes } from "./import.js";
 // Import sub-routes
@@ -263,84 +267,38 @@ contactRoutes.post("/", zValidator("json", createContactSchema), async (c) => {
   const { tenantDb } = getRouteContext(c);
   const body = c.req.valid("json");
 
-  // Normalize and validate phone number
-  const phoneResult = normalizePhoneNumber(body.phoneNumber);
-  if (!phoneResult.isValid) {
-    return badRequest(c, phoneResult.error || "Invalid phone number");
+  let result: FindOrCreateContactByPhoneResult;
+  try {
+    result = await findOrCreateContactByPhone(tenantDb, {
+      phoneNumber: body.phoneNumber,
+      connectionId: body.connectionId,
+      customName: body.customName,
+      notesShared: body.notesShared,
+    });
+  } catch (error) {
+    if (error instanceof OutboundContactError) {
+      return badRequest(c, error.message);
+    }
+    throw error;
   }
 
-  const { cleanedPhone, jid } = phoneResult;
-
-  const activeConnections = await tenantDb
-    .selectFrom("whatsapp_connections")
-    .select("id")
-    .where("status", "=", "connected")
-    .$if(Boolean(body.connectionId), (query) =>
-      query.where("id", "=", body.connectionId!),
-    )
-    .limit(2)
-    .execute();
-  if (activeConnections.length === 0) {
-    return badRequest(c, "No matching active WhatsApp connection");
-  }
-  if (!body.connectionId && activeConnections.length !== 1) {
-    return badRequest(
-      c,
-      "connectionId is required when multiple accounts are active",
-    );
-  }
-  const connectionId = activeConnections[0].id;
-
-  const existingContact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id", "jid", "phone_number", "custom_name", "push_name"])
-    .where("whatsapp_connection_id", "=", connectionId)
-    .where((eb) =>
-      eb.or([eb("jid", "=", jid), eb("phone_number", "=", cleanedPhone)]),
-    )
-    .executeTakeFirst();
-
-  if (existingContact) {
+  // This route is create-only: reusing an existing contact stays a 409 so the
+  // web client keeps its current behaviour.
+  if (!result.created) {
     return c.json(
       {
         error: "Contact already exists",
         existingContact: {
-          id: existingContact.id,
-          phoneNumber: existingContact.phone_number,
-          displayName: getContactDisplayName(existingContact),
+          id: result.contact.id,
+          phoneNumber: result.contact.phone_number,
+          displayName: getContactDisplayName(result.contact),
         },
       },
       409,
     );
   }
 
-  // Create the contact
-  const newContact = await tenantDb
-    .insertInto("contacts")
-    .values({
-      whatsapp_connection_id: connectionId,
-      jid,
-      phone_number: cleanedPhone,
-      custom_name: body.customName || null,
-      notes_shared: body.notesShared || null,
-      is_group: false,
-    })
-    .returning([
-      "id",
-      "jid",
-      "phone_number",
-      "custom_name",
-      "notes_shared",
-      "is_group",
-      "created_at",
-      "updated_at",
-    ])
-    .executeTakeFirst();
-
-  if (!newContact) {
-    return serverError(c, "Failed to create contact");
-  }
-
+  const newContact = result.contact;
   return created(c, {
     id: newContact.id,
     jid: newContact.jid,
