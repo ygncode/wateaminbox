@@ -5,7 +5,16 @@
  * These functions ensure consistent message formatting across different routes.
  */
 
-import { getAuthorizedMediaUrl } from "./storage.js";
+import {
+  buildContentDisposition,
+  fileNameFromMediaKey,
+  resolveDownloadContentType,
+  resolveDownloadFileName,
+} from "./media-download-name.js";
+import {
+  getAuthorizedMediaUrl,
+  type SignedResponseOverrides,
+} from "./storage.js";
 
 /**
  * Database message row type (from Kysely query)
@@ -27,6 +36,7 @@ export interface MessageDbRow {
   media_size: number | null;
   media_direct_path: string | null;
   media_download_status: string | null;
+  metadata: Record<string, unknown> | null;
   quoted_message_id: string | null;
   is_forwarded: boolean;
   is_starred: boolean;
@@ -81,9 +91,67 @@ export interface MessageUserAvatarSources {
 export interface MessageMetadata {
   mediaUrl: string | null;
   mimeType: string | null;
+  fileName: string | null;
   fileSize: number | null;
   mediaPending: boolean;
   mediaDownloadStatus: string | null;
+}
+
+/**
+ * Persisted shape of the `messages.metadata` JSONB column.
+ *
+ * It is deliberately small: anything the UI needs on every render belongs in a
+ * real column. `fileName` lives here because it is document-only and arrives
+ * on the receive event alone.
+ */
+export interface StoredMessageMetadata extends Record<string, unknown> {
+  protocolSenderJid?: string;
+  fileName?: string;
+}
+
+/**
+ * Assemble the metadata blob for an inbound message, or null when there is
+ * nothing worth storing - the column stays null for the text messages that are
+ * the overwhelming majority of rows.
+ */
+export function buildInboundMessageMetadata(payload: {
+  protocolSenderJid?: string;
+  fileName?: string;
+}): StoredMessageMetadata | null {
+  const metadata: StoredMessageMetadata = {};
+  if (payload.protocolSenderJid)
+    metadata.protocolSenderJid = payload.protocolSenderJid;
+  if (payload.fileName) metadata.fileName = payload.fileName;
+  return Object.keys(metadata).length > 0 ? metadata : null;
+}
+
+/**
+ * Media columns for an outbound message row.
+ *
+ * The filename and MIME type an outbound send is about to hand the worker are
+ * the same ones the recipient's copy will carry, so the local row should record
+ * them too. Without this the sender's own copy downloads under a synthetic
+ * name while the recipient's is correct.
+ */
+export function buildOutboundMediaColumns(command: {
+  file_name?: string;
+  mime_type?: string;
+}): {
+  media_mime_type: string | null;
+  metadata: StoredMessageMetadata | null;
+} {
+  return {
+    media_mime_type: command.mime_type ?? null,
+    metadata: command.file_name ? { fileName: command.file_name } : null,
+  };
+}
+
+/** Read the original filename back out of the stored blob, if there is one. */
+export function readStoredFileName(
+  metadata: Record<string, unknown> | null | undefined,
+): string | null {
+  const fileName = metadata?.fileName;
+  return typeof fileName === "string" && fileName.length > 0 ? fileName : null;
 }
 
 /**
@@ -94,9 +162,17 @@ export async function authorizeMessageMedia(
   messages: MessageDbRow[],
   companyId: string,
 ): Promise<MessageDbRow[]> {
-  const authorize = async (reference: string | null) => {
+  const authorize = async (
+    reference: string | null,
+    responseOverrides?: SignedResponseOverrides,
+  ) => {
     try {
-      return await getAuthorizedMediaUrl(reference, companyId);
+      return await getAuthorizedMediaUrl(
+        reference,
+        companyId,
+        undefined,
+        responseOverrides,
+      );
     } catch {
       // Never echo malformed, external, or cross-tenant persisted references.
       return null;
@@ -105,10 +181,45 @@ export async function authorizeMessageMedia(
   return Promise.all(
     messages.map(async (message) => ({
       ...message,
-      media_url: await authorize(message.media_url),
+      media_url: await authorize(
+        message.media_url,
+        documentDownloadOverrides(message),
+      ),
       sender_avatar_url: await authorize(message.sender_avatar_url),
     })),
   );
+}
+
+/**
+ * Documents are downloaded, not rendered, so their signed URL restates the
+ * original filename and a usable content type. Images, video, and audio are
+ * left alone: they are played and previewed in place, and an `attachment`
+ * disposition on a lightbox source is at best pointless.
+ */
+function documentDownloadOverrides(
+  message: MessageDbRow,
+): SignedResponseOverrides | undefined {
+  if (message.message_type !== "document") return undefined;
+
+  // Messages stored before the filename was persisted fall back to the name
+  // embedded in the storage key.
+  const storedName =
+    readStoredFileName(message.metadata) ??
+    fileNameFromMediaKey(message.media_url);
+  const fileName = resolveDownloadFileName(storedName, message.media_mime_type);
+  const contentType = resolveDownloadContentType(
+    storedName,
+    message.media_mime_type,
+  );
+  // PDFs are previewed in the lightbox, so they keep `inline` - an attachment
+  // disposition would turn the preview into a download. They still get the
+  // corrected name, which is what the browser's own save button uses.
+  const disposition =
+    contentType === "application/pdf" ? "inline" : "attachment";
+  return {
+    contentDisposition: buildContentDisposition(fileName, disposition),
+    contentType,
+  };
 }
 
 /**
@@ -118,6 +229,10 @@ export function buildMessageMetadata(msg: MessageDbRow): MessageMetadata {
   return {
     mediaUrl: msg.media_url,
     mimeType: msg.media_mime_type,
+    // Same fallback as the download name, so the bubble and the saved file
+    // agree on what the document is called.
+    fileName:
+      readStoredFileName(msg.metadata) ?? fileNameFromMediaKey(msg.media_url),
     fileSize: msg.media_size,
     mediaPending:
       msg.media_download_status === "pending" && msg.media_direct_path !== null,

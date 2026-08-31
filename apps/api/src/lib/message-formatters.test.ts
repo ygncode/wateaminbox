@@ -18,6 +18,7 @@ const baseMessage = (overrides: Partial<MessageDbRow>): MessageDbRow => ({
   message_type: "text",
   content: "Incoming reply",
   media_url: null,
+  metadata: null,
   media_mime_type: null,
   media_size: null,
   media_direct_path: null,
