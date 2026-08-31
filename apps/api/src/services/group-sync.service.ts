@@ -437,7 +437,13 @@ async function backfillParticipantContacts(
       .where("id", "=", contact.id)
       // Re-checked in the write so a concurrent namer wins rather than being
       // overwritten by the name this transaction read earlier.
-      .where(sql<boolean>`push_name IS NULL OR btrim(push_name) = ''`)
+      //
+      // The parentheses are load-bearing: SQL binds AND tighter than OR, so an
+      // unwrapped `push_name IS NULL OR btrim(push_name) = ''` parses as
+      // `(id = $1 AND push_name IS NULL) OR btrim(push_name) = ''` and stops
+      // being scoped to this row at all - it would name EVERY blank contact in
+      // the tenant after the first member processed here.
+      .where(sql<boolean>`(push_name IS NULL OR btrim(push_name) = '')`)
       .execute();
   }
 }
