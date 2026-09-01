@@ -308,6 +308,7 @@ export async function refreshTokens(
       "api_tokens.id as token_id",
       "api_tokens.user_id as user_id",
       "api_tokens.company_id as company_id",
+      "api_tokens.revoked_at as token_revoked_at",
       "api_tokens.refresh_used_at as refresh_used_at",
       "api_tokens.refresh_expires_at as refresh_expires_at",
       "oauth_grants.id as grant_id",
@@ -327,6 +328,13 @@ export async function refreshTokens(
       "invalid_grant",
       "This authorization has been revoked",
     );
+  }
+  // Revoking the access-token row must stop its refresh token too. Anything
+  // that revokes tokens without knowing about grants - membership removal, an
+  // admin sweep - would otherwise be undone by the connector's next refresh.
+  if (existing.token_revoked_at) {
+    await revokeGrant(existing.grant_id, "token_revoked");
+    throw new OAuthError("invalid_grant", "This token has been revoked");
   }
   if (existing.refresh_used_at) {
     await revokeGrant(existing.grant_id, "refresh_token_reuse");

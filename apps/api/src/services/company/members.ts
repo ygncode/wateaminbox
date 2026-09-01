@@ -206,6 +206,17 @@ export async function removeMember(
       .where("user_id", "=", userId)
       .where("revoked_at", "is", null)
       .execute();
+
+    // The grants behind any OAuth-issued tokens have to go too. Revoking only
+    // the token rows would leave the connector able to mint a replacement with
+    // its refresh token, so the credential boundary would not hold.
+    await transaction
+      .updateTable("oauth_grants")
+      .set({ revoked_at: toDbDate(), revoked_reason: "membership_removed" })
+      .where("company_id", "=", companyId)
+      .where("user_id", "=", userId)
+      .where("revoked_at", "is", null)
+      .execute();
   });
   invalidateCompanyMembership(companyId);
 
