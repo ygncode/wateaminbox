@@ -1,9 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
-import { canonicalResource, issuer } from "../routes/oauth.js";
+import { env } from "../lib/env.js";
 import { hostedClientId } from "./oauth-hosted-clients.js";
-import { resolveOAuthClient } from "./oauth-client.service.js";
+import {
+  OAuthClientError,
+  resolveOAuthClient,
+} from "./oauth-client.service.js";
 import { createAuthorizationCode } from "./oauth.service.js";
 import { getSchemaName } from "./tenant.service.js";
 
@@ -26,8 +29,32 @@ const integrationTest =
 
 const TEST_TIMEOUT_MS = 30_000;
 
-const GROK_CLIENT_ID = hostedClientId(issuer(), "grok");
+// A client_id must be https, so the issuer must be too. APP_URL defaults to
+// http://localhost:4444 and CI leaves it there, which would make every hosted
+// lookup decline and test nothing. issuer() reads this at call time, so
+// setting it here is enough; it is restored afterwards so no later file
+// inherits it.
+const HTTPS_ISSUER = "https://hosted-client-test.example";
+
+// `env` is declared `as const`, so its properties are readonly to the type
+// checker while staying writable at runtime. TypeScript does not weigh
+// readonly in assignability, so naming a mutable view of the one field this
+// file adjusts is enough - and narrower than casting the whole object.
+const mutableEnv: { APP_URL: string } = env;
+let originalAppUrl: string;
+
+beforeAll(() => {
+  originalAppUrl = mutableEnv.APP_URL;
+  mutableEnv.APP_URL = HTTPS_ISSUER;
+});
+
+afterAll(() => {
+  mutableEnv.APP_URL = originalAppUrl;
+});
+
+const GROK_CLIENT_ID = hostedClientId(HTTPS_ISSUER, "grok");
 const GROK_REDIRECT_URI = "https://grok.com/connectors-oauth-exchange-code/";
+const RESOURCE = `${HTTPS_ISSUER}/api/mcp`;
 
 async function withFixture(
   run: (ctx: { userId: string; companyId: string }) => Promise<void>,
@@ -71,6 +98,10 @@ async function withFixture(
       .execute();
     await db.deleteFrom("companies").where("id", "=", companyId).execute();
     await db.deleteFrom("users").where("id", "=", userId).execute();
+    await db
+      .deleteFrom("oauth_clients")
+      .where("client_id", "=", GROK_CLIENT_ID)
+      .execute();
   }
 }
 
@@ -98,7 +129,7 @@ describe("authorizing a hosted client", () => {
           codeChallenge: createHash("sha256")
             .update(verifier)
             .digest("base64url"),
-          resource: canonicalResource(),
+          resource: RESOURCE,
         });
 
         expect(code).toBeTruthy();
@@ -110,19 +141,25 @@ describe("authorizing a hosted client", () => {
   integrationTest(
     "records the registry's metadata, not a placeholder",
     async () => {
-      await resolveOAuthClient(GROK_CLIENT_ID);
+      await withFixture(async () => {
+        await resolveOAuthClient(GROK_CLIENT_ID);
 
-      const row = await db
-        .selectFrom("oauth_clients")
-        .select(["client_name", "redirect_uris", "token_endpoint_auth_method"])
-        .where("client_id", "=", GROK_CLIENT_ID)
-        .executeTakeFirst();
+        const row = await db
+          .selectFrom("oauth_clients")
+          .select([
+            "client_name",
+            "redirect_uris",
+            "token_endpoint_auth_method",
+          ])
+          .where("client_id", "=", GROK_CLIENT_ID)
+          .executeTakeFirst();
 
-      // The connected-apps list reads this row, so a bare row satisfying the
-      // constraint is not enough - it has to carry the real name.
-      expect(row?.client_name).toBe("Grok");
-      expect(row?.token_endpoint_auth_method).toBe("none");
-      expect(row?.redirect_uris).toContain(GROK_REDIRECT_URI);
+        // The connected-apps list reads this row, so a bare row satisfying the
+        // constraint is not enough - it has to carry the real name.
+        expect(row?.client_name).toBe("Grok");
+        expect(row?.token_endpoint_auth_method).toBe("none");
+        expect(row?.redirect_uris).toContain(GROK_REDIRECT_URI);
+      });
     },
     TEST_TIMEOUT_MS,
   );
@@ -130,17 +167,50 @@ describe("authorizing a hosted client", () => {
   integrationTest(
     "resolving twice does not conflict",
     async () => {
-      // Every authorization resolves again; the upsert must be idempotent.
-      await resolveOAuthClient(GROK_CLIENT_ID);
-      await resolveOAuthClient(GROK_CLIENT_ID);
+      await withFixture(async () => {
+        // Every authorization resolves again; the upsert must be idempotent.
+        await resolveOAuthClient(GROK_CLIENT_ID);
+        await resolveOAuthClient(GROK_CLIENT_ID);
 
-      const rows = await db
-        .selectFrom("oauth_clients")
-        .select("client_id")
-        .where("client_id", "=", GROK_CLIENT_ID)
-        .execute();
+        const rows = await db
+          .selectFrom("oauth_clients")
+          .select("client_id")
+          .where("client_id", "=", GROK_CLIENT_ID)
+          .execute();
 
-      expect(rows).toHaveLength(1);
+        expect(rows).toHaveLength(1);
+      });
+    },
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("a deployment that cannot host clients", () => {
+  integrationTest(
+    "rejects the http client_id instead of failing inside the insert",
+    async () => {
+      mutableEnv.APP_URL = "http://localhost:4444";
+      try {
+        // An http issuer would mint an http client_id, which oauth_clients
+        // refuses at the column. The lookup declines, so this is rejected as
+        // the non-https client_id it is rather than blowing up on a 23514.
+        //
+        // Matched exactly, not on /https/: the constraint is itself named
+        // oauth_clients_client_id_https_check, so a loose pattern passes on
+        // the database error this is meant to rule out.
+        await expect(
+          resolveOAuthClient(
+            "http://localhost:4444/api/oauth/clients/grok.json",
+          ),
+        ).rejects.toThrow(OAuthClientError);
+        await expect(
+          resolveOAuthClient(
+            "http://localhost:4444/api/oauth/clients/grok.json",
+          ),
+        ).rejects.toThrow("client_id must use https");
+      } finally {
+        mutableEnv.APP_URL = HTTPS_ISSUER;
+      }
     },
     TEST_TIMEOUT_MS,
   );
