@@ -209,6 +209,30 @@ function parseDocument(clientId: string, raw: unknown): ResolvedOAuthClient {
 
 async function fetchDocument(url: URL): Promise<unknown> {
   return new Promise((resolve, reject) => {
+    // An absolute deadline, not the socket's inactivity timeout. `timeout` on
+    // an https request only fires after a quiet period, so a host that trickles
+    // one byte at a time keeps the request alive forever; it also does not
+    // cover DNS resolution. This clock starts before the lookup and ends the
+    // request wherever it has got to.
+    let settled = false;
+    const deadline = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      request.destroy();
+      reject(new OAuthClientError("Client metadata timed out", "unreachable"));
+    }, FETCH_TIMEOUT_MS);
+
+    const finish = <T>(fn: (value: T) => void) => {
+      return (value: T) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(deadline);
+        fn(value);
+      };
+    };
+    const settleResolve = finish(resolve);
+    const settleReject = finish(reject);
+
     const request = httpsRequest(
       {
         hostname: url.hostname,
@@ -228,7 +252,7 @@ async function fetchDocument(url: URL): Promise<unknown> {
         // would re-resolve a new host outside this request's checks.
         if (status >= 300 && status < 400) {
           response.destroy();
-          reject(
+          settleReject(
             new OAuthClientError(
               "Client metadata must not redirect",
               "invalid_document",
@@ -238,7 +262,7 @@ async function fetchDocument(url: URL): Promise<unknown> {
         }
         if (status < 200 || status >= 300) {
           response.destroy();
-          reject(
+          settleReject(
             new OAuthClientError(
               `Client metadata returned HTTP ${status}`,
               "unreachable",
@@ -249,7 +273,7 @@ async function fetchDocument(url: URL): Promise<unknown> {
         const declared = Number(response.headers["content-length"] ?? 0);
         if (declared > MAX_DOCUMENT_BYTES) {
           response.destroy();
-          reject(
+          settleReject(
             new OAuthClientError(
               "Client metadata document is too large",
               "invalid_document",
@@ -266,7 +290,7 @@ async function fetchDocument(url: URL): Promise<unknown> {
           received += chunk.length;
           if (received > MAX_DOCUMENT_BYTES) {
             response.destroy();
-            reject(
+            settleReject(
               new OAuthClientError(
                 "Client metadata document is too large",
                 "invalid_document",
@@ -278,9 +302,9 @@ async function fetchDocument(url: URL): Promise<unknown> {
         });
         response.on("end", () => {
           try {
-            resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+            settleResolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
           } catch {
-            reject(
+            settleReject(
               new OAuthClientError(
                 "Client metadata is not valid JSON",
                 "invalid_document",
@@ -289,7 +313,7 @@ async function fetchDocument(url: URL): Promise<unknown> {
           }
         });
         response.on("error", () =>
-          reject(
+          settleReject(
             new OAuthClientError(
               "Could not read client metadata",
               "unreachable",
@@ -301,10 +325,12 @@ async function fetchDocument(url: URL): Promise<unknown> {
 
     request.on("timeout", () => {
       request.destroy();
-      reject(new OAuthClientError("Client metadata timed out", "unreachable"));
+      settleReject(
+        new OAuthClientError("Client metadata timed out", "unreachable"),
+      );
     });
     request.on("error", (error) => {
-      reject(
+      settleReject(
         error instanceof OAuthClientError
           ? error
           : new OAuthClientError(
