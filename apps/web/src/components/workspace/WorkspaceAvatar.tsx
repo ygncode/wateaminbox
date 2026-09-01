@@ -21,7 +21,11 @@ export function WorkspaceAvatar({
   return (
     <span
       className={cn(
-        "grid shrink-0 place-items-center overflow-hidden bg-[#dcefe7] font-bold text-[#075c41]",
+        // A default size, because this element has none of its own: the image
+        // inside is h-full/w-full, so a caller that forgets to pass dimensions
+        // gets the logo at its natural size and a torn layout. tailwind-merge
+        // lets every caller's own size win, so this only catches omissions.
+        "grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#dcefe7] text-xs font-bold text-[#075c41]",
         className,
       )}
     >
