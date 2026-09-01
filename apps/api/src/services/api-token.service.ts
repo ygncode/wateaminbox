@@ -28,6 +28,12 @@ export interface VerifiedApiToken {
   userId: string;
   companyId: string;
   scopes: ApiTokenScope[];
+  /**
+   * For an OAuth-issued token, the RFC 8707 resource its grant was bound to.
+   * Null for a hand-made personal token, which is not audience-scoped because
+   * a person created it for this server directly.
+   */
+  resource: string | null;
 }
 
 export function hashApiToken(rawToken: string): string {
@@ -172,10 +178,20 @@ export async function verifyApiToken(
   }
   const row = await db
     .selectFrom("api_tokens")
-    .selectAll()
-    .where("token_hash", "=", hashApiToken(rawToken))
+    .leftJoin("oauth_grants", "oauth_grants.id", "api_tokens.grant_id")
+    .selectAll("api_tokens")
+    .select([
+      "oauth_grants.resource as grant_resource",
+      "oauth_grants.revoked_at as grant_revoked_at",
+    ])
+    .where("api_tokens.token_hash", "=", hashApiToken(rawToken))
     .executeTakeFirst();
   if (!row || row.revoked_at) {
+    return null;
+  }
+  // Revoking a grant marks its tokens too, but check the grant as well so a
+  // token can never outlive the authorization it came from.
+  if (row.grant_revoked_at) {
     return null;
   }
   if (row.expires_at && row.expires_at.getTime() <= Date.now()) {
@@ -196,5 +212,6 @@ export async function verifyApiToken(
     userId: row.user_id,
     companyId: row.company_id,
     scopes: row.scopes,
+    resource: row.grant_resource ?? null,
   };
 }
