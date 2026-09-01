@@ -14,7 +14,10 @@
  */
 
 import { issuer } from "../routes/oauth.js";
-import { findHostedClient } from "./oauth-hosted-clients.js";
+import {
+  findHostedClient,
+  findPreRegisteredClient,
+} from "./oauth-hosted-clients.js";
 import type { LookupAddress } from "node:dns";
 import { lookup } from "node:dns/promises";
 import { request as httpsRequest } from "node:https";
@@ -37,6 +40,10 @@ export class OAuthClientError extends Error {
     readonly code:
       | "invalid_client_id"
       | "unreachable"
+      // The host answered, with a status that was not success. Distinct from
+      // "unreachable" so it can be reported in preference to a later address
+      // that would not connect at all - the answer is the useful diagnosis.
+      | "http_status"
       | "invalid_document" = "invalid_client_id",
   ) {
     super(message);
@@ -276,7 +283,7 @@ async function fetchFromAddress(
           settleReject(
             new OAuthClientError(
               `Client metadata returned HTTP ${status}`,
-              "unreachable",
+              "http_status",
             ),
           );
           return;
@@ -368,6 +375,13 @@ async function fetchDocument(url: URL): Promise<unknown> {
   const deadlineAt = Date.now() + FETCH_TIMEOUT_MS;
 
   let lastError: unknown;
+  // An HTTP status is the host's own answer, so it is kept even if a later
+  // address fails to connect. Overwriting it loses the diagnosis: grok.com
+  // answers 403 on its IPv4 addresses and this host has no IPv6 route, so the
+  // report was "Could not fetch client metadata" - a socket error for an
+  // address that could never have worked - when the actual cause was a
+  // Cloudflare bot challenge that no retry would clear.
+  let answeredError: OAuthClientError | undefined;
   for (const pinned of addresses) {
     if (Date.now() >= deadlineAt) break;
     try {
@@ -381,10 +395,18 @@ async function fetchDocument(url: URL): Promise<unknown> {
       ) {
         throw error;
       }
+      if (
+        error instanceof OAuthClientError &&
+        error.code === "http_status" &&
+        answeredError === undefined
+      ) {
+        answeredError = error;
+      }
       lastError = error;
     }
   }
   throw (
+    answeredError ??
     lastError ??
     new OAuthClientError("Could not fetch client metadata", "unreachable")
   );
@@ -424,6 +446,21 @@ export async function resolveOAuthClient(
   // client_id is rejected without costing a query, and nothing unvalidated is
   // ever used as a cache key.
   const url = assertHttpsUrl(clientId);
+
+  // Checked after the URL is validated but before the cache and the fetch: a
+  // pre-registered client's document cannot be fetched at all, so consulting
+  // the network first would only spend the timeout before failing.
+  const preRegistered = findPreRegisteredClient(clientId);
+  if (preRegistered) {
+    const resolved: ResolvedOAuthClient = {
+      clientId,
+      clientName: preRegistered.clientName,
+      redirectUris: [...preRegistered.redirectUris],
+      tokenEndpointAuthMethod: "none",
+    };
+    await persistClient(resolved);
+    return resolved;
+  }
 
   const cached = await db
     .selectFrom("oauth_clients")
