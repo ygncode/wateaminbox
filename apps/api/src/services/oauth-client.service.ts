@@ -13,7 +13,7 @@
  * redirects are refused outright.
  */
 
-import type { LookupAddress, LookupOptions } from "node:dns";
+import type { LookupAddress } from "node:dns";
 import { lookup } from "node:dns/promises";
 import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
@@ -116,53 +116,50 @@ function assertHttpsUrl(raw: string): URL {
 }
 
 /**
- * DNS resolution that refuses to hand back a private address.
+ * Every address a hostname resolves to, once all of them are known to be public.
  *
- * This is installed as the connection's own lookup rather than run beforehand,
- * which is what closes DNS rebinding: validating in a separate step leaves a
- * window where the name resolves publicly for the check and privately for the
- * connection. Here the address that is validated is the address that is dialled.
+ * All are returned rather than one because the caller has to be able to fall
+ * back. Pinning to a single address removes the fallback that ordinary
+ * resolution performs, and this host has no IPv6 route: handing back an
+ * AAAA record produced ECONNREFUSED for every client, while a plain fetch
+ * to the same name worked. IPv4 is tried first for that reason.
+ *
+ * The addresses are dialled directly rather than installed as the request's
+ * `lookup` option. Bun cannot use one - the documented array form fails to
+ * connect and the single-address form crashes inside Bun with
+ * "results.sort is not a function" - and dialling directly pins just as well.
  */
-function pinnedLookup(
+async function resolveSafeAddresses(
   hostname: string,
-  options: LookupOptions,
-  callback: (
-    err: NodeJS.ErrnoException | null,
-    address: string | LookupAddress[],
-    family?: number,
-  ) => void,
-): void {
-  lookup(hostname, { all: true })
-    .then((entries) => {
-      // Every answer must be public. Accepting only the safe subset would let a
-      // name that resolves to both a public and a private address through.
-      if (
-        entries.length === 0 ||
-        entries.some((e) => isPrivateAddress(e.address))
-      ) {
-        callback(
-          new OAuthClientError(
-            "client_id must not point at a private address",
-          ) as NodeJS.ErrnoException,
-          "",
-        );
-        return;
-      }
-      if (options.all) {
-        callback(null, entries);
-        return;
-      }
-      callback(null, entries[0].address, entries[0].family);
-    })
-    .catch(() => {
-      callback(
-        new OAuthClientError(
-          `Could not resolve ${hostname}`,
-          "unreachable",
-        ) as NodeJS.ErrnoException,
-        "",
+): Promise<Array<{ address: string; family: number }>> {
+  const bare = hostname.replace(/^\[|\]$/g, "");
+  if (isIP(bare)) {
+    if (isPrivateAddress(bare)) {
+      throw new OAuthClientError(
+        "client_id must not point at a private address",
       );
-    });
+    }
+    return [{ address: bare, family: isIP(bare) }];
+  }
+
+  let entries: LookupAddress[];
+  try {
+    entries = await lookup(bare, { all: true });
+  } catch {
+    throw new OAuthClientError(`Could not resolve ${bare}`, "unreachable");
+  }
+  if (entries.length === 0) {
+    throw new OAuthClientError(`Could not resolve ${bare}`, "unreachable");
+  }
+  // Every answer must be public. Filtering to the safe ones would let a name
+  // resolving to both a public and a private address through.
+  if (entries.some((entry) => isPrivateAddress(entry.address))) {
+    throw new OAuthClientError("client_id must not point at a private address");
+  }
+  return [
+    ...entries.filter((e) => e.family === 4),
+    ...entries.filter((e) => e.family !== 4),
+  ].map((e) => ({ address: e.address, family: e.family }));
 }
 
 function parseDocument(clientId: string, raw: unknown): ResolvedOAuthClient {
@@ -207,7 +204,12 @@ function parseDocument(clientId: string, raw: unknown): ResolvedOAuthClient {
   };
 }
 
-async function fetchDocument(url: URL): Promise<unknown> {
+/** One attempt against one already-validated address. */
+async function fetchFromAddress(
+  url: URL,
+  pinned: { address: string; family: number },
+  deadlineAt: number,
+): Promise<unknown> {
   return new Promise((resolve, reject) => {
     // An absolute deadline, not the socket's inactivity timeout. `timeout` on
     // an https request only fires after a quiet period, so a host that trickles
@@ -215,12 +217,17 @@ async function fetchDocument(url: URL): Promise<unknown> {
     // cover DNS resolution. This clock starts before the lookup and ends the
     // request wherever it has got to.
     let settled = false;
-    const deadline = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      request.destroy();
-      reject(new OAuthClientError("Client metadata timed out", "unreachable"));
-    }, FETCH_TIMEOUT_MS);
+    const deadline = setTimeout(
+      () => {
+        if (settled) return;
+        settled = true;
+        request.destroy();
+        reject(
+          new OAuthClientError("Client metadata timed out", "unreachable"),
+        );
+      },
+      Math.max(1, deadlineAt - Date.now()),
+    );
 
     const finish = <T>(fn: (value: T) => void) => {
       return (value: T) => {
@@ -235,16 +242,18 @@ async function fetchDocument(url: URL): Promise<unknown> {
 
     const request = httpsRequest(
       {
-        hostname: url.hostname,
+        // The validated address, so nothing re-resolves between the check and
+        // the connection.
+        hostname: pinned.family === 6 ? `[${pinned.address}]` : pinned.address,
         port: url.port || 443,
         path: `${url.pathname}${url.search}`,
         method: "GET",
-        headers: { accept: "application/json" },
-        // Keep the real hostname for SNI and certificate validation while the
-        // address is pinned by the lookup above.
+        // Host carries the real name so the server routes correctly, and
+        // servername does the same for SNI and certificate validation - the
+        // certificate is still checked against the hostname, not the IP.
+        headers: { accept: "application/json", host: url.host },
         servername: url.hostname,
         timeout: FETCH_TIMEOUT_MS,
-        lookup: pinnedLookup,
       },
       (response) => {
         const status = response.statusCode ?? 0;
@@ -341,6 +350,42 @@ async function fetchDocument(url: URL): Promise<unknown> {
     });
     request.end();
   });
+}
+
+/**
+ * Fetch the document, trying each validated address in turn.
+ *
+ * Falling back matters because pinning removes the fallback ordinary
+ * resolution does for us: an AAAA record on a host with no IPv6 route would
+ * otherwise fail the request outright rather than moving to the A record.
+ * The deadline spans all attempts, so a slow host cannot buy extra time by
+ * having several addresses.
+ */
+async function fetchDocument(url: URL): Promise<unknown> {
+  const addresses = await resolveSafeAddresses(url.hostname);
+  const deadlineAt = Date.now() + FETCH_TIMEOUT_MS;
+
+  let lastError: unknown;
+  for (const pinned of addresses) {
+    if (Date.now() >= deadlineAt) break;
+    try {
+      return await fetchFromAddress(url, pinned, deadlineAt);
+    } catch (error) {
+      // A bad document is the server's answer, not a reachability problem;
+      // another address would return the same thing.
+      if (
+        error instanceof OAuthClientError &&
+        error.code === "invalid_document"
+      ) {
+        throw error;
+      }
+      lastError = error;
+    }
+  }
+  throw (
+    lastError ??
+    new OAuthClientError("Could not fetch client metadata", "unreachable")
+  );
 }
 
 /**
