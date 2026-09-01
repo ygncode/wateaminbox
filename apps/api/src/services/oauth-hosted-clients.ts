@@ -39,6 +39,65 @@ export const HOSTED_CLIENTS: readonly HostedClientDefinition[] = [
   },
 ];
 
+/**
+ * Clients that publish a document we cannot fetch.
+ *
+ * CIMD requires this server to fetch the client's document. Grok publishes a
+ * valid one at https://grok.com/oauth/mcp-client.json, but grok.com sits behind
+ * a Cloudflare bot challenge that answers 403 "Just a moment..." to every
+ * request from the production host - consistently, on every edge address, with
+ * or without a User-Agent. The same URL returns 200 from a residential
+ * connection, so this is not a mistake in the document or in the fetch; the
+ * document is simply not reachable server-to-server from a datacenter IP.
+ *
+ * Pre-registering it is the MCP spec's other option, and is what the entry
+ * below records: the document's contents, verified by fetching it from a
+ * network Cloudflare does not challenge.
+ *
+ * The cost is that a rotation on Grok's side does not reach us. That is the
+ * accepted trade for a client whose document we can never fetch, and it fails
+ * safe: a redirect_uri Grok adds later is refused until this list catches up,
+ * rather than a stale one being honoured beyond its life. Vouching for these
+ * URIs grants nothing on its own - every authorization still passes the consent
+ * screen, where the user picks a workspace and approves.
+ */
+export const PRE_REGISTERED_CLIENTS: readonly PreRegisteredClient[] = [
+  {
+    clientId: "https://grok.com/oauth/mcp-client.json",
+    clientName: "Grok",
+    // Both slash forms, as with the hosted entry: redirect_uri is compared as
+    // an exact string and Grok sends the trailing-slash form.
+    redirectUris: [
+      "https://grok.com/connectors-oauth-exchange-code/",
+      "https://grok.com/connectors-oauth-exchange-code",
+      "https://console.x.ai/connectors-oauth-exchange-code/",
+      "https://console.x.ai/connectors-oauth-exchange-code",
+    ],
+  },
+];
+
+export interface PreRegisteredClient {
+  /** The vendor's own client_id, which is also its document URL. */
+  clientId: string;
+  clientName: string;
+  redirectUris: string[];
+}
+
+/**
+ * A pre-registered client, matched on its exact client_id.
+ *
+ * Checked before any fetch, so a client listed here never depends on the
+ * network - which is the entire reason the list exists.
+ */
+export function findPreRegisteredClient(
+  clientId: string,
+): PreRegisteredClient | null {
+  return (
+    PRE_REGISTERED_CLIENTS.find((client) => client.clientId === clientId) ??
+    null
+  );
+}
+
 /** The client_id a user pastes into the vendor's connector settings. */
 export function hostedClientId(issuer: string, slug: string): string {
   return `${issuer}/api/oauth/clients/${slug}.json`;
