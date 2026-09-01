@@ -38,12 +38,23 @@ const ALL_TOOLS: McpToolDefinition[] = [...readTools, ...writeTools];
  * each tool call. Statelessness keeps every exchange a short POST, which
  * is required behind the cloud gateway's 90s upstream timeout.
  */
+/**
+ * Advertised to clients in the initialize response.
+ *
+ * Bump this whenever the tool surface changes. Clients cache the tool list, and
+ * at least one keeps serving a stale one after a reconnect and a fresh
+ * authorization - a version that never moves gives them no reason to refetch.
+ * mcp-server-version.test.ts fails when the tools change without this changing,
+ * so it cannot be forgotten silently.
+ */
+export const MCP_SERVER_VERSION = "1.1.0";
+
 mcpRoutes.post("/", mcpRateLimiter, async (c) => {
   const scopes = c.get("apiToken").scopes;
 
   const server = new McpServer({
     name: "wateaminbox",
-    version: "1.0.0",
+    version: MCP_SERVER_VERSION,
   });
 
   for (const tool of ALL_TOOLS) {
@@ -60,7 +71,7 @@ mcpRoutes.post("/", mcpRateLimiter, async (c) => {
     registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema },
-      (async (args: Record<string, never>) => {
+      async (args: Record<string, never>) => {
         try {
           if (tool.permission) {
             requirePermission(c, tool.permission);
@@ -81,7 +92,7 @@ mcpRoutes.post("/", mcpRateLimiter, async (c) => {
             isError: true,
           };
         }
-      }),
+      },
     );
   }
 
