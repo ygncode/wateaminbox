@@ -13,13 +13,12 @@
  * redirects are refused outright.
  */
 
+import type { LookupAddress, LookupOptions } from "node:dns";
 import { lookup } from "node:dns/promises";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
 import { db } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
-import { createLogger, formatError } from "../lib/logger.js";
-
-const logger = createLogger("OAuthClient");
 
 /** Vendors time discovery out at 10s; stay well inside that. */
 const FETCH_TIMEOUT_MS = 5_000;
@@ -92,7 +91,11 @@ function isPrivateAddress(address: string): boolean {
   return false;
 }
 
-async function assertPublicHttpsUrl(raw: string): Promise<URL> {
+/**
+ * Validate the shape of a client_id. Address checks happen at connect time,
+ * not here - see `pinnedLookup`.
+ */
+function assertHttpsUrl(raw: string): URL {
   let url: URL;
   try {
     url = new URL(raw);
@@ -105,28 +108,61 @@ async function assertPublicHttpsUrl(raw: string): Promise<URL> {
   if (url.hash) {
     throw new OAuthClientError("client_id must not contain a fragment");
   }
-
   const host = url.hostname.replace(/^\[|\]$/g, "");
-  if (isIP(host)) {
-    if (isPrivateAddress(host)) {
-      throw new OAuthClientError(
-        "client_id must not point at a private address",
-      );
-    }
-    return url;
-  }
-
-  let resolved: Array<{ address: string }>;
-  try {
-    resolved = await lookup(host, { all: true });
-  } catch {
-    throw new OAuthClientError(`Could not resolve ${host}`, "unreachable");
-  }
-  // Every answer must be public: one private record is enough to abuse.
-  if (resolved.some((entry) => isPrivateAddress(entry.address))) {
+  if (isIP(host) && isPrivateAddress(host)) {
     throw new OAuthClientError("client_id must not point at a private address");
   }
   return url;
+}
+
+/**
+ * DNS resolution that refuses to hand back a private address.
+ *
+ * This is installed as the connection's own lookup rather than run beforehand,
+ * which is what closes DNS rebinding: validating in a separate step leaves a
+ * window where the name resolves publicly for the check and privately for the
+ * connection. Here the address that is validated is the address that is dialled.
+ */
+function pinnedLookup(
+  hostname: string,
+  options: LookupOptions,
+  callback: (
+    err: NodeJS.ErrnoException | null,
+    address: string | LookupAddress[],
+    family?: number,
+  ) => void,
+): void {
+  lookup(hostname, { all: true })
+    .then((entries) => {
+      // Every answer must be public. Accepting only the safe subset would let a
+      // name that resolves to both a public and a private address through.
+      if (
+        entries.length === 0 ||
+        entries.some((e) => isPrivateAddress(e.address))
+      ) {
+        callback(
+          new OAuthClientError(
+            "client_id must not point at a private address",
+          ) as NodeJS.ErrnoException,
+          "",
+        );
+        return;
+      }
+      if (options.all) {
+        callback(null, entries);
+        return;
+      }
+      callback(null, entries[0].address, entries[0].family);
+    })
+    .catch(() => {
+      callback(
+        new OAuthClientError(
+          `Could not resolve ${hostname}`,
+          "unreachable",
+        ) as NodeJS.ErrnoException,
+        "",
+      );
+    });
 }
 
 function parseDocument(clientId: string, raw: unknown): ResolvedOAuthClient {
@@ -157,11 +193,6 @@ function parseDocument(clientId: string, raw: unknown): ResolvedOAuthClient {
     );
   }
 
-  const authMethod =
-    typeof doc.token_endpoint_auth_method === "string"
-      ? doc.token_endpoint_auth_method
-      : "none";
-
   return {
     clientId,
     clientName:
@@ -169,51 +200,121 @@ function parseDocument(clientId: string, raw: unknown): ResolvedOAuthClient {
         ? doc.client_name.trim().slice(0, 200)
         : null,
     redirectUris,
-    tokenEndpointAuthMethod: authMethod,
+    tokenEndpointAuthMethod:
+      typeof doc.token_endpoint_auth_method === "string"
+        ? doc.token_endpoint_auth_method
+        : "none",
   };
 }
 
 async function fetchDocument(url: URL): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const response = await fetch(url, {
-      // A metadata document has no reason to redirect, and following one would
-      // step outside the address check already performed.
-      redirect: "error",
-      headers: { accept: "application/json" },
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      throw new OAuthClientError(
-        `Client metadata returned HTTP ${response.status}`,
-        "unreachable",
-      );
-    }
-    const body = await response.text();
-    if (body.length > MAX_DOCUMENT_BYTES) {
-      throw new OAuthClientError(
-        "Client metadata document is too large",
-        "invalid_document",
-      );
-    }
-    try {
-      return JSON.parse(body);
-    } catch {
-      throw new OAuthClientError(
-        "Client metadata is not valid JSON",
-        "invalid_document",
-      );
-    }
-  } catch (error) {
-    if (error instanceof OAuthClientError) throw error;
-    throw new OAuthClientError(
-      "Could not fetch client metadata",
-      "unreachable",
+  return new Promise((resolve, reject) => {
+    const request = httpsRequest(
+      {
+        hostname: url.hostname,
+        port: url.port || 443,
+        path: `${url.pathname}${url.search}`,
+        method: "GET",
+        headers: { accept: "application/json" },
+        // Keep the real hostname for SNI and certificate validation while the
+        // address is pinned by the lookup above.
+        servername: url.hostname,
+        timeout: FETCH_TIMEOUT_MS,
+        lookup: pinnedLookup,
+      },
+      (response) => {
+        const status = response.statusCode ?? 0;
+        // A metadata document has no reason to redirect, and following one
+        // would re-resolve a new host outside this request's checks.
+        if (status >= 300 && status < 400) {
+          response.destroy();
+          reject(
+            new OAuthClientError(
+              "Client metadata must not redirect",
+              "invalid_document",
+            ),
+          );
+          return;
+        }
+        if (status < 200 || status >= 300) {
+          response.destroy();
+          reject(
+            new OAuthClientError(
+              `Client metadata returned HTTP ${status}`,
+              "unreachable",
+            ),
+          );
+          return;
+        }
+        const declared = Number(response.headers["content-length"] ?? 0);
+        if (declared > MAX_DOCUMENT_BYTES) {
+          response.destroy();
+          reject(
+            new OAuthClientError(
+              "Client metadata document is too large",
+              "invalid_document",
+            ),
+          );
+          return;
+        }
+
+        // Count as the body arrives and hang up on the way past the limit, so a
+        // hostile host cannot make us buffer an arbitrarily large response.
+        let received = 0;
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => {
+          received += chunk.length;
+          if (received > MAX_DOCUMENT_BYTES) {
+            response.destroy();
+            reject(
+              new OAuthClientError(
+                "Client metadata document is too large",
+                "invalid_document",
+              ),
+            );
+            return;
+          }
+          chunks.push(chunk);
+        });
+        response.on("end", () => {
+          try {
+            resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+          } catch {
+            reject(
+              new OAuthClientError(
+                "Client metadata is not valid JSON",
+                "invalid_document",
+              ),
+            );
+          }
+        });
+        response.on("error", () =>
+          reject(
+            new OAuthClientError(
+              "Could not read client metadata",
+              "unreachable",
+            ),
+          ),
+        );
+      },
     );
-  } finally {
-    clearTimeout(timer);
-  }
+
+    request.on("timeout", () => {
+      request.destroy();
+      reject(new OAuthClientError("Client metadata timed out", "unreachable"));
+    });
+    request.on("error", (error) => {
+      reject(
+        error instanceof OAuthClientError
+          ? error
+          : new OAuthClientError(
+              "Could not fetch client metadata",
+              "unreachable",
+            ),
+      );
+    });
+    request.end();
+  });
 }
 
 /**
@@ -229,7 +330,7 @@ export async function resolveOAuthClient(
   // Validate the identifier before touching storage: a malformed or private
   // client_id is rejected without costing a query, and nothing unvalidated is
   // ever used as a cache key.
-  const url = await assertPublicHttpsUrl(clientId);
+  const url = assertHttpsUrl(clientId);
 
   const cached = await db
     .selectFrom("oauth_clients")
@@ -252,24 +353,12 @@ export async function resolveOAuthClient(
     };
   }
 
-  let resolved: ResolvedOAuthClient;
-  try {
-    resolved = parseDocument(clientId, await fetchDocument(url));
-  } catch (error) {
-    if (cached) {
-      logger.warn(
-        { clientId, ...formatError(error) },
-        "Client metadata refresh failed; serving the cached document",
-      );
-      return {
-        clientId: cached.client_id,
-        clientName: cached.client_name,
-        redirectUris: cached.redirect_uris,
-        tokenEndpointAuthMethod: cached.token_endpoint_auth_method,
-      };
-    }
-    throw error;
-  }
+  // No stale fallback. redirect_uris and the auth method are the security
+  // decision this function exists to make, and a redirect removed after a
+  // compromise must stop being honoured immediately - serving a cached copy
+  // through an outage would keep authorizing it indefinitely. Failing closed
+  // costs an authorization attempt; failing open costs the account.
+  const resolved = parseDocument(clientId, await fetchDocument(url));
 
   const now = toDbDate();
   await db
@@ -331,10 +420,14 @@ export function isAllowedRedirectUri(
     } catch {
       return false;
     }
-    const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
-    const bothLoopback =
-      loopbackHosts.has(allowed.hostname) && loopbackHosts.has(target.hostname);
-    if (!bothLoopback) return false;
+    // RFC 8252 lets a native client vary only the PORT: it cannot know which
+    // ephemeral port it will get. The hostname is not interchangeable -
+    // treating localhost and 127.0.0.1 as equivalent would honour a redirect
+    // the client never declared, and "localhost" is resolver-controlled in a
+    // way the literals are not.
+    const loopbackHosts = new Set(["localhost", "127.0.0.1", "[::1]"]);
+    if (!loopbackHosts.has(allowed.hostname)) return false;
+    if (allowed.hostname !== target.hostname) return false;
     return (
       allowed.protocol === target.protocol &&
       allowed.pathname === target.pathname &&

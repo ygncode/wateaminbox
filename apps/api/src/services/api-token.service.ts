@@ -133,6 +133,10 @@ export async function listApiTokens(
     .selectFrom("api_tokens")
     .selectAll()
     .where("company_id", "=", companyId)
+    // OAuth-issued rows are managed as connected apps, not personal tokens.
+    // Listing them here would let a user "delete a token" and have the
+    // connector mint a replacement on its next refresh.
+    .where("grant_id", "is", null)
     .orderBy("created_at", "desc");
   if (options.userId) {
     query = query.where("user_id", "=", options.userId);
@@ -157,6 +161,7 @@ export async function revokeApiToken(input: {
     .set({ revoked_at: new Date() })
     .where("id", "=", input.tokenId)
     .where("company_id", "=", input.companyId)
+    .where("grant_id", "is", null)
     .where("revoked_at", "is", null);
   if (!input.isAdmin) {
     query = query.where("user_id", "=", input.requesterId);

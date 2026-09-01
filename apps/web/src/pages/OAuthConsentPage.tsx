@@ -87,14 +87,25 @@ export function OAuthConsentPage() {
     }
   };
 
-  const deny = () => {
-    // Refusal is reported to the client rather than leaving it hanging, which
-    // is what lets it show "cancelled" instead of timing out.
-    if (!request.redirect_uri) return;
-    const url = new URL(request.redirect_uri);
-    url.searchParams.set("error", "access_denied");
-    if (request.state) url.searchParams.set("state", request.state);
-    window.location.replace(url.toString());
+  const deny = async () => {
+    // Refusal goes through the API so the redirect_uri is validated against the
+    // client's metadata first. Navigating straight to the value in the query
+    // string would make this page an open redirect for anyone who can get a
+    // signed-in user to open a crafted link.
+    setSubmitting(true);
+    setError(null);
+    try {
+      const { redirectTo } = await api.post<{ redirectTo: string }>(
+        "/oauth/authorize/deny",
+        request,
+      );
+      window.location.replace(redirectTo);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not cancel authorization",
+      );
+      setSubmitting(false);
+    }
   };
 
   const name = client?.clientName ?? client?.clientId ?? "An application";
@@ -160,7 +171,8 @@ export function OAuthConsentPage() {
           <button
             type="button"
             onClick={deny}
-            className="flex-1 rounded-md border px-4 py-2 text-sm"
+            disabled={submitting || !client}
+            className="flex-1 rounded-md border px-4 py-2 text-sm disabled:opacity-50"
           >
             Cancel
           </button>

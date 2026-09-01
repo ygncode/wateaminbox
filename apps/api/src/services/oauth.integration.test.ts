@@ -11,7 +11,12 @@ import {
   revokeConnectedApp,
   revokeGrant,
 } from "./oauth.service.js";
-import { createApiToken, verifyApiToken } from "./api-token.service.js";
+import {
+  createApiToken,
+  listApiTokens,
+  revokeApiToken,
+  verifyApiToken,
+} from "./api-token.service.js";
 import { getSchemaName } from "./tenant.service.js";
 
 const integrationTest =
@@ -490,6 +495,68 @@ describe("the MCP endpoint enforces the audience", () => {
         // Anything but 401 means authentication passed; the request may still
         // fail further in for unrelated reasons, which is not what is asserted.
         expect(response.status).not.toBe(401);
+      }),
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("revocation cannot be undone by a refresh", () => {
+  integrationTest(
+    "revoking the access-token row also stops its refresh token",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        const { verifier, challenge } = pkcePair();
+        const tokens = await exchange(
+          await issueCode(userId, companyId, challenge),
+          verifier,
+        );
+
+        // Anything that revokes token rows without knowing about grants -
+        // membership removal, an admin sweep - must not be undone by the
+        // connector simply refreshing.
+        await db
+          .updateTable("api_tokens")
+          .set({ revoked_at: new Date() })
+          .where("user_id", "=", userId)
+          .execute();
+
+        await expect(
+          refreshTokens({
+            refreshToken: tokens.refreshToken,
+            clientId: CLIENT_ID,
+            resource: RESOURCE,
+            clientName: "ChatGPT",
+          }),
+        ).rejects.toThrow(/revoked/);
+      }),
+    TEST_TIMEOUT_MS,
+  );
+
+  integrationTest(
+    "OAuth tokens are not listed or deletable as personal tokens",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        const { verifier, challenge } = pkcePair();
+        await exchange(await issueCode(userId, companyId, challenge), verifier);
+
+        // Showing them in the personal token list invites a user to "delete the
+        // token" and be told it worked, while the connector mints a replacement
+        // on its next refresh.
+        const listed = await listApiTokens(companyId, { userId });
+        expect(listed).toHaveLength(0);
+
+        const row = await db
+          .selectFrom("api_tokens")
+          .select("id")
+          .where("user_id", "=", userId)
+          .executeTakeFirstOrThrow();
+        const revoked = await revokeApiToken({
+          tokenId: row.id,
+          companyId,
+          requesterId: userId,
+          isAdmin: true,
+        });
+        expect(revoked).toBeNull();
       }),
     TEST_TIMEOUT_MS,
   );
