@@ -137,3 +137,38 @@ describe("scope parsing", () => {
     expect(() => parseScopes("read admin")).toThrow(/Unknown scope: admin/);
   });
 });
+
+describe("loopback matching does not relax the hostname", () => {
+  test("localhost and 127.0.0.1 are not interchangeable", () => {
+    // A client that declared only localhost must not have a 127.0.0.1 callback
+    // honoured, and vice versa: that is a redirect it never registered.
+    const localhostOnly = client(["http://localhost/callback"]);
+    expect(
+      isAllowedRedirectUri(localhostOnly, "http://127.0.0.1:53682/callback"),
+    ).toBe(false);
+
+    const literalOnly = client(["http://127.0.0.1/callback"]);
+    expect(
+      isAllowedRedirectUri(literalOnly, "http://localhost:53682/callback"),
+    ).toBe(false);
+  });
+
+  test("each declared loopback host still accepts any port", () => {
+    // Claude Code declares both, which is why the real client keeps working.
+    const both = client([
+      "http://localhost/callback",
+      "http://127.0.0.1/callback",
+    ]);
+    expect(isAllowedRedirectUri(both, "http://localhost:53682/callback")).toBe(
+      true,
+    );
+    expect(isAllowedRedirectUri(both, "http://127.0.0.1:49111/callback")).toBe(
+      true,
+    );
+  });
+
+  test("a non-loopback host never gets the port exemption", () => {
+    const c = client(["https://claude.ai/cb"]);
+    expect(isAllowedRedirectUri(c, "https://claude.ai:8443/cb")).toBe(false);
+  });
+});

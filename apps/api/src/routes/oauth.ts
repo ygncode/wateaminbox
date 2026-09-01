@@ -256,6 +256,44 @@ oauthRoutes.get(
   },
 );
 
+/**
+ * Refusal, routed through the same validation as approval.
+ *
+ * The consent screen must not navigate to the redirect_uri out of the query
+ * string on its own: that URI is attacker-controlled until it has been checked
+ * against the client's metadata, so doing it client-side turns this page into
+ * an authenticated open redirect.
+ */
+oauthRoutes.post(
+  "/authorize/deny",
+  oauthRateLimiter,
+  authMiddleware,
+  zValidator("json", authorizeQuerySchema),
+  async (c) => {
+    const body = c.req.valid("json");
+    try {
+      await validateAuthorizeRequest(body);
+    } catch (error) {
+      if (error instanceof OAuthClientError || error instanceof OAuthError) {
+        return c.json(
+          {
+            error: error instanceof OAuthError ? error.code : "invalid_client",
+            error_description: error.message,
+          },
+          400,
+        );
+      }
+      throw error;
+    }
+
+    const redirect = new URL(body.redirect_uri);
+    redirect.searchParams.set("error", "access_denied");
+    if (body.state) redirect.searchParams.set("state", body.state);
+    redirect.searchParams.set("iss", issuer());
+    return c.json({ redirectTo: redirect.toString() });
+  },
+);
+
 const tokenSchema = z.union([
   z.object({
     grant_type: z.literal("authorization_code"),
