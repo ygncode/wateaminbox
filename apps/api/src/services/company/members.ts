@@ -176,6 +176,27 @@ export async function removeMember(
   userId: string,
 ): Promise<void> {
   await db.transaction().execute(async (transaction) => {
+    // Outstanding authorization codes are cleared before anything locks the
+    // membership row.
+    //
+    // They must be cleared at all: a code approved before removal is refused
+    // while the membership is absent, but it outlives its five-minute TTL, so
+    // reinviting the user inside that window would let the old code be
+    // redeemed without fresh consent - the reactivation that revoking tokens
+    // and grants exists to prevent.
+    //
+    // The position matters because the token exchange takes the code row and
+    // then the membership. Acquiring them in the opposite order here is a
+    // deadlock between a removal and a concurrent exchange, so this has to run
+    // before the FOR UPDATE below, not merely before the membership DELETE.
+    // Should the permission check further down reject, the transaction rolls
+    // back and these rows return with it.
+    await transaction
+      .deleteFrom("oauth_authorization_codes")
+      .where("company_id", "=", companyId)
+      .where("user_id", "=", userId)
+      .execute();
+
     // Lock and re-check in the mutation transaction so an ownership transfer
     // cannot promote this member between authorization and deletion.
     const membership = await transaction

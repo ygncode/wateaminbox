@@ -18,6 +18,7 @@ import {
   verifyApiToken,
 } from "./api-token.service.js";
 import { getSchemaName } from "./tenant.service.js";
+import { removeMember } from "./company/members.js";
 
 const integrationTest =
   process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip;
@@ -557,6 +558,200 @@ describe("revocation cannot be undone by a refresh", () => {
           isAdmin: true,
         });
         expect(revoked).toBeNull();
+      }),
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("the MCP 401 challenge covers rejected tokens", () => {
+  integrationTest(
+    "an invalid token is challenged, not just a missing one",
+    () =>
+      withFixture(async () => {
+        // Needs a database because the token is looked up before it is refused,
+        // which is why this cannot live in the well-known unit test.
+        const response = await app.request("/api/mcp", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: "Bearer wti_definitely-not-valid",
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+        });
+        expect(response.status).toBe(401);
+        expect(response.headers.get("WWW-Authenticate")).toContain(
+          "resource_metadata=",
+        );
+      }),
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("membership removal is a hard boundary", () => {
+  integrationTest(
+    "a code approved before removal cannot be exchanged after it",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        const { verifier, challenge } = pkcePair();
+        const code = await issueCode(userId, companyId, challenge);
+
+        // The user is removed after approving but before the client redeems
+        // the code. Without the membership check inside the exchange this mints
+        // a fresh grant and a refresh chain that outlives the removal.
+        await db
+          .deleteFrom("company_members")
+          .where("company_id", "=", companyId)
+          .where("user_id", "=", userId)
+          .execute();
+
+        await expect(exchange(code, verifier)).rejects.toThrow(
+          /membership is no longer active/,
+        );
+
+        // Nothing was created on the way to failing.
+        const grants = await db
+          .selectFrom("oauth_grants")
+          .select("id")
+          .where("user_id", "=", userId)
+          .execute();
+        expect(grants).toHaveLength(0);
+        const tokens = await db
+          .selectFrom("api_tokens")
+          .select("id")
+          .where("user_id", "=", userId)
+          .execute();
+        expect(tokens).toHaveLength(0);
+      }),
+    TEST_TIMEOUT_MS,
+  );
+
+  integrationTest(
+    "a refresh cannot outlive the membership either",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        const { verifier, challenge } = pkcePair();
+        const tokens = await exchange(
+          await issueCode(userId, companyId, challenge),
+          verifier,
+        );
+
+        // Delete the membership directly, bypassing removeMember's own grant
+        // revocation, so this asserts the refresh path's own guard rather than
+        // the caller's cleanup.
+        await db
+          .deleteFrom("company_members")
+          .where("company_id", "=", companyId)
+          .where("user_id", "=", userId)
+          .execute();
+
+        await expect(
+          refreshTokens({
+            refreshToken: tokens.refreshToken,
+            clientId: CLIENT_ID,
+            resource: RESOURCE,
+            clientName: "ChatGPT",
+          }),
+        ).rejects.toThrow(/membership is no longer active/);
+      }),
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("reinvitation does not revive a pre-removal code", () => {
+  integrationTest(
+    "an authorization code does not survive removal and reinvitation",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        const { verifier, challenge } = pkcePair();
+        const code = await issueCode(userId, companyId, challenge);
+
+        // The fixture creates an owner, and an owner cannot be removed.
+        await db
+          .updateTable("company_members")
+          .set({ role: "member" })
+          .where("company_id", "=", companyId)
+          .where("user_id", "=", userId)
+          .execute();
+
+        // removeMember's own cleanup, not a direct delete: the point is that
+        // the documented credential boundary covers codes as well as tokens.
+        await removeMember(companyId, userId);
+
+        // Reinvitation inside the code's five-minute TTL. Without invalidating
+        // codes at removal the old one would now be redeemable, granting access
+        // the user never re-consented to.
+        await db
+          .insertInto("company_members")
+          .values({ company_id: companyId, user_id: userId, role: "member" })
+          .execute();
+
+        await expect(exchange(code, verifier)).rejects.toThrow(
+          /Unknown authorization code/,
+        );
+      }),
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("a removal racing an exchange does not deadlock", () => {
+  integrationTest(
+    "concurrent removal and code exchange always settle",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        await db
+          .updateTable("company_members")
+          .set({ role: "member" })
+          .where("company_id", "=", companyId)
+          .where("user_id", "=", userId)
+          .execute();
+
+        // The two transactions touch the same rows: the exchange takes the
+        // authorization code and then the membership, and removal has to take
+        // them in that same order. Acquiring them in opposite orders is a
+        // textbook deadlock, which Postgres resolves by killing one side with
+        // 40P01 - a 500 to whichever caller lost. No single-threaded test
+        // reaches this, which is why it survived the earlier reviews.
+        const ROUNDS = 12;
+        const deadlocks: string[] = [];
+
+        for (let round = 0; round < ROUNDS; round++) {
+          const { verifier, challenge } = pkcePair();
+          const code = await issueCode(userId, companyId, challenge);
+
+          const [exchanged, removed] = await Promise.allSettled([
+            exchange(code, verifier),
+            removeMember(companyId, userId),
+          ]);
+
+          for (const outcome of [exchanged, removed]) {
+            if (outcome.status === "rejected") {
+              const message = String(outcome.reason);
+              // 40P01 is Postgres' deadlock_detected.
+              if (/40P01|deadlock/i.test(message)) deadlocks.push(message);
+            }
+          }
+
+          // Whichever side won, the outcome has to be coherent: an exchange
+          // that succeeded must not leave a usable token behind a completed
+          // removal.
+          if (
+            exchanged.status === "fulfilled" &&
+            removed.status === "fulfilled"
+          ) {
+            expect(
+              await verifyApiToken(exchanged.value.accessToken),
+            ).toBeNull();
+          }
+
+          // Put the membership back for the next round.
+          await db
+            .insertInto("company_members")
+            .values({ company_id: companyId, user_id: userId, role: "member" })
+            .onConflict((oc) => oc.doNothing())
+            .execute();
+        }
+
+        expect(deadlocks).toEqual([]);
       }),
     TEST_TIMEOUT_MS,
   );
