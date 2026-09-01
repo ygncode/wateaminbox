@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
+import { app } from "../app.js";
 import {
   createAuthorizationCode,
   exchangeAuthorizationCode,
@@ -321,6 +322,30 @@ describe("refresh token rotation", () => {
             clientName: "Claude",
           }),
         ).rejects.toThrow(/another client/);
+      }),
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("the MCP 401 challenge covers rejected tokens", () => {
+  integrationTest(
+    "an invalid token is challenged, not just a missing one",
+    () =>
+      withFixture(async () => {
+        // Needs a database because the token is looked up before it is refused,
+        // which is why this cannot live in the well-known unit test.
+        const response = await app.request("/api/mcp", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: "Bearer wti_definitely-not-valid",
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+        });
+        expect(response.status).toBe(401);
+        expect(response.headers.get("WWW-Authenticate")).toContain(
+          "resource_metadata=",
+        );
       }),
     TEST_TIMEOUT_MS,
   );

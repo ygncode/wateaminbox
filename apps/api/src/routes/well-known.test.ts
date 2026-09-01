@@ -85,6 +85,10 @@ describe("protected resource metadata", () => {
 });
 
 describe("MCP 401 challenge", () => {
+  // Only the no-token case belongs here: it is answered before any database
+  // lookup. Verifying a malformed token needs Postgres, so that assertion
+  // lives with the integration tests - as a unit test it returns 500 wherever
+  // the database is absent, which is every CI unit job.
   test("points an unauthenticated caller at the resource metadata", async () => {
     const response = await app.request("/api/mcp", {
       method: "POST",
@@ -99,20 +103,5 @@ describe("MCP 401 challenge", () => {
     expect(challenge).toContain("Bearer");
     expect(challenge).toContain('resource_metadata="');
     expect(challenge).toContain("/.well-known/oauth-protected-resource");
-  });
-
-  test("challenges a bad token too, not only a missing one", async () => {
-    const response = await app.request("/api/mcp", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: "Bearer wti_definitely-not-valid",
-      },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
-    });
-    expect(response.status).toBe(401);
-    expect(response.headers.get("WWW-Authenticate")).toContain(
-      "resource_metadata=",
-    );
   });
 });
