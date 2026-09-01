@@ -1,12 +1,15 @@
 import {
   ArrowLeft,
+  ArrowRight,
   CheckCheck,
   CircleAlert,
   MessagesSquare,
+  QrCode,
   RotateCcw,
   UsersRound,
 } from "lucide-react";
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { ChatSidebar, type SidebarView } from "../components/chat/ChatSidebar";
 import { ComposerLifecycleArea } from "../components/chat/ComposerLifecycleArea";
@@ -14,29 +17,54 @@ import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { ContactProfile } from "../components/chat/contact-profile";
 import { DeleteMessageDialog } from "../components/chat/DeleteMessageDialog";
 import { ForwardMessageDialog } from "../components/chat/ForwardMessageDialog";
+import {
+  type InboxConnectionState,
+  resolveInboxConnectionState,
+} from "../components/chat/inbox-connection-state";
 import { MessageComposer } from "../components/chat/MessageComposer";
 import { MessageHeader } from "../components/chat/MessageHeader";
 import { MessageThread } from "../components/chat/MessageThread";
-import { CONVERSATION_HEADER_INSET_CLASS } from "../components/layout/conversation-chrome";
 import { AppLayout, ResponsiveLayout } from "../components/layout/app-layout";
+import { CONVERSATION_HEADER_INSET_CLASS } from "../components/layout/conversation-chrome";
 import { MainContent } from "../components/layout/main-content";
 import { Sidebar } from "../components/layout/sidebar";
 import { Skeleton } from "../components/ui";
 import { useAuth } from "../contexts/auth-context";
 import { MessageActionsProvider } from "../contexts/message-actions-context";
+import { useWorkspace } from "../contexts/workspace-context";
 import { useChatPageState } from "../hooks/chat";
 import { useKeyboardInset } from "../hooks/ui";
 import { useComposerAccess } from "../hooks/useComposerAccess";
+import { useWhatsAppConnectionsList } from "../hooks/whatsapp";
 import { cn } from "../lib/utils";
-import { parseChatView, withChatView } from "../lib/workspace-routes";
-import { useTranslation } from "react-i18next";
+import {
+  parseChatView,
+  withChatView,
+  workspacePath,
+} from "../lib/workspace-routes";
 
 export function ChatPage() {
   const { t } = useTranslation();
 
   const { user } = useAuth();
+  const { activeWorkspace, can } = useWorkspace();
   const navigate = useNavigate();
   const { pathname, search } = useLocation();
+  const {
+    data: connections = [],
+    isLoading: areConnectionsLoading,
+    isError: areConnectionsUnavailable,
+  } = useWhatsAppConnectionsList();
+  const inboxConnectionState = resolveInboxConnectionState({
+    connections,
+    isLoading: areConnectionsLoading,
+    isError: areConnectionsUnavailable,
+  });
+  const canManageConnections = can("can_manage_connections");
+  const handleConnectWhatsApp = useCallback(() => {
+    if (!activeWorkspace || !canManageConnections) return;
+    navigate(workspacePath(activeWorkspace.id, "settings", "connections"));
+  }, [activeWorkspace, canManageConnections, navigate]);
 
   // Chats vs Groups lives in the URL: the desktop sidebar tabs and the
   // mobile bottom navigation both drive it, and component state would let the
@@ -132,7 +160,25 @@ export function ChatPage() {
   // Build the main content component
   const main = (
     <MainContent>
-      {!selectedChatId && <InboxEmptyState activeView={sidebarView} />}
+      {!selectedChatId && inboxConnectionState === "loading" && (
+        <InboxConnectionLoadingState />
+      )}
+
+      {!selectedChatId && inboxConnectionState === "no-connections" && (
+        <InboxFirstRunState
+          canManageConnections={canManageConnections}
+          onConnect={handleConnectWhatsApp}
+        />
+      )}
+
+      {!selectedChatId &&
+        inboxConnectionState !== "loading" &&
+        inboxConnectionState !== "no-connections" && (
+          <InboxEmptyState
+            activeView={sidebarView}
+            connectionState={inboxConnectionState}
+          />
+        )}
 
       {selectedChatId && !selectedContact && !contactLoadError && (
         <ConversationLoadingState />
@@ -390,7 +436,173 @@ function ConversationLoadError({
   );
 }
 
-function InboxEmptyState({ activeView }: { activeView: SidebarView }) {
+function InboxConnectionLoadingState() {
+  const { t } = useTranslation();
+
+  return (
+    <div
+      className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#f6f8f9] dark:bg-[#0b141a]"
+      role="status"
+      aria-label={t("chat.checkingWhatsapp", "Checking WhatsApp connection")}
+      aria-busy="true"
+    >
+      <div
+        className="absolute inset-0 opacity-[0.035] dark:opacity-[0.09]"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)",
+          backgroundSize: "28px 28px",
+        }}
+        aria-hidden="true"
+      />
+      <div className="relative flex w-full max-w-md flex-col items-center px-8">
+        <Skeleton className="size-20 rounded-[1.65rem]" />
+        <Skeleton className="mt-7 h-3 w-32 rounded-full" />
+        <Skeleton className="mt-4 h-8 w-72 max-w-full rounded-lg" />
+        <Skeleton className="mt-3 h-4 w-80 max-w-full rounded-md" />
+      </div>
+    </div>
+  );
+}
+
+function InboxFirstRunState({
+  canManageConnections,
+  onConnect,
+}: {
+  canManageConnections: boolean;
+  onConnect: () => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-y-auto bg-[#f4f7f5] px-5 py-8 dark:bg-[#0b141a] sm:px-8">
+      <div
+        className="absolute inset-0 opacity-[0.035] dark:opacity-[0.085]"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)",
+          backgroundSize: "28px 28px",
+        }}
+        aria-hidden="true"
+      />
+      <div
+        className="absolute left-1/2 top-1/2 h-[34rem] w-[46rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#cdeadd]/45 blur-3xl dark:bg-[#00a884]/[0.07]"
+        aria-hidden="true"
+      />
+
+      <section className="relative grid w-full max-w-4xl overflow-hidden rounded-[2rem] border border-[#d7e2dc] bg-white/90 shadow-[0_28px_80px_-44px_rgba(16,58,44,0.55)] backdrop-blur-sm dark:border-white/[0.09] dark:bg-[#111d22]/95 dark:shadow-black/50 lg:grid-cols-[1.08fr_0.92fr]">
+        <div className="flex flex-col justify-center px-7 py-9 sm:px-10 sm:py-12 lg:px-12">
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#cfe3da] bg-[#eef7f3] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.15em] text-[#167459] dark:border-[#00a884]/20 dark:bg-[#00a884]/10 dark:text-[#53d7b8]">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#27a780] opacity-40" />
+              <span className="relative inline-flex size-2 rounded-full bg-[#168264]" />
+            </span>
+            {t("chat.connectWhatsappEyebrow", "One-minute setup")}
+          </div>
+
+          <h1 className="mt-6 max-w-lg text-[2rem] font-semibold leading-[1.08] tracking-[-0.045em] text-[#19372d] dark:text-dark-text-primary sm:text-[2.55rem]">
+            {t(
+              "chat.connectWhatsappTitle",
+              "Bring WhatsApp into your team inbox",
+            )}
+          </h1>
+          <p className="mt-5 max-w-lg text-[15px] leading-7 text-[#61736c] dark:text-dark-text-secondary">
+            {canManageConnections
+              ? t(
+                  "chat.connectWhatsappHint",
+                  "Link your WhatsApp account once. Conversations will sync here so your team can reply, assign, and follow up together.",
+                )
+              : t(
+                  "chat.askAdminToConnect",
+                  "Ask a workspace owner or admin to connect WhatsApp. Conversations will appear here once an account is linked.",
+                )}
+          </p>
+
+          {canManageConnections && (
+            <button
+              type="button"
+              onClick={onConnect}
+              className="mt-8 inline-flex h-12 w-fit items-center gap-3 rounded-xl bg-[#14795e] px-5 text-sm font-semibold text-white shadow-[0_14px_30px_-16px_rgba(20,121,94,0.9)] transition-all hover:-translate-y-0.5 hover:bg-[#0f684f] hover:shadow-[0_18px_34px_-16px_rgba(20,121,94,0.95)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 dark:bg-[#20b68e] dark:text-[#071b16] dark:hover:bg-[#35c59e] dark:focus-visible:ring-offset-[#111d22]"
+            >
+              {t("chat.connectWhatsapp", "Connect WhatsApp")}
+              <span className="grid size-6 place-items-center rounded-md bg-white/15 dark:bg-black/10">
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </span>
+            </button>
+          )}
+
+          <div className="mt-8 flex items-start gap-2.5 border-t border-[#e3eae6] pt-5 text-xs leading-5 text-[#71827b] dark:border-white/[0.08] dark:text-dark-text-tertiary">
+            <CheckCheck className="mt-0.5 size-4 shrink-0 text-[#168264] dark:text-[#42c8a7]" />
+            <span>
+              {t(
+                "chat.securePairingHint",
+                "Secure QR pairing—your phone stays in control of the account.",
+              )}
+            </span>
+          </div>
+        </div>
+
+        <div className="relative flex min-h-[27rem] flex-col border-t border-[#d7e2dc] bg-[#eaf4ef] p-7 dark:border-white/[0.08] dark:bg-[#0d2824] lg:border-l lg:border-t-0">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-[#27483d] dark:text-[#d5e8e1]">
+                {t("chat.onYourPhone", "On your phone")}
+              </p>
+              <p className="mt-0.5 text-xs text-[#72847c] dark:text-[#88a39a]">
+                {t("chat.keepPhoneNearby", "Keep WhatsApp nearby")}
+              </p>
+            </div>
+            <span className="rounded-full border border-[#c9ddd4] bg-white/65 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#517267] dark:border-white/10 dark:bg-white/[0.06] dark:text-[#9ab9af]">
+              {t("chat.aboutOneMinute", "≈ 1 minute")}
+            </span>
+          </div>
+
+          <div className="relative mx-auto my-7 w-44" aria-hidden="true">
+            <div className="absolute -inset-8 rounded-full bg-[#7dcdb0]/20 blur-2xl dark:bg-[#00a884]/15" />
+            <div className="relative rotate-2 rounded-[2.25rem] border border-[#c7d9d1] bg-white p-3 shadow-[0_24px_55px_-30px_rgba(20,80,61,0.65)] dark:border-white/10 dark:bg-[#172c30] dark:shadow-black/50">
+              <div className="rounded-[1.65rem] bg-[#f3f8f5] px-4 pb-5 pt-3 dark:bg-[#0b171b]">
+                <span className="mx-auto block h-1 w-10 rounded-full bg-[#bdcbc5] dark:bg-white/15" />
+                <div className="mx-auto mt-6 grid size-24 place-items-center rounded-2xl border border-[#d6e5de] bg-white text-[#14795e] shadow-sm dark:border-white/10 dark:bg-[#15272b] dark:text-[#53d7b8]">
+                  <QrCode className="size-14" strokeWidth={1.4} />
+                </div>
+                <span className="mx-auto mt-5 block h-1.5 w-16 rounded-full bg-[#d9e3de] dark:bg-white/10" />
+                <span className="mx-auto mt-2 block h-1.5 w-10 rounded-full bg-[#e5ece8] dark:bg-white/[0.06]" />
+              </div>
+            </div>
+          </div>
+
+          <ol className="mt-auto grid grid-cols-3 gap-2">
+            {[
+              t("chat.openWhatsappStep", "Open WhatsApp"),
+              t("chat.linkedDevicesStep", "Linked devices"),
+              t("chat.scanCodeStep", "Scan code"),
+            ].map((label, index) => (
+              <li
+                key={label}
+                className="rounded-xl border border-[#cbded6] bg-white/55 px-2.5 py-3 text-center dark:border-white/[0.08] dark:bg-white/[0.035]"
+              >
+                <span className="mx-auto grid size-5 place-items-center rounded-full bg-[#14795e] text-[10px] font-bold text-white dark:bg-[#20b68e] dark:text-[#071b16]">
+                  {index + 1}
+                </span>
+                <span className="mt-2 block text-[11px] font-semibold leading-4 text-[#436158] dark:text-[#b7cec6]">
+                  {label}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function InboxEmptyState({
+  activeView,
+  connectionState,
+}: {
+  activeView: SidebarView;
+  connectionState: Exclude<InboxConnectionState, "loading" | "no-connections">;
+}) {
   const { t } = useTranslation();
 
   const isGroupView = activeView === "groups";
@@ -428,9 +640,22 @@ function InboxEmptyState({ activeView }: { activeView: SidebarView }) {
             <MessagesSquare className="size-9" strokeWidth={1.65} />
           </div>
 
-          <span className="absolute bottom-2 right-4 grid size-9 place-items-center rounded-full border-4 border-[#f6f8f9] bg-[#d9fdd3] text-[#008069] shadow-sm dark:border-[#0b141a] dark:bg-[#005c4b] dark:text-[#53bdeb]">
-            <CheckCheck className="size-4.5" strokeWidth={2.1} />
-          </span>
+          {connectionState !== "unavailable" && (
+            <span
+              className={cn(
+                "absolute bottom-2 right-4 grid size-9 place-items-center rounded-full border-4 border-[#f6f8f9] shadow-sm dark:border-[#0b141a]",
+                connectionState === "connected"
+                  ? "bg-[#d9fdd3] text-[#008069] dark:bg-[#005c4b] dark:text-[#53bdeb]"
+                  : "bg-[#fff0c7] text-[#a15c00] dark:bg-[#3b3525] dark:text-[#ffd279]",
+              )}
+            >
+              {connectionState === "connected" ? (
+                <CheckCheck className="size-4.5" strokeWidth={2.1} />
+              ) : (
+                <CircleAlert className="size-4" strokeWidth={2} />
+              )}
+            </span>
+          )}
           <span className="absolute bottom-0 left-5 grid size-10 place-items-center rounded-full border-4 border-[#f6f8f9] bg-[#fff0c7] text-[#a15c00] shadow-sm dark:border-[#0b141a] dark:bg-[#3b3525] dark:text-[#ffd279]">
             <UsersRound className="size-4.5" strokeWidth={1.9} />
           </span>
@@ -463,10 +688,18 @@ function InboxEmptyState({ activeView }: { activeView: SidebarView }) {
             <UsersRound className="size-3.5 text-[#008069] dark:text-[#00a884]" />
             {t("chat.sharedTeamContext", "Shared team context")}
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dce4e7] bg-white/70 px-3 py-1.5 text-xs font-medium text-[#54656f] shadow-sm backdrop-blur-sm dark:border-white/[0.08] dark:bg-white/[0.045] dark:text-dark-text-secondary">
-            <CheckCheck className="size-3.5 text-[#008069] dark:text-[#00a884]" />
-            {t("chat.whatsappSynced", "WhatsApp synced")}
-          </span>
+          {connectionState !== "unavailable" && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dce4e7] bg-white/70 px-3 py-1.5 text-xs font-medium text-[#54656f] shadow-sm backdrop-blur-sm dark:border-white/[0.08] dark:bg-white/[0.045] dark:text-dark-text-secondary">
+              {connectionState === "connected" ? (
+                <CheckCheck className="size-3.5 text-[#008069] dark:text-[#00a884]" />
+              ) : (
+                <CircleAlert className="size-3.5 text-[#a15c00] dark:text-[#ffd279]" />
+              )}
+              {connectionState === "connected"
+                ? t("chat.whatsappSynced", "WhatsApp synced")
+                : t("chat.whatsappOffline", "WhatsApp needs attention")}
+            </span>
+          )}
         </div>
       </div>
 
