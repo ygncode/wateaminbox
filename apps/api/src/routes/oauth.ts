@@ -16,6 +16,10 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 import { env } from "../lib/env.js";
+import {
+  HOSTED_CLIENTS,
+  hostedClientId,
+} from "../services/oauth-hosted-clients.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
 import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
 import { createLogger, formatError } from "../lib/logger.js";
@@ -293,6 +297,31 @@ oauthRoutes.post(
     return c.json({ redirectTo: redirect.toString() });
   },
 );
+
+/**
+ * Serve a hosted client metadata document.
+ *
+ * Public and unauthenticated, like any CIMD document. It exists so the
+ * client_id a user pastes into Grok resolves to something real and inspectable
+ * rather than being a bare identifier only this server understands.
+ */
+oauthRoutes.get("/clients/:file", (c) => {
+  const file = c.req.param("file");
+  const slug = file.endsWith(".json") ? file.slice(0, -".json".length) : file;
+  const hosted = HOSTED_CLIENTS.find((client) => client.slug === slug);
+  if (!hosted) {
+    return c.json({ error: "not_found" }, 404);
+  }
+  c.header("Cache-Control", "public, max-age=300");
+  return c.json({
+    client_id: hostedClientId(issuer(), hosted.slug),
+    client_name: hosted.clientName,
+    redirect_uris: hosted.redirectUris,
+    token_endpoint_auth_method: "none",
+    grant_types: ["authorization_code", "refresh_token"],
+    response_types: ["code"],
+  });
+});
 
 const tokenSchema = z.union([
   z.object({

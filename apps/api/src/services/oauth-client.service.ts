@@ -13,6 +13,8 @@
  * redirects are refused outright.
  */
 
+import { issuer } from "../routes/oauth.js";
+import { findHostedClient } from "./oauth-hosted-clients.js";
 import type { LookupAddress } from "node:dns";
 import { lookup } from "node:dns/promises";
 import { request as httpsRequest } from "node:https";
@@ -398,6 +400,19 @@ async function fetchDocument(url: URL): Promise<unknown> {
 export async function resolveOAuthClient(
   clientId: string,
 ): Promise<ResolvedOAuthClient> {
+  // A document this server hosts is resolved from the registry rather than
+  // fetched from ourselves - the answer is already known, and a self-fetch
+  // would be a needless round trip that depends on hairpin routing.
+  const hosted = findHostedClient(issuer(), clientId);
+  if (hosted) {
+    return {
+      clientId,
+      clientName: hosted.clientName,
+      redirectUris: [...hosted.redirectUris],
+      tokenEndpointAuthMethod: "none",
+    };
+  }
+
   // Validate the identifier before touching storage: a malformed or private
   // client_id is rejected without costing a query, and nothing unvalidated is
   // ever used as a cache key.
