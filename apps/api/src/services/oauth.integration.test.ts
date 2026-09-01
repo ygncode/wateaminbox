@@ -18,6 +18,7 @@ import {
   verifyApiToken,
 } from "./api-token.service.js";
 import { getSchemaName } from "./tenant.service.js";
+import { removeMember } from "./company/members.js";
 
 const integrationTest =
   process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip;
@@ -651,6 +652,42 @@ describe("membership removal is a hard boundary", () => {
             clientName: "ChatGPT",
           }),
         ).rejects.toThrow(/membership is no longer active/);
+      }),
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("reinvitation does not revive a pre-removal code", () => {
+  integrationTest(
+    "an authorization code does not survive removal and reinvitation",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        const { verifier, challenge } = pkcePair();
+        const code = await issueCode(userId, companyId, challenge);
+
+        // The fixture creates an owner, and an owner cannot be removed.
+        await db
+          .updateTable("company_members")
+          .set({ role: "member" })
+          .where("company_id", "=", companyId)
+          .where("user_id", "=", userId)
+          .execute();
+
+        // removeMember's own cleanup, not a direct delete: the point is that
+        // the documented credential boundary covers codes as well as tokens.
+        await removeMember(companyId, userId);
+
+        // Reinvitation inside the code's five-minute TTL. Without invalidating
+        // codes at removal the old one would now be redeemable, granting access
+        // the user never re-consented to.
+        await db
+          .insertInto("company_members")
+          .values({ company_id: companyId, user_id: userId, role: "member" })
+          .execute();
+
+        await expect(exchange(code, verifier)).rejects.toThrow(
+          /Unknown authorization code/,
+        );
       }),
     TEST_TIMEOUT_MS,
   );

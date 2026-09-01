@@ -192,6 +192,23 @@ export async function removeMember(
       throw new InsufficientPermissionsError("remove the company owner");
     }
 
+    // Outstanding authorization codes go first, before the membership row.
+    //
+    // They must go at all: a code approved before removal is refused while the
+    // membership is absent, but it survives its five-minute TTL, so reinviting
+    // the user inside that window would let the old code be redeemed without
+    // fresh consent - exactly the reactivation that revoking tokens and grants
+    // exists to prevent.
+    //
+    // They go first because the exchange locks the code row and then the
+    // membership. Taking the two in that same order here keeps a removal and a
+    // concurrent exchange from deadlocking against each other.
+    await transaction
+      .deleteFrom("oauth_authorization_codes")
+      .where("company_id", "=", companyId)
+      .where("user_id", "=", userId)
+      .execute();
+
     await transaction
       .deleteFrom("company_members")
       .where("id", "=", membership.id)
