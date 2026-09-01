@@ -405,12 +405,19 @@ export async function resolveOAuthClient(
   // would be a needless round trip that depends on hairpin routing.
   const hosted = findHostedClient(issuer(), clientId);
   if (hosted) {
-    return {
+    const resolved: ResolvedOAuthClient = {
       clientId,
       clientName: hosted.clientName,
       redirectUris: [...hosted.redirectUris],
       tokenEndpointAuthMethod: "none",
     };
+    // Persisted even though the registry is the source of truth and the lookup
+    // above never consults the cache: oauth_grants.client_id and
+    // oauth_authorization_codes.client_id are foreign keys into this table, so
+    // skipping the row makes every authorization fail at code insertion with a
+    // 23503 rather than at anything the user could act on.
+    await persistClient(resolved);
+    return resolved;
   }
 
   // Validate the identifier before touching storage: a malformed or private
@@ -446,6 +453,16 @@ export async function resolveOAuthClient(
   // costs an authorization attempt; failing open costs the account.
   const resolved = parseDocument(clientId, await fetchDocument(url));
 
+  await persistClient(resolved);
+
+  return resolved;
+}
+
+/**
+ * Record a resolved client, so the rows that reference it have something to
+ * point at and the connected-apps list has a name to show.
+ */
+async function persistClient(resolved: ResolvedOAuthClient): Promise<void> {
   const now = toDbDate();
   await db
     .insertInto("oauth_clients")
@@ -473,8 +490,6 @@ export async function resolveOAuthClient(
       }),
     )
     .execute();
-
-  return resolved;
 }
 
 /**

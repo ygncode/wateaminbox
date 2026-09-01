@@ -44,10 +44,28 @@ export function hostedClientId(issuer: string, slug: string): string {
   return `${issuer}/api/oauth/clients/${slug}.json`;
 }
 
+/**
+ * Whether this deployment can host client documents at all.
+ *
+ * A client_id is an https URL by rule - the CIMD fetch path asserts it and
+ * oauth_clients enforces it at the column. An http issuer (APP_URL defaults to
+ * http://localhost:4444 in development) would mint an http client_id that
+ * cannot be stored, so authorization would fail deep inside the insert rather
+ * than at the request. Declining here instead lets the caller reject the
+ * client_id the same way it rejects any other non-https one.
+ *
+ * Nothing is lost by declining: a hosted entry exists so a public vendor can
+ * redirect back here, and no such vendor will reach an http localhost anyway.
+ */
+function canHostClients(issuer: string): boolean {
+  return issuer.startsWith("https://");
+}
+
 export function findHostedClient(
   issuer: string,
   clientId: string,
 ): HostedClientDefinition | null {
+  if (!canHostClients(issuer)) return null;
   return (
     HOSTED_CLIENTS.find(
       (client) => hostedClientId(issuer, client.slug) === clientId,
