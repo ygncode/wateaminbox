@@ -1819,11 +1819,11 @@
       "tokenNeeded": "This one needs a token. Create one below first, then run the command.",
       "hostedStep1": "In ChatGPT: Settings → Connectors → Add. In Claude: Settings → Connectors → Add custom connector. Paste this URL:",
       "hostedStep2": "Leave Client ID and Client Secret empty if the app asks. Continue, sign in to WATeamInbox, choose the workspace, and approve.",
-      "grokIntro": "Grok asks for a Client ID that other apps work out for themselves. Paste the one below; there is no secret.",
       "grokStep1": "In Grok: Settings → Connectors → Add Connector → Other, and paste this URL:",
-      "grokStep2": "When Grok asks for a Client ID, paste this. Leave Client Secret empty and keep PKCE set to S256:",
-      "grokStep3": "Continue, sign in, choose the workspace, and approve.",
-      "clientIdCaption": "Client ID"
+      "grokStep2": "Continue, sign in to WATeamInbox, choose the workspace, and approve.",
+      "clientIdCaption": "Client ID",
+      "grokClientIdSummary": "Grok is asking me for a Client ID",
+      "grokClientIdBody": "Newer versions of Grok fill this in themselves. If yours asks, paste the value below, leave Client Secret empty, and keep PKCE set to S256."
     },
     "createDescription": "Only for Claude Code, Cursor and scripts. If you are connecting ChatGPT, Claude or Grok, skip this — those sign in through the browser."
   },

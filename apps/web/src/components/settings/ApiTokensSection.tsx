@@ -223,8 +223,8 @@ function McpSetupGuide({
       <TabsContent value="grok">
         <p className="mb-3 rounded-lg bg-primary/5 px-3 py-2 text-sm">
           {t(
-            "apiTokens.setup.grokIntro",
-            "Grok asks for a Client ID that other apps work out for themselves. Paste the one below; there is no secret.",
+            "apiTokens.setup.noTokenNeeded",
+            "No token needed. You sign in and approve in the browser, and the connection shows up under Connected AI apps above.",
           )}
         </p>
         <ol className="space-y-4">
@@ -245,24 +245,33 @@ function McpSetupGuide({
             <p>
               {t(
                 "apiTokens.setup.grokStep2",
-                "When Grok asks for a Client ID, paste this. Leave Client Secret empty and keep PKCE set to S256:",
-              )}
-            </p>
-            <CopyBlock
-              label="Client ID"
-              caption={t("apiTokens.setup.clientIdCaption", "Client ID")}
-              value={grokClientId}
-            />
-          </SetupStep>
-          <SetupStep index={3}>
-            <p>
-              {t(
-                "apiTokens.setup.grokStep3",
-                "Continue, sign in, choose the workspace, and approve.",
+                "Continue, sign in to WATeamInbox, choose the workspace, and approve.",
               )}
             </p>
           </SetupStep>
         </ol>
+        {/* Grok now supplies its own Client ID, so this is a fallback rather
+            than a step. It stays because older builds still ask, and someone
+            facing that prompt has no other way to find the value. */}
+        <details className="mt-4 rounded-lg border border-border px-3 py-2 text-sm">
+          <summary className="cursor-pointer font-medium">
+            {t(
+              "apiTokens.setup.grokClientIdSummary",
+              "Grok is asking me for a Client ID",
+            )}
+          </summary>
+          <p className="mt-2">
+            {t(
+              "apiTokens.setup.grokClientIdBody",
+              "Newer versions of Grok fill this in themselves. If yours asks, paste the value below, leave Client Secret empty, and keep PKCE set to S256.",
+            )}
+          </p>
+          <CopyBlock
+            label="Client ID"
+            caption={t("apiTokens.setup.clientIdCaption", "Client ID")}
+            value={grokClientId}
+          />
+        </details>
       </TabsContent>
 
       <TabsContent value="claude-code">

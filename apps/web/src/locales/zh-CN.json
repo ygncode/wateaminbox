@@ -1802,11 +1802,11 @@
       "tokenNeeded": "此方式需要令牌。请先在下方创建一个，然后运行命令。",
       "hostedStep1": "在 ChatGPT 中：设置 → 连接器 → 添加。在 Claude 中：设置 → 连接器 → 添加自定义连接器。粘贴此 URL：",
       "hostedStep2": "如果应用询问 Client ID 和 Client Secret，请留空。继续操作，登录 WATeamInbox，选择工作区并授权。",
-      "grokIntro": "Grok 需要一个其他应用可自行获取的 Client ID。请粘贴下面的值；无需密钥。",
       "grokStep1": "在 Grok 中：设置 → 连接器 → 添加连接器 → 其他，然后粘贴此 URL：",
-      "grokStep2": "当 Grok 询问 Client ID 时粘贴此值。Client Secret 留空，PKCE 保持 S256：",
-      "grokStep3": "继续操作，登录，选择工作区并授权。",
-      "clientIdCaption": "Client ID"
+      "grokStep2": "继续操作，登录 WATeamInbox，选择工作区并授权。",
+      "clientIdCaption": "Client ID",
+      "grokClientIdSummary": "Grok 向我索要 Client ID",
+      "grokClientIdBody": "较新版本的 Grok 会自行填写此项。如果您的版本要求填写，请粘贴下面的值，将 Client Secret 留空，并将 PKCE 保持为 S256。"
     },
     "createDescription": "仅适用于 Claude Code、Cursor 和脚本。如果您要连接 ChatGPT、Claude 或 Grok，请跳过此步骤——它们通过浏览器登录。"
   },

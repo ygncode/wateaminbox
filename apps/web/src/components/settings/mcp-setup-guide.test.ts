@@ -36,15 +36,26 @@ describe("hosted-app instructions", () => {
 });
 
 describe("Grok instructions", () => {
-  test("supply the client id Grok asks for", () => {
+  test("lead with the browser sign-in, like the other hosted apps", () => {
     const grok = tabContent("grok");
-    expect(grok).toContain("grokClientId");
-    // Grok's field is the one thing that differs from the other hosted apps;
-    // leaving it out is why the connection failed three times.
-    expect(grok).toMatch(/Client ID/);
+    // Grok supplies its own client_id now, so the numbered steps are the same
+    // shape as ChatGPT's and Claude's: paste the URL, sign in, approve.
+    expect(grok).toContain("apiTokens.setup.noTokenNeeded");
+    expect(grok).not.toMatch(/Bearer/);
   });
 
-  test("tell the user to leave the secret empty", () => {
+  test("keep the client id reachable, but out of the main path", () => {
+    const grok = tabContent("grok");
+    // Older builds still prompt for it, and someone facing that prompt has no
+    // other way to find the value - so it stays, behind a disclosure rather
+    // than as a step everyone must read.
+    expect(grok).toContain("grokClientId");
+    expect(grok).toMatch(/<details/);
+    // The disclosure has to come after the steps, or it is still the main path.
+    expect(grok.indexOf("<details")).toBeGreaterThan(grok.indexOf("</ol>"));
+  });
+
+  test("still tell the user to leave the secret empty", () => {
     expect(tabContent("grok")).toMatch(/Client Secret empty/);
   });
 });
