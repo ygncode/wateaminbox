@@ -1,3 +1,4 @@
+import { issuer } from "../routes/oauth.js";
 import type { ApiTokenScope } from "@wateaminbox/database";
 import { Context, Next } from "hono";
 import {
@@ -25,32 +26,39 @@ declare module "hono" {
  * Role and permissions are re-resolved on every request, so a token never
  * exceeds its owner's live membership.
  */
+/**
+ * Point an unauthenticated caller at the protected-resource metadata.
+ *
+ * RFC 9728 says a 401 carries this header, and it is the first thing an MCP
+ * client looks for; without it a client has no way to learn which
+ * authorization server to use and simply reports a failed connection. Claude
+ * only honours the challenge on a 401, so this must never move to a 200.
+ */
+function unauthorized(c: Context, message: string) {
+  c.header(
+    "WWW-Authenticate",
+    `Bearer resource_metadata="${issuer()}/.well-known/oauth-protected-resource"`,
+  );
+  return c.json({ error: "Unauthorized", message }, 401);
+}
+
 export const mcpAuthMiddleware = async (c: Context, next: Next) => {
   const token = extractToken(c.req.header("Authorization"));
   if (!token || !token.startsWith(API_TOKEN_PREFIX)) {
-    return c.json(
-      {
-        error: "Unauthorized",
-        message: "An API token (wti_...) is required in the Authorization header",
-      },
-      401,
+    return unauthorized(
+      c,
+      "An API token (wti_...) is required in the Authorization header",
     );
   }
 
   const verified = await verifyApiToken(token);
   if (!verified) {
-    return c.json(
-      { error: "Unauthorized", message: "Invalid, expired, or revoked API token" },
-      401,
-    );
+    return unauthorized(c, "Invalid, expired, or revoked API token");
   }
 
   const user = await getUserById(verified.userId);
   if (!user) {
-    return c.json(
-      { error: "Unauthorized", message: "Token owner no longer exists" },
-      401,
-    );
+    return unauthorized(c, "Token owner no longer exists");
   }
 
   const memberData = await getMemberWithPermissions(

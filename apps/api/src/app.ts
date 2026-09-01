@@ -9,6 +9,7 @@ import { createLogger, formatError } from "./lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "./lib/rate-limit-store.js";
 import { formatZodErrors } from "./lib/response.js";
 import { createRateLimitMiddleware } from "./middleware/rate-limit.js";
+import { wellKnownRoutes } from "./routes/well-known.js";
 import { routes } from "./routes/index.js";
 
 const appLogger = createLogger("App");
@@ -57,6 +58,10 @@ if (rateLimitConfig.enabled) {
 
 // Routes - mounted at /api
 app.route("/api", routes);
+
+// OAuth discovery. These paths are fixed by RFC 8414 and RFC 9728, so they
+// cannot live under /api; the edge forwards them explicitly.
+app.route("/.well-known", wellKnownRoutes);
 
 // 404 handler
 app.notFound((c) => {
