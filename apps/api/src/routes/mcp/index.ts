@@ -1,3 +1,4 @@
+import { MCP_SERVER_VERSION } from "./version.js";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Hono } from "hono";
@@ -43,7 +44,7 @@ mcpRoutes.post("/", mcpRateLimiter, async (c) => {
 
   const server = new McpServer({
     name: "wateaminbox",
-    version: "1.0.0",
+    version: MCP_SERVER_VERSION,
   });
 
   for (const tool of ALL_TOOLS) {
@@ -60,7 +61,7 @@ mcpRoutes.post("/", mcpRateLimiter, async (c) => {
     registerTool(
       tool.name,
       { description: tool.description, inputSchema: tool.inputSchema },
-      (async (args: Record<string, never>) => {
+      async (args: Record<string, never>) => {
         try {
           if (tool.permission) {
             requirePermission(c, tool.permission);
@@ -81,7 +82,7 @@ mcpRoutes.post("/", mcpRateLimiter, async (c) => {
             isError: true,
           };
         }
-      }),
+      },
     );
   }
 
