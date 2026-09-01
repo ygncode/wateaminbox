@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
 import en from "../../locales/en.json";
 import zh from "../../locales/zh-CN.json";
@@ -60,6 +61,7 @@ describe("connected apps translations", () => {
     "confirmBody",
     "loadFailed",
     "authorizedBy",
+    "confirmOwner",
   ] as const;
 
   test("English carries every key the component asks for", () => {
@@ -85,5 +87,36 @@ describe("connected apps translations", () => {
         placeholders(en.connectedApps[key]),
       );
     }
+  });
+});
+
+describe("duplicate grants stay distinguishable", () => {
+  /**
+   * Two members can authorize the same client. Their rows then agree on
+   * everything the list shows except the owner, so the owner is the only field
+   * that makes the disconnect decision safe - it must not be truncated away,
+   * and it must appear on the confirmation.
+   */
+  const source = readFileSync(
+    new URL("./ConnectedAppsSection.tsx", import.meta.url),
+    "utf8",
+  );
+
+  test("owner is not rendered inside a truncating element", () => {
+    const ownerLine = source.slice(
+      source.indexOf("connectedApps.authorizedBy") - 400,
+      source.indexOf("connectedApps.authorizedBy"),
+    );
+    // The metadata line truncates; the owner must not share it.
+    expect(ownerLine).toContain("break-words");
+    expect(ownerLine).not.toContain("truncate");
+  });
+
+  test("the confirmation names the owner", () => {
+    expect(source).toContain("connectedApps.confirmOwner");
+    // Guarded on the grant belonging to someone else, so a user disconnecting
+    // their own app is not told who they are.
+    const dialog = source.slice(source.indexOf("confirmOwner") - 300);
+    expect(dialog).toContain("ownerUserId !== user?.id");
   });
 });

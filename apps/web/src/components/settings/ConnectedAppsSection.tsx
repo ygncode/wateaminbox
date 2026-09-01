@@ -129,13 +129,21 @@ export function ConnectedAppsSection() {
                     {t("connectedApps.connected", "Connected {{date}}", {
                       date: new Date(app.createdAt).toLocaleDateString(),
                     })}
-                    {/* Only for someone else's connector: an admin cutting a
-                        teammate's access needs to know whose it is, and their
-                        own rows do not need the label. */}
-                    {app.ownerUserId !== user?.id && app.ownerName
-                      ? ` · ${t("connectedApps.authorizedBy", "Authorized by {{name}}", { name: app.ownerName })}`
-                      : ""}
                   </p>
+                  {/* Owner sits on its own line and wraps rather than
+                      truncating. Two members can authorize the same client, in
+                      which case the rows are identical except for this - so it
+                      is the one field that must never be cut off. Shown only
+                      for someone else's grant; own rows need no label. */}
+                  {app.ownerUserId !== user?.id && app.ownerName ? (
+                    <p className="text-muted-foreground text-xs break-words">
+                      {t(
+                        "connectedApps.authorizedBy",
+                        "Authorized by {{name}}",
+                        { name: app.ownerName },
+                      )}
+                    </p>
+                  ) : null}
                 </div>
                 <Button
                   variant="ghost"
@@ -182,6 +190,18 @@ export function ConnectedAppsSection() {
                     : ""),
               })}
             </DialogDescription>
+            {/* With two grants for the same client the description above is
+                identical for both, so the owner is what tells them apart at
+                the moment of the irreversible action. */}
+            {pendingDisconnect &&
+            pendingDisconnect.ownerUserId !== user?.id &&
+            pendingDisconnect.ownerName ? (
+              <p className="text-sm font-medium">
+                {t("connectedApps.confirmOwner", "Authorized by {{name}}", {
+                  name: pendingDisconnect.ownerName,
+                })}
+              </p>
+            ) : null}
           </DialogHeader>
           <DialogFooter>
             <Button
