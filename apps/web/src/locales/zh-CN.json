@@ -1774,5 +1774,22 @@
       "claudeWebStep1": "打开 Claude → 设置 → 连接器 → 添加自定义连接器（ChatGPT：设置 → 连接器），粘贴此 URL：",
       "claudeWebStep2": "当要求认证时，选择 Bearer 令牌 / API 密钥并粘贴你的令牌："
     }
+  },
+  "connectedApps": {
+    "title": "已连接的 AI 应用",
+    "description": "您已授权使用此工作区的 AI 客户端。它们只能看到您能看到的内容，断开连接会立即生效。",
+    "empty": "尚未连接任何应用。当您从 AI 客户端连接此工作区后，它会显示在这里。",
+    "scopeWrite": "可发送消息",
+    "scopeRead": "只读",
+    "lastUsed": "上次使用 {{date}}",
+    "neverUsed": "尚未使用",
+    "connected": "连接于 {{date}}",
+    "disconnect": "断开连接",
+    "disconnecting": "正在断开…",
+    "disconnectApp": "断开 {{name}}",
+    "disconnected": "已断开连接",
+    "disconnectFailed": "无法断开此应用",
+    "confirmTitle": "要断开此应用吗？",
+    "confirmBody": "{{name}} 将立即失去对此工作区的访问权限。依赖它的功能将停止工作，直到您重新连接。"
   }
 }
