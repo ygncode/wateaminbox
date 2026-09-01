@@ -1770,7 +1770,7 @@
   },
   "apiTokens": {
     "endpointTitle": "MCP endpoint",
-    "endpointDescription": "Add this URL to your AI agent (Claude, Cursor, …) as a remote MCP server, using a token below as the Bearer token. Tools respect your workspace role and conversation visibility.",
+    "endpointDescription": "Add this URL to an AI app as a remote MCP server. ChatGPT, Claude and Grok sign in through the browser and need no token; Claude Code, Cursor and scripts use a token from below. Either way, tools respect your workspace role and conversation visibility.",
     "createTitle": "Create token",
     "nameLabel": "Name",
     "namePlaceholder": "e.g. Claude Desktop",
@@ -1812,8 +1812,20 @@
       "cursorStep1": "Add this to ~/.cursor/mcp.json (most other MCP clients accept the same shape):",
       "cursorStep2": "Restart Cursor and enable the server when prompted.",
       "claudeWebStep1": "Open Claude → Settings → Connectors → Add custom connector (in ChatGPT: Settings → Connectors), and paste this URL:",
-      "claudeWebStep2": "When asked for authentication, choose Bearer token / API key and paste your token:"
-    }
+      "claudeWebStep2": "When asked for authentication, choose Bearer token / API key and paste your token:",
+      "tabHosted": "ChatGPT & Claude",
+      "tabGrok": "Grok",
+      "noTokenNeeded": "No token needed. You sign in and approve in the browser, and the connection shows up under Connected AI apps above.",
+      "tokenNeeded": "This one needs a token. Create one below first, then run the command.",
+      "hostedStep1": "In ChatGPT: Settings → Connectors → Add. In Claude: Settings → Connectors → Add custom connector. Paste this URL:",
+      "hostedStep2": "Leave Client ID and Client Secret empty if the app asks. Continue, sign in to WATeamInbox, choose the workspace, and approve.",
+      "grokStep1": "In Grok: Settings → Connectors → Add Connector → Other, and paste this URL:",
+      "grokStep2": "Continue, sign in to WATeamInbox, choose the workspace, and approve.",
+      "clientIdCaption": "Client ID",
+      "grokClientIdSummary": "Grok is asking me for a Client ID",
+      "grokClientIdBody": "Newer versions of Grok fill this in themselves. If yours asks, paste the value below, leave Client Secret empty, and keep PKCE set to S256."
+    },
+    "createDescription": "Only for Claude Code, Cursor and scripts. If you are connecting ChatGPT, Claude or Grok, skip this — those sign in through the browser."
   },
   "connectedApps": {
     "title": "Connected AI apps",

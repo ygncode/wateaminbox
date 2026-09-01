@@ -132,7 +132,25 @@ function SetupStep({
  * creation) the snippets embed the real secret; otherwise they show a
  * placeholder for the user to substitute.
  */
-function McpSetupGuide({ mcpUrl, token }: { mcpUrl: string; token?: string }) {
+/**
+ * Setup instructions, split by how the client authenticates rather than by
+ * product name.
+ *
+ * That split is the whole point. Hosted apps - ChatGPT, Claude, Grok - sign in
+ * through the browser and never see a token; local tools - Claude Code, Cursor
+ * - carry one in a header. The previous version told everyone to paste a token,
+ * which stopped being true when OAuth shipped and left people pasting a token
+ * into a field their app does not have.
+ */
+function McpSetupGuide({
+  mcpUrl,
+  token,
+  grokClientId,
+}: {
+  mcpUrl: string;
+  token?: string;
+  grokClientId: string;
+}) {
   const { t } = useTranslation();
   const secret = token ?? "wti_YOUR_TOKEN";
   const hasRealToken = Boolean(token);
@@ -158,20 +176,31 @@ function McpSetupGuide({ mcpUrl, token }: { mcpUrl: string; token?: string }) {
       );
 
   return (
-    <Tabs defaultValue="claude-web">
+    <Tabs defaultValue="hosted">
       <TabsList className="mb-3">
-        <TabsTrigger value="claude-web">Claude / ChatGPT</TabsTrigger>
+        <TabsTrigger value="hosted">
+          {t("apiTokens.setup.tabHosted", "ChatGPT & Claude")}
+        </TabsTrigger>
+        <TabsTrigger value="grok">
+          {t("apiTokens.setup.tabGrok", "Grok")}
+        </TabsTrigger>
         <TabsTrigger value="claude-code">Claude Code</TabsTrigger>
         <TabsTrigger value="cursor">Cursor</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="claude-web">
+      <TabsContent value="hosted">
+        <p className="mb-3 rounded-lg bg-primary/5 px-3 py-2 text-sm">
+          {t(
+            "apiTokens.setup.noTokenNeeded",
+            "No token needed. You sign in and approve in the browser, and the connection shows up under Connected AI apps above.",
+          )}
+        </p>
         <ol className="space-y-4">
           <SetupStep index={1}>
             <p>
               {t(
-                "apiTokens.setup.claudeWebStep1",
-                "Open Claude → Settings → Connectors → Add custom connector (in ChatGPT: Settings → Connectors), and paste this URL:",
+                "apiTokens.setup.hostedStep1",
+                "In ChatGPT: Settings → Connectors → Add. In Claude: Settings → Connectors → Add custom connector. Paste this URL:",
               )}
             </p>
             <CopyBlock
@@ -183,23 +212,75 @@ function McpSetupGuide({ mcpUrl, token }: { mcpUrl: string; token?: string }) {
           <SetupStep index={2}>
             <p>
               {t(
-                "apiTokens.setup.claudeWebStep2",
-                "When asked for authentication, choose Bearer token / API key and paste your token:",
+                "apiTokens.setup.hostedStep2",
+                "Leave Client ID and Client Secret empty if the app asks. Continue, sign in to WATeamInbox, choose the workspace, and approve.",
               )}
             </p>
-            <CopyBlock
-              label="Token"
-              caption={t("apiTokens.setup.tokenCaption", "API token")}
-              value={secret}
-            />
-            {tokenHint && (
-              <p className="text-xs text-muted-foreground">{tokenHint}</p>
-            )}
           </SetupStep>
         </ol>
       </TabsContent>
 
+      <TabsContent value="grok">
+        <p className="mb-3 rounded-lg bg-primary/5 px-3 py-2 text-sm">
+          {t(
+            "apiTokens.setup.noTokenNeeded",
+            "No token needed. You sign in and approve in the browser, and the connection shows up under Connected AI apps above.",
+          )}
+        </p>
+        <ol className="space-y-4">
+          <SetupStep index={1}>
+            <p>
+              {t(
+                "apiTokens.setup.grokStep1",
+                "In Grok: Settings → Connectors → Add Connector → Other, and paste this URL:",
+              )}
+            </p>
+            <CopyBlock
+              label="Endpoint URL"
+              caption={t("apiTokens.endpointTitle", "MCP endpoint")}
+              value={mcpUrl}
+            />
+          </SetupStep>
+          <SetupStep index={2}>
+            <p>
+              {t(
+                "apiTokens.setup.grokStep2",
+                "Continue, sign in to WATeamInbox, choose the workspace, and approve.",
+              )}
+            </p>
+          </SetupStep>
+        </ol>
+        {/* Grok now supplies its own Client ID, so this is a fallback rather
+            than a step. It stays because older builds still ask, and someone
+            facing that prompt has no other way to find the value. */}
+        <details className="mt-4 rounded-lg border border-border px-3 py-2 text-sm">
+          <summary className="cursor-pointer font-medium">
+            {t(
+              "apiTokens.setup.grokClientIdSummary",
+              "Grok is asking me for a Client ID",
+            )}
+          </summary>
+          <p className="mt-2">
+            {t(
+              "apiTokens.setup.grokClientIdBody",
+              "Newer versions of Grok fill this in themselves. If yours asks, paste the value below, leave Client Secret empty, and keep PKCE set to S256.",
+            )}
+          </p>
+          <CopyBlock
+            label="Client ID"
+            caption={t("apiTokens.setup.clientIdCaption", "Client ID")}
+            value={grokClientId}
+          />
+        </details>
+      </TabsContent>
+
       <TabsContent value="claude-code">
+        <p className="mb-3 rounded-lg bg-muted px-3 py-2 text-sm">
+          {t(
+            "apiTokens.setup.tokenNeeded",
+            "This one needs a token. Create one below first, then run the command.",
+          )}
+        </p>
         <ol className="space-y-4">
           <SetupStep index={1}>
             <p>
@@ -229,6 +310,12 @@ function McpSetupGuide({ mcpUrl, token }: { mcpUrl: string; token?: string }) {
       </TabsContent>
 
       <TabsContent value="cursor">
+        <p className="mb-3 rounded-lg bg-muted px-3 py-2 text-sm">
+          {t(
+            "apiTokens.setup.tokenNeeded",
+            "This one needs a token. Create one below first, then run the command.",
+          )}
+        </p>
         <ol className="space-y-4">
           <SetupStep index={1}>
             <p>
@@ -284,6 +371,9 @@ export function ApiTokensSection() {
   );
 
   const mcpUrl = resolveMcpEndpointUrl(API_BASE_URL, window.location.origin);
+  // Derived from the endpoint rather than hardcoded, so a self-hosted or local
+  // deployment shows its own id instead of production's.
+  const grokClientId = mcpUrl.replace(/\/mcp$/, "/oauth/clients/grok.json");
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -324,7 +414,7 @@ export function ApiTokensSection() {
         <p className="text-sm text-muted-foreground">
           {t(
             "apiTokens.endpointDescription",
-            "Add this URL to your AI agent (Claude, Cursor, …) as a remote MCP server, using a token below as the Bearer token. Tools respect your workspace role and conversation visibility.",
+            "Add this URL to an AI app as a remote MCP server. ChatGPT, Claude and Grok sign in through the browser and need no token; Claude Code, Cursor and scripts use a token from below. Either way, tools respect your workspace role and conversation visibility.",
           )}
         </p>
         <CopyField
@@ -335,7 +425,7 @@ export function ApiTokensSection() {
           <h4 className="mb-2 text-xs font-medium text-muted-foreground">
             {t("apiTokens.setup.title", "Setup instructions")}
           </h4>
-          <McpSetupGuide mcpUrl={mcpUrl} />
+          <McpSetupGuide mcpUrl={mcpUrl} grokClientId={grokClientId} />
         </div>
       </section>
 
@@ -344,6 +434,12 @@ export function ApiTokensSection() {
         <h3 className="text-sm font-medium">
           {t("apiTokens.createTitle", "Create token")}
         </h3>
+        <p className="text-sm text-muted-foreground">
+          {t(
+            "apiTokens.createDescription",
+            "Only for Claude Code, Cursor and scripts. If you are connecting ChatGPT, Claude or Grok, skip this — those sign in through the browser.",
+          )}
+        </p>
         <div className="space-y-3 rounded-lg border p-4">
           <div className="space-y-1">
             <Label htmlFor="api-token-name">
@@ -515,7 +611,11 @@ export function ApiTokensSection() {
                 <Label>
                   {t("apiTokens.setup.title", "Setup instructions")}
                 </Label>
-                <McpSetupGuide mcpUrl={mcpUrl} token={createdToken.token} />
+                <McpSetupGuide
+                  mcpUrl={mcpUrl}
+                  token={createdToken.token}
+                  grokClientId={grokClientId}
+                />
               </div>
             </div>
           )}
