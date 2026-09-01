@@ -40,8 +40,10 @@ export const whatsAppEventEnvelopeSchema = z.object({
   contractVersion: z.literal(1).optional().default(1),
   type: z.enum([
     "qr",
+    "paired",
     "connected",
     "disconnected",
+    "logged_out",
     "message",
     "receipt",
     "send_confirmation",

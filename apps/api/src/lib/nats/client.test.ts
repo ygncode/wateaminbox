@@ -64,6 +64,25 @@ describe("durable API event consumer", () => {
     expect(event.contractVersion).toBe(1);
   });
 
+  test.each(["paired", "logged_out"] as const)(
+    "accepts worker connection lifecycle event %s",
+    (type) => {
+      const event = parseWhatsAppEvent({
+        contractVersion: 1,
+        type,
+        companyId: "11111111-1111-4111-8111-111111111111",
+        connectionId: "22222222-2222-4222-8222-222222222222",
+        payload: {
+          phoneNumber: type === "paired" ? "15551234567" : "",
+          jid: type === "paired" ? "15551234567@s.whatsapp.net" : "",
+          reason: type === "logged_out" ? "403: device logged out" : "",
+        },
+        timestamp: new Date().toISOString(),
+      });
+      expect(event.type).toBe(type);
+    },
+  );
+
   test("accepts durable on-demand history page events", () => {
     const event = parseWhatsAppEvent({
       contractVersion: 1,
