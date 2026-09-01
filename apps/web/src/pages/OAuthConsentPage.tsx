@@ -1,6 +1,6 @@
+import { Check, Eye, Loader2, Send, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
-import { ShieldCheck } from "lucide-react";
 import { BrandMark } from "../components/brand/BrandMark";
 import { WorkspaceAvatar } from "../components/workspace/WorkspaceAvatar";
 import { useAuth } from "../contexts/auth-context";
@@ -14,13 +14,21 @@ interface ClientInfo {
 }
 
 /**
- * The authorization screen an AI client sends the user to.
+ * The host of the client's metadata document.
  *
- * The API has already validated the request before redirecting here, so this
- * page's job is to name the client honestly, let the user pick which workspace
- * to expose, and get an explicit decision. It deliberately does not fall back
- * to a default workspace: connecting the wrong one is the mistake that matters.
+ * Shown next to the name because the name is self-declared and the host is
+ * not: anything can call itself ChatGPT, but only chatgpt.com can serve its
+ * document. On a screen whose whole job is deciding whether to trust a
+ * stranger, that distinction is the most useful thing on the page.
  */
+function clientHost(clientId: string): string {
+  try {
+    return new URL(clientId).host;
+  } catch {
+    return clientId;
+  }
+}
+
 export function OAuthConsentPage() {
   const [params] = useSearchParams();
   const { user } = useAuth();
@@ -29,7 +37,7 @@ export function OAuthConsentPage() {
   const [client, setClient] = useState<ClientInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState<"approve" | "deny" | null>(null);
 
   const request = useMemo(
     () => ({
@@ -68,124 +76,223 @@ export function OAuthConsentPage() {
     };
   }, [request.client_id, request.scope]);
 
-  const approve = async () => {
-    if (!selected) return;
-    setSubmitting(true);
+  // Selecting the only workspace for the user saves a click without hiding the
+  // choice: the card still shows which one, and several workspaces still
+  // require a deliberate pick.
+  useEffect(() => {
+    if (memberships.length === 1 && selected === null) {
+      setSelected(memberships[0].id);
+    }
+  }, [memberships, selected]);
+
+  const submit = async (decision: "approve" | "deny") => {
+    setSubmitting(decision);
     setError(null);
     try {
       const { redirectTo } = await api.post<{ redirectTo: string }>(
-        "/oauth/authorize",
-        { ...request, companyId: selected },
+        decision === "approve" ? "/oauth/authorize" : "/oauth/authorize/deny",
+        decision === "approve" ? { ...request, companyId: selected } : request,
       );
-      // Hand control back to the client that started the flow.
       window.location.replace(redirectTo);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Could not complete authorization",
       );
-      setSubmitting(false);
+      setSubmitting(null);
     }
   };
 
-  const deny = async () => {
-    // Refusal goes through the API so the redirect_uri is validated against the
-    // client's metadata first. Navigating straight to the value in the query
-    // string would make this page an open redirect for anyone who can get a
-    // signed-in user to open a crafted link.
-    setSubmitting(true);
-    setError(null);
-    try {
-      const { redirectTo } = await api.post<{ redirectTo: string }>(
-        "/oauth/authorize/deny",
-        request,
-      );
-      window.location.replace(redirectTo);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Could not cancel authorization",
-      );
-      setSubmitting(false);
-    }
-  };
-
-  const name = client?.clientName ?? client?.clientId ?? "An application";
+  const name = client?.clientName ?? clientHost(request.client_id);
+  const host = clientHost(request.client_id);
   const canWrite = client?.scopes.includes("write") ?? false;
+  const busy = submitting !== null;
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center gap-6 p-6">
-      <BrandMark />
+    <main className="relative min-h-dvh overflow-hidden bg-[#f5f7f4] px-5 py-10 text-[#10211b] dark:bg-dark-primary dark:text-dark-text-primary">
+      <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-[#dcefe7] blur-3xl dark:bg-emerald-500/10" />
 
-      <div className="rounded-lg border p-6">
-        <div className="mb-4 flex items-center gap-3">
-          <ShieldCheck className="size-5 shrink-0" aria-hidden="true" />
-          <h1 className="text-lg font-semibold">Connect {name}</h1>
+      <div className="relative mx-auto max-w-lg">
+        <div className="mb-8 flex items-center gap-3">
+          <BrandMark className="h-10 w-10 shrink-0 rounded-xl object-contain" />
+          <span className="text-sm font-semibold tracking-tight">
+            WATeamInbox
+          </span>
         </div>
 
-        <p className="text-muted-foreground mb-4 text-sm">
-          {name} is asking to connect to your WhatsApp inbox
-          {user?.email ? ` as ${user.email}` : ""}.
-        </p>
-
-        <ul className="mb-6 space-y-2 text-sm">
-          <li>Read your conversations, contacts and notes</li>
-          {canWrite ? (
-            <li className="font-medium">
-              Send messages and change conversations on your behalf
-            </li>
-          ) : null}
-          <li className="text-muted-foreground">
-            It sees only what you can see, and you can disconnect it at any time
-            in Settings.
-          </li>
-        </ul>
-
-        <fieldset className="mb-6">
-          <legend className="mb-2 text-sm font-medium">Which workspace?</legend>
-          <div className="space-y-2">
-            {memberships.map((membership) => (
-              <label
-                key={membership.id}
-                className="flex cursor-pointer items-center gap-3 rounded-md border p-3"
-              >
-                <input
-                  type="radio"
-                  name="workspace"
-                  value={membership.id}
-                  checked={selected === membership.id}
-                  onChange={() => setSelected(membership.id)}
-                />
-                <WorkspaceAvatar workspace={membership} />
-                <span className="text-sm">{membership.name}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        {error ? (
-          <p role="alert" className="mb-4 text-sm text-red-600">
-            {error}
+        <div className="rounded-2xl border border-[#dce3de] bg-white p-6 shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:border-dark-border dark:bg-dark-elevated sm:p-8">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#0b7a55]">
+            Authorize access
           </p>
-        ) : null}
 
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={deny}
-            disabled={submitting || !client}
-            className="flex-1 rounded-md border px-4 py-2 text-sm disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={approve}
-            disabled={!selected || submitting || !client}
-            className="bg-primary text-primary-foreground flex-1 rounded-md px-4 py-2 text-sm disabled:opacity-50"
-          >
-            {submitting ? "Connecting…" : "Connect"}
-          </button>
+          <h1 className="mt-3 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">
+            Connect {name}
+          </h1>
+
+          <p className="mt-3 text-[#65736d] dark:text-dark-text-secondary">
+            {/* The host is the verifiable half of the identity, so it is stated
+                rather than tucked into a tooltip. */}
+            <span className="font-medium text-[#10211b] dark:text-dark-text-primary">
+              {host}
+            </span>{" "}
+            is requesting access to your WhatsApp inbox
+            {user?.email ? (
+              <>
+                {" as "}
+                <span className="font-medium text-[#10211b] dark:text-dark-text-primary">
+                  {user.email}
+                </span>
+              </>
+            ) : null}
+            .
+          </p>
+
+          <ul className="mt-6 space-y-3">
+            <li className="flex gap-3">
+              <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#edf1ed] text-[#315348] dark:bg-dark-tertiary dark:text-emerald-200">
+                <Eye className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <span className="text-sm">
+                <span className="block font-medium">
+                  Read your conversations
+                </span>
+                <span className="text-[#65736d] dark:text-dark-text-secondary">
+                  Messages, contacts and notes
+                </span>
+              </span>
+            </li>
+
+            {canWrite ? (
+              <li className="flex gap-3">
+                <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#fdeeda] text-[#8a5300] dark:bg-amber-500/15 dark:text-amber-200">
+                  <Send className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="text-sm">
+                  <span className="block font-medium">
+                    Send messages as you
+                  </span>
+                  <span className="text-[#65736d] dark:text-dark-text-secondary">
+                    Replies go out from your WhatsApp number
+                  </span>
+                </span>
+              </li>
+            ) : null}
+
+            <li className="flex gap-3">
+              <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#edf1ed] text-[#315348] dark:bg-dark-tertiary dark:text-emerald-200">
+                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <span className="text-sm">
+                <span className="block font-medium">
+                  Never more than you can see
+                </span>
+                <span className="text-[#65736d] dark:text-dark-text-secondary">
+                  Disconnect any time in Settings
+                </span>
+              </span>
+            </li>
+          </ul>
+
+          <fieldset className="mt-7">
+            <legend className="text-sm font-semibold">
+              {memberships.length === 1
+                ? "Workspace"
+                : "Which workspace should it use?"}
+            </legend>
+
+            <div className="mt-3 grid gap-2">
+              {memberships.map((workspace) => {
+                const active = selected === workspace.id;
+                return (
+                  <label
+                    key={workspace.id}
+                    className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all ${
+                      active
+                        ? "border-[#0b7a55] bg-[#f2fbf7] dark:border-emerald-400 dark:bg-emerald-500/10"
+                        : "border-[#dce3de] hover:border-[#9bcab8] dark:border-dark-border"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="workspace"
+                      value={workspace.id}
+                      checked={active}
+                      onChange={() => setSelected(workspace.id)}
+                      className="sr-only"
+                    />
+                    {/* Sized explicitly: WorkspaceAvatar has no intrinsic
+                        dimensions, so without this a workspace logo renders at
+                        its natural size and tears the card apart. */}
+                    <WorkspaceAvatar
+                      workspace={workspace}
+                      className="h-10 w-10 rounded-lg text-xs"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">
+                        {workspace.name}
+                      </span>
+                      <span className="block text-xs capitalize text-[#65736d] dark:text-dark-text-secondary">
+                        {workspace.role}
+                      </span>
+                    </span>
+                    <span
+                      className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors ${
+                        active
+                          ? "border-[#0b7a55] bg-[#0b7a55] text-white dark:border-emerald-400 dark:bg-emerald-400"
+                          : "border-[#c4d0ca] dark:border-dark-border"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      {active ? <Check className="h-3 w-3" /> : null}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          {error ? (
+            <p
+              role="alert"
+              className="mt-5 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300"
+            >
+              {error}
+            </p>
+          ) : null}
+
+          <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => void submit("deny")}
+              disabled={busy || !client}
+              className="flex-1 rounded-xl border border-[#dce3de] px-4 py-2.5 text-sm font-medium transition-colors hover:bg-[#f5f7f4] disabled:opacity-50 dark:border-dark-border dark:hover:bg-dark-tertiary"
+            >
+              {submitting === "deny" ? "Cancelling…" : "Cancel"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void submit("approve")}
+              disabled={busy || !selected || !client}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0b7a55] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_1px_2px_rgba(16,33,27,.06)] transition-colors hover:bg-[#096544] disabled:opacity-50"
+            >
+              {submitting === "approve" ? (
+                <>
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                  Connecting…
+                </>
+              ) : (
+                `Connect ${name}`
+              )}
+            </button>
+          </div>
         </div>
+
+        <p className="mt-5 text-center text-xs text-[#65736d] dark:text-dark-text-secondary">
+          You will be returned to {host} after connecting.
+        </p>
       </div>
-    </div>
+    </main>
   );
 }
