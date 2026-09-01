@@ -1,3 +1,4 @@
+import { MCP_SERVER_VERSION } from "./version.js";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Hono } from "hono";
@@ -38,17 +39,6 @@ const ALL_TOOLS: McpToolDefinition[] = [...readTools, ...writeTools];
  * each tool call. Statelessness keeps every exchange a short POST, which
  * is required behind the cloud gateway's 90s upstream timeout.
  */
-/**
- * Advertised to clients in the initialize response.
- *
- * Bump this whenever the tool surface changes. Clients cache the tool list, and
- * at least one keeps serving a stale one after a reconnect and a fresh
- * authorization - a version that never moves gives them no reason to refetch.
- * mcp-server-version.test.ts fails when the tools change without this changing,
- * so it cannot be forgotten silently.
- */
-export const MCP_SERVER_VERSION = "1.1.0";
-
 mcpRoutes.post("/", mcpRateLimiter, async (c) => {
   const scopes = c.get("apiToken").scopes;
 

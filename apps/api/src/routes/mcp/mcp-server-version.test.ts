@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MCP_SERVER_VERSION } from "./index.js";
+import { MCP_SERVER_VERSION } from "./version.js";
 import { readTools } from "./tools/read.js";
 import { writeTools } from "./tools/write.js";
 
