@@ -37,9 +37,14 @@ const logger = createLogger("OAuth");
 
 export const oauthRoutes = new Hono();
 
+/** This authorization server's issuer identifier. */
+export function issuer(): string {
+  return env.APP_URL.replace(/\/$/, "");
+}
+
 /** The canonical MCP resource, and the only audience this server will issue for. */
 export function canonicalResource(): string {
-  return `${env.APP_URL.replace(/\/$/, "")}/api/mcp`;
+  return `${issuer()}/api/mcp`;
 }
 
 const authorizeQuerySchema = z.object({
@@ -185,9 +190,50 @@ oauthRoutes.post(
     if (body.state) redirect.searchParams.set("state", body.state);
     // RFC 9207: clients must be able to tell which authorization server
     // answered, so they can detect a mix-up attack.
-    redirect.searchParams.set("iss", env.APP_URL.replace(/\/$/, ""));
+    redirect.searchParams.set("iss", issuer());
 
     return c.json({ redirectTo: redirect.toString() });
+  },
+);
+
+/**
+ * What the consent screen needs to render: who is asking, and for what.
+ *
+ * Separate from POST /authorize so the screen can show the client's real name
+ * rather than a bare URL, and so an unresolvable client fails before the user
+ * is asked to approve anything.
+ */
+oauthRoutes.get(
+  "/client-info",
+  authMiddleware,
+  zValidator(
+    "query",
+    z.object({
+      client_id: z.string().min(1),
+      scope: z.string().max(256).optional(),
+    }),
+  ),
+  async (c) => {
+    const { client_id, scope } = c.req.valid("query");
+    try {
+      const client = await resolveOAuthClient(client_id);
+      return c.json({
+        clientId: client.clientId,
+        clientName: client.clientName,
+        scopes: parseScopes(scope),
+      });
+    } catch (error) {
+      if (error instanceof OAuthClientError || error instanceof OAuthError) {
+        return c.json(
+          {
+            error: error instanceof OAuthError ? error.code : "invalid_client",
+            error_description: error.message,
+          },
+          400,
+        );
+      }
+      throw error;
+    }
   },
 );
 
