@@ -31,6 +31,7 @@ import { FeedbackSettings } from "../components/feedback";
 import {
   AccountSettings,
   ApiTokensSection,
+  ConnectedAppsSection,
   CatalogManager,
   LabelSyncManager,
   LanguageSwitcher,
@@ -430,7 +431,10 @@ function SettingsSectionContent({
             "Connect AI agents to this workspace through the MCP endpoint with personal, revocable tokens.",
           )}
         >
-          <ApiTokensSection key={workspaceId} />
+          <div className="space-y-8">
+            <ConnectedAppsSection key={`apps-${workspaceId}`} />
+            <ApiTokensSection key={workspaceId} />
+          </div>
         </Panel>
       );
     case "notifications":

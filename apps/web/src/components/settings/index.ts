@@ -1,5 +1,6 @@
 export { AccountSettings } from "./AccountSettings";
 export { ApiTokensSection } from "./ApiTokensSection";
+export { ConnectedAppsSection } from "./ConnectedAppsSection";
 export { CatalogManager } from "./CatalogManager";
 
 export {

@@ -115,9 +115,10 @@ apiTokenRoutes.delete(
  * and tenant scoping apply unchanged.
  */
 apiTokenRoutes.get("/connected-apps", async (c) => {
-  const { companyId, user, permissions } = getRouteContext(c);
+  const { companyId, user, role } = getRouteContext(c);
   const apps = await listConnectedApps(companyId, {
-    userId: permissions.can_view_all_chats ? undefined : user.id,
+    requesterId: user.id,
+    isAdmin: role === "owner" || role === "admin",
   });
   return successData(c, apps);
 });

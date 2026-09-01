@@ -7,6 +7,7 @@ import { fetchWithAuth, buildQueryString } from "./client.js";
 import type {
   ApiToken,
   ApiTokenWithSecret,
+  ConnectedApp,
   CreateApiTokenInput,
 } from "./types.js";
 
@@ -30,4 +31,15 @@ export async function revokeApiToken(tokenId: string): Promise<void> {
   await fetchWithAuth<{ message: string }>(`/api-tokens/${tokenId}`, {
     method: "DELETE",
   });
+}
+
+export async function getConnectedApps(): Promise<ConnectedApp[]> {
+  return fetchWithAuth<ConnectedApp[]>("/api-tokens/connected-apps");
+}
+
+export async function disconnectApp(grantId: string): Promise<void> {
+  await fetchWithAuth<{ message: string }>(
+    `/api-tokens/connected-apps/${grantId}`,
+    { method: "DELETE" },
+  );
 }
