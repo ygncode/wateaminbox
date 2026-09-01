@@ -75,8 +75,10 @@ export interface WhatsAppEvent {
   contractVersion: 1;
   type:
     | "qr"
+    | "paired"
     | "connected"
     | "disconnected"
+    | "logged_out"
     | "message"
     | "receipt"
     | "send_confirmation"
