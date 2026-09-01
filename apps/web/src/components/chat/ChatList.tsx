@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Check, Smartphone, Tags, UserPlus, X } from "lucide-react";
+import { ArrowRight, Check, Smartphone, Tags, UserPlus, X } from "lucide-react";
 import {
   memo,
   useCallback,
@@ -9,6 +9,9 @@ import {
   useState,
   type WheelEvent,
 } from "react";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
+import { useWorkspace } from "../../contexts/workspace-context";
 import { type Tag, useTags } from "../../hooks/contact/useContactTags";
 import { useDebounce } from "../../hooks/ui";
 import {
@@ -18,6 +21,7 @@ import {
 } from "../../hooks/useChats";
 import { usePrefetchContact } from "../../hooks/usePrefetch";
 import { useWhatsAppConnections } from "../../hooks/useWhatsAppConnections";
+import { workspacePath } from "../../lib/workspace-routes";
 import type { ChatListProps } from "../../types/chat";
 import { AddContactDialog } from "../contacts/AddContactDialog";
 import { TagSearchInput } from "../tags/TagSearchInput";
@@ -29,15 +33,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import { ChatListItem, ChatListItemSkeleton } from "./ChatListItem";
+import { ChatListSearch } from "./ChatListSearch";
+import { getConnectionLabel } from "./ConnectionIdentity";
 import {
   CONVERSATION_STATUS_OPTIONS,
   readChatListFilters,
   writeChatListFilters,
 } from "./chat-list-filters";
-import { ChatListItem, ChatListItemSkeleton } from "./ChatListItem";
-import { ChatListSearch } from "./ChatListSearch";
-import { getConnectionLabel } from "./ConnectionIdentity";
-import { useTranslation } from "react-i18next";
+import { resolveInboxConnectionState } from "./inbox-connection-state";
 
 // Fixed height for chat list items for virtualization
 const CHAT_ITEM_HEIGHT = 76;
@@ -53,6 +57,7 @@ export const ChatList = memo(function ChatList({
   className = "",
 }: ChatListProps) {
   const { t } = useTranslation();
+  const { activeWorkspace, can } = useWorkspace();
 
   const [searchQuery, setSearchQuery] = useState("");
   // Restored once on mount so a refresh lands back on the view the user left.
@@ -76,7 +81,11 @@ export const ChatList = memo(function ChatList({
     limit: 100,
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const { connections } = useWhatsAppConnections();
+  const {
+    connections,
+    isLoading: areConnectionsLoading,
+    isError: areConnectionsUnavailable,
+  } = useWhatsAppConnections();
 
   useEffect(() => {
     if (
@@ -150,6 +159,13 @@ export const ChatList = memo(function ChatList({
   const visibleChats = useMemo(() => {
     return chats?.filter((chat) => !chat.isArchived) ?? [];
   }, [chats]);
+  const connectionState = resolveInboxConnectionState({
+    connections,
+    isLoading: areConnectionsLoading,
+    isError: areConnectionsUnavailable,
+  });
+  const isFirstRun =
+    connectionState === "no-connections" && visibleChats.length === 0;
 
   // Memoize getItemKey to prevent unnecessary re-renders
   const getItemKey = useCallback(
@@ -173,7 +189,13 @@ export const ChatList = memo(function ChatList({
       aria-label={t("chat.chatListAria", "Chat list")}
     >
       {/* Search */}
-      <div className="px-3 py-2 bg-white dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border">
+      <div
+        className={
+          isFirstRun
+            ? "hidden"
+            : "border-b border-gray-200 bg-white px-3 py-2 dark:border-dark-border dark:bg-dark-secondary"
+        }
+      >
         <ChatListSearch
           value={searchQuery}
           onChange={handleSearchChange}
@@ -226,7 +248,13 @@ export const ChatList = memo(function ChatList({
       {/* Conversation lifecycle filters - All leads and is where a first-time
           user starts, then the lifecycle narrows through Open/Pending/Resolved
           (see chat-list-filters.ts). Resolved chats stay browsable. */}
-      <div className="flex items-center border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary">
+      <div
+        className={
+          isFirstRun
+            ? "hidden"
+            : "flex items-center border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary"
+        }
+      >
         <div
           className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain px-2 py-1.5 [scrollbar-width:thin]"
           aria-label={t("chat.statusFilters", "Conversation status filters")}
@@ -437,7 +465,13 @@ export const ChatList = memo(function ChatList({
       </div>
 
       {/* Assignment filters remain horizontally reachable at narrow widths. */}
-      <div className="flex items-center border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary">
+      <div
+        className={
+          isFirstRun
+            ? "hidden"
+            : "flex items-center border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary"
+        }
+      >
         <div
           className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain px-2 py-1.5 [scrollbar-width:thin]"
           aria-label={t("chat.conversationFilters", "Conversation filters")}
@@ -490,15 +524,17 @@ export const ChatList = memo(function ChatList({
         </div>
 
         {/* Keep the primary action visible while the filters scroll. */}
-        <button
-          type="button"
-          onClick={() => setIsAddContactOpen(true)}
-          className="mr-1 flex-shrink-0 rounded-full p-1.5 text-whatsapp-teal-green transition-colors hover:bg-whatsapp-teal-green/10 dark:hover:bg-whatsapp-teal-green/20"
-          aria-label={t("contacts.addNew", "Add new contact")}
-          data-testid="add-contact-button"
-        >
-          <UserPlus className="h-4 w-4" aria-hidden="true" />
-        </button>
+        {connectionState !== "no-connections" && (
+          <button
+            type="button"
+            onClick={() => setIsAddContactOpen(true)}
+            className="mr-1 flex-shrink-0 rounded-full p-1.5 text-whatsapp-teal-green transition-colors hover:bg-whatsapp-teal-green/10 dark:hover:bg-whatsapp-teal-green/20"
+            aria-label={t("contacts.addNew", "Add new contact")}
+            data-testid="add-contact-button"
+          >
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       {/* Add Contact Dialog */}
@@ -514,16 +550,18 @@ export const ChatList = memo(function ChatList({
         role="listbox"
         aria-label={t("chat.conversations", "Conversations")}
         aria-live="polite"
-        aria-busy={isLoading}
+        aria-busy={isLoading || connectionState === "loading"}
       >
         {/* Loading State */}
-        {isLoading && (
-          <div className="divide-y divide-gray-100 dark:divide-dark-border">
-            {Array.from({ length: 8 }).map((_, index) => (
-              <ChatListItemSkeleton key={index} />
-            ))}
-          </div>
-        )}
+        {!isError &&
+          visibleChats.length === 0 &&
+          (isLoading || connectionState === "loading") && (
+            <div className="divide-y divide-gray-100 dark:divide-dark-border">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <ChatListItemSkeleton key={index} />
+              ))}
+            </div>
+          )}
 
         {/* Error State */}
         {isError && (
@@ -609,9 +647,110 @@ export const ChatList = memo(function ChatList({
             </div>
           )}
 
+        {/* First-run state - WhatsApp has not been linked yet. This is also
+            the primary mobile onboarding surface, where the main pane is not
+            visible until a conversation is selected. */}
+        {!isLoading &&
+          !isError &&
+          isFirstRun &&
+          !searchQuery &&
+          selectedTags.length === 0 && (
+            <div className="flex h-full flex-col px-5 py-7 text-left sm:px-6">
+              <div className="flex items-center gap-3">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e5f2ec] text-[#14795e] ring-1 ring-[#d2e5dc] dark:bg-[#00a884]/10 dark:text-[#4dd1af] dark:ring-white/[0.07]">
+                  <Smartphone
+                    className="size-5"
+                    strokeWidth={1.6}
+                    aria-hidden="true"
+                  />
+                </span>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#168264] dark:text-[#4dd1af]">
+                    {t("chat.sidebarSetupLabel", "Inbox setup")}
+                  </p>
+                  <p className="mt-0.5 text-xs font-medium text-[#73847d] dark:text-dark-text-tertiary">
+                    {t("chat.oneStepRemaining", "One step remaining")}
+                  </p>
+                </div>
+              </div>
+
+              <h2 className="mt-7 text-xl font-semibold leading-tight tracking-[-0.025em] text-[#243e35] dark:text-dark-text-primary">
+                {t("chat.sidebarSetupTitle", "Your inbox is almost ready")}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-[#6b7b75] dark:text-dark-text-secondary">
+                {can("can_manage_connections")
+                  ? t(
+                      "chat.connectWhatsappSidebarHint",
+                      "Connect one WhatsApp account and conversations will begin appearing here automatically.",
+                    )
+                  : t(
+                      "chat.askAdminToConnectShort",
+                      "Ask a workspace owner or admin to connect a WhatsApp account.",
+                    )}
+              </p>
+
+              <div className="mt-7 rounded-2xl border border-[#dbe6e1] bg-[#f8fbf9] p-4 dark:border-white/[0.08] dark:bg-white/[0.025]">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#14795e] text-xs font-bold text-white shadow-sm dark:bg-[#20b68e] dark:text-[#071b16]">
+                    1
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#304d43] dark:text-[#d0e1db]">
+                      {t(
+                        "chat.sidebarConnectStep",
+                        "Connect a WhatsApp account",
+                      )}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-[#7a8983] dark:text-dark-text-tertiary">
+                      {t(
+                        "chat.sidebarConnectStepHint",
+                        "Pair securely by scanning a QR code",
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <div className="ml-3.5 h-5 border-l border-dashed border-[#bfd2c9] dark:border-white/15" />
+                <div className="flex items-center gap-3 opacity-55">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full border border-[#cfdcd6] bg-white text-xs font-semibold text-[#7c8d86] dark:border-white/10 dark:bg-white/[0.04] dark:text-[#91a79f]">
+                    2
+                  </span>
+                  <p className="text-xs font-medium text-[#60736b] dark:text-[#9db2aa]">
+                    {t(
+                      "chat.sidebarReadyStep",
+                      "Chats and groups sync automatically",
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {can("can_manage_connections") && activeWorkspace && (
+                <Link
+                  to={workspacePath(
+                    activeWorkspace.id,
+                    "settings",
+                    "connections",
+                  )}
+                  className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#14795e] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#0f684f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 dark:bg-[#20b68e] dark:text-[#071b16] dark:hover:bg-[#35c59e] dark:focus-visible:ring-offset-dark-secondary md:hidden"
+                >
+                  {t("chat.connectWhatsapp", "Connect WhatsApp")}
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+              )}
+
+              <p className="mt-auto hidden border-t border-[#e3eae6] pt-5 text-xs leading-5 text-[#86948f] dark:border-white/[0.07] dark:text-dark-text-tertiary md:block">
+                {t(
+                  "chat.sidebarContinueHint",
+                  "Continue setup in the main panel. It usually takes about a minute.",
+                )}
+              </p>
+            </div>
+          )}
+
         {/* Empty State - No Unread Chats */}
         {!isLoading &&
           !isError &&
+          !isFirstRun &&
+          connectionState !== "loading" &&
           visibleChats.length === 0 &&
           !searchQuery &&
           selectedTags.length === 0 &&
@@ -642,6 +781,8 @@ export const ChatList = memo(function ChatList({
         {/* Empty State - No Chats */}
         {!isLoading &&
           !isError &&
+          !isFirstRun &&
+          connectionState !== "loading" &&
           visibleChats.length === 0 &&
           !searchQuery &&
           selectedTags.length === 0 &&
