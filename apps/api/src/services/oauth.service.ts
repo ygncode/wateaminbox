@@ -11,6 +11,8 @@
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { db } from "@wateaminbox/database";
+import type { Database } from "@wateaminbox/database";
+import type { Transaction } from "kysely";
 import type { ApiTokenScope } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
 import { API_TOKEN_PREFIX } from "./api-token.service.js";
@@ -115,6 +117,7 @@ export interface IssuedTokens {
  * `verifyApiToken` finds it with no changes.
  */
 async function issueTokens(
+  trx: Transaction<Database>,
   grantId: string,
   userId: string,
   companyId: string,
@@ -125,7 +128,7 @@ async function issueTokens(
   const refreshToken = `${API_TOKEN_PREFIX}${randomSecret()}`;
   const now = toDbDate();
 
-  await db
+  await trx
     .insertInto("api_tokens")
     .values({
       user_id: userId,
@@ -163,6 +166,34 @@ function verifyPkce(verifier: string, challenge: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+/**
+ * Share-lock the membership behind a grant.
+ *
+ * Removal takes the same rows, so this serialises the two: if issuance wins,
+ * removal waits and then revokes what was issued; if removal wins, issuance
+ * fails. Without it a code approved before removal could be exchanged after,
+ * minting a fresh grant and a refresh chain that survives until reinvitation.
+ */
+async function requireActiveMembership(
+  trx: Transaction<Database>,
+  companyId: string,
+  userId: string,
+): Promise<void> {
+  const membership = await trx
+    .selectFrom("company_members")
+    .select("id")
+    .where("company_id", "=", companyId)
+    .where("user_id", "=", userId)
+    .forShare()
+    .executeTakeFirst();
+  if (!membership) {
+    throw new OAuthError(
+      "invalid_grant",
+      "Workspace membership is no longer active",
+    );
+  }
+}
+
 export interface ExchangeCodeInput {
   code: string;
   clientId: string;
@@ -183,18 +214,17 @@ export async function exchangeAuthorizationCode(
 ): Promise<IssuedTokens> {
   const codeHash = sha256(input.code);
 
-  const claimed = await db.transaction().execute(async (trx) => {
+  return db.transaction().execute(async (trx) => {
     const row = await trx
       .selectFrom("oauth_authorization_codes")
       .selectAll()
       .where("code_hash", "=", codeHash)
       .forUpdate()
       .executeTakeFirst();
-    if (!row) return null;
-
-    // A code presented twice is an attack signal rather than a retry, but the
-    // grant it created is not yet known here, so the safe response is simply to
-    // refuse; the code stays consumed.
+    if (!row) {
+      throw new OAuthError("invalid_grant", "Unknown authorization code");
+    }
+    // A code presented twice is an attack signal rather than a retry.
     if (row.consumed_at) {
       throw new OAuthError("invalid_grant", "Authorization code already used");
     }
@@ -226,37 +256,39 @@ export async function exchangeAuthorizationCode(
       throw new OAuthError("invalid_grant", "PKCE verification failed");
     }
 
+    // Everything from here - the membership check, consuming the code, the
+    // grant and the tokens - is one atomic unit. Approving before a removal and
+    // exchanging after it would otherwise mint a working refresh chain for
+    // someone who is no longer a member.
+    await requireActiveMembership(trx, row.company_id, row.user_id);
+
     await trx
       .updateTable("oauth_authorization_codes")
       .set({ consumed_at: toDbDate() })
       .where("id", "=", row.id)
       .execute();
-    return row;
+
+    const grant = await trx
+      .insertInto("oauth_grants")
+      .values({
+        user_id: row.user_id,
+        company_id: row.company_id,
+        client_id: row.client_id,
+        scopes: row.scopes,
+        resource: row.resource,
+      })
+      .returning("id")
+      .executeTakeFirstOrThrow();
+
+    return issueTokens(
+      trx,
+      grant.id,
+      row.user_id,
+      row.company_id,
+      row.scopes,
+      input.clientName,
+    );
   });
-
-  if (!claimed) {
-    throw new OAuthError("invalid_grant", "Unknown authorization code");
-  }
-
-  const grant = await db
-    .insertInto("oauth_grants")
-    .values({
-      user_id: claimed.user_id,
-      company_id: claimed.company_id,
-      client_id: claimed.client_id,
-      scopes: claimed.scopes,
-      resource: claimed.resource,
-    })
-    .returning("id")
-    .executeTakeFirstOrThrow();
-
-  return issueTokens(
-    grant.id,
-    claimed.user_id,
-    claimed.company_id,
-    claimed.scopes,
-    input.clientName,
-  );
 }
 
 /** Revoke a grant and every token issued under it. */
@@ -362,35 +394,50 @@ export async function refreshTokens(
     );
   }
 
-  // Claim the rotation. The guard on refresh_used_at makes two concurrent
-  // refreshes resolve to one winner rather than two valid chains.
-  const claimed = await db
-    .updateTable("api_tokens")
-    .set({ refresh_used_at: toDbDate() })
-    .where("id", "=", existing.token_id)
-    .where("refresh_used_at", "is", null)
-    .executeTakeFirst();
-  if (!claimed || Number(claimed.numUpdatedRows) === 0) {
+  const rotated = await db.transaction().execute(async (trx) => {
+    // Same reasoning as the code exchange: a refresh racing a membership
+    // removal must not be able to extend the chain past the boundary.
+    await requireActiveMembership(trx, existing.company_id, existing.user_id);
+
+    // Claim the rotation. The guard on refresh_used_at makes two concurrent
+    // refreshes resolve to one winner rather than two valid chains.
+    const claimed = await trx
+      .updateTable("api_tokens")
+      .set({ refresh_used_at: toDbDate() })
+      .where("id", "=", existing.token_id)
+      .where("refresh_used_at", "is", null)
+      .executeTakeFirst();
+    if (!claimed || Number(claimed.numUpdatedRows) === 0) {
+      return null;
+    }
+
+    await trx
+      .updateTable("oauth_grants")
+      .set({ last_used_at: toDbDate() })
+      .where("id", "=", existing.grant_id)
+      .execute();
+
+    return issueTokens(
+      trx,
+      existing.grant_id,
+      existing.user_id,
+      existing.company_id,
+      existing.scopes,
+      input.clientName,
+    );
+  });
+
+  // Losing the claim means another request already spent this refresh token,
+  // which is the reuse signal. Revoking happens outside the rolled-back-free
+  // path so it is not undone by the transaction that observed the loss.
+  if (!rotated) {
     await revokeGrant(existing.grant_id, "refresh_token_reuse");
     throw new OAuthError(
       "invalid_grant",
       "Refresh token has already been used; this authorization has been revoked",
     );
   }
-
-  await db
-    .updateTable("oauth_grants")
-    .set({ last_used_at: toDbDate() })
-    .where("id", "=", existing.grant_id)
-    .execute();
-
-  return issueTokens(
-    existing.grant_id,
-    existing.user_id,
-    existing.company_id,
-    existing.scopes,
-    input.clientName,
-  );
+  return rotated;
 }
 
 export interface ConnectedApp {
