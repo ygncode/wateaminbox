@@ -16,6 +16,8 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 import { env } from "../lib/env.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -36,6 +38,21 @@ import * as companyService from "../services/company.service.js";
 const logger = createLogger("OAuth");
 
 export const oauthRoutes = new Hono();
+
+/**
+ * The authorize and token endpoints are reachable by anyone who can reach the
+ * host, so they carry their own limit rather than relying on the global one.
+ * A real connector authorizes once and refreshes hourly.
+ */
+const oauthRateLimiter = createConditionalRateLimiter(
+  {
+    store: rateLimitStore,
+    tier: rateLimitConfig.tiers.resource.oauth,
+    keyStrategy: "ip",
+    keyPrefix: "resource-oauth",
+  },
+  rateLimitConfig.enabled,
+);
 
 /** This authorization server's issuer identifier. */
 export function issuer(): string {
@@ -92,6 +109,7 @@ async function validateAuthorizeRequest(query: AuthorizeQuery) {
  */
 oauthRoutes.get(
   "/authorize",
+  oauthRateLimiter,
   zValidator("query", authorizeQuerySchema, (result, c) => {
     if (!result.success) {
       return c.json(
@@ -140,6 +158,7 @@ const approveSchema = authorizeQuerySchema.extend({
  */
 oauthRoutes.post(
   "/authorize",
+  oauthRateLimiter,
   authMiddleware,
   zValidator("json", approveSchema),
   async (c) => {
@@ -259,7 +278,7 @@ const tokenSchema = z.union([
  * Token endpoint. Accepts form encoding, which is what OAuth clients send and a
  * common source of 415s when a server assumes JSON.
  */
-oauthRoutes.post("/token", async (c) => {
+oauthRoutes.post("/token", oauthRateLimiter, async (c) => {
   const contentType = c.req.header("content-type") ?? "";
   if (!contentType.includes("application/x-www-form-urlencoded")) {
     return c.json(

@@ -1,4 +1,4 @@
-import { issuer } from "../routes/oauth.js";
+import { canonicalResource, issuer } from "../routes/oauth.js";
 import type { ApiTokenScope } from "@wateaminbox/database";
 import { Context, Next } from "hono";
 import {
@@ -54,6 +54,15 @@ export const mcpAuthMiddleware = async (c: Context, next: Next) => {
   const verified = await verifyApiToken(token);
   if (!verified) {
     return unauthorized(c, "Invalid, expired, or revoked API token");
+  }
+
+  // RFC 8707 audience binding. An OAuth token carries the resource it was
+  // authorized for, and this server must refuse anything issued for a
+  // different one - that is the control that stops a token obtained for
+  // another resource being replayed here by a confused deputy. A personal
+  // token has no resource because a person made it for this server directly.
+  if (verified.resource !== null && verified.resource !== canonicalResource()) {
+    return unauthorized(c, "This token was not issued for this MCP server");
   }
 
   const user = await getUserById(verified.userId);

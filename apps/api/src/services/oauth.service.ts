@@ -384,3 +384,81 @@ export async function refreshTokens(
     input.clientName,
   );
 }
+
+export interface ConnectedApp {
+  grantId: string;
+  clientId: string;
+  clientName: string | null;
+  scopes: ApiTokenScope[];
+  createdAt: Date;
+  lastUsedAt: Date | null;
+}
+
+/**
+ * Connectors currently authorized against a workspace.
+ *
+ * Scoped to the caller unless they can see everything: a grant carries the
+ * authorizing member's own access, so listing another member's connectors is
+ * the same disclosure as listing their tokens.
+ */
+export async function listConnectedApps(
+  companyId: string,
+  options: { userId?: string } = {},
+): Promise<ConnectedApp[]> {
+  let query = db
+    .selectFrom("oauth_grants")
+    .leftJoin(
+      "oauth_clients",
+      "oauth_clients.client_id",
+      "oauth_grants.client_id",
+    )
+    .select([
+      "oauth_grants.id as id",
+      "oauth_grants.client_id as client_id",
+      "oauth_clients.client_name as client_name",
+      "oauth_grants.scopes as scopes",
+      "oauth_grants.created_at as created_at",
+      "oauth_grants.last_used_at as last_used_at",
+    ])
+    .where("oauth_grants.company_id", "=", companyId)
+    .where("oauth_grants.revoked_at", "is", null)
+    .orderBy("oauth_grants.created_at", "desc");
+  if (options.userId) {
+    query = query.where("oauth_grants.user_id", "=", options.userId);
+  }
+  const rows = await query.execute();
+  return rows.map((row) => ({
+    grantId: row.id,
+    clientId: row.client_id,
+    clientName: row.client_name,
+    scopes: row.scopes,
+    createdAt: row.created_at,
+    lastUsedAt: row.last_used_at,
+  }));
+}
+
+/**
+ * Disconnect a connector. Returns false when the grant is not visible to the
+ * requester, which is deliberately indistinguishable from it not existing.
+ */
+export async function revokeConnectedApp(input: {
+  grantId: string;
+  companyId: string;
+  requesterId: string;
+  isAdmin: boolean;
+}): Promise<boolean> {
+  let query = db
+    .selectFrom("oauth_grants")
+    .select("id")
+    .where("id", "=", input.grantId)
+    .where("company_id", "=", input.companyId)
+    .where("revoked_at", "is", null);
+  if (!input.isAdmin) {
+    query = query.where("user_id", "=", input.requesterId);
+  }
+  const grant = await query.executeTakeFirst();
+  if (!grant) return false;
+
+  await revokeGrant(grant.id, "user_revoked");
+  return true;
+}

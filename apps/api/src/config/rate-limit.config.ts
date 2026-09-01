@@ -84,6 +84,7 @@ export interface RateLimitConfig {
       import: RateLimitTier;
       analytics: RateLimitTier;
       mcp: RateLimitTier;
+      oauth: RateLimitTier;
     };
     messaging: {
       send: RateLimitTier;
@@ -296,6 +297,20 @@ export function getRateLimitConfig(): RateLimitConfig {
             60,
           ),
         },
+        // The OAuth endpoints are unauthenticated and hit by anyone who can
+        // reach the host, so they are limited more tightly than an
+        // authenticated resource. A real connector performs one authorization
+        // and then refreshes hourly.
+        oauth: {
+          requests: getDefaultRequests(
+            process.env.RATE_LIMIT_RESOURCE_OAUTH_REQUESTS,
+            20,
+          ),
+          windowSeconds: parsePositiveInt(
+            process.env.RATE_LIMIT_RESOURCE_OAUTH_WINDOW_SECONDS,
+            60,
+          ),
+        },
       },
       messaging: {
         send: {
@@ -452,6 +467,10 @@ export const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
       },
       mcp: {
         requests: 60,
+        windowSeconds: 60,
+      },
+      oauth: {
+        requests: 20,
         windowSeconds: 60,
       },
     },

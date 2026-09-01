@@ -5,11 +5,13 @@ import { app } from "../app.js";
 import {
   createAuthorizationCode,
   exchangeAuthorizationCode,
+  listConnectedApps,
   OAuthError,
   refreshTokens,
+  revokeConnectedApp,
   revokeGrant,
 } from "./oauth.service.js";
-import { verifyApiToken } from "./api-token.service.js";
+import { createApiToken, verifyApiToken } from "./api-token.service.js";
 import { getSchemaName } from "./tenant.service.js";
 
 const integrationTest =
@@ -346,6 +348,148 @@ describe("the MCP 401 challenge covers rejected tokens", () => {
         expect(response.headers.get("WWW-Authenticate")).toContain(
           "resource_metadata=",
         );
+      }),
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("audience binding", () => {
+  integrationTest(
+    "a token records the resource its grant was authorized for",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        const { verifier, challenge } = pkcePair();
+        const tokens = await exchange(
+          await issueCode(userId, companyId, challenge),
+          verifier,
+        );
+
+        // The MCP endpoint compares this against its own canonical resource and
+        // refuses a mismatch. Without the resource surfacing here there is
+        // nothing to compare, so a token minted for another resource would be
+        // accepted - the confused-deputy case RFC 8707 exists to prevent.
+        const verified = await verifyApiToken(tokens.accessToken);
+        expect(verified?.resource).toBe(RESOURCE);
+      }),
+    TEST_TIMEOUT_MS,
+  );
+
+  integrationTest(
+    "a personal token has no resource and stays unrestricted",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        const { token } = await createApiToken({
+          userId,
+          companyId,
+          name: "personal",
+          scopes: ["read"],
+        });
+        // Hand-made tokens are not audience-scoped: a person created this for
+        // this server directly, so there is nothing to bind.
+        const verified = await verifyApiToken(token);
+        expect(verified?.resource).toBeNull();
+      }),
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("connected apps", () => {
+  integrationTest(
+    "lists a grant and disconnects it",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        const { verifier, challenge } = pkcePair();
+        const tokens = await exchange(
+          await issueCode(userId, companyId, challenge),
+          verifier,
+        );
+
+        const listed = await listConnectedApps(companyId, { userId });
+        expect(listed).toHaveLength(1);
+        expect(listed[0].clientName).toBe("ChatGPT");
+        expect(listed[0].scopes).toEqual(["read", "write"]);
+
+        const revoked = await revokeConnectedApp({
+          grantId: listed[0].grantId,
+          companyId,
+          requesterId: userId,
+          isAdmin: false,
+        });
+        expect(revoked).toBe(true);
+
+        // Disconnecting must kill the live token, not merely hide the entry.
+        expect(await verifyApiToken(tokens.accessToken)).toBeNull();
+        expect(await listConnectedApps(companyId, { userId })).toHaveLength(0);
+      }),
+    TEST_TIMEOUT_MS,
+  );
+
+  integrationTest(
+    "will not disconnect another member's grant",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        const { verifier, challenge } = pkcePair();
+        await exchange(await issueCode(userId, companyId, challenge), verifier);
+        const listed = await listConnectedApps(companyId, { userId });
+
+        const revoked = await revokeConnectedApp({
+          grantId: listed[0].grantId,
+          companyId,
+          requesterId: crypto.randomUUID(),
+          isAdmin: false,
+        });
+        expect(revoked).toBe(false);
+      }),
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("the MCP endpoint enforces the audience", () => {
+  async function callMcp(token: string) {
+    return app.request("/api/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+  }
+
+  integrationTest(
+    "refuses a token issued for a different resource",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        const { verifier, challenge } = pkcePair();
+        // RESOURCE here is https://app.example.com/api/mcp, which is not this
+        // server's canonical resource under the test APP_URL.
+        const tokens = await exchange(
+          await issueCode(userId, companyId, challenge),
+          verifier,
+        );
+
+        const response = await callMcp(tokens.accessToken);
+        expect(response.status).toBe(401);
+        const body = (await response.json()) as { message: string };
+        expect(body.message).toMatch(/not issued for this MCP server/);
+      }),
+    TEST_TIMEOUT_MS,
+  );
+
+  integrationTest(
+    "accepts a personal token, which carries no audience",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        const { token } = await createApiToken({
+          userId,
+          companyId,
+          name: "personal",
+          scopes: ["read"],
+        });
+        const response = await callMcp(token);
+        // Anything but 401 means authentication passed; the request may still
+        // fail further in for unrelated reasons, which is not what is asserted.
+        expect(response.status).not.toBe(401);
       }),
     TEST_TIMEOUT_MS,
   );
