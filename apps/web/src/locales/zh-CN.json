@@ -1753,7 +1753,7 @@
   },
   "apiTokens": {
     "endpointTitle": "MCP 端点",
-    "endpointDescription": "将此 URL 作为远程 MCP 服务器添加到你的 AI 智能体（Claude、Cursor 等），并使用下方令牌作为 Bearer 令牌。工具会遵循你的工作区角色和会话可见性。",
+    "endpointDescription": "将此 URL 添加到 AI 应用作为远程 MCP 服务器。ChatGPT、Claude 和 Grok 通过浏览器登录，无需令牌；Claude Code、Cursor 和脚本使用下方的令牌。无论哪种方式，工具都遵循您的工作区角色和会话可见性。",
     "createTitle": "创建令牌",
     "nameLabel": "名称",
     "namePlaceholder": "例如 Claude Desktop",
@@ -1795,8 +1795,20 @@
       "cursorStep1": "将以下内容添加到 ~/.cursor/mcp.json（大多数其他 MCP 客户端使用相同格式）：",
       "cursorStep2": "重启 Cursor，并在提示时启用该服务器。",
       "claudeWebStep1": "打开 Claude → 设置 → 连接器 → 添加自定义连接器（ChatGPT：设置 → 连接器），粘贴此 URL：",
-      "claudeWebStep2": "当要求认证时，选择 Bearer 令牌 / API 密钥并粘贴你的令牌："
-    }
+      "claudeWebStep2": "当要求认证时，选择 Bearer 令牌 / API 密钥并粘贴你的令牌：",
+      "tabHosted": "ChatGPT 与 Claude",
+      "tabGrok": "Grok",
+      "noTokenNeeded": "无需令牌。您将在浏览器中登录并授权，连接会显示在上方的“已连接的 AI 应用”中。",
+      "tokenNeeded": "此方式需要令牌。请先在下方创建一个，然后运行命令。",
+      "hostedStep1": "在 ChatGPT 中：设置 → 连接器 → 添加。在 Claude 中：设置 → 连接器 → 添加自定义连接器。粘贴此 URL：",
+      "hostedStep2": "如果应用询问 Client ID 和 Client Secret，请留空。继续操作，登录 WATeamInbox，选择工作区并授权。",
+      "grokIntro": "Grok 需要一个其他应用可自行获取的 Client ID。请粘贴下面的值；无需密钥。",
+      "grokStep1": "在 Grok 中：设置 → 连接器 → 添加连接器 → 其他，然后粘贴此 URL：",
+      "grokStep2": "当 Grok 询问 Client ID 时粘贴此值。Client Secret 留空，PKCE 保持 S256：",
+      "grokStep3": "继续操作，登录，选择工作区并授权。",
+      "clientIdCaption": "Client ID"
+    },
+    "createDescription": "仅适用于 Claude Code、Cursor 和脚本。如果您要连接 ChatGPT、Claude 或 Grok，请跳过此步骤——它们通过浏览器登录。"
   },
   "connectedApps": {
     "title": "已连接的 AI 应用",
