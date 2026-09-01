@@ -1790,6 +1790,8 @@
     "disconnected": "已断开连接",
     "disconnectFailed": "无法断开此应用",
     "confirmTitle": "要断开此应用吗？",
-    "confirmBody": "{{name}} 将立即失去对此工作区的访问权限。依赖它的功能将停止工作，直到您重新连接。"
+    "confirmBody": "{{name}} 将立即失去对此工作区的访问权限。依赖它的功能将停止工作，直到您重新连接。",
+    "loadFailed": "无法加载已连接的应用。它们可能仍处于连接状态。",
+    "authorizedBy": "由 {{name}} 授权"
   }
 }

@@ -410,7 +410,10 @@ describe("connected apps", () => {
           verifier,
         );
 
-        const listed = await listConnectedApps(companyId, { userId });
+        const listed = await listConnectedApps(companyId, {
+          requesterId: userId,
+          isAdmin: false,
+        });
         expect(listed).toHaveLength(1);
         expect(listed[0].clientName).toBe("ChatGPT");
         expect(listed[0].scopes).toEqual(["read", "write"]);
@@ -425,7 +428,12 @@ describe("connected apps", () => {
 
         // Disconnecting must kill the live token, not merely hide the entry.
         expect(await verifyApiToken(tokens.accessToken)).toBeNull();
-        expect(await listConnectedApps(companyId, { userId })).toHaveLength(0);
+        expect(
+          await listConnectedApps(companyId, {
+            requesterId: userId,
+            isAdmin: false,
+          }),
+        ).toHaveLength(0);
       }),
     TEST_TIMEOUT_MS,
   );
@@ -436,7 +444,10 @@ describe("connected apps", () => {
       withFixture(async ({ userId, companyId }) => {
         const { verifier, challenge } = pkcePair();
         await exchange(await issueCode(userId, companyId, challenge), verifier);
-        const listed = await listConnectedApps(companyId, { userId });
+        const listed = await listConnectedApps(companyId, {
+          requesterId: userId,
+          isAdmin: false,
+        });
 
         const revoked = await revokeConnectedApp({
           grantId: listed[0].grantId,
@@ -752,6 +763,81 @@ describe("a removal racing an exchange does not deadlock", () => {
         }
 
         expect(deadlocks).toEqual([]);
+      }),
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describe("connected app visibility matches revocation", () => {
+  integrationTest(
+    "a non-admin sees only their own grants",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        const { verifier, challenge } = pkcePair();
+        await exchange(await issueCode(userId, companyId, challenge), verifier);
+
+        // A second member of the same workspace with their own grant.
+        const otherUserId = crypto.randomUUID();
+        await db
+          .insertInto("users")
+          .values({
+            id: otherUserId,
+            email: `other-${otherUserId}@example.com`,
+            password_hash: "x",
+            email_verified_at: new Date(),
+          })
+          .execute();
+        await db
+          .insertInto("company_members")
+          .values({
+            company_id: companyId,
+            user_id: otherUserId,
+            role: "member",
+          })
+          .execute();
+        const other = pkcePair();
+        await exchange(
+          await issueCode(otherUserId, companyId, other.challenge),
+          other.verifier,
+        );
+
+        try {
+          // Listing and revoking must agree. Showing a grant that the viewer
+          // cannot disconnect offers a button that always fails.
+          const asMember = await listConnectedApps(companyId, {
+            requesterId: userId,
+            isAdmin: false,
+          });
+          expect(asMember).toHaveLength(1);
+          expect(asMember[0].ownerUserId).toBe(userId);
+          expect(asMember[0].canDisconnect).toBe(true);
+
+          const asAdmin = await listConnectedApps(companyId, {
+            requesterId: userId,
+            isAdmin: true,
+          });
+          expect(asAdmin).toHaveLength(2);
+          // An admin can act on both, and can tell whose each one is.
+          expect(asAdmin.every((app) => app.canDisconnect)).toBe(true);
+          expect(new Set(asAdmin.map((app) => app.ownerUserId))).toEqual(
+            new Set([userId, otherUserId]),
+          );
+          expect(asAdmin.every((app) => app.ownerName !== null)).toBe(true);
+        } finally {
+          await db
+            .deleteFrom("api_tokens")
+            .where("user_id", "=", otherUserId)
+            .execute();
+          await db
+            .deleteFrom("oauth_grants")
+            .where("user_id", "=", otherUserId)
+            .execute();
+          await db
+            .deleteFrom("company_members")
+            .where("user_id", "=", otherUserId)
+            .execute();
+          await db.deleteFrom("users").where("id", "=", otherUserId).execute();
+        }
       }),
     TEST_TIMEOUT_MS,
   );

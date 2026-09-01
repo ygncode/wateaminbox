@@ -662,6 +662,10 @@ export interface ConnectedApp {
   scopes: ApiTokenScope[];
   createdAt: string;
   lastUsedAt: string | null;
+  ownerUserId: string;
+  ownerName: string | null;
+  /** Server-computed; the client must not re-derive who may disconnect what. */
+  canDisconnect: boolean;
 }
 
 export interface ApiTokenWithSecret extends ApiToken {

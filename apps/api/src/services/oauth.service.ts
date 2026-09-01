@@ -447,6 +447,14 @@ export interface ConnectedApp {
   scopes: ApiTokenScope[];
   createdAt: Date;
   lastUsedAt: Date | null;
+  /** Who authorized it. An admin seeing another member's grant needs to know whose it is. */
+  ownerUserId: string;
+  ownerName: string | null;
+  /**
+   * Whether the caller may disconnect this one. Computed here so the client
+   * never re-derives the authorization rule and drifts from it.
+   */
+  canDisconnect: boolean;
 }
 
 /**
@@ -458,7 +466,7 @@ export interface ConnectedApp {
  */
 export async function listConnectedApps(
   companyId: string,
-  options: { userId?: string } = {},
+  options: { requesterId: string; isAdmin: boolean },
 ): Promise<ConnectedApp[]> {
   let query = db
     .selectFrom("oauth_grants")
@@ -467,10 +475,14 @@ export async function listConnectedApps(
       "oauth_clients.client_id",
       "oauth_grants.client_id",
     )
+    .leftJoin("users", "users.id", "oauth_grants.user_id")
     .select([
       "oauth_grants.id as id",
+      "oauth_grants.user_id as user_id",
       "oauth_grants.client_id as client_id",
       "oauth_clients.client_name as client_name",
+      "users.name as owner_name",
+      "users.email as owner_email",
       "oauth_grants.scopes as scopes",
       "oauth_grants.created_at as created_at",
       "oauth_grants.last_used_at as last_used_at",
@@ -478,8 +490,12 @@ export async function listConnectedApps(
     .where("oauth_grants.company_id", "=", companyId)
     .where("oauth_grants.revoked_at", "is", null)
     .orderBy("oauth_grants.created_at", "desc");
-  if (options.userId) {
-    query = query.where("oauth_grants.user_id", "=", options.userId);
+  // Visibility follows the same rule as revocation - workspace role, not
+  // can_view_all_chats. A grant is a credential rather than a conversation, and
+  // scoping the two differently let a member see connectors they could not
+  // disconnect.
+  if (!options.isAdmin) {
+    query = query.where("oauth_grants.user_id", "=", options.requesterId);
   }
   const rows = await query.execute();
   return rows.map((row) => ({
@@ -489,6 +505,9 @@ export async function listConnectedApps(
     scopes: row.scopes,
     createdAt: row.created_at,
     lastUsedAt: row.last_used_at,
+    ownerUserId: row.user_id,
+    ownerName: row.owner_name ?? row.owner_email ?? null,
+    canDisconnect: options.isAdmin || row.user_id === options.requesterId,
   }));
 }
 

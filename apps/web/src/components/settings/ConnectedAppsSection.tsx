@@ -2,6 +2,7 @@ import { Plug, Unplug } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { useAuth } from "../../contexts/auth-context";
 import { useConnectedApps } from "../../hooks/useConnectedApps";
 import type { ConnectedApp } from "../../lib/api/types";
 import { Badge, Button, LoadingSpinner } from "../ui";
@@ -29,7 +30,9 @@ function clientHost(clientId: string): string {
 
 export function ConnectedAppsSection() {
   const { t } = useTranslation();
-  const { apps, isLoading, disconnect, isDisconnecting } = useConnectedApps();
+  const { user } = useAuth();
+  const { apps, isLoading, error, refetch, disconnect, isDisconnecting } =
+    useConnectedApps();
   const [pendingDisconnect, setPendingDisconnect] =
     useState<ConnectedApp | null>(null);
 
@@ -64,6 +67,26 @@ export function ConnectedAppsSection() {
 
         {isLoading ? (
           <LoadingSpinner />
+        ) : error ? (
+          // Rendering the empty state on a failed request tells the user
+          // nothing is connected when the truth is unknown - the one wrong
+          // answer here, because it invites them to stop looking.
+          <div className="rounded-lg border border-dashed p-4">
+            <p className="text-sm">
+              {t(
+                "connectedApps.loadFailed",
+                "Could not load connected apps. They may still be connected.",
+              )}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={() => refetch()}
+            >
+              {t("common.retry", "Retry")}
+            </Button>
+          </div>
         ) : apps.length === 0 ? (
           <p className="text-muted-foreground rounded-lg border border-dashed p-4 text-sm">
             {t(
@@ -106,12 +129,20 @@ export function ConnectedAppsSection() {
                     {t("connectedApps.connected", "Connected {{date}}", {
                       date: new Date(app.createdAt).toLocaleDateString(),
                     })}
+                    {/* Only for someone else's connector: an admin cutting a
+                        teammate's access needs to know whose it is, and their
+                        own rows do not need the label. */}
+                    {app.ownerUserId !== user?.id && app.ownerName
+                      ? ` · ${t("connectedApps.authorizedBy", "Authorized by {{name}}", { name: app.ownerName })}`
+                      : ""}
                   </p>
                 </div>
                 <Button
                   variant="ghost"
                   size="sm"
-                  disabled={isDisconnecting}
+                  // Offering this when the server would refuse produces a
+                  // button that always fails.
+                  disabled={isDisconnecting || !app.canDisconnect}
                   onClick={() => setPendingDisconnect(app)}
                   aria-label={t("connectedApps.disconnectApp", {
                     defaultValue: "Disconnect {{name}}",

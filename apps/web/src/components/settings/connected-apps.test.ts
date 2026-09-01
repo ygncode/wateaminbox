@@ -58,6 +58,8 @@ describe("connected apps translations", () => {
     "disconnectFailed",
     "confirmTitle",
     "confirmBody",
+    "loadFailed",
+    "authorizedBy",
   ] as const;
 
   test("English carries every key the component asks for", () => {
