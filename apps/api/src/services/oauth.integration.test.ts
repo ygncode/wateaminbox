@@ -692,3 +692,67 @@ describe("reinvitation does not revive a pre-removal code", () => {
     TEST_TIMEOUT_MS,
   );
 });
+
+describe("a removal racing an exchange does not deadlock", () => {
+  integrationTest(
+    "concurrent removal and code exchange always settle",
+    () =>
+      withFixture(async ({ userId, companyId }) => {
+        await db
+          .updateTable("company_members")
+          .set({ role: "member" })
+          .where("company_id", "=", companyId)
+          .where("user_id", "=", userId)
+          .execute();
+
+        // The two transactions touch the same rows: the exchange takes the
+        // authorization code and then the membership, and removal has to take
+        // them in that same order. Acquiring them in opposite orders is a
+        // textbook deadlock, which Postgres resolves by killing one side with
+        // 40P01 - a 500 to whichever caller lost. No single-threaded test
+        // reaches this, which is why it survived the earlier reviews.
+        const ROUNDS = 12;
+        const deadlocks: string[] = [];
+
+        for (let round = 0; round < ROUNDS; round++) {
+          const { verifier, challenge } = pkcePair();
+          const code = await issueCode(userId, companyId, challenge);
+
+          const [exchanged, removed] = await Promise.allSettled([
+            exchange(code, verifier),
+            removeMember(companyId, userId),
+          ]);
+
+          for (const outcome of [exchanged, removed]) {
+            if (outcome.status === "rejected") {
+              const message = String(outcome.reason);
+              // 40P01 is Postgres' deadlock_detected.
+              if (/40P01|deadlock/i.test(message)) deadlocks.push(message);
+            }
+          }
+
+          // Whichever side won, the outcome has to be coherent: an exchange
+          // that succeeded must not leave a usable token behind a completed
+          // removal.
+          if (
+            exchanged.status === "fulfilled" &&
+            removed.status === "fulfilled"
+          ) {
+            expect(
+              await verifyApiToken(exchanged.value.accessToken),
+            ).toBeNull();
+          }
+
+          // Put the membership back for the next round.
+          await db
+            .insertInto("company_members")
+            .values({ company_id: companyId, user_id: userId, role: "member" })
+            .onConflict((oc) => oc.doNothing())
+            .execute();
+        }
+
+        expect(deadlocks).toEqual([]);
+      }),
+    TEST_TIMEOUT_MS,
+  );
+});
