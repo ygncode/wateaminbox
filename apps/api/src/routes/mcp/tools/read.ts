@@ -525,6 +525,53 @@ export const readTools: McpToolDefinition[] = [
     },
   },
   {
+    name: "list_connections",
+    description:
+      "List the WhatsApp accounts connected to this workspace, with the id needed by start_conversation. Call this first when the workspace has more than one account: start_conversation requires connectionId to choose which number a new conversation is sent from, and the id is not derivable from the phone number without this.",
+    scope: "read",
+    inputSchema: {
+      includeDisconnected: z
+        .boolean()
+        .optional()
+        .describe(
+          "Include accounts that are not currently connected (default false)",
+        ),
+    },
+    handler: async (args: { includeDisconnected?: boolean }, c) => {
+      const { tenantDb } = getRouteContext(c);
+      const rows = await tenantDb
+        .selectFrom("whatsapp_connections")
+        .select([
+          "id",
+          "name",
+          "phone_number",
+          "status",
+          "connected_at",
+          "last_sync_at",
+        ])
+        // An archived account cannot send, and offering one would only invite
+        // a failed call.
+        .where("archived_at", "is", null)
+        .$if(!args.includeDisconnected, (qb) =>
+          qb.where("status", "=", "connected"),
+        )
+        .orderBy("created_at", "asc")
+        .limit(50)
+        .execute();
+
+      return {
+        connections: rows.map((row) => ({
+          connectionId: row.id,
+          name: row.name,
+          phoneNumber: row.phone_number,
+          status: row.status,
+          connectedAt: row.connected_at,
+          lastSyncAt: row.last_sync_at,
+        })),
+      };
+    },
+  },
+  {
     name: "list_tags",
     description:
       "List workspace tags. Check this before create_tag to avoid near-duplicate tags.",

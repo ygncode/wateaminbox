@@ -531,7 +531,9 @@ export async function findOrCreateContactByPhone(
   }
   if (!options.connectionId && activeConnections.length !== 1) {
     throw new OutboundContactError(
-      "connectionId is required when multiple accounts are active",
+      // Name the way out. A caller that cannot map a phone number to an id has
+      // no next move otherwise, which is exactly where an agent gets stuck.
+      "connectionId is required when multiple accounts are active. List the accounts and their ids with the list_connections tool, or GET /api/whatsapp/connections.",
       "ambiguous_connection",
     );
   }
