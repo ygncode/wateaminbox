@@ -1244,6 +1244,14 @@ type catalogGraphQLProduct struct {
 	} `json:"media"`
 }
 
+type catalogGraphQLError struct {
+	Code       int    `json:"code"`
+	Message    string `json:"message"`
+	Extensions struct {
+		ErrorCode int `json:"error_code"`
+	} `json:"extensions"`
+}
+
 type catalogGraphQLResponse struct {
 	Data struct {
 		Catalog struct {
@@ -1257,13 +1265,29 @@ type catalogGraphQLResponse struct {
 			} `json:"product_catalog"`
 		} `json:"xfb_whatsapp_catalog"`
 	} `json:"data"`
-	Errors []struct {
-		Code       int    `json:"code"`
-		Message    string `json:"message"`
-		Extensions struct {
-			ErrorCode int `json:"error_code"`
-		} `json:"extensions"`
-	} `json:"errors"`
+	Error  *catalogGraphQLError  `json:"error"`
+	Errors []catalogGraphQLError `json:"errors"`
+}
+
+func (response catalogGraphQLResponse) firstError() *catalogGraphQLError {
+	if response.Error != nil {
+		return response.Error
+	}
+	if len(response.Errors) > 0 {
+		return &response.Errors[0]
+	}
+	return nil
+}
+
+func catalogGraphQLErrorResult(graphError *catalogGraphQLError) error {
+	if graphError == nil {
+		return nil
+	}
+	log.Printf("Catalog GraphQL query failed (code=%d, extension_code=%d): %s", graphError.Code, graphError.Extensions.ErrorCode, graphError.Message)
+	if graphError.Code == 102 || graphError.Code == 190 || graphError.Extensions.ErrorCode == 102 || graphError.Extensions.ErrorCode == 190 {
+		return errCatalogAuthentication
+	}
+	return fmt.Errorf("catalog service rejected the query")
 }
 
 func (c *Client) fetchCatalogAccessToken(ctx context.Context) (string, error) {
@@ -1383,23 +1407,24 @@ func (c *Client) fetchCatalogPage(ctx context.Context, token, catalogJID string,
 		return catalogGraphQLResponse{}, fmt.Errorf("catalog query failed: %w", err)
 	}
 	defer resp.Body.Close()
+	var response catalogGraphQLResponse
+	decodeErr := json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(&response)
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 			return catalogGraphQLResponse{}, fmt.Errorf("%w: HTTP %d", errCatalogAuthentication, resp.StatusCode)
 		}
+		if decodeErr == nil {
+			if graphErr := catalogGraphQLErrorResult(response.firstError()); graphErr != nil {
+				return catalogGraphQLResponse{}, fmt.Errorf("%w: HTTP %d", graphErr, resp.StatusCode)
+			}
+		}
 		return catalogGraphQLResponse{}, fmt.Errorf("catalog query returned HTTP %d", resp.StatusCode)
 	}
-	var response catalogGraphQLResponse
-	if err = json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(&response); err != nil {
-		return catalogGraphQLResponse{}, fmt.Errorf("failed to decode catalog query: %w", err)
+	if decodeErr != nil {
+		return catalogGraphQLResponse{}, fmt.Errorf("failed to decode catalog query: %w", decodeErr)
 	}
-	if len(response.Errors) > 0 {
-		graphError := response.Errors[0]
-		log.Printf("Catalog GraphQL query failed (code=%d, extension_code=%d): %s", graphError.Code, graphError.Extensions.ErrorCode, graphError.Message)
-		if graphError.Code == 102 || graphError.Code == 190 || graphError.Extensions.ErrorCode == 102 || graphError.Extensions.ErrorCode == 190 {
-			return catalogGraphQLResponse{}, errCatalogAuthentication
-		}
-		return catalogGraphQLResponse{}, fmt.Errorf("catalog service rejected the query")
+	if graphErr := catalogGraphQLErrorResult(response.firstError()); graphErr != nil {
+		return catalogGraphQLResponse{}, graphErr
 	}
 	if response.Data.Catalog.ProductCatalog == nil {
 		return catalogGraphQLResponse{}, fmt.Errorf("catalog query returned no product catalog")

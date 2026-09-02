@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -699,6 +700,23 @@ func TestCatalogGraphQLResponseDecoding(t *testing.T) {
 	assert.False(t, bool(catalog.Products[0].IsSanctioned))
 	require.Len(t, catalog.Products[0].Media.Images, 1)
 	assert.Equal(t, "https://example.com/tea.jpg", catalog.Products[0].Media.Images[0].OriginalURL)
+}
+
+func TestCatalogGraphQLErrorDecodingRecognizesExpiredTokens(t *testing.T) {
+	for _, payload := range []string{
+		`{"error":{"message":"token expired","type":"OAuthException","code":190}}`,
+		`{"errors":[{"message":"session expired","extensions":{"error_code":102}}]}`,
+	} {
+		var response catalogGraphQLResponse
+		require.NoError(t, json.Unmarshal([]byte(payload), &response))
+		require.ErrorIs(t, catalogGraphQLErrorResult(response.firstError()), errCatalogAuthentication)
+	}
+
+	var response catalogGraphQLResponse
+	require.NoError(t, json.Unmarshal([]byte(`{"error":{"message":"bad query","code":400}}`), &response))
+	err := catalogGraphQLErrorResult(response.firstError())
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, errCatalogAuthentication))
 }
 
 func TestBuildReactionKeyIncludesIncomingGroupParticipant(t *testing.T) {

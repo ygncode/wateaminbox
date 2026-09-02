@@ -399,6 +399,26 @@ func TestConfig_Fields(t *testing.T) {
 	assert.Equal(t, 60*time.Second, cfg.HealthCheckInterval)
 }
 
+func TestPersistenceFreeWorkerPrefersRestrictedNATSURL(t *testing.T) {
+	m := New(Config{
+		DefaultNATSURL: "nats://service-control",
+		WorkerNATSURL:  "nats://worker-data-plane",
+	})
+
+	databaseURL, natsURL, err := m.workerRuntimeURLs("postgresql://worker-data-plane")
+	require.NoError(t, err)
+	assert.Equal(t, "postgresql://worker-data-plane", databaseURL)
+	assert.Equal(t, "nats://worker-data-plane", natsURL)
+}
+
+func TestPersistenceFreeWorkerFallsBackToDefaultNATSURL(t *testing.T) {
+	m := New(Config{DefaultNATSURL: "nats://local-development"})
+
+	_, natsURL, err := m.workerRuntimeURLs("postgresql://local-development")
+	require.NoError(t, err)
+	assert.Equal(t, "nats://local-development", natsURL)
+}
+
 // TestWorkerLogWriter tests the worker log writer.
 func TestDurableManagerRequiresDistinctRestrictedWorkerCredentials(t *testing.T) {
 	for _, testCase := range []struct {
