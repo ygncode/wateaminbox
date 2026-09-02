@@ -684,12 +684,14 @@ export async function killConnection(
   companyId: string,
   connectionId: string,
 ): Promise<void> {
-  // Get connection to verify it exists and is active
+  // Verify the stable account exists. This operation is intentionally
+  // idempotent for a database-disconnected account: a worker can still be
+  // alive after WhatsApp revokes its credentials, and reconnect must be able
+  // to fence that stale process before spawning a fresh pairing session.
   const connection = await tenantDb
     .selectFrom("whatsapp_connections")
     .select(["id", "status"])
     .where("id", "=", connectionId)
-    .where("status", "in", ["connected", "pending"])
     .executeTakeFirst();
 
   if (!connection) {
