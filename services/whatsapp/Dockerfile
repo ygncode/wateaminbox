@@ -5,6 +5,7 @@ FROM golang:${GO_VERSION}-alpine AS build
 WORKDIR /src
 COPY services/shared/go.mod services/shared/go.sum shared/
 COPY services/whatsapp/go.mod services/whatsapp/go.sum whatsapp/
+COPY vendor/whatsmeow /vendor/whatsmeow
 WORKDIR /src/whatsapp
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY services/shared /src/shared
