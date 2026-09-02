@@ -195,6 +195,9 @@ type MessagePayload struct {
 	FileName          string `json:"fileName,omitempty"`
 	MediaType         string `json:"mediaType,omitempty"`
 	MediaSize         int64  `json:"mediaSize,omitempty"`
+	MediaAlbumID      string `json:"mediaAlbumId,omitempty"`
+	MediaAlbumIndex   *int   `json:"mediaAlbumIndex,omitempty"`
+	MediaAlbumCount   int    `json:"mediaAlbumCount,omitempty"`
 	// Deferred media download fields - for on-demand download
 	MediaDirectPath    string `json:"mediaDirectPath,omitempty"`
 	MediaKey           []byte `json:"mediaKey,omitempty"`
@@ -488,6 +491,9 @@ type MessageEvent struct {
 	MediaURL          string    `json:"media_url,omitempty"`
 	MediaType         string    `json:"media_type,omitempty"`
 	MediaSize         int64     `json:"media_size,omitempty"`
+	MediaAlbumID      string    `json:"media_album_id,omitempty"`
+	MediaAlbumIndex   int       `json:"media_album_index,omitempty"`
+	MediaAlbumCount   int       `json:"media_album_count,omitempty"`
 	FileName          string    `json:"file_name,omitempty"`
 	Caption           string    `json:"caption,omitempty"`
 	IsGroup           bool      `json:"is_group"`

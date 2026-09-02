@@ -4,13 +4,13 @@ import {
   type RemoteHistoryStatus,
 } from "@wateaminbox/shared";
 import { ArchiveRestore, Loader2, Smartphone } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import type { GroupParticipant } from "@/hooks/useGroups";
 import type { TeamMemberIdentity } from "@/hooks/useTeam";
 import type { VirtualItem as MessageListItem } from "../../hooks/chat/useMessageVirtualization";
 import { MessageBubble } from "./MessageBubble";
 import type { MessageNavigationTarget } from "./message-navigation";
-import { useTranslation } from "react-i18next";
 
 type MessageVirtualizer = ReturnType<
   typeof useVirtualizer<HTMLDivElement, Element>
@@ -219,6 +219,8 @@ export function VirtualMessageList({
             >
               <MessageBubble
                 message={item.message}
+                albumMessages={item.albumMessages}
+                albumExpectedCount={item.albumExpectedCount}
                 isOwn={item.message.senderType === "user"}
                 isGroup={isGroup}
                 currentUserId={currentUserId}
@@ -227,7 +229,9 @@ export function VirtualMessageList({
                 currentUserGravatarUrl={currentUserGravatarUrl}
                 teammateIdentities={teammateIdentities}
                 onRetry={selectionMode ? undefined : onRetryMessage}
-                isHighlighted={highlightedMessageId === item.message.id}
+                isHighlighted={item.albumMessages.some(
+                  (message) => highlightedMessageId === message.id,
+                )}
                 isRetrying={retryingMessageId === item.message.id}
                 selectionMode={selectionMode}
                 isSelected={selectedMessageIds.has(item.message.id)}

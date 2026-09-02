@@ -27,6 +27,7 @@ export interface MessageDbRow {
   media_size: number | null;
   media_direct_path: string | null;
   media_download_status: string | null;
+  metadata: Record<string, unknown> | null;
   quoted_message_id: string | null;
   is_forwarded: boolean;
   is_starred: boolean;
@@ -84,6 +85,27 @@ export interface MessageMetadata {
   fileSize: number | null;
   mediaPending: boolean;
   mediaDownloadStatus: string | null;
+  mediaAlbumId?: string;
+  mediaAlbumIndex?: number;
+  mediaAlbumCount?: number;
+}
+
+function optionalAlbumString(
+  metadata: Record<string, unknown> | null,
+  key: string,
+): string | undefined {
+  const value = metadata?.[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function optionalAlbumInteger(
+  metadata: Record<string, unknown> | null,
+  key: string,
+): number | undefined {
+  const value = metadata?.[key];
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : undefined;
 }
 
 /**
@@ -122,6 +144,9 @@ export function buildMessageMetadata(msg: MessageDbRow): MessageMetadata {
     mediaPending:
       msg.media_download_status === "pending" && msg.media_direct_path !== null,
     mediaDownloadStatus: msg.media_download_status,
+    mediaAlbumId: optionalAlbumString(msg.metadata, "mediaAlbumId"),
+    mediaAlbumIndex: optionalAlbumInteger(msg.metadata, "mediaAlbumIndex"),
+    mediaAlbumCount: optionalAlbumInteger(msg.metadata, "mediaAlbumCount"),
   };
 }
 
