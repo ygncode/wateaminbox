@@ -576,6 +576,23 @@ func (m *Manager) spawnWorkerArtifact(
 	)
 }
 
+func (m *Manager) workerRuntimeURLs(databaseURL string) (string, string, error) {
+	workerDatabaseURL := databaseURL
+	workerNATSURL := m.config.DefaultNATSURL
+	// Restricted NATS authority is useful independently of durable registry
+	// persistence, including on non-Linux development hosts.
+	if m.config.WorkerNATSURL != "" {
+		workerNATSURL = m.config.WorkerNATSURL
+	}
+	if m.registry != nil {
+		workerDatabaseURL = m.config.WorkerDatabaseURL
+		if workerDatabaseURL == "" || m.config.WorkerNATSURL == "" {
+			return "", "", errors.New("restricted worker database and NATS credentials are required")
+		}
+	}
+	return workerDatabaseURL, workerNATSURL, nil
+}
+
 // spawnWorkerArtifactWithLaunch uses a generation durably reserved by a rollout
 // before the registry CAS. Ordinary starts pass an empty plannedLaunchID.
 func (m *Manager) spawnWorkerArtifactWithLaunch(
@@ -634,14 +651,10 @@ func (m *Manager) spawnWorkerArtifactWithLaunch(
 	// Create the command without a context so the manager context cancellation
 	// does not kill the process — the manager has explicit signal ownership.
 	cmd := exec.Command(artifact.BinaryPath)
-	workerDatabaseURL := databaseURL
-	workerNATSURL := m.config.DefaultNATSURL
-	if m.registry != nil {
-		workerDatabaseURL = m.config.WorkerDatabaseURL
-		workerNATSURL = m.config.WorkerNATSURL
-		if workerDatabaseURL == "" || workerNATSURL == "" {
-			return errors.New("restricted worker database and NATS credentials are required")
-		}
+	workerDatabaseURL, workerNATSURL, err := m.workerRuntimeURLs(databaseURL)
+	if err != nil {
+		m.mu.Unlock()
+		return err
 	}
 	cmd.Env = append(workerBaseEnvironment(),
 		fmt.Sprintf("WORKER_ID=%s", connectionID),

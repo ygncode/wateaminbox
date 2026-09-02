@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -655,6 +657,66 @@ func TestCatalogNodeHelpers(t *testing.T) {
 	var products []waBinary.Node
 	collectNodes(waBinary.Node{Tag: "catalog", Content: []waBinary.Node{node}}, "product", &products)
 	require.Len(t, products, 1)
+}
+
+func TestCatalogGraphQLResponseDecoding(t *testing.T) {
+	payload := []byte(`{
+		"data": {
+			"xfb_whatsapp_catalog": {
+				"product_catalog": {
+					"catalog_id": "catalog-1",
+					"catalog_name": "Tea Shop",
+					"products": [{
+						"id": "product-1",
+						"retailer_id": "tea-001",
+						"name": "Green Tea",
+						"description": "Fresh leaves",
+						"price": "12500",
+						"currency": "MMK",
+						"availability": "in stock",
+						"url": "https://example.com/tea",
+						"is_hidden": "false",
+						"is_sanctioned": false,
+						"media": {"images": [{"original_image_url": "https://example.com/tea.jpg"}]}
+					}],
+					"paging": {"after": "next-page"}
+				}
+			}
+		}
+	}`)
+
+	var response catalogGraphQLResponse
+	require.NoError(t, json.Unmarshal(payload, &response))
+	require.NotNil(t, response.Data.Catalog.ProductCatalog)
+	catalog := response.Data.Catalog.ProductCatalog
+	assert.Equal(t, "catalog-1", catalog.ID)
+	assert.Equal(t, "Tea Shop", catalog.Name)
+	assert.Equal(t, "next-page", catalog.Paging.After)
+	require.Len(t, catalog.Products, 1)
+	assert.Equal(t, "product-1", catalog.Products[0].ID)
+	assert.Equal(t, "12500", catalog.Products[0].Price)
+	assert.Equal(t, "in stock", catalog.Products[0].Availability)
+	assert.False(t, bool(catalog.Products[0].IsHidden))
+	assert.False(t, bool(catalog.Products[0].IsSanctioned))
+	require.Len(t, catalog.Products[0].Media.Images, 1)
+	assert.Equal(t, "https://example.com/tea.jpg", catalog.Products[0].Media.Images[0].OriginalURL)
+}
+
+func TestCatalogGraphQLErrorDecodingRecognizesExpiredTokens(t *testing.T) {
+	for _, payload := range []string{
+		`{"error":{"message":"token expired","type":"OAuthException","code":190}}`,
+		`{"errors":[{"message":"session expired","extensions":{"error_code":102}}]}`,
+	} {
+		var response catalogGraphQLResponse
+		require.NoError(t, json.Unmarshal([]byte(payload), &response))
+		require.ErrorIs(t, catalogGraphQLErrorResult(response.firstError()), errCatalogAuthentication)
+	}
+
+	var response catalogGraphQLResponse
+	require.NoError(t, json.Unmarshal([]byte(`{"error":{"message":"bad query","code":400}}`), &response))
+	err := catalogGraphQLErrorResult(response.firstError())
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, errCatalogAuthentication))
 }
 
 func TestBuildReactionKeyIncludesIncomingGroupParticipant(t *testing.T) {

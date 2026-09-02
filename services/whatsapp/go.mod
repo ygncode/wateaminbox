@@ -54,3 +54,5 @@ require (
 )
 
 replace github.com/ygncode-lab/whatsapp-web/services/shared => ../shared
+
+replace go.mau.fi/whatsmeow => ../../vendor/whatsmeow
