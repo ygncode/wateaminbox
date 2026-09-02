@@ -327,9 +327,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         });
 
         // A reconnect can resend history that was previously imported without
-        // its group participant. Update just the sender fields so that a new
-        // history sync repairs those existing rows without duplicating
-        // messages.
+        // its group participant. Repair sender fields when the replay is more
+        // complete, but never let a replay that names the group itself erase a
+        // participant identity the live/original import already preserved.
         const insertResult = payload.isHistorySync
           ? await insertQuery
               .onConflict((oc) =>
@@ -337,8 +337,20 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
                   .columns(["whatsapp_connection_id", "message_id"])
                   .doUpdateSet({
                     from_me: payload.fromMe,
-                    sender_jid: normalizedSenderJid,
-                    sender_name: senderName,
+                    sender_jid: sql<string | null>`CASE
+                WHEN excluded.sender_jid LIKE '%@g.us'
+                  AND messages.sender_jid IS NOT NULL
+                  AND messages.sender_jid NOT LIKE '%@g.us'
+                  THEN messages.sender_jid
+                ELSE excluded.sender_jid
+              END`,
+                    sender_name: sql<string | null>`CASE
+                WHEN excluded.sender_jid LIKE '%@g.us'
+                  AND messages.sender_jid IS NOT NULL
+                  AND messages.sender_jid NOT LIKE '%@g.us'
+                  THEN messages.sender_name
+                ELSE COALESCE(excluded.sender_name, messages.sender_name)
+              END`,
                     metadata: payload.protocolSenderJid
                       ? { protocolSenderJid: payload.protocolSenderJid }
                       : null,
