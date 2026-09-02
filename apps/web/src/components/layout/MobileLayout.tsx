@@ -3,9 +3,12 @@ import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
+import {
+  type MobileView,
+  resolveMobileView,
+} from "./mobile-layout-state";
 
-// Mobile view states
-export type MobileView = "chat-list" | "message-thread" | "contact-info";
+export type { MobileView } from "./mobile-layout-state";
 
 export interface MobileLayoutContextValue {
   currentView: MobileView;
@@ -41,41 +44,37 @@ export function useOptionalMobileLayout(): MobileLayoutContextValue | null {
 
 export interface MobileLayoutProviderProps {
   children: React.ReactNode;
-  initialChatId?: string | null;
+  selectedChatId?: string | null;
   onChatSelect?: (chatId: string | null) => void;
 }
 
 export function MobileLayoutProvider({
   children,
-  initialChatId = null,
+  selectedChatId = null,
   onChatSelect,
 }: MobileLayoutProviderProps) {
-  const [currentView, setCurrentView] = useState<MobileView>(
-    initialChatId ? "message-thread" : "chat-list",
-  );
   const [isContactInfoOpen, setIsContactInfoOpen] = useState(false);
-  const [selectedChatId, setSelectedChatIdState] = useState<string | null>(
-    initialChatId,
-  );
+  // The route is the source of truth. A browser edge-swipe changes it
+  // synchronously; deriving the visible panel here avoids one or more renders
+  // where both the shell chrome and the sliding panels describe different
+  // locations (the blank mobile screen this provider previously produced).
+  const currentView = resolveMobileView(selectedChatId);
 
-  // Sync with external chat selection. Clearing the selection has to pop the
-  // stack too - navigating away from a conversation (bottom navigation, back
-  // gesture, workspace switch) otherwise left the empty thread on screen with
-  // the conversation list stranded off-canvas.
   useEffect(() => {
-    setSelectedChatIdState(initialChatId);
-    setCurrentView(initialChatId ? "message-thread" : "chat-list");
-    if (!initialChatId) {
+    if (!selectedChatId) {
       setIsContactInfoOpen(false);
     }
-  }, [initialChatId]);
+  }, [selectedChatId]);
 
-  const setView = useCallback((view: MobileView) => {
-    setCurrentView(view);
-    if (view === "chat-list") {
-      setIsContactInfoOpen(false);
-    }
-  }, []);
+  const setView = useCallback(
+    (view: MobileView) => {
+      if (view === "chat-list") {
+        setIsContactInfoOpen(false);
+        onChatSelect?.(null);
+      }
+    },
+    [onChatSelect],
+  );
 
   const goBack = useCallback(() => {
     if (isContactInfoOpen) {
@@ -83,8 +82,6 @@ export function MobileLayoutProvider({
       return;
     }
     if (currentView === "message-thread") {
-      setCurrentView("chat-list");
-      setSelectedChatIdState(null);
       onChatSelect?.(null);
     }
   }, [currentView, isContactInfoOpen, onChatSelect]);
@@ -99,12 +96,6 @@ export function MobileLayoutProvider({
 
   const setSelectedChatId = useCallback(
     (id: string | null) => {
-      setSelectedChatIdState(id);
-      if (id) {
-        setCurrentView("message-thread");
-      } else {
-        setCurrentView("chat-list");
-      }
       onChatSelect?.(id);
     },
     [onChatSelect],
