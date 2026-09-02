@@ -10,7 +10,7 @@
  * - RATE_LIMIT_POSTGRES_CLEANUP_BATCH_SIZE: Maximum rows per cleanup (default: 1000)
  *
  * Tier-specific overrides (use window_seconds_* format for window duration):
- * - RATE_LIMIT_GLOBAL_REQUESTS: Global tier requests per window (default: 100)
+ * - RATE_LIMIT_GLOBAL_REQUESTS: Global tier requests per window (default: 3000)
  * - RATE_LIMIT_GLOBAL_WINDOW_SECONDS: Global tier window in seconds (default: 60)
  *
  * Auth endpoints:
@@ -183,7 +183,7 @@ export function getRateLimitConfig(): RateLimitConfig {
       global: {
         requests: getDefaultRequests(
           process.env.RATE_LIMIT_GLOBAL_REQUESTS,
-          100,
+          3000,
         ),
         windowSeconds: parsePositiveInt(
           process.env.RATE_LIMIT_GLOBAL_WINDOW_SECONDS,
@@ -423,7 +423,7 @@ export const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
   },
   tiers: {
     global: {
-      requests: 100,
+      requests: 3000,
       windowSeconds: 60,
     },
     auth: {
