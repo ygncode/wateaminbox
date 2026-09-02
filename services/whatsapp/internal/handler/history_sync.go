@@ -506,11 +506,16 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 	msgEvent.SenderName = msg.GetPushName()
 
 	// Extract content based on message type
-	waMsg := msg.GetMessage()
+	waMsg := unwrapMediaAlbumMessage(msg.GetMessage())
 	if waMsg == nil {
 		return false, false
 	}
+	if album := waMsg.GetAlbumMessage(); album != nil {
+		h.rememberMediaAlbum(jid, msg.GetKey().GetID(), album)
+		return false, false
+	}
 	msgEvent.QuotedMessageID = getQuotedMessageID(waMsg)
+	h.applyMediaAlbumMetadata(jid, waMsg, &msgEvent)
 
 	hasMedia := false
 

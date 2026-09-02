@@ -121,6 +121,9 @@ export interface MessageEvent extends WhatsAppEvent {
     fileName?: string;
     mediaType?: string;
     mediaSize?: number;
+    mediaAlbumId?: string;
+    mediaAlbumIndex?: number;
+    mediaAlbumCount?: number;
     // Deferred media download fields
     mediaDirectPath?: string;
     mediaKey?: string; // Base64 encoded

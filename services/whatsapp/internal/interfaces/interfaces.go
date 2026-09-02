@@ -88,6 +88,9 @@ type MessageEvent struct {
 	MediaURL           string
 	MediaType          string
 	MediaSize          int64
+	MediaAlbumID       string
+	MediaAlbumIndex    int
+	MediaAlbumCount    int
 	FileName           string
 	Caption            string
 	IsGroup            bool

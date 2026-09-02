@@ -22,26 +22,18 @@ import {
   useRef,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import type { GroupParticipant } from "../../hooks/useGroups";
 import { useRealtimeContext } from "../../contexts/RealtimeProvider";
 import { useScheduleMessage } from "../../hooks/messages";
-import { uploadMedia } from "../../lib/api";
 import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
+import type { GroupParticipant } from "../../hooks/useGroups";
 import { useQuickReplySuggestions } from "../../hooks/useQuickReplies";
+import { uploadMedia } from "../../lib/api";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
-import { canScheduleMessage } from "./composer-schedule";
 import { ConnectionRoute } from "./ConnectionIdentity";
+import { canScheduleMessage } from "./composer-schedule";
 import { GroupMentionPicker } from "./GroupMentionPicker";
-import { LinkifiedText } from "./LinkifiedText";
-import { QuickReplyPicker } from "./QuickReplyPicker";
-import { ScheduledMessagesBar } from "./ScheduledMessagesBar";
-import { ScheduleMessagePopover } from "./ScheduleMessagePopover";
-import {
-  filterQuickReplies,
-  getActiveQuickReplyToken,
-  insertQuickReply,
-} from "./quick-reply-matching";
 import {
   filterMentionParticipants,
   getActiveMentionToken,
@@ -50,7 +42,15 @@ import {
   type SelectedMention,
   serializeMentionsForSend,
 } from "./group-mentions";
-import { useTranslation } from "react-i18next";
+import { LinkifiedText } from "./LinkifiedText";
+import { QuickReplyPicker } from "./QuickReplyPicker";
+import {
+  filterQuickReplies,
+  getActiveQuickReplyToken,
+  insertQuickReply,
+} from "./quick-reply-matching";
+import { ScheduledMessagesBar } from "./ScheduledMessagesBar";
+import { ScheduleMessagePopover } from "./ScheduleMessagePopover";
 
 // Lazy load emoji picker - only loaded when user opens it
 // This keeps the emoji data (~1200 lines) out of the initial bundle
@@ -767,7 +767,7 @@ export function MessageComposer({
             spreading five 40px targets across the full width. */}
         <div className="flex items-end gap-1.5 px-2 pb-2 pt-1.5 sm:px-3">
           <div
-            className={`flex min-w-0 flex-1 items-end gap-0.5 rounded-[1.5rem] px-1 ring-1 transition-shadow ${
+            className={`relative flex min-w-0 flex-1 items-end gap-0.5 rounded-[1.5rem] px-1 ring-1 transition-shadow ${
               isInputDisabled
                 ? "bg-black/[0.035] opacity-60 ring-black/[0.05] dark:bg-white/[0.045] dark:ring-white/[0.05]"
                 : shouldShowQuickReplyPicker || shouldShowMentionPicker
@@ -775,6 +775,16 @@ export function MessageComposer({
                   : "bg-white shadow-[0_1px_1px_rgba(11,20,26,0.08)] ring-black/[0.055] focus-within:ring-[#00a884]/35 dark:bg-dark-tertiary dark:ring-white/[0.06]"
             }`}
           >
+            {shouldShowMentionPicker && activeMentionToken && (
+              <GroupMentionPicker
+                participants={mentionSuggestions}
+                query={activeMentionToken.query}
+                selectedIndex={selectedMentionIndex}
+                onSelect={handleMentionSelect}
+                onHighlight={setSelectedMentionIndex}
+              />
+            )}
+
             {/* Emoji button */}
             <div className="relative" ref={emojiPickerRef}>
               <button
@@ -891,15 +901,6 @@ export function MessageComposer({
                   hasError={quickReplyError !== null}
                   onSelect={handleQuickReplySelect}
                   onHighlight={setSelectedQuickReplyIndex}
-                />
-              )}
-              {shouldShowMentionPicker && activeMentionToken && (
-                <GroupMentionPicker
-                  participants={mentionSuggestions}
-                  query={activeMentionToken.query}
-                  selectedIndex={selectedMentionIndex}
-                  onSelect={handleMentionSelect}
-                  onHighlight={setSelectedMentionIndex}
                 />
               )}
               <div>
