@@ -93,7 +93,11 @@ export interface ChatPageActions {
   handleClearReply: () => void;
 
   // Send message
-  handleSendMessage: (content: string, replyToMessageId?: string) => void;
+  handleSendMessage: (
+    content: string,
+    replyToMessageId?: string,
+    mentionedJids?: string[],
+  ) => void;
   handleAttachFile: (
     file: File,
     type: "image" | "document",
@@ -345,7 +349,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
 
   // Send message handler
   const handleSendMessage = React.useCallback(
-    (content: string, replyToMessageId?: string) => {
+    (content: string, replyToMessageId?: string, mentionedJids?: string[]) => {
       if (!selectedChatId) return;
       if (isContactBlocked) {
         toast.error(blockedSendMessage);
@@ -357,6 +361,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
         content,
         messageType: "text",
         replyToMessageId,
+        mentionedJids,
       });
       setReplyDraft(null);
     },

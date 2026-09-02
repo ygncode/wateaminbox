@@ -18,6 +18,14 @@ export const sendMessageSchema = z.object({
   messageType: messageTypeSchema.default("text"),
   mediaUrl: z.string().url().optional(),
   replyToMessageId: uuidSchema.optional(),
+  mentionedJids: z
+    .array(
+      z
+        .string()
+        .regex(/^\d{5,20}(?::\d+)?@(s\.whatsapp\.net|lid|hosted\.lid)$/),
+    )
+    .max(100)
+    .optional(),
 });
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
@@ -54,9 +62,7 @@ export const SCHEDULABLE_MEDIA_TYPES = ["image", "video", "document"] as const;
 export const scheduleMessageSchema = z.object({
   contactId: uuidSchema,
   content: z.string().max(65_536).optional(),
-  messageType: z
-    .enum(["text", ...SCHEDULABLE_MEDIA_TYPES])
-    .default("text"),
+  messageType: z.enum(["text", ...SCHEDULABLE_MEDIA_TYPES]).default("text"),
   mediaUrl: z.string().url().optional(),
   replyToMessageId: uuidSchema.optional(),
   scheduledAt: z.string().datetime({ offset: true }),

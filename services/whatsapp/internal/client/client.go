@@ -563,38 +563,59 @@ func (c *Client) RegisterEventHandler(handler func(interface{})) {
 	c.handlers = append(c.handlers, handler)
 }
 
-// SendMessage sends a text message.
-func (c *Client) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error) {
+func buildTextMessage(jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (*waE2E.Message, error) {
+	contextInfo := &waE2E.ContextInfo{}
+	for _, rawJID := range mentionedJIDs {
+		mentionedJID, err := waTypes.ParseJID(rawJID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid mentioned JID %s: %w", rawJID, err)
+		}
+		switch mentionedJID.Server {
+		case waTypes.DefaultUserServer, waTypes.HiddenUserServer, waTypes.HostedLIDServer:
+			contextInfo.MentionedJID = append(contextInfo.MentionedJID, mentionedJID.ToNonAD().String())
+		default:
+			return nil, fmt.Errorf("unsupported mentioned JID server %s", mentionedJID.Server)
+		}
+	}
+
+	if replyTo != "" {
+		participant := replyToSender
+		if participant == "" {
+			participant = jid
+		}
+		contextInfo.StanzaID = proto.String(replyTo)
+		contextInfo.Participant = proto.String(participant)
+	}
+
+	if replyTo == "" && len(contextInfo.MentionedJID) == 0 {
+		return &waE2E.Message{Conversation: proto.String(text)}, nil
+	}
+	return &waE2E.Message{
+		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text:        proto.String(text),
+			ContextInfo: contextInfo,
+		},
+	}, nil
+}
+
+// SendMessage sends a text message, including WhatsApp mention metadata.
+func (c *Client) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (types.SendResponse, error) {
 	// Parse JID
 	recipient, err := waTypes.ParseJID(jid)
 	if err != nil {
 		return types.SendResponse{}, fmt.Errorf("invalid JID %s: %w", jid, err)
 	}
 
-	var msg *waE2E.Message
-
-	// If replying to a message, use ExtendedTextMessage with ContextInfo
+	msg, err := buildTextMessage(jid, text, replyTo, replyToSender, mentionedJIDs)
+	if err != nil {
+		return types.SendResponse{}, err
+	}
 	if replyTo != "" {
-		// Use provided sender JID, or fall back to recipient JID
 		participant := replyToSender
 		if participant == "" {
 			participant = jid
 		}
 		log.Printf("Sending reply message: stanzaId=%s, participant=%s", replyTo, participant)
-		msg = &waE2E.Message{
-			ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-				Text: proto.String(text),
-				ContextInfo: &waE2E.ContextInfo{
-					StanzaID:    proto.String(replyTo),
-					Participant: proto.String(participant),
-				},
-			},
-		}
-	} else {
-		// Simple text message
-		msg = &waE2E.Message{
-			Conversation: proto.String(text),
-		}
 	}
 
 	// Send message

@@ -30,6 +30,46 @@ func TestConfigureMessageRecoveryRequestsUndecryptableMessagesFromPhone(t *testi
 	assert.True(t, waClient.AutomaticMessageRerequestFromPhone)
 }
 
+func TestBuildTextMessageAddsMentionContext(t *testing.T) {
+	msg, err := buildTextMessage(
+		"120363000000000000@g.us",
+		"Hello @6585719494172749",
+		"",
+		"",
+		[]string{"6585719494172749:7@lid"},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, msg.ExtendedTextMessage)
+	assert.Equal(t, "Hello @6585719494172749", msg.ExtendedTextMessage.GetText())
+	assert.Equal(t, []string{"6585719494172749@lid"}, msg.ExtendedTextMessage.GetContextInfo().GetMentionedJID())
+}
+
+func TestBuildTextMessageCombinesReplyAndMentions(t *testing.T) {
+	msg, err := buildTextMessage(
+		"120363000000000000@g.us",
+		"Hello @6591234567",
+		"quoted-message-id",
+		"6598888888@s.whatsapp.net",
+		[]string{"6591234567@s.whatsapp.net"},
+	)
+	require.NoError(t, err)
+	contextInfo := msg.ExtendedTextMessage.GetContextInfo()
+	assert.Equal(t, "quoted-message-id", contextInfo.GetStanzaID())
+	assert.Equal(t, "6598888888@s.whatsapp.net", contextInfo.GetParticipant())
+	assert.Equal(t, []string{"6591234567@s.whatsapp.net"}, contextInfo.GetMentionedJID())
+}
+
+func TestBuildTextMessageRejectsNonUserMentionJID(t *testing.T) {
+	_, err := buildTextMessage(
+		"120363000000000000@g.us",
+		"Hello",
+		"",
+		"",
+		[]string{"120363999999999999@g.us"},
+	)
+	require.ErrorContains(t, err, "unsupported mentioned JID server")
+}
+
 // TestCalculateBackoff_TransientPhase tests the exponential backoff in transient phase.
 func TestCalculateBackoff_TransientPhase(t *testing.T) {
 	tests := []struct {
@@ -861,7 +901,7 @@ func TestSendMessage_InvalidJID(t *testing.T) {
 	c := &Client{}
 
 	// Test with invalid JID (no @ symbol)
-	resp, err := c.SendMessage(ctx, "invalid-jid", "Hello", "", "")
+	resp, err := c.SendMessage(ctx, "invalid-jid", "Hello", "", "", nil)
 	assert.Error(t, err, "should return error for invalid JID")
 	assert.Empty(t, resp.ID, "response ID should be empty on error")
 	assert.True(t, resp.Timestamp.IsZero(), "response timestamp should be zero on error")
@@ -880,7 +920,7 @@ func TestSendMessage_ValidJID_ParsesSuccessfully(t *testing.T) {
 
 	// Note: This will fail at the SendMessage step because we're not connected,
 	// but it validates that the JID parsing works
-	_, err := c.SendMessage(ctx, "1234567890@s.whatsapp.net", "Hello", "", "")
+	_, err := c.SendMessage(ctx, "1234567890@s.whatsapp.net", "Hello", "", "", nil)
 
 	// The error should be from the actual send attempt, not JID parsing
 	// (JID parsing should succeed)

@@ -36,6 +36,14 @@ export const sendConversationMessageSchema = z.object({
     .default("text"),
   mediaUrl: z.string().url().optional(),
   replyToMessageId: z.string().uuid().optional(),
+  mentionedJids: z
+    .array(
+      z
+        .string()
+        .regex(/^\d{5,20}(?::\d+)?@(s\.whatsapp\.net|lid|hosted\.lid)$/),
+    )
+    .max(100)
+    .optional(),
 });
 
 export type SendConversationMessageInput = z.infer<

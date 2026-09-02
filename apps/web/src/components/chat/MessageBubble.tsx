@@ -22,6 +22,7 @@ import {
   type ParticipantIdentity,
   resolveParticipantContactId,
 } from "./group-participant-identity";
+import type { MentionParticipant } from "./group-mentions";
 
 // Lazy load emoji reaction picker - only loaded when user opens it
 const EmojiReactionPicker = lazy(() => import("./EmojiReactionPicker"));
@@ -304,6 +305,7 @@ export const MessageBubble = memo(function MessageBubble({
             replyToMessageId={message.replyToMessageId}
             isOwn={isOwn}
             currentUserId={currentUserId}
+            mentionParticipants={mentionParticipants}
             onNavigateToMessage={onNavigateToMessage}
           />
         )}
@@ -534,12 +536,14 @@ function ReplyPreview({
   replyToMessageId,
   isOwn,
   currentUserId,
+  mentionParticipants,
   onNavigateToMessage,
 }: {
   replyToMessage: Message["replyToMessage"];
   replyToMessageId: Message["replyToMessageId"];
   isOwn: boolean;
   currentUserId: string;
+  mentionParticipants: MentionParticipant[];
   onNavigateToMessage?: (target: MessageNavigationTarget) => void;
 }) {
   const { t } = useTranslation();
@@ -601,15 +605,17 @@ function ReplyPreview({
           >
             {replySender}
           </p>
-          <p
-            className={`text-xs line-clamp-2 ${
+          <LinkifiedText
+            text={replyContent}
+            isOwn={isOwn}
+            mentionParticipants={mentionParticipants}
+            enableInteractions={false}
+            className={`line-clamp-2 text-xs ${
               isOwn
                 ? "text-current opacity-70"
                 : "text-gray-700 dark:text-dark-text-secondary"
             }`}
-          >
-            {replyContent}
-          </p>
+          />
         </div>
       </div>
     </Component>
