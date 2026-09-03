@@ -1,9 +1,9 @@
 import type { Message } from "@wateaminbox/shared";
 import { formatMessageTime } from "@wateaminbox/shared";
+import type { TFunction } from "i18next";
 import { Smartphone } from "lucide-react";
 import { lazy, memo, Suspense, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import type { GroupParticipant } from "@/hooks/useGroups";
@@ -11,6 +11,11 @@ import type { TeamMemberIdentity } from "@/hooks/useTeam";
 import { cn, formatPhoneLikeText } from "@/lib/utils";
 import { useMessageActions } from "../../contexts";
 import { useClickOutside } from "../../hooks/ui";
+import type { MentionParticipant } from "./group-mentions";
+import {
+  type ParticipantIdentity,
+  resolveParticipantContactId,
+} from "./group-participant-identity";
 import { LinkifiedText } from "./LinkifiedText";
 import { MessageContent } from "./MessageContent";
 import {
@@ -18,10 +23,6 @@ import {
   endsGroup,
   startsGroup,
 } from "./message-grouping";
-import {
-  type ParticipantIdentity,
-  resolveParticipantContactId,
-} from "./group-participant-identity";
 
 // Lazy load emoji reaction picker - only loaded when user opens it
 const EmojiReactionPicker = lazy(() => import("./EmojiReactionPicker"));
@@ -71,6 +72,9 @@ export function shouldShowReplyPreview(
 
 interface MessageBubbleProps {
   message: Message;
+  /** Consecutive WhatsApp album children collapsed into this bubble. */
+  albumMessages?: Message[];
+  albumExpectedCount?: number;
   isOwn: boolean;
   /** Whether the active conversation is a WhatsApp group. */
   isGroup?: boolean;
@@ -110,6 +114,8 @@ interface MessageBubbleProps {
 
 export const MessageBubble = memo(function MessageBubble({
   message,
+  albumMessages = [message],
+  albumExpectedCount = albumMessages.length,
   isOwn,
   isGroup = false,
   currentUserId,
@@ -304,6 +310,7 @@ export const MessageBubble = memo(function MessageBubble({
             replyToMessageId={message.replyToMessageId}
             isOwn={isOwn}
             currentUserId={currentUserId}
+            mentionParticipants={mentionParticipants}
             onNavigateToMessage={onNavigateToMessage}
           />
         )}
@@ -322,6 +329,8 @@ export const MessageBubble = memo(function MessageBubble({
         ) : (
           <MessageContent
             message={message}
+            albumMessages={albumMessages}
+            albumExpectedCount={albumExpectedCount}
             isOwn={isOwn}
             mentionParticipants={mentionParticipants}
             enableMediaPreview={!selectionMode}
@@ -534,12 +543,14 @@ function ReplyPreview({
   replyToMessageId,
   isOwn,
   currentUserId,
+  mentionParticipants,
   onNavigateToMessage,
 }: {
   replyToMessage: Message["replyToMessage"];
   replyToMessageId: Message["replyToMessageId"];
   isOwn: boolean;
   currentUserId: string;
+  mentionParticipants: MentionParticipant[];
   onNavigateToMessage?: (target: MessageNavigationTarget) => void;
 }) {
   const { t } = useTranslation();
@@ -601,15 +612,17 @@ function ReplyPreview({
           >
             {replySender}
           </p>
-          <p
-            className={`text-xs line-clamp-2 ${
+          <LinkifiedText
+            text={replyContent}
+            isOwn={isOwn}
+            mentionParticipants={mentionParticipants}
+            enableInteractions={false}
+            className={`line-clamp-2 text-xs ${
               isOwn
                 ? "text-current opacity-70"
                 : "text-gray-700 dark:text-dark-text-secondary"
             }`}
-          >
-            {replyContent}
-          </p>
+          />
         </div>
       </div>
     </Component>

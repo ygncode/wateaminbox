@@ -28,6 +28,9 @@ export interface Database {
   user_sessions: UserSessionsTable;
   auth_tokens: AuthTokensTable;
   api_tokens: ApiTokensTable;
+  oauth_clients: OAuthClientsTable;
+  oauth_grants: OAuthGrantsTable;
+  oauth_authorization_codes: OAuthAuthorizationCodesTable;
   sla_policies: SlaPoliciesTable;
 }
 
@@ -161,6 +164,65 @@ export interface ApiTokensTable {
   last_used_at: Date | null;
   expires_at: Date | null;
   revoked_at: Date | null;
+  created_at: Generated<Date>;
+  /** Set when this token was issued by the OAuth flow; null for a personal token. */
+  grant_id: string | null;
+  /** SHA-256 of the refresh token paired with this access token. */
+  refresh_token_hash: string | null;
+  refresh_expires_at: Date | null;
+  /** Set when the refresh token was exchanged; a second use burns the grant. */
+  refresh_used_at: Date | null;
+}
+
+/**
+ * Cached client metadata document (CIMD). A client identifies itself by the
+ * https URL of its document, which we fetch rather than registering.
+ */
+export interface OAuthClientsTable {
+  id: Generated<string>;
+  client_id: string;
+  client_name: string | null;
+  redirect_uris: string[];
+  token_endpoint_auth_method: Generated<string>;
+  metadata: unknown;
+  fetched_at: Generated<Date>;
+  cache_expires_at: Date;
+  created_at: Generated<Date>;
+}
+
+/**
+ * One authorization decision by one user for one client against one workspace.
+ * Every access and refresh token in the rotation chain points back here, so
+ * revoking the grant revokes the chain.
+ */
+export interface OAuthGrantsTable {
+  id: Generated<string>;
+  user_id: string;
+  company_id: string;
+  client_id: string;
+  scopes: ApiTokenScope[];
+  /** RFC 8707 resource the tokens are audience-bound to. */
+  resource: string;
+  created_at: Generated<Date>;
+  last_used_at: Date | null;
+  revoked_at: Date | null;
+  revoked_reason: string | null;
+}
+
+/** Single-use authorization code carrying its PKCE challenge. */
+export interface OAuthAuthorizationCodesTable {
+  id: Generated<string>;
+  code_hash: string;
+  client_id: string;
+  user_id: string;
+  company_id: string;
+  scopes: ApiTokenScope[];
+  redirect_uri: string;
+  code_challenge: string;
+  code_challenge_method: string;
+  resource: string;
+  expires_at: Date;
+  consumed_at: Date | null;
   created_at: Generated<Date>;
 }
 

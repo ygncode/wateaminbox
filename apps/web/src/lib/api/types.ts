@@ -650,6 +650,24 @@ export interface ApiToken {
   createdAt: string;
 }
 
+/**
+ * An AI client authorized through OAuth, as opposed to a hand-made token.
+ * Grants are managed as connected apps because revoking the token alone would
+ * leave the client able to mint a replacement with its refresh token.
+ */
+export interface ConnectedApp {
+  grantId: string;
+  clientId: string;
+  clientName: string | null;
+  scopes: ApiTokenScope[];
+  createdAt: string;
+  lastUsedAt: string | null;
+  ownerUserId: string;
+  ownerName: string | null;
+  /** Server-computed; the client must not re-derive who may disconnect what. */
+  canDisconnect: boolean;
+}
+
 export interface ApiTokenWithSecret extends ApiToken {
   /** Full secret, returned only once at creation time. */
   token: string;

@@ -421,6 +421,20 @@ func (h *Handler) getHistorySenderJID(chatJID, participant string, isGroup bool)
 	return h.resolvePreferredJID(parsedParticipant, types.EmptyJID).String()
 }
 
+// WhatsApp has used both locations for a group-history author. Newer payloads
+// commonly put it on WebMessageInfo.Participant while older ones put it inside
+// MessageKey.Participant. Reading only the key silently turns the group itself
+// into the sender and makes the API render "Unknown participant".
+func getHistoryParticipant(msg *waWeb.WebMessageInfo) string {
+	if msg == nil {
+		return ""
+	}
+	if participant := msg.GetKey().GetParticipant(); participant != "" {
+		return participant
+	}
+	return msg.GetParticipant()
+}
+
 func normalizeHistoryMessageStatus(status waWeb.WebMessageInfo_Status) string {
 	switch status {
 	case waWeb.WebMessageInfo_PENDING:
@@ -465,11 +479,8 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 	// Group history keys carry the actual author in Participant while the
 	// conversation JID is the group. Keeping From as the group loses who sent
 	// every imported message.
-	senderJID := h.getHistorySenderJID(
-		jid,
-		msg.GetKey().GetParticipant(),
-		isGroup,
-	)
+	participant := getHistoryParticipant(msg)
+	senderJID := h.getHistorySenderJID(jid, participant, isGroup)
 
 	// Build message event with history sync flag
 	msgEvent := natsClient.MessageEvent{
@@ -483,7 +494,7 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 		IsHistorySync: true, // Mark as history sync message
 	}
 	if isGroup {
-		if participantJID, err := types.ParseJID(msg.GetKey().GetParticipant()); err == nil {
+		if participantJID, err := types.ParseJID(participant); err == nil {
 			msgEvent.ProtocolSenderJID = participantJID.ToNonAD().String()
 		}
 	}
@@ -495,11 +506,16 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 	msgEvent.SenderName = msg.GetPushName()
 
 	// Extract content based on message type
-	waMsg := msg.GetMessage()
+	waMsg := unwrapMediaAlbumMessage(msg.GetMessage())
 	if waMsg == nil {
 		return false, false
 	}
+	if album := waMsg.GetAlbumMessage(); album != nil {
+		h.rememberMediaAlbum(jid, msg.GetKey().GetID(), album)
+		return false, false
+	}
 	msgEvent.QuotedMessageID = getQuotedMessageID(waMsg)
+	h.applyMediaAlbumMetadata(jid, waMsg, &msgEvent)
 
 	hasMedia := false
 

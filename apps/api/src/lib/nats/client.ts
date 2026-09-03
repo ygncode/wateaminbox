@@ -40,8 +40,10 @@ export const whatsAppEventEnvelopeSchema = z.object({
   contractVersion: z.literal(1).optional().default(1),
   type: z.enum([
     "qr",
+    "paired",
     "connected",
     "disconnected",
+    "logged_out",
     "message",
     "receipt",
     "send_confirmation",
@@ -218,6 +220,7 @@ export async function buildSendMessageCommand(
   mediaUrl?: string,
   replyTo?: string,
   replyToSender?: string,
+  mentionedJids?: string[],
 ): Promise<Record<string, unknown>> {
   let caption: string | undefined;
   let mediaReference:
@@ -259,6 +262,7 @@ export async function buildSendMessageCommand(
     user_id: userId,
     reply_to: replyTo,
     reply_to_sender: replyToSender,
+    mentioned_jids: mentionedJids?.length ? mentionedJids : undefined,
     correlation_id: correlationId,
   };
 
@@ -276,6 +280,7 @@ export async function publishSendMessage(
   mediaUrl?: string,
   replyTo?: string,
   replyToSender?: string,
+  mentionedJids?: string[],
 ): Promise<void> {
   const command = await buildSendMessageCommand(
     companyId,
@@ -288,6 +293,7 @@ export async function publishSendMessage(
     mediaUrl,
     replyTo,
     replyToSender,
+    mentionedJids,
   );
   const subject = buildCommandSubject(companyId, connectionId);
   await publishOutboxCommand(subject, command);

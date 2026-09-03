@@ -22,25 +22,36 @@ import {
   useRef,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useRealtimeContext } from "../../contexts/RealtimeProvider";
 import { useScheduleMessage } from "../../hooks/messages";
-import { uploadMedia } from "../../lib/api";
 import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
+import type { GroupParticipant } from "../../hooks/useGroups";
 import { useQuickReplySuggestions } from "../../hooks/useQuickReplies";
+import { uploadMedia } from "../../lib/api";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 import { pickPastedAttachment } from "./composer-paste";
-import { canScheduleMessage } from "./composer-schedule";
 import { ConnectionRoute } from "./ConnectionIdentity";
+import { canScheduleMessage } from "./composer-schedule";
+import { GroupMentionPicker } from "./GroupMentionPicker";
+import {
+  filterMentionParticipants,
+  getActiveMentionToken,
+  insertMention,
+  type MentionParticipant,
+  type SelectedMention,
+  serializeMentionsForSend,
+} from "./group-mentions";
+import { LinkifiedText } from "./LinkifiedText";
 import { QuickReplyPicker } from "./QuickReplyPicker";
-import { ScheduledMessagesBar } from "./ScheduledMessagesBar";
-import { ScheduleMessagePopover } from "./ScheduleMessagePopover";
 import {
   filterQuickReplies,
   getActiveQuickReplyToken,
   insertQuickReply,
 } from "./quick-reply-matching";
-import { useTranslation } from "react-i18next";
+import { ScheduledMessagesBar } from "./ScheduledMessagesBar";
+import { ScheduleMessagePopover } from "./ScheduleMessagePopover";
 
 // Lazy load emoji picker - only loaded when user opens it
 // This keeps the emoji data (~1200 lines) out of the initial bundle
@@ -111,7 +122,11 @@ interface MessageComposerProps {
   contactId: string | undefined;
   replyToMessage: Message | null;
   onClearReply: () => void;
-  onSendMessage: (content: string, replyToMessageId?: string) => void;
+  onSendMessage: (
+    content: string,
+    replyToMessageId?: string,
+    mentionedJids?: string[],
+  ) => void;
   onAttachFile: (
     file: File,
     type: "image" | "document",
@@ -120,6 +135,7 @@ interface MessageComposerProps {
   disabled?: boolean;
   connection?: WhatsAppConnectionIdentity | null;
   currentUserName?: string;
+  mentionParticipants?: GroupParticipant[];
 }
 
 export function MessageComposer({
@@ -132,6 +148,7 @@ export function MessageComposer({
   disabled = false,
   connection,
   currentUserName,
+  mentionParticipants = [],
 }: MessageComposerProps) {
   const { t } = useTranslation();
 
@@ -148,6 +165,12 @@ export function MessageComposer({
   const [selectedQuickReplyIndex, setSelectedQuickReplyIndex] = useState(0);
   const [isQuickReplyPickerDismissed, setIsQuickReplyPickerDismissed] =
     useState(false);
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+  const [isMentionPickerDismissed, setIsMentionPickerDismissed] =
+    useState(false);
+  const [selectedMentions, setSelectedMentions] = useState<SelectedMention[]>(
+    [],
+  );
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showSchedulePopover, setShowSchedulePopover] = useState(false);
@@ -182,6 +205,30 @@ export function MessageComposer({
     activeQuickReplyToken !== null &&
     !isQuickReplyPickerDismissed &&
     !isTextareaDisabled;
+  const activeMentionToken = useMemo(
+    () =>
+      mentionParticipants.length > 0
+        ? getActiveMentionToken(message, caretPosition)
+        : null,
+    [caretPosition, mentionParticipants.length, message],
+  );
+  const mentionSuggestions = useMemo(
+    () =>
+      filterMentionParticipants(
+        mentionParticipants,
+        activeMentionToken?.query ?? "",
+      ),
+    [activeMentionToken?.query, mentionParticipants],
+  );
+  const shouldShowMentionPicker =
+    activeMentionToken !== null &&
+    !isMentionPickerDismissed &&
+    !isInputDisabled &&
+    !shouldShowQuickReplyPicker;
+  const serializedMentionPayload = useMemo(
+    () => serializeMentionsForSend(message, selectedMentions),
+    [message, selectedMentions],
+  );
   const {
     quickReplies: quickReplyLibrary,
     isLoading: isLoadingQuickReplies,
@@ -212,11 +259,13 @@ export function MessageComposer({
 
   // The schedule control is rendered only when it can actually do something -
   // see composer-schedule.ts for why hiding beats a permanently greyed icon.
-  const canSchedule = canScheduleMessage({
-    text: message,
-    isInputDisabled,
-    hasContact: Boolean(contactId),
-  });
+  const canSchedule =
+    serializedMentionPayload.mentionedJids.length === 0 &&
+    canScheduleMessage({
+      text: message,
+      isInputDisabled,
+      hasContact: Boolean(contactId),
+    });
 
   // Clearing the composer unmounts the control; the popover must not be left
   // open behind it, or reopening later would restore a stale picker.
@@ -233,6 +282,8 @@ export function MessageComposer({
 
   useEffect(() => {
     setPendingAttachment(null);
+    setSelectedMentions([]);
+    setIsMentionPickerDismissed(false);
   }, [conversationId]);
 
   useEffect(() => {
@@ -240,10 +291,20 @@ export function MessageComposer({
   }, [activeQuickReplyToken?.query]);
 
   useEffect(() => {
+    setSelectedMentionIndex(0);
+  }, [activeMentionToken?.query]);
+
+  useEffect(() => {
     if (selectedQuickReplyIndex >= quickReplySuggestions.length) {
       setSelectedQuickReplyIndex(Math.max(0, quickReplySuggestions.length - 1));
     }
   }, [quickReplySuggestions.length, selectedQuickReplyIndex]);
+
+  useEffect(() => {
+    if (selectedMentionIndex >= mentionSuggestions.length) {
+      setSelectedMentionIndex(Math.max(0, mentionSuggestions.length - 1));
+    }
+  }, [mentionSuggestions.length, selectedMentionIndex]);
 
   // Cleanup typing timeout on unmount
   useEffect(() => {
@@ -283,6 +344,7 @@ export function MessageComposer({
     setMessage(newValue);
     setCaretPosition(e.target.selectionStart);
     setIsQuickReplyPickerDismissed(false);
+    setIsMentionPickerDismissed(false);
 
     // Only emit typing if we have a conversationId and content
     if (!conversationId || !contactId || !newValue.trim()) {
@@ -316,6 +378,41 @@ export function MessageComposer({
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (shouldShowMentionPicker) {
+      if (e.key === "ArrowDown" && mentionSuggestions.length > 0) {
+        e.preventDefault();
+        setSelectedMentionIndex(
+          (current) => (current + 1) % mentionSuggestions.length,
+        );
+        return;
+      }
+
+      if (e.key === "ArrowUp" && mentionSuggestions.length > 0) {
+        e.preventDefault();
+        setSelectedMentionIndex(
+          (current) =>
+            (current - 1 + mentionSuggestions.length) %
+            mentionSuggestions.length,
+        );
+        return;
+      }
+
+      if (
+        ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") &&
+        mentionSuggestions[selectedMentionIndex]
+      ) {
+        e.preventDefault();
+        handleMentionSelect(mentionSuggestions[selectedMentionIndex]);
+        return;
+      }
+
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setIsMentionPickerDismissed(true);
+        return;
+      }
+    }
+
     if (shouldShowQuickReplyPicker) {
       if (e.key === "ArrowDown" && quickReplySuggestions.length > 0) {
         e.preventDefault();
@@ -358,6 +455,26 @@ export function MessageComposer({
     }
   };
 
+  const handleMentionSelect = (participant: MentionParticipant) => {
+    if (!activeMentionToken) return;
+    const insertion = insertMention(message, activeMentionToken, participant);
+    if (!insertion) return;
+
+    setMessage(insertion.text);
+    setCaretPosition(insertion.caret);
+    setSelectedMentions((current) =>
+      current.some((mention) => mention.jid === insertion.selected.jid)
+        ? current
+        : [...current, insertion.selected],
+    );
+    setIsMentionPickerDismissed(true);
+
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(insertion.caret, insertion.caret);
+    });
+  };
+
   const handleQuickReplySelect = (
     quickReply: (typeof quickReplySuggestions)[number],
   ) => {
@@ -389,10 +506,20 @@ export function MessageComposer({
     // WhatsApp will auto-dismiss the indicator
     clearTypingState();
 
-    onSendMessage(trimmedMessage, replyToMessage?.id);
+    const mentionPayload = serializeMentionsForSend(
+      trimmedMessage,
+      selectedMentions,
+    );
+    onSendMessage(
+      mentionPayload.content,
+      replyToMessage?.id,
+      mentionPayload.mentionedJids,
+    );
     setMessage("");
     setCaretPosition(0);
     setIsQuickReplyPickerDismissed(false);
+    setIsMentionPickerDismissed(false);
+    setSelectedMentions([]);
     onClearReply();
 
     // Mark that we need to restore focus after re-renders
@@ -650,14 +777,20 @@ export function MessageComposer({
                 <p className="truncate px-3 pt-2 text-xs font-semibold text-[#008069] dark:text-emerald-300">
                   {replyToMessage.senderType === "user" ? "You" : "Contact"}
                 </p>
-                <p className="truncate px-3 pb-2 text-sm text-[#667781] dark:text-dark-text-secondary">
-                  {replyToMessage.isDeleted
-                    ? t(
-                        "chat.messageDeleted",
-                        t("chat.messageDeleted", "This message was deleted"),
-                      )
-                    : replyToMessage.content}
-                </p>
+                <LinkifiedText
+                  text={
+                    replyToMessage.isDeleted
+                      ? t(
+                          "chat.messageDeleted",
+                          t("chat.messageDeleted", "This message was deleted"),
+                        )
+                      : replyToMessage.content
+                  }
+                  isOwn={replyToMessage.senderType === "user"}
+                  mentionParticipants={mentionParticipants}
+                  enableInteractions={false}
+                  className="truncate px-3 pb-2 text-sm text-[#667781] dark:text-dark-text-secondary"
+                />
               </div>
               <button
                 type="button"
@@ -677,14 +810,24 @@ export function MessageComposer({
             spreading five 40px targets across the full width. */}
         <div className="flex items-end gap-1.5 px-2 pb-2 pt-1.5 sm:px-3">
           <div
-            className={`flex min-w-0 flex-1 items-end gap-0.5 rounded-[1.5rem] px-1 ring-1 transition-shadow ${
+            className={`relative flex min-w-0 flex-1 items-end gap-0.5 rounded-[1.5rem] px-1 ring-1 transition-shadow ${
               isInputDisabled
                 ? "bg-black/[0.035] opacity-60 ring-black/[0.05] dark:bg-white/[0.045] dark:ring-white/[0.05]"
-                : shouldShowQuickReplyPicker
+                : shouldShowQuickReplyPicker || shouldShowMentionPicker
                   ? "bg-white shadow-[0_1px_1px_rgba(11,20,26,0.08)] ring-[#00a884]/50 dark:bg-dark-tertiary dark:ring-emerald-400/40"
                   : "bg-white shadow-[0_1px_1px_rgba(11,20,26,0.08)] ring-black/[0.055] focus-within:ring-[#00a884]/35 dark:bg-dark-tertiary dark:ring-white/[0.06]"
             }`}
           >
+            {shouldShowMentionPicker && activeMentionToken && (
+              <GroupMentionPicker
+                participants={mentionSuggestions}
+                query={activeMentionToken.query}
+                selectedIndex={selectedMentionIndex}
+                onSelect={handleMentionSelect}
+                onHighlight={setSelectedMentionIndex}
+              />
+            )}
+
             {/* Emoji button */}
             <div className="relative" ref={emojiPickerRef}>
               <button
@@ -812,6 +955,7 @@ export function MessageComposer({
                   onClick={(event) => {
                     setCaretPosition(event.currentTarget.selectionStart);
                     setIsQuickReplyPickerDismissed(false);
+                    setIsMentionPickerDismissed(false);
                   }}
                   onSelect={(event) =>
                     setCaretPosition(event.currentTarget.selectionStart)
@@ -831,14 +975,21 @@ export function MessageComposer({
                   aria-controls={
                     shouldShowQuickReplyPicker
                       ? "quick-reply-picker"
-                      : undefined
+                      : shouldShowMentionPicker
+                        ? "group-mention-picker"
+                        : undefined
                   }
-                  aria-expanded={shouldShowQuickReplyPicker}
+                  aria-expanded={
+                    shouldShowQuickReplyPicker || shouldShowMentionPicker
+                  }
                   aria-activedescendant={
                     shouldShowQuickReplyPicker &&
                     quickReplySuggestions[selectedQuickReplyIndex]
                       ? `quick-reply-option-${quickReplySuggestions[selectedQuickReplyIndex].id}`
-                      : undefined
+                      : shouldShowMentionPicker &&
+                          mentionSuggestions[selectedMentionIndex]
+                        ? `group-mention-option-${selectedMentionIndex}`
+                        : undefined
                   }
                   className={`block max-h-[150px] w-full resize-none bg-transparent px-2 py-2 text-[15px] leading-5 text-[#111b21] outline-none placeholder:text-[#667781] dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary ${
                     isInputDisabled ? "cursor-not-allowed" : ""

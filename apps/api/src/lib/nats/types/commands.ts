@@ -30,6 +30,7 @@ export interface SendMessageCommand extends NatsCommand {
   media_checksum?: string;
   mime_type?: string;
   file_name?: string;
+  mentioned_jids?: string[];
   user_id: string;
 }
 

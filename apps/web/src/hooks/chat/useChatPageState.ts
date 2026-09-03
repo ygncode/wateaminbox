@@ -93,7 +93,11 @@ export interface ChatPageActions {
   handleClearReply: () => void;
 
   // Send message
-  handleSendMessage: (content: string, replyToMessageId?: string) => void;
+  handleSendMessage: (
+    content: string,
+    replyToMessageId?: string,
+    mentionedJids?: string[],
+  ) => void;
   handleAttachFile: (
     file: File,
     type: "image" | "document",
@@ -125,10 +129,11 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
   const { activeWorkspaceId } = useWorkspace();
   const queryClient = useQueryClient();
 
-  // Chat selection state
-  const [selectedChatId, setSelectedChatId] = React.useState<
-    string | undefined
-  >(contactId);
+  // The URL is the source of truth for chat selection. In particular, system
+  // back/forward gestures update `contactId` immediately; mirroring it in
+  // component state via an effect leaves the mobile shell and its panels on
+  // different routes for an extra render and can strand both panels offscreen.
+  const selectedChatId = contactId;
 
   // Panel visibility state
   const [isProfileOpen, setIsProfileOpen] = React.useState(false);
@@ -234,11 +239,6 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
     selectedChatId,
   });
 
-  // Sync URL with selected chat
-  React.useEffect(() => {
-    setSelectedChatId(contactId);
-  }, [contactId]);
-
   // Sync selected chat ID with the global store
   // Access action via getState() to avoid unnecessary subscription
   React.useEffect(() => {
@@ -274,7 +274,6 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
   // Chat selection handlers
   const handleChatSelect = React.useCallback(
     (chatId: string | null) => {
-      setSelectedChatId(chatId || undefined);
       setIsProfileOpen(false);
       setIsSearchOpen(false);
       setHighlightedMessageId(null);
@@ -345,7 +344,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
 
   // Send message handler
   const handleSendMessage = React.useCallback(
-    (content: string, replyToMessageId?: string) => {
+    (content: string, replyToMessageId?: string, mentionedJids?: string[]) => {
       if (!selectedChatId) return;
       if (isContactBlocked) {
         toast.error(blockedSendMessage);
@@ -357,6 +356,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
         content,
         messageType: "text",
         replyToMessageId,
+        mentionedJids,
       });
       setReplyDraft(null);
     },

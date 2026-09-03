@@ -20,10 +20,10 @@ describe("rate-limit configuration bounds", () => {
     const previous = process.env.RATE_LIMIT_GLOBAL_REQUESTS;
     try {
       process.env.RATE_LIMIT_GLOBAL_REQUESTS = "12requests";
-      expect(getRateLimitConfig().tiers.global.requests).toBe(100);
+      expect(getRateLimitConfig().tiers.global.requests).toBe(3000);
 
       process.env.RATE_LIMIT_GLOBAL_REQUESTS = String(Number.MAX_SAFE_INTEGER);
-      expect(getRateLimitConfig().tiers.global.requests).toBe(100);
+      expect(getRateLimitConfig().tiers.global.requests).toBe(3000);
     } finally {
       if (previous === undefined) {
         delete process.env.RATE_LIMIT_GLOBAL_REQUESTS;

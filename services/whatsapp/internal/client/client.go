@@ -1,7 +1,9 @@
 package client
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -92,6 +94,11 @@ type Client struct {
 	appStateSyncMu      sync.Mutex
 	labelRecoveryMu     sync.Mutex
 	labelRecovery       *labelRecoveryWaiter
+	catalogTokenMu      sync.Mutex
+	catalogToken        string
+	catalogOwnerJID     waTypes.JID
+	catalogLIDJID       waTypes.JID
+	catalogDeviceID     uint16
 	connected           bool
 	reconnecting        bool
 	ctx                 context.Context
@@ -154,6 +161,10 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		cancelReconnect: cancelReconnect,
 	}
 
+	// Cache the stable account identifiers before networking starts. Pairing
+	// refreshes the cache from the Connected event after whatsmeow stores them.
+	c.cacheCatalogIdentity()
+
 	// Register internal event handler to forward events
 	waClient.AddEventHandler(c.internalEventHandler)
 
@@ -177,6 +188,9 @@ func (c *Client) SetStatusCallback(cb StatusCallback) {
 // internalEventHandler forwards events to registered handlers.
 func (c *Client) internalEventHandler(evt interface{}) {
 	c.captureLabelRecoveryEvent(evt)
+	if _, connected := evt.(*events.Connected); connected {
+		c.cacheCatalogIdentity()
+	}
 
 	c.mu.RLock()
 	handlers := c.handlers
@@ -185,6 +199,36 @@ func (c *Client) internalEventHandler(evt interface{}) {
 	for _, handler := range handlers {
 		handler(evt)
 	}
+}
+
+// cacheCatalogIdentity copies account identifiers that WhatsMeow owns into
+// fields guarded by Client.mu. SyncCatalog can then avoid racing reconnects
+// that update the WhatsMeow device store.
+func (c *Client) cacheCatalogIdentity() {
+	var owner, lid waTypes.JID
+	var deviceID uint16
+	if c.client.Store.ID != nil {
+		deviceID = c.client.Store.ID.Device
+		owner = c.client.Store.ID.ToNonAD()
+	}
+	if c.client.Store.LID.User != "" {
+		lid = c.client.Store.LID.ToNonAD()
+	}
+	c.mu.Lock()
+	if !owner.IsEmpty() {
+		c.catalogOwnerJID = owner
+		c.catalogDeviceID = deviceID
+	}
+	if !lid.IsEmpty() {
+		c.catalogLIDJID = lid
+	}
+	c.mu.Unlock()
+}
+
+func (c *Client) catalogIdentity() (owner, lid waTypes.JID, deviceID uint16) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.catalogOwnerJID, c.catalogLIDJID, c.catalogDeviceID
 }
 
 // Connect establishes connection to WhatsApp.
@@ -519,38 +563,157 @@ func (c *Client) RegisterEventHandler(handler func(interface{})) {
 	c.handlers = append(c.handlers, handler)
 }
 
-// SendMessage sends a text message.
-func (c *Client) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error) {
+func buildTextMessage(jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (*waE2E.Message, error) {
+	contextInfo := &waE2E.ContextInfo{}
+	for _, rawJID := range mentionedJIDs {
+		mentionedJID, err := waTypes.ParseJID(rawJID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid mentioned JID %s: %w", rawJID, err)
+		}
+		switch mentionedJID.Server {
+		case waTypes.DefaultUserServer, waTypes.HiddenUserServer, waTypes.HostedLIDServer:
+			contextInfo.MentionedJID = append(contextInfo.MentionedJID, mentionedJID.ToNonAD().String())
+		default:
+			return nil, fmt.Errorf("unsupported mentioned JID server %s", mentionedJID.Server)
+		}
+	}
+
+	if replyTo != "" {
+		participant := replyToSender
+		if participant == "" {
+			participant = jid
+		}
+		contextInfo.StanzaID = proto.String(replyTo)
+		contextInfo.Participant = proto.String(participant)
+	}
+
+	if replyTo == "" && len(contextInfo.MentionedJID) == 0 {
+		return &waE2E.Message{Conversation: proto.String(text)}, nil
+	}
+	return &waE2E.Message{
+		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text:        proto.String(text),
+			ContextInfo: contextInfo,
+		},
+	}, nil
+}
+
+type mentionPhoneResolver func(context.Context, waTypes.JID) (waTypes.JID, error)
+
+func replaceMentionToken(text, fromUser, toUser string) (string, bool) {
+	if fromUser == "" || toUser == "" || fromUser == toUser {
+		return text, false
+	}
+
+	from := "@" + fromUser
+	to := "@" + toUser
+	var rewritten strings.Builder
+	cursor := 0
+	searchFrom := 0
+	replaced := false
+	for searchFrom < len(text) {
+		relativeStart := strings.Index(text[searchFrom:], from)
+		if relativeStart < 0 {
+			break
+		}
+		start := searchFrom + relativeStart
+		end := start + len(from)
+		// A shorter ID must not replace the prefix of another numeric token.
+		if end < len(text) && text[end] >= '0' && text[end] <= '9' {
+			searchFrom = end
+			continue
+		}
+		rewritten.WriteString(text[cursor:start])
+		rewritten.WriteString(to)
+		cursor = end
+		searchFrom = end
+		replaced = true
+	}
+	if !replaced {
+		return text, false
+	}
+	rewritten.WriteString(text[cursor:])
+	return rewritten.String(), true
+}
+
+// prepareTextMentions keeps WhatsApp's two mention identities aligned. In
+// LID-addressed groups ContextInfo names the opaque LID, but the visible
+// @token still contains the participant's phone number. Sending the LID digits
+// as text makes official clients treat them as an unrelated phone number.
+func prepareTextMentions(
+	ctx context.Context,
+	text string,
+	mentionedJIDs []string,
+	resolvePhone mentionPhoneResolver,
+) (string, []string, error) {
+	normalized := make([]string, 0, len(mentionedJIDs))
+	for _, rawJID := range mentionedJIDs {
+		mentionedJID, err := waTypes.ParseJID(rawJID)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid mentioned JID %s: %w", rawJID, err)
+		}
+		mentionedJID = mentionedJID.ToNonAD()
+		switch mentionedJID.Server {
+		case waTypes.DefaultUserServer:
+			normalized = append(normalized, mentionedJID.String())
+		case waTypes.HiddenUserServer, waTypes.HostedLIDServer:
+			if resolvePhone == nil {
+				return "", nil, fmt.Errorf("cannot resolve phone number for mentioned LID %s", mentionedJID)
+			}
+			phoneJID, resolveErr := resolvePhone(ctx, mentionedJID)
+			if resolveErr != nil {
+				return "", nil, fmt.Errorf("failed to resolve phone number for mentioned LID %s: %w", mentionedJID, resolveErr)
+			}
+			phoneJID = phoneJID.ToNonAD()
+			if phoneJID.IsEmpty() || phoneJID.Server != waTypes.DefaultUserServer {
+				return "", nil, fmt.Errorf("phone-number mapping unavailable for mentioned LID %s", mentionedJID)
+			}
+			var replaced bool
+			text, replaced = replaceMentionToken(text, mentionedJID.User, phoneJID.User)
+			if !replaced {
+				return "", nil, fmt.Errorf("message has no token for mentioned LID %s", mentionedJID)
+			}
+			normalized = append(normalized, mentionedJID.String())
+		default:
+			return "", nil, fmt.Errorf("unsupported mentioned JID server %s", mentionedJID.Server)
+		}
+	}
+	return text, normalized, nil
+}
+
+// SendMessage sends a text message, including WhatsApp mention metadata.
+func (c *Client) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (types.SendResponse, error) {
 	// Parse JID
 	recipient, err := waTypes.ParseJID(jid)
 	if err != nil {
 		return types.SendResponse{}, fmt.Errorf("invalid JID %s: %w", jid, err)
 	}
 
-	var msg *waE2E.Message
+	text, mentionedJIDs, err = prepareTextMentions(
+		ctx,
+		text,
+		mentionedJIDs,
+		func(ctx context.Context, lid waTypes.JID) (waTypes.JID, error) {
+			if c.client == nil || c.client.Store == nil || c.client.Store.LIDs == nil {
+				return waTypes.EmptyJID, errors.New("LID mapping store is unavailable")
+			}
+			return c.client.Store.LIDs.GetPNForLID(ctx, lid)
+		},
+	)
+	if err != nil {
+		return types.SendResponse{}, err
+	}
 
-	// If replying to a message, use ExtendedTextMessage with ContextInfo
+	msg, err := buildTextMessage(jid, text, replyTo, replyToSender, mentionedJIDs)
+	if err != nil {
+		return types.SendResponse{}, err
+	}
 	if replyTo != "" {
-		// Use provided sender JID, or fall back to recipient JID
 		participant := replyToSender
 		if participant == "" {
 			participant = jid
 		}
 		log.Printf("Sending reply message: stanzaId=%s, participant=%s", replyTo, participant)
-		msg = &waE2E.Message{
-			ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-				Text: proto.String(text),
-				ContextInfo: &waE2E.ContextInfo{
-					StanzaID:    proto.String(replyTo),
-					Participant: proto.String(participant),
-				},
-			},
-		}
-	} else {
-		// Simple text message
-		msg = &waE2E.Message{
-			Conversation: proto.String(text),
-		}
 	}
 
 	// Send message
@@ -1148,70 +1311,352 @@ func collectNodes(node waBinary.Node, tag string, out *[]waBinary.Node) {
 	}
 }
 
-// SyncCatalog queries the linked business account's product catalog. This uses
-// the same w:biz:catalog IQ namespace as WhatsApp Web.
-func (c *Client) SyncCatalog(ctx context.Context, catalogID string) (types.Catalog, error) {
-	if c.client.Store.ID == nil {
-		return types.Catalog{}, fmt.Errorf("client is not logged in")
+const (
+	catalogFacebookQueryID = "9957894520961099"
+	catalogFacebookURL     = "https://graph.facebook.com/graphql"
+	catalogPageSize        = "100"
+	catalogMaxPages        = 20
+)
+
+var errCatalogAuthentication = errors.New("catalog authentication failed")
+
+type catalogBoolean bool
+
+func (value *catalogBoolean) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(data, []byte("null")) {
+		*value = false
+		return nil
 	}
-	owner := c.client.Store.ID.ToNonAD()
+	var boolean bool
+	if err := json.Unmarshal(data, &boolean); err == nil {
+		*value = catalogBoolean(boolean)
+		return nil
+	}
+	var text string
+	if err := json.Unmarshal(data, &text); err != nil {
+		return fmt.Errorf("invalid catalog boolean: %w", err)
+	}
+	parsed, err := strconv.ParseBool(text)
+	if err != nil {
+		return fmt.Errorf("invalid catalog boolean %q: %w", text, err)
+	}
+	*value = catalogBoolean(parsed)
+	return nil
+}
+
+type catalogGraphQLProduct struct {
+	ID           string         `json:"id"`
+	RetailerID   string         `json:"retailer_id"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description"`
+	Price        string         `json:"price"`
+	Currency     string         `json:"currency"`
+	Availability string         `json:"availability"`
+	URL          string         `json:"url"`
+	IsHidden     catalogBoolean `json:"is_hidden"`
+	IsSanctioned catalogBoolean `json:"is_sanctioned"`
+	Media        struct {
+		Images []struct {
+			OriginalURL string `json:"original_image_url"`
+			RequestURL  string `json:"request_image_url"`
+		} `json:"images"`
+	} `json:"media"`
+}
+
+type catalogGraphQLError struct {
+	Code       int    `json:"code"`
+	Message    string `json:"message"`
+	Extensions struct {
+		ErrorCode int `json:"error_code"`
+	} `json:"extensions"`
+}
+
+type catalogGraphQLResponse struct {
+	Data struct {
+		Catalog struct {
+			ProductCatalog *struct {
+				ID       string                  `json:"catalog_id"`
+				Name     string                  `json:"catalog_name"`
+				Products []catalogGraphQLProduct `json:"products"`
+				Paging   struct {
+					After string `json:"after"`
+				} `json:"paging"`
+			} `json:"product_catalog"`
+		} `json:"xfb_whatsapp_catalog"`
+	} `json:"data"`
+	Error  *catalogGraphQLError  `json:"error"`
+	Errors []catalogGraphQLError `json:"errors"`
+}
+
+func (response catalogGraphQLResponse) firstError() *catalogGraphQLError {
+	if response.Error != nil {
+		return response.Error
+	}
+	if len(response.Errors) > 0 {
+		return &response.Errors[0]
+	}
+	return nil
+}
+
+func catalogGraphQLErrorResult(graphError *catalogGraphQLError) error {
+	if graphError == nil {
+		return nil
+	}
+	log.Printf("Catalog GraphQL query failed (code=%d, extension_code=%d): %s", graphError.Code, graphError.Extensions.ErrorCode, graphError.Message)
+	if graphError.Code == 102 || graphError.Code == 190 || graphError.Extensions.ErrorCode == 102 || graphError.Extensions.ErrorCode == 190 {
+		return errCatalogAuthentication
+	}
+	return fmt.Errorf("catalog service rejected the query")
+}
+
+func (c *Client) fetchCatalogAccessToken(ctx context.Context) (string, error) {
+	c.catalogTokenMu.Lock()
+	defer c.catalogTokenMu.Unlock()
+	if c.catalogToken != "" {
+		return c.catalogToken, nil
+	}
+
+	nonceCh := make(chan string, 1)
+	handlerID := c.client.AddEventHandler(func(evt any) {
+		if nonceEvent, ok := evt.(*events.BusinessTokenNonce); ok {
+			select {
+			case nonceCh <- nonceEvent.Nonce:
+			default:
+			}
+		}
+	})
+	defer c.client.RemoveEventHandler(handlerID)
+
 	response, err := c.client.DangerousInternals().SendIQ(ctx, whatsmeow.DangerousInfoQuery{
-		Namespace: "w:biz:catalog",
+		Namespace: "fb:thrift_iq",
 		Type:      whatsmeow.DangerousInfoQueryType("get"),
 		To:        waTypes.ServerJID,
+		SMaxID:    "118",
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to request business token nonce: %w", err)
+	}
+	result, ok := response.GetOptionalChildByTag("result")
+	if !ok || !strings.EqualFold(nodeAttr(result, "status"), "Success") {
+		return "", fmt.Errorf("business token nonce request was not accepted")
+	}
+
+	var nonce string
+	select {
+	case nonce = <-nonceCh:
+	case <-ctx.Done():
+		return "", fmt.Errorf("waiting for business token nonce: %w", ctx.Err())
+	}
+
+	response, err = c.client.DangerousInternals().SendIQ(ctx, whatsmeow.DangerousInfoQuery{
+		Namespace: "fb:thrift_iq",
+		Type:      whatsmeow.DangerousInfoQueryType("get"),
+		To:        waTypes.ServerJID,
+		SMaxID:    "104",
 		Content: []waBinary.Node{{
-			Tag:     "product_catalog",
-			Attrs:   waBinary.Attrs{"jid": owner},
-			Content: []waBinary.Node{{Tag: "limit", Content: []byte("500")}},
+			Tag: "parameters",
+			Content: []waBinary.Node{{
+				Tag:     "code",
+				Content: []byte(nonce),
+			}},
 		}},
 	})
 	if err != nil {
-		return types.Catalog{}, fmt.Errorf("failed to query business catalog: %w", err)
+		return "", fmt.Errorf("failed to request business access token: %w", err)
+	}
+	var tokenNodes []waBinary.Node
+	collectNodes(*response, "access_token", &tokenNodes)
+	if len(tokenNodes) == 0 {
+		return "", fmt.Errorf("business access token response did not contain a token")
+	}
+	token := nodeText(tokenNodes[0])
+	if token == "" {
+		return "", fmt.Errorf("business access token response contained an empty token")
+	}
+	c.catalogToken = token
+	return token, nil
+}
+
+func (c *Client) invalidateCatalogAccessToken(token string) {
+	c.catalogTokenMu.Lock()
+	defer c.catalogTokenMu.Unlock()
+	if c.catalogToken == token {
+		c.catalogToken = ""
+	}
+}
+
+func (c *Client) fetchCatalogPage(ctx context.Context, token, catalogJID string, deviceID uint16, after any) (catalogGraphQLResponse, error) {
+	variables := map[string]any{
+		"request": map[string]any{
+			"product_catalog": map[string]any{
+				"jid":                              catalogJID,
+				"after":                            after,
+				"limit":                            catalogPageSize,
+				"width":                            "100",
+				"height":                           "100",
+				"belongs_to":                       map[string]any{},
+				"allow_shop_source":                false,
+				"direct_connection_encrypted_info": nil,
+				"variant_thumbnail_height":         nil,
+				"variant_thumbnail_width":          nil,
+			},
+			"platform": "WEB",
+		},
+	}
+	body, err := json.Marshal(map[string]any{
+		"access_token": token,
+		"doc_id":       catalogFacebookQueryID,
+		"variables":    variables,
+		"locale":       "en_US",
+	})
+	if err != nil {
+		return catalogGraphQLResponse{}, fmt.Errorf("failed to encode catalog query: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, catalogFacebookURL, bytes.NewReader(body))
+	if err != nil {
+		return catalogGraphQLResponse{}, fmt.Errorf("failed to create catalog query: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	if deviceID > 0 {
+		req.Header.Set("X-WA-Device-ID", strconv.Itoa(int(deviceID)))
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return catalogGraphQLResponse{}, fmt.Errorf("catalog query failed: %w", err)
+	}
+	defer resp.Body.Close()
+	var response catalogGraphQLResponse
+	decodeErr := json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(&response)
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			return catalogGraphQLResponse{}, fmt.Errorf("%w: HTTP %d", errCatalogAuthentication, resp.StatusCode)
+		}
+		if decodeErr == nil {
+			if graphErr := catalogGraphQLErrorResult(response.firstError()); graphErr != nil {
+				return catalogGraphQLResponse{}, fmt.Errorf("%w: HTTP %d", graphErr, resp.StatusCode)
+			}
+		}
+		return catalogGraphQLResponse{}, fmt.Errorf("catalog query returned HTTP %d", resp.StatusCode)
+	}
+	if decodeErr != nil {
+		return catalogGraphQLResponse{}, fmt.Errorf("failed to decode catalog query: %w", decodeErr)
+	}
+	if graphErr := catalogGraphQLErrorResult(response.firstError()); graphErr != nil {
+		return catalogGraphQLResponse{}, graphErr
+	}
+	if response.Data.Catalog.ProductCatalog == nil {
+		return catalogGraphQLResponse{}, fmt.Errorf("catalog query returned no product catalog")
+	}
+	return response, nil
+}
+
+// SyncCatalog queries the linked business account's product catalog through
+// the authenticated Facebook GraphQL path used for a user's own catalog by
+// current WhatsApp Web clients.
+func (c *Client) SyncCatalog(ctx context.Context, catalogID string) (types.Catalog, error) {
+	owner, lid, deviceID := c.catalogIdentity()
+	if owner.IsEmpty() {
+		return types.Catalog{}, fmt.Errorf("client is not logged in")
 	}
 	if catalogID == "" {
 		catalogID = owner.String()
 	}
 	catalog := types.Catalog{ID: catalogID, Name: "WhatsApp Catalog", Products: []types.Product{}}
-	var catalogNodes []waBinary.Node
-	collectNodes(*response, "product_catalog", &catalogNodes)
-	if len(catalogNodes) == 0 {
-		return types.Catalog{}, fmt.Errorf("catalog response did not contain product_catalog")
+	token, err := c.fetchCatalogAccessToken(ctx)
+	if err != nil {
+		return types.Catalog{}, fmt.Errorf("failed to authenticate business catalog query: %w", err)
 	}
-	catalogNode := catalogNodes[0]
-	if id := nodeAttr(catalogNode, "id", "catalog_id"); id != "" {
-		catalog.ID = id
+
+	// WhatsApp Web chooses LID or phone-number addressing using a server-side
+	// feature flag that workers cannot read. Prefer LID, then retry the first
+	// page with the phone-number JID before treating the query as failed.
+	catalogJIDs := make([]string, 0, 2)
+	if !lid.IsEmpty() {
+		catalogJIDs = append(catalogJIDs, lid.String())
 	}
-	if name := nodeText(catalogNode, "name"); name != "" {
-		catalog.Name = name
+	if owner.String() != lid.String() {
+		catalogJIDs = append(catalogJIDs, owner.String())
 	}
-	catalog.Description = nodeText(catalogNode, "description")
-	catalog.Currency = nodeText(catalogNode, "currency")
-	var productNodes []waBinary.Node
-	collectNodes(*response, "product", &productNodes)
-	for _, productNode := range productNodes {
-		price, _ := strconv.ParseInt(strings.TrimSpace(nodeText(productNode, "price")), 10, 64)
-		product := types.Product{
-			ID:           nodeAttr(productNode, "id", "product_id"),
-			RetailerID:   nodeAttr(productNode, "retailer_id"),
-			Name:         nodeText(productNode, "name"),
-			Description:  nodeText(productNode, "description"),
-			Price:        price,
-			Currency:     nodeText(productNode, "currency"),
-			Availability: nodeText(productNode, "availability"),
-			URL:          nodeText(productNode, "url"),
+	var response catalogGraphQLResponse
+	var queryErr error
+	var catalogJID string
+	for _, candidate := range catalogJIDs {
+		response, queryErr = c.fetchCatalogPage(ctx, token, candidate, deviceID, nil)
+		if queryErr == nil {
+			catalogJID = candidate
+			break
 		}
-		var imageNodes []waBinary.Node
-		collectNodes(productNode, "image", &imageNodes)
-		for _, image := range imageNodes {
-			if imageURL := nodeText(image); imageURL != "" {
-				product.ImageURLs = append(product.ImageURLs, imageURL)
+	}
+	if queryErr != nil {
+		if errors.Is(queryErr, errCatalogAuthentication) {
+			c.invalidateCatalogAccessToken(token)
+		}
+		return types.Catalog{}, fmt.Errorf("failed to query business catalog: %w", queryErr)
+	}
+
+	seenCursors := make(map[string]struct{})
+	for pageNumber := 0; pageNumber < catalogMaxPages; pageNumber++ {
+		if pageNumber > 0 {
+			response, queryErr = c.fetchCatalogPage(ctx, token, catalogJID, deviceID, response.Data.Catalog.ProductCatalog.Paging.After)
+			if queryErr != nil {
+				if errors.Is(queryErr, errCatalogAuthentication) {
+					c.invalidateCatalogAccessToken(token)
+				}
+				return types.Catalog{}, fmt.Errorf("failed to query business catalog: %w", queryErr)
 			}
 		}
-		if product.ID != "" {
-			catalog.Products = append(catalog.Products, product)
+		page := response.Data.Catalog.ProductCatalog
+		if page.ID != "" {
+			catalog.ID = page.ID
 		}
+		if page.Name != "" {
+			catalog.Name = page.Name
+		}
+		for _, item := range page.Products {
+			if bool(item.IsHidden) || bool(item.IsSanctioned) {
+				continue
+			}
+			price, _ := strconv.ParseInt(strings.TrimSpace(item.Price), 10, 64)
+			product := types.Product{
+				ID:           item.ID,
+				RetailerID:   item.RetailerID,
+				Name:         item.Name,
+				Description:  item.Description,
+				Price:        price,
+				Currency:     item.Currency,
+				Availability: item.Availability,
+				URL:          item.URL,
+			}
+			for _, image := range item.Media.Images {
+				imageURL := image.OriginalURL
+				if imageURL == "" {
+					imageURL = image.RequestURL
+				}
+				if imageURL != "" {
+					product.ImageURLs = append(product.ImageURLs, imageURL)
+				}
+			}
+			if product.ID != "" {
+				catalog.Products = append(catalog.Products, product)
+			}
+		}
+		after := page.Paging.After
+		if after == "" {
+			for _, product := range catalog.Products {
+				if product.Currency != "" {
+					catalog.Currency = product.Currency
+					break
+				}
+			}
+			return catalog, nil
+		}
+		if _, seen := seenCursors[after]; seen {
+			return types.Catalog{}, fmt.Errorf("catalog pagination repeated cursor")
+		}
+		seenCursors[after] = struct{}{}
 	}
-	return catalog, nil
+	return types.Catalog{}, fmt.Errorf("catalog pagination exceeded %d pages", catalogMaxPages)
 }
 
 // GetQRCode returns the QR code for device pairing (deprecated, use Connect with callback).

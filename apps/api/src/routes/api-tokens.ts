@@ -17,6 +17,11 @@ import {
   revokeApiToken,
 } from "../services/api-token.service.js";
 
+import {
+  listConnectedApps,
+  revokeConnectedApp,
+} from "../services/oauth.service.js";
+
 export const apiTokenRoutes = new Hono();
 
 // Token management uses the normal web session, never API tokens themselves.
@@ -102,3 +107,32 @@ apiTokenRoutes.delete(
     return successMessage(c, "API token revoked");
   },
 );
+
+/**
+ * Connected AI clients, listed and disconnected alongside personal tokens
+ * because they are the same thing to a user: something holding access to their
+ * inbox. They live here rather than under /oauth so this router's session auth
+ * and tenant scoping apply unchanged.
+ */
+apiTokenRoutes.get("/connected-apps", async (c) => {
+  const { companyId, user, role } = getRouteContext(c);
+  const apps = await listConnectedApps(companyId, {
+    requesterId: user.id,
+    isAdmin: role === "owner" || role === "admin",
+  });
+  return successData(c, apps);
+});
+
+apiTokenRoutes.delete("/connected-apps/:id", async (c) => {
+  const { companyId, user, role } = getRouteContext(c);
+  const revoked = await revokeConnectedApp({
+    grantId: c.req.param("id"),
+    companyId,
+    requesterId: user.id,
+    isAdmin: role === "owner" || role === "admin",
+  });
+  if (!revoked) {
+    return notFound(c, "Connected app");
+  }
+  return successMessage(c, "Disconnected");
+});

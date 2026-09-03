@@ -4,11 +4,14 @@ import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { GroupParticipant } from "@/hooks/useGroups";
 import { LinkifiedText } from "./LinkifiedText";
+import { MediaAlbumContent } from "./MediaAlbumContent";
 import { MediaLightbox } from "./MediaLightbox";
 import { MediaPendingPlaceholder } from "./MediaPendingPlaceholder";
 
 interface MessageContentProps {
   message: Message;
+  albumMessages?: Message[];
+  albumExpectedCount?: number;
   isOwn: boolean;
   mentionParticipants?: Pick<
     GroupParticipant,
@@ -22,6 +25,8 @@ interface MessageContentProps {
  */
 export function MessageContent({
   message,
+  albumMessages = [message],
+  albumExpectedCount = albumMessages.length,
   isOwn,
   mentionParticipants = [],
   enableMediaPreview = true,
@@ -34,6 +39,21 @@ export function MessageContent({
       <span className="italic text-gray-500 dark:text-gray-400">
         {t("chat.messageDeleted")}
       </span>
+    );
+  }
+
+  if (
+    albumMessages.length > 1 &&
+    (message.messageType === "image" || message.messageType === "video")
+  ) {
+    return (
+      <MediaAlbumContent
+        messages={albumMessages}
+        expectedCount={albumExpectedCount}
+        isOwn={isOwn}
+        mentionParticipants={mentionParticipants}
+        enableMediaPreview={enableMediaPreview}
+      />
     );
   }
 

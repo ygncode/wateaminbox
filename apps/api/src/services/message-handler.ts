@@ -8,10 +8,11 @@ import {
   type ContactEvent,
   type DownloadResponseEvent,
   type GroupEvent,
-  type LabelsEvent,
   type HistorySyncPageEvent,
+  type LabelsEvent,
   type MessageEvent,
   type MessageRevokeEvent,
+  natsLifecycle,
   type PresenceEvent,
   type ProfilePictureEvent,
   type QREvent,
@@ -24,7 +25,6 @@ import {
   type TypingEvent,
   type WhatsAppEvent,
   type WorkerConnectionStatusEvent,
-  natsLifecycle,
 } from "../lib/nats/index.js";
 import {
   handleCatalogProductsEvent,
@@ -36,8 +36,8 @@ import {
   handleDownloadResponseEvent,
   handleErrorEvent,
   handleGroupEvent,
-  handleLabelsEvent,
   handleHistorySyncPageEvent,
+  handleLabelsEvent,
   handleMessageEvent,
   handleMessageRevokeEvent,
   handlePresenceEvent,
@@ -80,7 +80,7 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
   }
   if (
     session.status === "ended" &&
-    !["connection_status", "disconnected", "error"].includes(type)
+    !["connection_status", "disconnected", "logged_out", "error"].includes(type)
   ) {
     logger.info(
       { type, companyId, sessionId },
@@ -110,10 +110,17 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
         await handleQREvent(resolvedEvent as QREvent);
         break;
 
+      // PairSuccess carries the same identity payload as Connected. Claiming
+      // it is idempotent when the subsequent Connected event arrives.
+      case "paired":
       case "connected":
         await handleConnectedEvent(resolvedEvent as ConnectionEvent);
         break;
 
+      // whatsmeow emits LoggedOut for terminal 401/403 session loss. Persist it
+      // through the normal disconnect path instead of leaving a false connected
+      // account after the worker has deleted its credentials.
+      case "logged_out":
       case "disconnected":
         await handleDisconnectedEvent(resolvedEvent as ConnectionEvent);
         break;

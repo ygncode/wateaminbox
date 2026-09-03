@@ -181,7 +181,7 @@ function MobileResponsiveLayout({
 }: MobileResponsiveLayoutProps) {
   return (
     <MobileLayoutProvider
-      initialChatId={selectedChatId}
+      selectedChatId={selectedChatId}
       onChatSelect={onChatSelect}
     >
       <MobileLayout>

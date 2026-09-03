@@ -47,6 +47,11 @@ const WorkspaceChooserPage = lazy(() =>
     default: m.WorkspaceChooserPage,
   })),
 );
+const OAuthConsentPage = lazy(() =>
+  import("./pages/OAuthConsentPage").then((m) => ({
+    default: m.OAuthConsentPage,
+  })),
+);
 const ChatPage = lazy(() =>
   import("./pages/ChatPage").then((m) => ({ default: m.ChatPage })),
 );
@@ -149,6 +154,16 @@ function App() {
             <ProtectedRoute workspaceMode="setup">
               <LazyPage variant="auth">
                 <CompanySetupPage />
+              </LazyPage>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/oauth/consent"
+          element={
+            <ProtectedRoute workspaceMode="chooser">
+              <LazyPage>
+                <OAuthConsentPage />
               </LazyPage>
             </ProtectedRoute>
           }

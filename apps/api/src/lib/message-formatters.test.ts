@@ -18,11 +18,11 @@ const baseMessage = (overrides: Partial<MessageDbRow>): MessageDbRow => ({
   message_type: "text",
   content: "Incoming reply",
   media_url: null,
-  metadata: null,
   media_mime_type: null,
   media_size: null,
   media_direct_path: null,
   media_download_status: null,
+  metadata: null,
   quoted_message_id: null,
   is_forwarded: false,
   is_starred: false,
@@ -122,5 +122,26 @@ describe("incoming reply formatting", () => {
     expect(formatted.sentByUserGravatarUrl).toBe(
       "https://example.com/aye-aye-gravatar.jpg",
     );
+  });
+
+  test("exposes valid media album metadata to the conversation client", () => {
+    const formatted = formatMessageForConversation(
+      baseMessage({
+        message_type: "image",
+        metadata: {
+          mediaAlbumId: "album-parent",
+          mediaAlbumIndex: 0,
+          mediaAlbumCount: 13,
+        },
+      }),
+      new Map(),
+      new Map(),
+    );
+
+    expect(formatted.metadata).toMatchObject({
+      mediaAlbumId: "album-parent",
+      mediaAlbumIndex: 0,
+      mediaAlbumCount: 13,
+    });
   });
 });

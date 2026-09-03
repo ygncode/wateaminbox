@@ -34,6 +34,7 @@ import { reserveMediaReferences } from "../../services/media-reference-lock.js";
 import { broadcastNewMessageToViewers } from "../../services/message-broadcast.service.js";
 import { requireSendAccess } from "../../services/send-access.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
+import { validateGroupMentionJids } from "../../services/group-mention.service.js";
 
 // Message send rate limiter: 60 requests per minute per user
 const messageSendRateLimiter = createConditionalRateLimiter(
@@ -68,7 +69,7 @@ sendRoutes.post(
     // Get contact JID and connection ID
     const contact = await tenantDb
       .selectFrom("contacts")
-      .select(["id", "jid", "whatsapp_connection_id"])
+      .select(["id", "jid", "is_group", "whatsapp_connection_id"])
       .where("id", "=", body.contactId)
       .executeTakeFirst();
 
@@ -89,6 +90,19 @@ sendRoutes.post(
 
     if (!connection) {
       return badRequest(c, "The contact's WhatsApp connection is not active");
+    }
+
+    if (body.mentionedJids?.length && body.messageType !== "text") {
+      return badRequest(c, "Mentions are currently supported in text messages");
+    }
+    const mentionValidation = await validateGroupMentionJids(
+      tenantDb,
+      { id: contact.id, jid: contact.jid, isGroup: contact.is_group },
+      body.content ?? "",
+      body.mentionedJids,
+    );
+    if (mentionValidation.error) {
+      return badRequest(c, mentionValidation.error);
     }
 
     // Look up the WhatsApp message ID and sender for reply-to if provided
@@ -128,6 +142,7 @@ sendRoutes.post(
       body.mediaUrl,
       quotedWaMessageId,
       quotedSenderJid,
+      mentionValidation.mentionedJids,
     );
 
     const storedMediaReference = body.mediaUrl

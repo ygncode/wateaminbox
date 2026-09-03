@@ -136,6 +136,12 @@ type Handler struct {
 	groupSyncCancel          context.CancelFunc
 	groupLIDRepairStarted    bool
 	groupLIDRepairInProgress bool
+
+	// Album parents declare the total media count while each child carries the
+	// parent ID and tile index. Keep that short-lived manifest in memory so the
+	// child event can preserve both pieces without storing a protocol-only row.
+	mediaAlbumMu        sync.Mutex
+	mediaAlbumManifests map[string]mediaAlbumManifest
 }
 
 // maxConcurrentGroupRefreshes bounds how many group metadata reads are in
@@ -161,6 +167,7 @@ func New(cfg Config) *Handler {
 		historySyncIdleTimeout: historySyncIdleTimeout,
 		groupRefreshPending:    make(map[string]bool),
 		groupRefreshSlots:      make(chan struct{}, maxConcurrentGroupRefreshes),
+		mediaAlbumManifests:    make(map[string]mediaAlbumManifest),
 	}
 }
 

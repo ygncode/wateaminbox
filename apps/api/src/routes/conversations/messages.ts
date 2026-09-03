@@ -45,6 +45,7 @@ import {
   getUserNames,
 } from "../../services/user.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
+import { validateGroupMentionJids } from "../../services/group-mention.service.js";
 
 export const messageRoutes = new Hono();
 
@@ -312,7 +313,7 @@ messageRoutes.post(
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
     const contactId = c.req.param("id");
-    const { content, messageType, mediaUrl, replyToMessageId } =
+    const { content, messageType, mediaUrl, replyToMessageId, mentionedJids } =
       c.req.valid("json");
 
     if (!content && messageType === "text") {
@@ -322,7 +323,7 @@ messageRoutes.post(
     // Get contact JID and connection ID
     const contact = await tenantDb
       .selectFrom("contacts")
-      .select(["id", "jid", "whatsapp_connection_id"])
+      .select(["id", "jid", "is_group", "whatsapp_connection_id"])
       .where("id", "=", contactId)
       .executeTakeFirst();
 
@@ -341,6 +342,19 @@ messageRoutes.post(
 
     if (!connection) {
       return badRequest(c, "The contact's WhatsApp connection is not active");
+    }
+
+    if (mentionedJids?.length && messageType !== "text") {
+      return badRequest(c, "Mentions are currently supported in text messages");
+    }
+    const mentionValidation = await validateGroupMentionJids(
+      tenantDb,
+      { id: contact.id, jid: contact.jid, isGroup: contact.is_group },
+      content ?? "",
+      mentionedJids,
+    );
+    if (mentionValidation.error) {
+      return badRequest(c, mentionValidation.error);
     }
 
     // Look up the WhatsApp message ID and sender for reply-to if provided
@@ -379,6 +393,7 @@ messageRoutes.post(
       mediaUrl,
       quotedWaMessageId,
       quotedSenderJid,
+      mentionValidation.mentionedJids,
     );
     const storedMediaReference = mediaUrl
       ? getPrivateMediaReference(resolveMediaKeyForCompany(mediaUrl, companyId))

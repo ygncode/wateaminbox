@@ -10,8 +10,27 @@ import { rateLimitConfig, rateLimitStore } from "./lib/rate-limit-store.js";
 import { formatZodErrors } from "./lib/response.js";
 import { createRateLimitMiddleware } from "./middleware/rate-limit.js";
 import { routes } from "./routes/index.js";
+import { wellKnownRoutes } from "./routes/well-known.js";
 
 const appLogger = createLogger("App");
+
+const independentlyRateLimitedAuthPaths = new Set([
+  "/api/auth/login",
+  "/api/auth/register",
+  "/api/auth/resend-verification",
+  "/api/auth/forgot-password",
+  "/api/auth/refresh",
+]);
+
+export function shouldSkipGlobalRateLimit(path: string): boolean {
+  const isHealthProbe =
+    path === "/api/health" || path.startsWith("/api/health/");
+  return (
+    !path.startsWith("/api") ||
+    isHealthProbe ||
+    independentlyRateLimitedAuthPaths.has(path)
+  );
+}
 
 export const app = new Hono();
 
@@ -44,12 +63,10 @@ if (rateLimitConfig.enabled) {
     // limiting is unavailable. Readiness performs its own authoritative
     // dependency checks; liveness must never turn a database outage into a
     // restart loop.
-    skip: (c) => {
-      const path = c.req.path;
-      const isHealthProbe =
-        path === "/api/health" || path.startsWith("/api/health/");
-      return !path.startsWith("/api") || isHealthProbe;
-    },
+    // Public authentication mutations have narrower, stricter limiters on
+    // their routes. Keeping them out of the broad inbox bucket prevents a
+    // realtime/history-sync burst from locking a legitimate user out.
+    skip: (c) => shouldSkipGlobalRateLimit(c.req.path),
   });
 
   app.use("*", globalRateLimiter);
@@ -57,6 +74,10 @@ if (rateLimitConfig.enabled) {
 
 // Routes - mounted at /api
 app.route("/api", routes);
+
+// OAuth discovery. These paths are fixed by RFC 8414 and RFC 9728, so they
+// cannot live under /api; the edge forwards them explicitly.
+app.route("/.well-known", wellKnownRoutes);
 
 // 404 handler
 app.notFound((c) => {

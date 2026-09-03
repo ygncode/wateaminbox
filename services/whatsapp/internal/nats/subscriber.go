@@ -66,18 +66,19 @@ type FetchProfilePictureCommand struct {
 
 // SendMessageCommand represents a command to send a message.
 type SendMessageCommand struct {
-	MessageID      string `json:"message_id"`
-	To             string `json:"to"`               // JID of the recipient
-	Type           string `json:"type"`             // "text", "image", "document", "video", "audio", "reaction"
-	Content        string `json:"content"`          // Text content or media URL
-	Caption        string `json:"caption"`          // Caption for media messages
-	FileName       string `json:"file_name"`        // File name for documents
-	MimeType       string `json:"mime_type"`        // MIME type for media
-	MediaObjectKey string `json:"media_object_key"` // Tenant-scoped storage key
-	MediaSize      int64  `json:"media_size"`
-	MediaChecksum  string `json:"media_checksum"`
-	ReplyTo        string `json:"reply_to"`        // Message ID to reply to
-	ReplyToSender  string `json:"reply_to_sender"` // JID of the sender of the quoted message
+	MessageID      string   `json:"message_id"`
+	To             string   `json:"to"`               // JID of the recipient
+	Type           string   `json:"type"`             // "text", "image", "document", "video", "audio", "reaction"
+	Content        string   `json:"content"`          // Text content or media URL
+	Caption        string   `json:"caption"`          // Caption for media messages
+	FileName       string   `json:"file_name"`        // File name for documents
+	MimeType       string   `json:"mime_type"`        // MIME type for media
+	MediaObjectKey string   `json:"media_object_key"` // Tenant-scoped storage key
+	MediaSize      int64    `json:"media_size"`
+	MediaChecksum  string   `json:"media_checksum"`
+	ReplyTo        string   `json:"reply_to"`        // Message ID to reply to
+	ReplyToSender  string   `json:"reply_to_sender"` // JID of the sender of the quoted message
+	MentionedJIDs  []string `json:"mentioned_jids,omitempty"`
 	// Reaction-specific fields
 	TargetMessageID string `json:"target_message_id"` // Message ID to react to (for reaction type)
 	Emoji           string `json:"emoji"`             // Emoji for reaction (for reaction type)
@@ -131,7 +132,7 @@ type storedCommandResult struct {
 }
 
 type MessageSender interface {
-	SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error)
+	SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (types.SendResponse, error)
 	SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (types.SendResponse, error)
 	SendReaction(ctx context.Context, chatJID string, messageID string, emoji string, targetSenderJID string, fromMe bool) (types.SendResponse, error)
 }
@@ -722,7 +723,7 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 
 	switch cmd.Type {
 	case "text":
-		resp, err = s.sender.SendMessage(ctx, cmd.To, cmd.Content, cmd.ReplyTo, cmd.ReplyToSender)
+		resp, err = s.sender.SendMessage(ctx, cmd.To, cmd.Content, cmd.ReplyTo, cmd.ReplyToSender, cmd.MentionedJIDs)
 	case "image", "video", "audio", "document", "sticker":
 		if s.storage == nil {
 			err = fmt.Errorf("object storage is not configured")

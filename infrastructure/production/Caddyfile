@@ -33,6 +33,16 @@
 		}
 	}
 
+	# OAuth discovery. RFC 8414 and RFC 9728 fix these paths at the root, so
+	# they cannot be served under /api. Without this rule they fall through to
+	# the SPA below and answer 200 with HTML, which an MCP client reads as a
+	# malformed document rather than a missing one.
+	handle /.well-known/oauth-* {
+		reverse_proxy api-router:4451 {
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+
 	handle /connection/* {
 		reverse_proxy centrifugo:8000
 	}

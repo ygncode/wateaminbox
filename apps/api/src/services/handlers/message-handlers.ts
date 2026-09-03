@@ -45,6 +45,7 @@ import { resolveIncomingMessageRecipients } from "../notification-recipient.serv
 import { updateMessageSearchVector } from "../search.service.js";
 import { getTenantConnection } from "../tenant.service.js";
 import { lockActiveConnectionForEvent } from "./connection-event-guard.js";
+import { buildIncomingMessageMetadata } from "./message-metadata.js";
 import { getProfilePictureRequestJid } from "./profile-picture-request.js";
 import { handlerLogger as logger } from "./types.js";
 
@@ -272,6 +273,12 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     const messageStatus: MessageStatus = payload.fromMe
       ? (payload.status ?? "sent")
       : "delivered";
+    const albumMetadata = buildIncomingMessageMetadata(payload);
+    const documentMetadata = buildInboundMessageMetadata(payload);
+    const incomingMetadata =
+      albumMetadata || documentMetadata
+        ? { ...(albumMetadata ?? {}), ...(documentMetadata ?? {}) }
+        : null;
 
     const messageId = crypto.randomUUID();
 
@@ -300,11 +307,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           sender_avatar_url: null,
           message_type: payload.messageType as MessageType,
           content: payload.content,
-          // The original filename only ever arrives on this event. Nothing
-          // else carries it: the storage key is a UUID, and the deferred
-          // download response reports only the uploaded object. Dropping it
-          // here is what left documents downloading as "<uuid>.bin".
-          metadata: buildInboundMessageMetadata(payload),
+          metadata: incomingMetadata,
           media_url: payload.mediaUrl || null,
           media_mime_type: payload.mediaType || null,
           media_size: payload.mediaSize || null,
@@ -330,9 +333,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         });
 
         // A reconnect can resend history that was previously imported without
-        // its group participant. Update just the sender fields so that a new
-        // history sync repairs those existing rows without duplicating
-        // messages.
+        // its group participant. Repair sender fields when the replay is more
+        // complete, but never let a replay that names the group itself erase a
+        // participant identity the live/original import already preserved.
         const insertResult = payload.isHistorySync
           ? await insertQuery
               .onConflict((oc) =>
@@ -340,13 +343,24 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
                   .columns(["whatsapp_connection_id", "message_id"])
                   .doUpdateSet({
                     from_me: payload.fromMe,
-                    sender_jid: normalizedSenderJid,
-                    sender_name: senderName,
-                    // Merge rather than replace. A resync of an already
-                    // imported message can arrive without the document
-                    // filename that the original event carried, and
-                    // overwriting would lose it. The same `messages.` /
-                    // `excluded.` references the status CASE below uses.
+                    sender_jid: sql<string | null>`CASE
+                WHEN excluded.sender_jid LIKE '%@g.us'
+                  AND messages.sender_jid IS NOT NULL
+                  AND messages.sender_jid NOT LIKE '%@g.us'
+                  THEN messages.sender_jid
+                ELSE excluded.sender_jid
+              END`,
+                    sender_name: sql<string | null>`CASE
+                WHEN excluded.sender_jid LIKE '%@g.us'
+                  AND messages.sender_jid IS NOT NULL
+                  AND messages.sender_jid NOT LIKE '%@g.us'
+                  THEN messages.sender_name
+                ELSE COALESCE(excluded.sender_name, messages.sender_name)
+              END`,
+                    // Merge rather than replace. History replay can omit a
+                    // filename or other metadata that the original event
+                    // carried, so retain existing keys while accepting new
+                    // album/document metadata from the replay.
                     metadata: sql<Record<string, unknown> | null>`NULLIF(
                 COALESCE(messages.metadata, '{}'::jsonb)
                   || COALESCE(excluded.metadata, '{}'::jsonb),
@@ -579,6 +593,16 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     // Frontend expects { message: Message, conversationId: string }
     // Skip for history sync messages to avoid flooding during initial sync
     if (!payload.isHistorySync) {
+      const realtimeMetadata = {
+        ...(payload.mediaUrl ? { mediaAvailable: true } : {}),
+        ...(incomingMetadata?.mediaAlbumId
+          ? {
+              mediaAlbumId: incomingMetadata.mediaAlbumId,
+              mediaAlbumIndex: incomingMetadata.mediaAlbumIndex,
+              mediaAlbumCount: incomingMetadata.mediaAlbumCount,
+            }
+          : {}),
+      };
       await broadcastNewMessageToViewers(
         companyId,
         contact.id,
@@ -597,7 +621,10 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
             whatsappMessageId: payload.messageId,
             // Private media URLs are issued only by visibility-checked HTTP
             // reads; realtime payloads carry update signals only.
-            metadata: payload.mediaUrl ? { mediaAvailable: true } : undefined,
+            metadata:
+              Object.keys(realtimeMetadata).length > 0
+                ? realtimeMetadata
+                : undefined,
             replyToMessageId: payload.quotedMessageId,
             replyToMessage,
             isForwarded: false,

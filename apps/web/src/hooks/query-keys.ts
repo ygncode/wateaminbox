@@ -266,6 +266,9 @@ export const queryKeys = {
       return ["api-tokens", getCompanyId()] as const;
     },
     list: (all: boolean) => ["api-tokens", getCompanyId(), { all }] as const,
+    get connectedApps() {
+      return ["api-tokens", getCompanyId(), "connected-apps"] as const;
+    },
   },
 
   // Notifications - custom keys for in-app notifications

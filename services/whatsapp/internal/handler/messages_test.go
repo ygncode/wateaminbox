@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waCommon"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/proto/waWeb"
@@ -179,6 +180,48 @@ func TestGetHistorySenderJIDUsesGroupParticipant(t *testing.T) {
 	)
 	if resolved != "6582239810@s.whatsapp.net" {
 		t.Fatalf("expected group participant JID, got %s", resolved)
+	}
+}
+
+func TestGetHistoryParticipantSupportsBothWhatsAppLocations(t *testing.T) {
+	tests := []struct {
+		name     string
+		message  *waWeb.WebMessageInfo
+		expected string
+	}{
+		{
+			name: "message key participant",
+			message: &waWeb.WebMessageInfo{Key: &waCommon.MessageKey{
+				Participant: proto.String("6582239810@s.whatsapp.net"),
+			}},
+			expected: "6582239810@s.whatsapp.net",
+		},
+		{
+			name: "outer participant",
+			message: &waWeb.WebMessageInfo{
+				Key:         &waCommon.MessageKey{},
+				Participant: proto.String("6591134349@s.whatsapp.net"),
+			},
+			expected: "6591134349@s.whatsapp.net",
+		},
+		{
+			name: "key wins when both are present",
+			message: &waWeb.WebMessageInfo{
+				Key: &waCommon.MessageKey{
+					Participant: proto.String("6582239810@s.whatsapp.net"),
+				},
+				Participant: proto.String("6591134349@s.whatsapp.net"),
+			},
+			expected: "6582239810@s.whatsapp.net",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if actual := getHistoryParticipant(tt.message); actual != tt.expected {
+				t.Fatalf("expected %q, got %q", tt.expected, actual)
+			}
+		})
 	}
 }
 

@@ -1,6 +1,13 @@
-import { Fragment, type ReactNode } from "react";
+import { useMessageActions } from "@/contexts/message-actions-context";
 import type { GroupParticipant } from "@/hooks/useGroups";
 import { cn } from "@/lib/utils";
+import { Fragment, type ReactNode } from "react";
+import {
+  type MentionParticipant,
+  resolveMentionSegments,
+} from "./group-mentions";
+
+export { resolveMentionNames } from "./group-mentions";
 
 export interface MessageTextSegment {
   type: "text" | "link";
@@ -12,55 +19,6 @@ const LINK_PATTERN =
   /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}|(?:https?:\/\/|www\.)[^\s<>]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s<>]*)?/gi;
 const EMAIL_PATTERN = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
 const SIMPLE_TRAILING_PUNCTUATION = /[.,!?;:]+$/;
-const PHONE_MENTION_PATTERN = /@(\d{5,20})\b/g;
-
-function digitsOnly(value: string): string {
-  return value.replace(/\D/g, "");
-}
-
-/**
- * Replace WhatsApp's raw numeric mention text with the resolved group
- * participant name. Mentions can contain either a phone number or WhatsApp's
- * private LID, so the API supplies every known token for each participant.
- * Unknown mentions are deliberately left unchanged.
- */
-export function resolveMentionNames(
-  text: string,
-  participants: Pick<
-    GroupParticipant,
-    "jid" | "phoneNumber" | "mentionIds" | "displayName"
-  >[],
-): string {
-  if (participants.length === 0 || !text.includes("@")) return text;
-
-  const displayNameByMentionId = new Map<string, string>();
-  for (const participant of participants) {
-    const displayName = participant.displayName.trim().replace(/^@/, "");
-    if (!displayName) continue;
-
-    const jidMentionId = participant.jid.split("@")[0]?.split(":")[0] || "";
-    const mentionIds = [
-      jidMentionId,
-      participant.phoneNumber || "",
-      ...(participant.mentionIds ?? []),
-    ];
-    for (const mentionId of mentionIds) {
-      const normalizedMentionId = digitsOnly(mentionId);
-      if (normalizedMentionId) {
-        displayNameByMentionId.set(normalizedMentionId, displayName);
-      }
-    }
-  }
-
-  return text.replace(
-    PHONE_MENTION_PATTERN,
-    (rawMention, mentionId: string) => {
-      const displayName = displayNameByMentionId.get(mentionId);
-      return displayName ? `@${displayName}` : rawMention;
-    },
-  );
-}
-
 function trimTrailingPunctuation(value: string): {
   link: string;
   trailing: string;
@@ -141,6 +99,7 @@ export function LinkifiedText({
   isOwn,
   className,
   mentionParticipants = [],
+  enableInteractions = true,
   trailing,
 }: {
   text: string;
@@ -148,8 +107,10 @@ export function LinkifiedText({
   className?: string;
   mentionParticipants?: Pick<
     GroupParticipant,
-    "jid" | "phoneNumber" | "mentionIds" | "displayName"
+    "jid" | "phoneNumber" | "mentionIds" | "displayName" | "contactId"
   >[];
+  /** Disable nested controls when rendered inside another interactive element. */
+  enableInteractions?: boolean;
   /**
    * Rendered inside the paragraph, after the text. A right-floated node put
    * here lands on the last line when it fits and drops to its own line when
@@ -160,7 +121,11 @@ export function LinkifiedText({
    */
   trailing?: ReactNode;
 }) {
-  const displayText = resolveMentionNames(text, mentionParticipants);
+  const { onOpenParticipantProfile } = useMessageActions();
+  const resolvedSegments = resolveMentionSegments(
+    text,
+    mentionParticipants as MentionParticipant[],
+  );
 
   return (
     <p
@@ -170,30 +135,65 @@ export function LinkifiedText({
         className,
       )}
     >
-      {parseMessageLinks(displayText).map((segment, index) =>
-        segment.type === "link" ? (
-          <a
-            key={`${index}-${segment.value}`}
-            href={segment.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(event) => event.stopPropagation()}
-            className={cn(
-              "rounded-sm font-medium underline decoration-1 underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green",
-              // Own bubbles are pale green in light mode and deep teal in
-              // dark, so their links follow the bubble's own text colour
-              // rather than assuming a white-on-green bubble.
-              isOwn
-                ? "text-current decoration-current/60 hover:decoration-current"
-                : "text-whatsapp-teal-green decoration-whatsapp-teal-green/50 hover:decoration-whatsapp-teal-green dark:text-[#53bdeb] dark:decoration-[#53bdeb]/50",
-            )}
-          >
-            {segment.value}
-          </a>
-        ) : (
-          <Fragment key={`${index}-${segment.value}`}>{segment.value}</Fragment>
-        ),
-      )}
+      {resolvedSegments.map((resolved, resolvedIndex) => {
+        if (resolved.type === "mention" && resolved.participant) {
+          const contactId = resolved.participant.contactId;
+          const mentionClassName = cn(
+            "mx-0.5 inline rounded-[0.3rem] px-1 py-0.5 font-semibold",
+            isOwn
+              ? "bg-[#0b6b57]/12 text-[#075e54] dark:bg-[#d9fdd3]/15 dark:text-[#d9fdd3]"
+              : "bg-[#00a884]/12 text-[#087f69] dark:bg-[#53bdeb]/15 dark:text-[#53bdeb]",
+          );
+          return enableInteractions && contactId && onOpenParticipantProfile ? (
+            <button
+              key={`${resolvedIndex}-${resolved.value}`}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenParticipantProfile(contactId);
+              }}
+              aria-label={`Open ${resolved.displayValue}'s contact info`}
+              className={cn(
+                mentionClassName,
+                "cursor-pointer underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green",
+              )}
+            >
+              {resolved.displayValue}
+            </button>
+          ) : (
+            <span
+              key={`${resolvedIndex}-${resolved.value}`}
+              className={mentionClassName}
+            >
+              {resolved.displayValue}
+            </span>
+          );
+        }
+
+        return parseMessageLinks(resolved.value).map((segment, index) =>
+          segment.type === "link" && enableInteractions ? (
+            <a
+              key={`${resolvedIndex}-${index}-${segment.value}`}
+              href={segment.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => event.stopPropagation()}
+              className={cn(
+                "rounded-sm font-medium underline decoration-1 underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green",
+                isOwn
+                  ? "text-current decoration-current/60 hover:decoration-current"
+                  : "text-whatsapp-teal-green decoration-whatsapp-teal-green/50 hover:decoration-whatsapp-teal-green dark:text-[#53bdeb] dark:decoration-[#53bdeb]/50",
+              )}
+            >
+              {segment.value}
+            </a>
+          ) : (
+            <Fragment key={`${resolvedIndex}-${index}-${segment.value}`}>
+              {segment.value}
+            </Fragment>
+          ),
+        );
+      })}
       {trailing}
     </p>
   );

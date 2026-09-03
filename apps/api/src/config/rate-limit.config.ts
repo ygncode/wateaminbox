@@ -10,7 +10,7 @@
  * - RATE_LIMIT_POSTGRES_CLEANUP_BATCH_SIZE: Maximum rows per cleanup (default: 1000)
  *
  * Tier-specific overrides (use window_seconds_* format for window duration):
- * - RATE_LIMIT_GLOBAL_REQUESTS: Global tier requests per window (default: 100)
+ * - RATE_LIMIT_GLOBAL_REQUESTS: Global tier requests per window (default: 3000)
  * - RATE_LIMIT_GLOBAL_WINDOW_SECONDS: Global tier window in seconds (default: 60)
  *
  * Auth endpoints:
@@ -84,6 +84,7 @@ export interface RateLimitConfig {
       import: RateLimitTier;
       analytics: RateLimitTier;
       mcp: RateLimitTier;
+      oauth: RateLimitTier;
     };
     messaging: {
       send: RateLimitTier;
@@ -182,7 +183,7 @@ export function getRateLimitConfig(): RateLimitConfig {
       global: {
         requests: getDefaultRequests(
           process.env.RATE_LIMIT_GLOBAL_REQUESTS,
-          100,
+          3000,
         ),
         windowSeconds: parsePositiveInt(
           process.env.RATE_LIMIT_GLOBAL_WINDOW_SECONDS,
@@ -293,6 +294,20 @@ export function getRateLimitConfig(): RateLimitConfig {
           ),
           windowSeconds: parsePositiveInt(
             process.env.RATE_LIMIT_RESOURCE_MCP_WINDOW_SECONDS,
+            60,
+          ),
+        },
+        // The OAuth endpoints are unauthenticated and hit by anyone who can
+        // reach the host, so they are limited more tightly than an
+        // authenticated resource. A real connector performs one authorization
+        // and then refreshes hourly.
+        oauth: {
+          requests: getDefaultRequests(
+            process.env.RATE_LIMIT_RESOURCE_OAUTH_REQUESTS,
+            20,
+          ),
+          windowSeconds: parsePositiveInt(
+            process.env.RATE_LIMIT_RESOURCE_OAUTH_WINDOW_SECONDS,
             60,
           ),
         },
@@ -408,7 +423,7 @@ export const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
   },
   tiers: {
     global: {
-      requests: 100,
+      requests: 3000,
       windowSeconds: 60,
     },
     auth: {
@@ -452,6 +467,10 @@ export const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
       },
       mcp: {
         requests: 60,
+        windowSeconds: 60,
+      },
+      oauth: {
+        requests: 20,
         windowSeconds: 60,
       },
     },
