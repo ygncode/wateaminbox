@@ -35,6 +35,6 @@
     "@types/bun": "latest",
     "@types/web-push": "^3.6.4",
     "pino-pretty": "^13.0.0",
-    "typescript": "^5.7.2"
+    "typescript": "^7.0.2"
   }
 }
