@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
 import {
   authorizeMessageMedia,
+  buildOutboundMediaColumns,
   buildQuotedMessageData,
   formatMessagesForConversation,
   type MessageDbRow,
@@ -414,6 +415,7 @@ messageRoutes.post(
           message_type: messageType,
           content,
           media_url: storedMediaReference,
+          ...buildOutboundMediaColumns(sendCommand),
           quoted_message_id: quotedWaMessageId || null,
           sent_by_user_id: user.id,
           status: "pending",

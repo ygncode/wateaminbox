@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --watch src/index.ts",
-    "build": "bun build src/index.ts src/scripts/reindex-search.ts --outdir dist --target bun",
+    "build": "bun build src/index.ts src/scripts/reindex-search.ts src/scripts/repair-document-names.ts --outdir dist --target bun",
     "start": "bun run dist/index.js",
     "lint": "bunx biome lint src",
     "format": "bunx biome format --write src",

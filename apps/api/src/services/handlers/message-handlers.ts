@@ -14,6 +14,7 @@ import {
 import { sql } from "kysely";
 import { formatError } from "../../lib/logger.js";
 import {
+  buildInboundMessageMetadata,
   buildQuotedMessageData,
   type MessageDbRow,
 } from "../../lib/message-formatters.js";
@@ -272,7 +273,12 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     const messageStatus: MessageStatus = payload.fromMe
       ? (payload.status ?? "sent")
       : "delivered";
-    const incomingMetadata = buildIncomingMessageMetadata(payload);
+    const albumMetadata = buildIncomingMessageMetadata(payload);
+    const documentMetadata = buildInboundMessageMetadata(payload);
+    const incomingMetadata =
+      albumMetadata || documentMetadata
+        ? { ...(albumMetadata ?? {}), ...(documentMetadata ?? {}) }
+        : null;
 
     const messageId = crypto.randomUUID();
 
@@ -351,7 +357,15 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
                   THEN messages.sender_name
                 ELSE COALESCE(excluded.sender_name, messages.sender_name)
               END`,
-                    metadata: incomingMetadata ?? sql`messages.metadata`,
+                    // Merge rather than replace. History replay can omit a
+                    // filename or other metadata that the original event
+                    // carried, so retain existing keys while accepting new
+                    // album/document metadata from the replay.
+                    metadata: sql<Record<string, unknown> | null>`NULLIF(
+                COALESCE(messages.metadata, '{}'::jsonb)
+                  || COALESCE(excluded.metadata, '{}'::jsonb),
+                '{}'::jsonb
+              )`,
                     quoted_message_id: payload.quotedMessageId || null,
                     // History sync contains the original WhatsApp status. Merge
                     // it monotonically so imported messages get their old
