@@ -33,15 +33,54 @@ func TestConfigureMessageRecoveryRequestsUndecryptableMessagesFromPhone(t *testi
 func TestBuildTextMessageAddsMentionContext(t *testing.T) {
 	msg, err := buildTextMessage(
 		"120363000000000000@g.us",
-		"Hello @6585719494172749",
+		"Hello @6591234567",
 		"",
 		"",
 		[]string{"6585719494172749:7@lid"},
 	)
 	require.NoError(t, err)
 	require.NotNil(t, msg.ExtendedTextMessage)
-	assert.Equal(t, "Hello @6585719494172749", msg.ExtendedTextMessage.GetText())
+	assert.Equal(t, "Hello @6591234567", msg.ExtendedTextMessage.GetText())
 	assert.Equal(t, []string{"6585719494172749@lid"}, msg.ExtendedTextMessage.GetContextInfo().GetMentionedJID())
+}
+
+func TestPrepareTextMentionsRewritesLIDTokenToPhoneNumber(t *testing.T) {
+	text, mentionedJIDs, err := prepareTextMentions(
+		context.Background(),
+		"Hello @6585719494172749 and @65857194941727490",
+		[]string{"6585719494172749:7@lid"},
+		func(_ context.Context, lid waTypes.JID) (waTypes.JID, error) {
+			assert.Equal(t, "6585719494172749@lid", lid.String())
+			return waTypes.NewJID("6591234567", waTypes.DefaultUserServer), nil
+		},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "Hello @6591234567 and @65857194941727490", text)
+	assert.Equal(t, []string{"6585719494172749@lid"}, mentionedJIDs)
+}
+
+func TestPrepareTextMentionsKeepsPhoneMention(t *testing.T) {
+	text, mentionedJIDs, err := prepareTextMentions(
+		context.Background(),
+		"Hello @6591234567",
+		[]string{"6591234567:2@s.whatsapp.net"},
+		nil,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "Hello @6591234567", text)
+	assert.Equal(t, []string{"6591234567@s.whatsapp.net"}, mentionedJIDs)
+}
+
+func TestPrepareTextMentionsRejectsUnmappedLID(t *testing.T) {
+	_, _, err := prepareTextMentions(
+		context.Background(),
+		"Hello @6585719494172749",
+		[]string{"6585719494172749@lid"},
+		func(context.Context, waTypes.JID) (waTypes.JID, error) {
+			return waTypes.EmptyJID, nil
+		},
+	)
+	require.ErrorContains(t, err, "mapping unavailable")
 }
 
 func TestBuildTextMessageCombinesReplyAndMentions(t *testing.T) {
