@@ -1,14 +1,42 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
+  API_CRITICAL_EVENT_FILTER_SUBJECTS,
+  API_CRITICAL_EVENTS_CONSUMER,
+  API_CRITICAL_EVENTS_DELIVER_SUBJECT,
+  API_CRITICAL_EVENTS_QUEUE,
+  API_CRITICAL_EVENTS_TUNING,
   API_EVENTS_CONSUMER,
   API_EVENTS_DELIVER_SUBJECT,
   API_EVENTS_QUEUE,
+  API_TRANSIENT_EVENT_FILTER_SUBJECTS,
+  API_TRANSIENT_EVENTS_CONSUMER,
+  API_TRANSIENT_EVENTS_DELIVER_SUBJECT,
+  API_TRANSIENT_EVENTS_QUEUE,
+  API_TRANSIENT_EVENTS_TUNING,
   buildEventConsumerOptions,
   buildSendReactionCommand,
   PermanentEventError,
   parseWhatsAppEvent,
 } from "./client.js";
+
+interface InspectableConsumerOpts {
+  getOpts(): {
+    config: {
+      durable_name?: string;
+      deliver_subject?: string;
+      deliver_group?: string;
+      deliver_policy?: string;
+      ack_policy?: string;
+      filter_subject?: string;
+      filter_subjects?: string[];
+      max_deliver?: number;
+      max_ack_pending?: number;
+      ack_wait?: number;
+    };
+    mack: boolean;
+  };
+}
 
 describe("durable API event consumer", () => {
   test("retains offline events and acknowledges explicitly", () => {
@@ -64,25 +92,6 @@ describe("durable API event consumer", () => {
     expect(event.contractVersion).toBe(1);
   });
 
-  test.each(["paired", "logged_out"] as const)(
-    "accepts worker connection lifecycle event %s",
-    (type) => {
-      const event = parseWhatsAppEvent({
-        contractVersion: 1,
-        type,
-        companyId: "11111111-1111-4111-8111-111111111111",
-        connectionId: "22222222-2222-4222-8222-222222222222",
-        payload: {
-          phoneNumber: type === "paired" ? "15551234567" : "",
-          jid: type === "paired" ? "15551234567@s.whatsapp.net" : "",
-          reason: type === "logged_out" ? "403: device logged out" : "",
-        },
-        timestamp: new Date().toISOString(),
-      });
-      expect(event.type).toBe(type);
-    },
-  );
-
   test("accepts durable on-demand history page events", () => {
     const event = parseWhatsAppEvent({
       contractVersion: 1,
@@ -99,10 +108,187 @@ describe("durable API event consumer", () => {
     expect(event.type).toBe("history_sync_page");
   });
 
+  test("accepts paired lifecycle events", () => {
+    const event = parseWhatsAppEvent({
+      contractVersion: 1,
+      type: "paired",
+      companyId: "11111111-1111-4111-8111-111111111111",
+      connectionId: "22222222-2222-4222-8222-222222222222",
+      payload: {
+        phoneNumber: "15551234567",
+        jid: "15551234567@s.whatsapp.net",
+      },
+      timestamp: new Date().toISOString(),
+    });
+    expect(event.type).toBe("paired");
+  });
+
+  /**
+   * The worker publishes `logged_out` as its own event type when WhatsApp
+   * unlinks the device (`PublishConnectionStatus` in the Go worker sets
+   * `Type: status`). It was absent from this enum, so the envelope failed to
+   * parse and the consumer terminated and dead-lettered the message — the one
+   * disconnect that can never heal on its own was also the one the API never
+   * saw.
+   */
+  test("accepts logout events published by the worker", () => {
+    const event = parseWhatsAppEvent({
+      contractVersion: 1,
+      type: "logged_out",
+      companyId: "11111111-1111-4111-8111-111111111111",
+      connectionId: "22222222-2222-4222-8222-222222222222",
+      payload: { reason: "device_removed" },
+      timestamp: new Date().toISOString(),
+    });
+    expect(event.type).toBe("logged_out");
+  });
+
   test("marks terminal handler validation failures for immediate dead-lettering", () => {
     const error = new PermanentEventError("unknown connection");
     expect(error).toBeInstanceOf(Error);
     expect(error.name).toBe("PermanentEventError");
+  });
+
+  test("passing an array of subjects accumulates filter_subjects (plural), not filter_subject", () => {
+    const builder = buildEventConsumerOptions([
+      "WHATSAPP.events.*.*.presence",
+      "WHATSAPP.events.*.*.typing",
+    ]) as unknown as InspectableConsumerOpts;
+    const options = builder.getOpts();
+
+    expect(options.config.filter_subject).toBeUndefined();
+    expect(options.config.filter_subjects).toEqual([
+      "WHATSAPP.events.*.*.presence",
+      "WHATSAPP.events.*.*.typing",
+    ]);
+  });
+
+  test("a custom identity/tuning overrides the legacy defaults", () => {
+    const builder = buildEventConsumerOptions(
+      API_TRANSIENT_EVENT_FILTER_SUBJECTS,
+      {
+        durable: API_TRANSIENT_EVENTS_CONSUMER,
+        deliverSubject: API_TRANSIENT_EVENTS_DELIVER_SUBJECT,
+        queue: API_TRANSIENT_EVENTS_QUEUE,
+      },
+      API_TRANSIENT_EVENTS_TUNING,
+    ) as unknown as InspectableConsumerOpts;
+    const options = builder.getOpts();
+
+    expect(options.config.durable_name).toBe(API_TRANSIENT_EVENTS_CONSUMER);
+    expect(options.config.deliver_subject).toBe(
+      API_TRANSIENT_EVENTS_DELIVER_SUBJECT,
+    );
+    expect(options.config.deliver_group).toBe(API_TRANSIENT_EVENTS_QUEUE);
+    expect(options.config.max_deliver).toBe(5);
+    expect(options.config.max_ack_pending).toBe(1024);
+    expect(options.config.deliver_policy).toBe("new");
+    // nats.js stores ack_wait internally in nanoseconds.
+    expect(options.config.ack_wait).toBe(30_000 * 1_000_000);
+  });
+});
+
+/**
+ * Pins the critical/transient consumer identities, filter subjects, and
+ * tuning against the values in services/shared/nats/consumers.go
+ * (APICriticalEventsConsumerConfig / APITransientEventsConsumerConfig).
+ * nats.js only binds to an existing durable when the filter subjects and
+ * queue group match, so a silent edit on either side would leave the API
+ * unable to subscribe (or attach to the wrong consumer) - same rationale as
+ * the legacy TestAPIEventsConsumerConfigMatchesAPIClient pin on the Go side.
+ */
+describe("critical/transient event consumer split", () => {
+  test("critical and transient identities are disjoint from each other and from the legacy consumer", () => {
+    const durables = [
+      API_EVENTS_CONSUMER,
+      API_CRITICAL_EVENTS_CONSUMER,
+      API_TRANSIENT_EVENTS_CONSUMER,
+    ];
+    expect(new Set(durables).size).toBe(durables.length);
+
+    const deliverSubjects = [
+      API_EVENTS_DELIVER_SUBJECT,
+      API_CRITICAL_EVENTS_DELIVER_SUBJECT,
+      API_TRANSIENT_EVENTS_DELIVER_SUBJECT,
+    ];
+    expect(new Set(deliverSubjects).size).toBe(deliverSubjects.length);
+  });
+
+  test("filter subject lists are non-overlapping and every type appears in exactly one list", () => {
+    const critical = new Set(API_CRITICAL_EVENT_FILTER_SUBJECTS);
+    const transient = new Set(API_TRANSIENT_EVENT_FILTER_SUBJECTS);
+
+    expect(critical.size).toBe(API_CRITICAL_EVENT_FILTER_SUBJECTS.length);
+    expect(transient.size).toBe(API_TRANSIENT_EVENT_FILTER_SUBJECTS.length);
+    for (const s of transient) {
+      expect(critical.has(s)).toBe(false);
+    }
+  });
+
+  test("transient filter subjects are exactly presence and typing", () => {
+    expect(API_TRANSIENT_EVENT_FILTER_SUBJECTS).toEqual([
+      "WHATSAPP.events.*.*.presence",
+      "WHATSAPP.events.*.*.typing",
+    ]);
+  });
+
+  test("critical consumer identity matches consumers.go APICriticalEventsConsumerConfig", () => {
+    expect(API_CRITICAL_EVENTS_CONSUMER).toBe(
+      "whatsapp-api-critical-events-v1",
+    );
+    expect(API_CRITICAL_EVENTS_DELIVER_SUBJECT).toBe(
+      "WHATSAPP.api.critical-events.delivery",
+    );
+    expect(API_CRITICAL_EVENTS_QUEUE).toBe("whatsapp-api-critical-events");
+    expect(API_CRITICAL_EVENTS_TUNING).toEqual({
+      ackWaitMs: 60_000,
+      maxDeliver: 10,
+      maxAckPending: 128,
+      deliverPolicy: "new",
+    });
+  });
+
+  test("transient consumer identity matches consumers.go APITransientEventsConsumerConfig", () => {
+    expect(API_TRANSIENT_EVENTS_CONSUMER).toBe(
+      "whatsapp-api-transient-events-v1",
+    );
+    expect(API_TRANSIENT_EVENTS_DELIVER_SUBJECT).toBe(
+      "WHATSAPP.api.transient-events.delivery",
+    );
+    expect(API_TRANSIENT_EVENTS_QUEUE).toBe("whatsapp-api-transient-events");
+    expect(API_TRANSIENT_EVENTS_TUNING).toEqual({
+      ackWaitMs: 30_000,
+      maxDeliver: 5,
+      maxAckPending: 1024,
+      deliverPolicy: "new",
+    });
+  });
+
+  test("the legacy consumer's blanket filter still covers every critical and transient subject (interest-retention safety net during cutover)", () => {
+    // Mirrors subjectMatches in services/shared/nats/consumers_test.go: "*"
+    // matches exactly one token, ">" matches one-or-more trailing tokens.
+    const subjectMatches = (filter: string, subject: string): boolean => {
+      const filterTokens = filter.split(".");
+      const subjectTokens = subject.split(".");
+      for (let i = 0; i < filterTokens.length; i++) {
+        const token = filterTokens[i];
+        if (token === ">") return i < subjectTokens.length;
+        if (i >= subjectTokens.length) return false;
+        if (token !== "*" && token !== subjectTokens[i]) return false;
+      }
+      return filterTokens.length === subjectTokens.length;
+    };
+    const concreteExample = (wildcarded: string): string =>
+      wildcarded.replace("*", "company-1").replace("*", "connection-1");
+
+    for (const subject of [
+      ...API_CRITICAL_EVENT_FILTER_SUBJECTS,
+      ...API_TRANSIENT_EVENT_FILTER_SUBJECTS,
+    ]) {
+      expect(
+        subjectMatches("WHATSAPP.events.>", concreteExample(subject)),
+      ).toBe(true);
+    }
   });
 });
 

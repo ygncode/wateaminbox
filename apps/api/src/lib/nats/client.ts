@@ -409,25 +409,131 @@ export interface EventConsumerIdentity {
   queue: string;
 }
 
+export interface EventConsumerTuning {
+  ackWaitMs: number;
+  maxDeliver: number;
+  maxAckPending: number;
+  deliverPolicy: "all" | "new";
+}
+
+const DEFAULT_EVENT_CONSUMER_TUNING: EventConsumerTuning = {
+  ackWaitMs: 60_000,
+  maxDeliver: 10,
+  maxAckPending: 128,
+  deliverPolicy: "all",
+};
+
+/**
+ * Critical/transient event consumer split.
+ *
+ * See services/shared/nats/consumers.go (APICriticalEventsConsumer /
+ * APITransientEventsConsumer) for the full rationale and the required
+ * production cutover steps. These identities, filter subject lists, and
+ * tuning values must mirror that file literal-for-literal - nats.js only
+ * binds to an existing durable when the filter subjects and queue group
+ * match, so a silent edit on either side would leave the API unable to
+ * subscribe (or silently attach to the wrong consumer).
+ *
+ * Presence/typing are ephemeral, high-volume, and safe to process on a fully
+ * independent consumer/loop so a post-reconnect presence storm cannot queue
+ * ahead of a send_confirmation on the shared, ack-gated, serially-processed
+ * critical path.
+ */
+export const API_CRITICAL_EVENTS_CONSUMER = "whatsapp-api-critical-events-v1";
+export const API_CRITICAL_EVENTS_DELIVER_SUBJECT =
+  "WHATSAPP.api.critical-events.delivery";
+export const API_CRITICAL_EVENTS_QUEUE = "whatsapp-api-critical-events";
+
+export const API_TRANSIENT_EVENTS_CONSUMER = "whatsapp-api-transient-events-v1";
+export const API_TRANSIENT_EVENTS_DELIVER_SUBJECT =
+  "WHATSAPP.api.transient-events.delivery";
+export const API_TRANSIENT_EVENTS_QUEUE = "whatsapp-api-transient-events";
+
+export const API_CRITICAL_EVENTS_IDENTITY: EventConsumerIdentity = {
+  durable: API_CRITICAL_EVENTS_CONSUMER,
+  deliverSubject: API_CRITICAL_EVENTS_DELIVER_SUBJECT,
+  queue: API_CRITICAL_EVENTS_QUEUE,
+};
+
+export const API_TRANSIENT_EVENTS_IDENTITY: EventConsumerIdentity = {
+  durable: API_TRANSIENT_EVENTS_CONSUMER,
+  deliverSubject: API_TRANSIENT_EVENTS_DELIVER_SUBJECT,
+  queue: API_TRANSIENT_EVENTS_QUEUE,
+};
+
+// Mirrors apiCriticalEventsAckWait/MaxDeliver/MaxAckPending in consumers.go
+// (unchanged from the legacy consumer's tuning).
+export const API_CRITICAL_EVENTS_TUNING: EventConsumerTuning = {
+  ...DEFAULT_EVENT_CONSUMER_TUNING,
+  deliverPolicy: "new",
+};
+
+// Mirrors apiTransientEventsAckWait/MaxDeliver/MaxAckPending in consumers.go.
+export const API_TRANSIENT_EVENTS_TUNING: EventConsumerTuning = {
+  ackWaitMs: 30_000,
+  maxDeliver: 5,
+  maxAckPending: 1024,
+  deliverPolicy: "new",
+};
+
+// Mirrors apiCriticalEventSubjectPatterns in consumers.go, wildcarded the
+// same way (fmt.Sprintf(pattern, "*", "*")).
+export const API_CRITICAL_EVENT_FILTER_SUBJECTS: string[] = [
+  "WHATSAPP.events.*.*.qr",
+  "WHATSAPP.events.*.*.status",
+  "WHATSAPP.events.*.*.message",
+  "WHATSAPP.events.*.*.receipt",
+  "WHATSAPP.events.*.*.contact",
+  "WHATSAPP.events.*.*.profile_picture",
+  "WHATSAPP.events.*.*.message_revoke",
+  "WHATSAPP.events.*.*.send_confirmation",
+  "WHATSAPP.events.*.*.reaction",
+  "WHATSAPP.events.*.*.sync_status",
+  "WHATSAPP.events.*.*.history_sync_page",
+  "WHATSAPP.events.*.*.labels",
+  "WHATSAPP.events.*.*.catalogs",
+  "WHATSAPP.events.*.*.catalog_products",
+  "WHATSAPP.events.*.*.command_result",
+  "WHATSAPP.events.*.*.group",
+  "WHATSAPP.events.*.*.download_response",
+  "WHATSAPP.events.*.*.connection_status",
+];
+
+// Mirrors apiTransientEventSubjectPatterns in consumers.go.
+export const API_TRANSIENT_EVENT_FILTER_SUBJECTS: string[] = [
+  "WHATSAPP.events.*.*.presence",
+  "WHATSAPP.events.*.*.typing",
+];
+
 export function buildEventConsumerOptions(
-  subject: string,
+  subject: string | string[],
   identity: EventConsumerIdentity = {
     durable: API_EVENTS_CONSUMER,
     deliverSubject: API_EVENTS_DELIVER_SUBJECT,
     queue: API_EVENTS_QUEUE,
   },
+  tuning: EventConsumerTuning = DEFAULT_EVENT_CONSUMER_TUNING,
 ): ConsumerOptsBuilder {
   const opts = consumerOpts();
   opts.durable(identity.durable);
   opts.deliverTo(identity.deliverSubject);
   opts.queue(identity.queue);
-  opts.deliverAll();
+  if (tuning.deliverPolicy === "new") {
+    opts.deliverNew();
+  } else {
+    opts.deliverAll();
+  }
   opts.manualAck();
   opts.ackExplicit();
-  opts.ackWait(60_000);
-  opts.maxDeliver(10);
-  opts.maxAckPending(128);
-  opts.filterSubject(subject);
+  opts.ackWait(tuning.ackWaitMs);
+  opts.maxDeliver(tuning.maxDeliver);
+  opts.maxAckPending(tuning.maxAckPending);
+  // Calling filterSubject() more than once accumulates into filter_subjects
+  // (plural) rather than replacing filter_subject - this is how nats.js
+  // exposes nats-server's multi-subject consumer filters.
+  for (const s of Array.isArray(subject) ? subject : [subject]) {
+    opts.filterSubject(s);
+  }
   opts.replayInstantly();
   return opts;
 }
@@ -473,9 +579,12 @@ export async function subscribe(
           { ...formatError(error), subject, deliveries },
           "Error processing message; scheduling redelivery",
         );
-        if (error instanceof PermanentEventError || deliveries >= 9) {
+        if (
+          error instanceof PermanentEventError ||
+          deliveries >= DEFAULT_EVENT_CONSUMER_TUNING.maxDeliver
+        ) {
           try {
-            await publishEventDeadLetter(js, msg, error, deliveries + 1);
+            await publishEventDeadLetter(js, msg, error, deliveries);
             msg.term();
           } catch (deadLetterError) {
             logger.error(

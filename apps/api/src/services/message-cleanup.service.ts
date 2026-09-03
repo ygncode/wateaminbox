@@ -7,7 +7,11 @@ import {
 import { MEDIA_DOWNLOAD_LEASE_MS } from "../config/media.config.js";
 import { createLogger } from "../lib/logger.js";
 import { broadcastToContactViewers } from "./message-broadcast.service.js";
-import { getTenantConnection, tenantSchemaExists } from "./tenant.service.js";
+import {
+  getSchemaName,
+  getTenantConnection,
+  tenantSchemaExists,
+} from "./tenant.service.js";
 
 const logger = createLogger("MessageCleanup");
 
@@ -359,6 +363,109 @@ export async function releaseStrandedMediaDownloads(
  */
 type CleanupBroadcaster = typeof broadcastToContactViewers;
 
+interface ReconciledCommandResult {
+  id: string;
+  contact_id: string | null;
+  message_id: string | null;
+  status: "sent" | "failed";
+  error_message: string | null;
+}
+
+/**
+ * Reconcile stale pending rows against the worker's authoritative command
+ * ledger before declaring a delivery timeout.
+ *
+ * A send confirmation can sit behind a burst of lower-priority JetStream
+ * events even though WhatsApp already accepted the message. The worker writes
+ * its outcome before publishing that confirmation, so this ledger is a safer
+ * timeout boundary than API-consumer latency.
+ */
+async function reconcileProcessedCommands(
+  companyId: string,
+  cutoff: Date,
+  batchSize: number,
+): Promise<ReconciledCommandResult[]> {
+  const schemaName = getSchemaName(companyId);
+  const messages = sql.table(`${schemaName}.messages`);
+  const outbox = sql.table(`${schemaName}.nats_outbox`);
+
+  const result = await sql<ReconciledCommandResult>`
+    WITH outcomes AS (
+      SELECT
+        m.id,
+        COALESCE((pc.result->>'failed')::boolean, false) AS failed,
+        pc.result->>'error_message' AS error_message,
+        pc.result->'response'->>'ID' AS whatsapp_message_id
+      FROM ${messages} AS m
+      INNER JOIN ${outbox} AS command
+        ON command.payload->>'message_id' = m.message_id
+      INNER JOIN whatsapp_sessions.processed_commands AS pc
+        ON pc.connection_id::text = split_part(command.subject, '.', 4)
+       AND pc.command_id::text = command.payload->>'command_id'
+       AND pc.result->>'pending_message_id' = m.message_id
+      WHERE (
+          m.status = 'pending'
+          OR (
+            m.status = 'failed'
+            AND m.metadata->>'error' = 'delivery_timeout'
+          )
+        )
+        AND m.from_me = true
+        AND m.timestamp < ${cutoff}
+        AND split_part(command.subject, '.', 3) = ${companyId}
+        AND (
+          COALESCE((pc.result->>'failed')::boolean, false)
+          OR pc.result->'response'->>'ID' IS NOT NULL
+        )
+      ORDER BY m.timestamp ASC, m.id ASC
+      LIMIT ${batchSize}
+      FOR UPDATE OF m SKIP LOCKED
+    )
+    UPDATE ${messages} AS m
+    SET
+      message_id = CASE
+        WHEN outcomes.failed THEN m.message_id
+        ELSE outcomes.whatsapp_message_id
+      END,
+      status = CASE
+        WHEN outcomes.failed THEN 'failed'::message_status
+        ELSE 'sent'::message_status
+      END,
+      metadata = CASE
+        WHEN outcomes.failed THEN COALESCE(m.metadata, '{}'::jsonb) || jsonb_build_object(
+          'error', 'send_failed',
+          'error_message', COALESCE(outcomes.error_message, 'WhatsApp send failed'),
+          'failed_at', now()
+        )
+        ELSE CASE
+          WHEN m.metadata->>'error' = 'delivery_timeout' THEN NULLIF(
+            m.metadata - ARRAY['error', 'error_message', 'failed_at'],
+            '{}'::jsonb
+          )
+          ELSE m.metadata
+        END
+      END
+    FROM outcomes
+    WHERE m.id = outcomes.id
+      AND (
+        m.status = 'pending'
+        OR (
+          m.status = 'failed'
+          AND m.metadata->>'error' = 'delivery_timeout'
+        )
+      )
+      AND (outcomes.failed OR outcomes.whatsapp_message_id IS NOT NULL)
+    RETURNING
+      m.id,
+      m.contact_id,
+      m.message_id,
+      m.status::text AS status,
+      outcomes.error_message
+  `.execute(db);
+
+  return result.rows;
+}
+
 export async function cleanupCompanyMessages(
   companyId: string,
   timeoutMinutes: number,
@@ -376,53 +483,103 @@ export async function cleanupCompanyMessages(
     return 0;
   }
 
-  const tenantDb = getTenantConnection(companyId);
-
   const cutoff = new Date(timeoutThreshold);
   const errorMessage = `Message delivery timed out after ${timeoutMinutes} minutes`;
 
-  // Select and transition inside one short transaction. Row locks plus
-  // SKIP LOCKED give concurrent replicas disjoint, strictly bounded batches.
-  // Repeating every eligibility predicate on UPDATE makes a newer receipt win
-  // rather than allowing cleanup to overwrite it.
-  const messagesToExpire = await tenantDb.transaction().execute(async (trx) => {
-    const candidates = await trx
-      .selectFrom("messages")
-      .select("id")
-      .where("status", "=", "pending")
-      .where("from_me", "=", true)
-      .where("timestamp", "<", cutoff)
-      .where("metadata", "is", null)
-      .orderBy("timestamp", "asc")
-      .orderBy("id", "asc")
-      .limit(batchSize)
-      .forUpdate()
-      .skipLocked()
-      .execute();
-    if (candidates.length === 0) return [];
+  const reconciled = await reconcileProcessedCommands(
+    companyId,
+    cutoff,
+    batchSize,
+  );
+  for (const message of reconciled) {
+    if (!message.contact_id) continue;
+    await broadcast(companyId, message.contact_id, "message:status", {
+      conversationId: message.contact_id,
+      messageId: message.id,
+      status: message.status,
+      ...(message.status === "failed"
+        ? {
+            error: "send_failed",
+            errorMessage: message.error_message ?? "WhatsApp send failed",
+          }
+        : {}),
+    });
+  }
+  if (reconciled.length > 0) {
+    logger.info(
+      { companyId, reconciledCount: reconciled.length },
+      "Reconciled pending messages from worker command ledger",
+    );
+  }
 
-    return trx
-      .updateTable("messages")
-      .set({
-        status: "failed",
-        metadata: sql<Record<string, unknown>>`jsonb_build_object(
-          'error', 'delivery_timeout',
-          'error_message', ${errorMessage}::text,
-          'failed_at', now()
-        )`,
-      })
-      .where(
-        "id",
-        "in",
-        candidates.map((candidate) => candidate.id),
+  // Select and transition in one statement. The ledger anti-join is repeated
+  // on UPDATE so an outcome committed while this cleanup waits wins over the
+  // timeout. Reconciliation also revisits timeout-failed rows on later cycles,
+  // closing the remaining snapshot race if the worker commits during this
+  // statement.
+  const schemaName = getSchemaName(companyId);
+  const messages = sql.table(`${schemaName}.messages`);
+  const outbox = sql.table(`${schemaName}.nats_outbox`);
+  const expiredResult = await sql<{
+    id: string;
+    contact_id: string | null;
+    message_id: string | null;
+    status: "failed";
+  }>`
+    WITH stale AS (
+      SELECT m.id
+      FROM ${messages} AS m
+      WHERE m.status = 'pending'
+        AND m.from_me = true
+        AND m.timestamp < ${cutoff}
+        AND m.metadata IS NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM ${outbox} AS command
+          INNER JOIN whatsapp_sessions.processed_commands AS pc
+            ON pc.connection_id::text = split_part(command.subject, '.', 4)
+           AND pc.command_id::text = command.payload->>'command_id'
+           AND pc.result->>'pending_message_id' = m.message_id
+          WHERE split_part(command.subject, '.', 3) = ${companyId}
+            AND (
+              COALESCE((pc.result->>'failed')::boolean, false)
+              OR pc.result->'response'->>'ID' IS NOT NULL
+            )
+        )
+      ORDER BY m.timestamp ASC, m.id ASC
+      LIMIT ${batchSize}
+      FOR UPDATE SKIP LOCKED
+    )
+    UPDATE ${messages} AS m
+    SET
+      status = 'failed'::message_status,
+      metadata = jsonb_build_object(
+        'error', 'delivery_timeout',
+        'error_message', ${errorMessage}::text,
+        'failed_at', now()
       )
-      .where("status", "=", "pending")
-      .where("from_me", "=", true)
-      .where("timestamp", "<", cutoff)
-      .where("metadata", "is", null)
-      .returning(["id", "contact_id", "message_id", "status"])
-      .execute();
-  });
+    FROM stale
+    WHERE m.id = stale.id
+      AND m.status = 'pending'
+      AND m.from_me = true
+      AND m.timestamp < ${cutoff}
+      AND m.metadata IS NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM ${outbox} AS command
+        INNER JOIN whatsapp_sessions.processed_commands AS pc
+          ON pc.connection_id::text = split_part(command.subject, '.', 4)
+         AND pc.command_id::text = command.payload->>'command_id'
+         AND pc.result->>'pending_message_id' = m.message_id
+        WHERE split_part(command.subject, '.', 3) = ${companyId}
+          AND (
+            COALESCE((pc.result->>'failed')::boolean, false)
+            OR pc.result->'response'->>'ID' IS NOT NULL
+          )
+      )
+    RETURNING m.id, m.contact_id, m.message_id, m.status::text AS status
+  `.execute(db);
+  const messagesToExpire = expiredResult.rows;
 
   const expiredCount = messagesToExpire.length;
 

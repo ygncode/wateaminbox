@@ -16,6 +16,14 @@ type fakeJetStream struct {
 	updated         *nats.StreamConfig
 	addedConsumer   *nats.ConsumerConfig
 	consumerStreams []string
+
+	// existingConsumers/addedConsumers key by durable name, for tests that
+	// exercise more than one consumer at once (e.g. EnsureEventsStream now
+	// registering three durables). ConsumerInfo/AddConsumer consult these
+	// first and fall back to the singular fields above so every existing
+	// single-consumer test keeps working unmodified.
+	existingConsumers map[string]*nats.ConsumerInfo
+	addedConsumers    map[string]*nats.ConsumerConfig
 }
 
 func (f *fakeJetStream) StreamInfo(_ string, _ ...nats.JSOpt) (*nats.StreamInfo, error) {
@@ -39,7 +47,13 @@ func (f *fakeJetStream) UpdateStream(cfg *nats.StreamConfig, _ ...nats.JSOpt) (*
 	return f.existing, nil
 }
 
-func (f *fakeJetStream) ConsumerInfo(_, _ string, _ ...nats.JSOpt) (*nats.ConsumerInfo, error) {
+func (f *fakeJetStream) ConsumerInfo(_ string, name string, _ ...nats.JSOpt) (*nats.ConsumerInfo, error) {
+	if f.existingConsumers != nil {
+		if info, ok := f.existingConsumers[name]; ok {
+			return info, nil
+		}
+		return nil, nats.ErrConsumerNotFound
+	}
 	if f.existingConsumer == nil {
 		return nil, nats.ErrConsumerNotFound
 	}
@@ -50,6 +64,17 @@ func (f *fakeJetStream) AddConsumer(stream string, cfg *nats.ConsumerConfig, _ .
 	stored := *cfg
 	f.addedConsumer = &stored
 	f.consumerStreams = append(f.consumerStreams, stream)
-	f.existingConsumer = &nats.ConsumerInfo{Stream: stream, Name: cfg.Durable, Config: stored}
-	return f.existingConsumer, nil
+	info := &nats.ConsumerInfo{Stream: stream, Name: cfg.Durable, Config: stored}
+	f.existingConsumer = info
+
+	if f.addedConsumers == nil {
+		f.addedConsumers = map[string]*nats.ConsumerConfig{}
+	}
+	f.addedConsumers[cfg.Durable] = &stored
+	if f.existingConsumers == nil {
+		f.existingConsumers = map[string]*nats.ConsumerInfo{}
+	}
+	f.existingConsumers[cfg.Durable] = info
+
+	return info, nil
 }
