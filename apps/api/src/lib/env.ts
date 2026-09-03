@@ -23,6 +23,27 @@ function getEnvNumber(key: string, defaultValue?: number): number {
   return parsed;
 }
 
+function getEnvSafePositiveInteger(
+  key: string,
+  defaultValue: number,
+  maxValue: number = Number.MAX_SAFE_INTEGER,
+): number {
+  const value = process.env[key];
+  if (value === undefined || value === "") return defaultValue;
+  const parsed = Number(value);
+  if (
+    !/^\d+$/.test(value) ||
+    !Number.isSafeInteger(parsed) ||
+    parsed <= 0 ||
+    parsed > maxValue
+  ) {
+    throw new Error(
+      `Environment variable ${key} must be an integer between 1 and ${maxValue}`,
+    );
+  }
+  return parsed;
+}
+
 function getEnvBoolean(key: string, defaultValue?: boolean): boolean {
   const value = process.env[key];
   if (value === undefined) {
@@ -41,9 +62,12 @@ export const env = {
   // Server
   NODE_ENV: nodeEnv,
   PORT: getEnvNumber("PORT", 4445),
+  API_REPLICA_COUNT: getEnvSafePositiveInteger("API_REPLICA_COUNT", 1, 10),
 
-  // Database
+  // Database. Pool limits are per replica; size the aggregate across every API
+  // container plus orchestrator/workers and retain operator headroom.
   DATABASE_URL: getEnv("DATABASE_URL", ""),
+  PUBLIC_DB_POOL_MAX: getEnvSafePositiveInteger("PUBLIC_DB_POOL_MAX", 10, 50),
 
   // Auth
   // Deliberately has no default in any environment. A built-in development
@@ -65,6 +89,7 @@ export const env = {
   CLOUDFLARE_ACCOUNT_ID: getEnv("CLOUDFLARE_ACCOUNT_ID", ""),
   CLOUDFLARE_EMAIL_API_TOKEN: getEnv("CLOUDFLARE_EMAIL_API_TOKEN", ""),
   EMAIL_FROM: getEnv("EMAIL_FROM", "noreply@example.com"),
+  FEEDBACK_TO_EMAIL: getEnv("FEEDBACK_TO_EMAIL", "contact@wateaminbox.com"),
 
   // App
   APP_URL: getEnv("APP_URL", "http://localhost:4444"),
@@ -134,9 +159,20 @@ export const env = {
   RATE_LIMIT_ENABLED: getEnvBoolean("RATE_LIMIT_ENABLED", true),
   RATE_LIMIT_STORE_TYPE: getEnv("RATE_LIMIT_STORE_TYPE", "memory"),
   RATE_LIMIT_REDIS_URL: getEnv("RATE_LIMIT_REDIS_URL", ""),
-  RATE_LIMIT_MEMORY_MAX_ITEMS: getEnvNumber(
+  RATE_LIMIT_MEMORY_MAX_ITEMS: getEnvSafePositiveInteger(
     "RATE_LIMIT_MEMORY_MAX_ITEMS",
     10000,
+    1_000_000,
+  ),
+  RATE_LIMIT_POSTGRES_CLEANUP_INTERVAL_SECONDS: getEnvSafePositiveInteger(
+    "RATE_LIMIT_POSTGRES_CLEANUP_INTERVAL_SECONDS",
+    60,
+    86_400,
+  ),
+  RATE_LIMIT_POSTGRES_CLEANUP_BATCH_SIZE: getEnvSafePositiveInteger(
+    "RATE_LIMIT_POSTGRES_CLEANUP_BATCH_SIZE",
+    1000,
+    10_000,
   ),
   // Forwarded client IP headers are accepted only from these exact proxy IPs.
   TRUSTED_PROXY_IPS: getEnv("TRUSTED_PROXY_IPS", ""),
@@ -146,7 +182,7 @@ export const env = {
   ).toLowerCase(),
 
   // Database pooling
-  TENANT_DB_POOL_MAX: getEnvNumber("TENANT_DB_POOL_MAX", 20),
+  TENANT_DB_POOL_MAX: getEnvSafePositiveInteger("TENANT_DB_POOL_MAX", 20, 50),
 
   // Realtime fan-out. Workspace membership is cached between conversation
   // events and invalidated on every company_members write, so a revocation
@@ -421,6 +457,7 @@ export function validateProductionEnv(config: Env = env): void {
     MEILISEARCH_API_KEY: config.MEILISEARCH_API_KEY,
     ...requiredMailCredentials(config),
     EMAIL_FROM: config.EMAIL_FROM,
+    FEEDBACK_TO_EMAIL: config.FEEDBACK_TO_EMAIL,
     APP_URL: config.APP_URL,
     CORS_ORIGINS: config.CORS_ORIGINS,
   };
@@ -558,6 +595,14 @@ export function validateProductionEnv(config: Env = env): void {
     );
   }
 
+  if (
+    !/^[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+$/.test(config.FEEDBACK_TO_EMAIL.trim())
+  ) {
+    throw new Error(
+      "FEEDBACK_TO_EMAIL must contain a valid email address in production",
+    );
+  }
+
   if (config.JWT_SECRET.length < 32) {
     throw new Error(
       "JWT_SECRET must contain at least 32 characters in production",
@@ -610,8 +655,52 @@ export function validateProductionEnv(config: Env = env): void {
   if (!config.RATE_LIMIT_ENABLED) {
     throw new Error("RATE_LIMIT_ENABLED must be true in production");
   }
-  if (!["memory", "redis"].includes(config.RATE_LIMIT_STORE_TYPE)) {
-    throw new Error("RATE_LIMIT_STORE_TYPE must be one of: memory, redis");
+  if (!["memory", "postgres", "redis"].includes(config.RATE_LIMIT_STORE_TYPE)) {
+    throw new Error(
+      "RATE_LIMIT_STORE_TYPE must be one of: memory, postgres, redis",
+    );
+  }
+  if (
+    !Number.isSafeInteger(config.API_REPLICA_COUNT) ||
+    config.API_REPLICA_COUNT <= 0 ||
+    config.API_REPLICA_COUNT > 10
+  ) {
+    throw new Error("API_REPLICA_COUNT must be an integer between 1 and 10");
+  }
+  if (
+    !Number.isSafeInteger(config.PUBLIC_DB_POOL_MAX) ||
+    config.PUBLIC_DB_POOL_MAX <= 0 ||
+    config.PUBLIC_DB_POOL_MAX > 50 ||
+    !Number.isSafeInteger(config.TENANT_DB_POOL_MAX) ||
+    config.TENANT_DB_POOL_MAX <= 0 ||
+    config.TENANT_DB_POOL_MAX > 50
+  ) {
+    throw new Error(
+      "API database pool limits must be integers between 1 and 50",
+    );
+  }
+  if (
+    !Number.isSafeInteger(config.RATE_LIMIT_MEMORY_MAX_ITEMS) ||
+    config.RATE_LIMIT_MEMORY_MAX_ITEMS <= 0 ||
+    config.RATE_LIMIT_MEMORY_MAX_ITEMS > 1_000_000 ||
+    !Number.isSafeInteger(
+      config.RATE_LIMIT_POSTGRES_CLEANUP_INTERVAL_SECONDS,
+    ) ||
+    config.RATE_LIMIT_POSTGRES_CLEANUP_INTERVAL_SECONDS <= 0 ||
+    config.RATE_LIMIT_POSTGRES_CLEANUP_INTERVAL_SECONDS > 86_400 ||
+    !Number.isSafeInteger(config.RATE_LIMIT_POSTGRES_CLEANUP_BATCH_SIZE) ||
+    config.RATE_LIMIT_POSTGRES_CLEANUP_BATCH_SIZE <= 0 ||
+    config.RATE_LIMIT_POSTGRES_CLEANUP_BATCH_SIZE > 10_000
+  ) {
+    throw new Error("Rate-limit lifecycle settings are outside safe bounds");
+  }
+  if (
+    config.API_REPLICA_COUNT > 1 &&
+    config.RATE_LIMIT_STORE_TYPE !== "postgres"
+  ) {
+    throw new Error(
+      "RATE_LIMIT_STORE_TYPE=postgres is required when API_REPLICA_COUNT is greater than 1",
+    );
   }
   if (config.RATE_LIMIT_STORE_TYPE === "redis") {
     const redis = assertServiceURL(

@@ -150,6 +150,12 @@ export interface MessageMetadata {
   thumbnailUrl?: string;
   duration?: number; // For audio/video in seconds
   caption?: string;
+  /** WhatsApp album parent message ID shared by image/video children. */
+  mediaAlbumId?: string;
+  /** Zero-based tile order assigned by WhatsApp. */
+  mediaAlbumIndex?: number;
+  /** Total image/video children declared by the album parent. */
+  mediaAlbumCount?: number;
   // Deferred media download fields
   mediaPending?: boolean; // True if media needs to be downloaded on-demand
   mediaDownloadStatus?: MediaDownloadStatus;

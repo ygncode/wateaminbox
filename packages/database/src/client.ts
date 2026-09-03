@@ -19,6 +19,7 @@ import { Pool } from "pg";
  * Main database interface for public schema tables
  */
 export interface Database {
+  api_rate_limit_buckets: ApiRateLimitBucketsTable;
   companies: CompaniesTable;
   users: UsersTable;
   company_members: CompanyMembersTable;
@@ -26,12 +27,23 @@ export interface Database {
   company_stats: CompanyStatsTable;
   user_sessions: UserSessionsTable;
   auth_tokens: AuthTokensTable;
+  api_tokens: ApiTokensTable;
+  oauth_clients: OAuthClientsTable;
+  oauth_grants: OAuthGrantsTable;
+  oauth_authorization_codes: OAuthAuthorizationCodesTable;
   sla_policies: SlaPoliciesTable;
 }
 
 // Type alias for backward compatibility (deprecated - import from @wateaminbox/shared instead)
 /** @deprecated Use CompanyMemberRole from @wateaminbox/shared instead */
 export type MemberRole = CompanyMemberRole;
+
+export interface ApiRateLimitBucketsTable {
+  bucket_key: string;
+  request_count: string;
+  window_started_at: Date;
+  expires_at: Date;
+}
 
 export interface CompaniesTable {
   id: Generated<string>;
@@ -134,6 +146,83 @@ export interface AuthTokensTable {
   token_hash: string;
   expires_at: Date;
   used_at: Date | null;
+  created_at: Generated<Date>;
+}
+
+export type ApiTokenScope = "read" | "write";
+
+export interface ApiTokensTable {
+  id: Generated<string>;
+  user_id: string;
+  company_id: string;
+  name: string;
+  /** SHA-256 hash of the raw token; the raw value is never persisted. */
+  token_hash: string;
+  /** First characters of the raw token, kept for display in token lists. */
+  token_prefix: string;
+  scopes: ApiTokenScope[];
+  last_used_at: Date | null;
+  expires_at: Date | null;
+  revoked_at: Date | null;
+  created_at: Generated<Date>;
+  /** Set when this token was issued by the OAuth flow; null for a personal token. */
+  grant_id: string | null;
+  /** SHA-256 of the refresh token paired with this access token. */
+  refresh_token_hash: string | null;
+  refresh_expires_at: Date | null;
+  /** Set when the refresh token was exchanged; a second use burns the grant. */
+  refresh_used_at: Date | null;
+}
+
+/**
+ * Cached client metadata document (CIMD). A client identifies itself by the
+ * https URL of its document, which we fetch rather than registering.
+ */
+export interface OAuthClientsTable {
+  id: Generated<string>;
+  client_id: string;
+  client_name: string | null;
+  redirect_uris: string[];
+  token_endpoint_auth_method: Generated<string>;
+  metadata: unknown;
+  fetched_at: Generated<Date>;
+  cache_expires_at: Date;
+  created_at: Generated<Date>;
+}
+
+/**
+ * One authorization decision by one user for one client against one workspace.
+ * Every access and refresh token in the rotation chain points back here, so
+ * revoking the grant revokes the chain.
+ */
+export interface OAuthGrantsTable {
+  id: Generated<string>;
+  user_id: string;
+  company_id: string;
+  client_id: string;
+  scopes: ApiTokenScope[];
+  /** RFC 8707 resource the tokens are audience-bound to. */
+  resource: string;
+  created_at: Generated<Date>;
+  last_used_at: Date | null;
+  revoked_at: Date | null;
+  revoked_reason: string | null;
+}
+
+/** Single-use authorization code carrying its PKCE challenge. */
+export interface OAuthAuthorizationCodesTable {
+  id: Generated<string>;
+  code_hash: string;
+  client_id: string;
+  user_id: string;
+  company_id: string;
+  scopes: ApiTokenScope[];
+  redirect_uri: string;
+  code_challenge: string;
+  code_challenge_method: string;
+  resource: string;
+  expires_at: Date;
+  consumed_at: Date | null;
   created_at: Generated<Date>;
 }
 
@@ -710,11 +799,21 @@ export interface NatsOutboxTable {
 /**
  * Creates a Kysely database instance for the public schema
  */
-export function createDatabase(connectionString: string): Kysely<Database> {
+export function createDatabase(
+  connectionString: string,
+  maxConnections: number = 10,
+): Kysely<Database> {
+  if (
+    !Number.isSafeInteger(maxConnections) ||
+    maxConnections <= 0 ||
+    maxConnections > 50
+  ) {
+    throw new RangeError("Database pool maximum must be between 1 and 50");
+  }
   const dialect = new PostgresDialect({
     pool: new Pool({
       connectionString,
-      max: 10,
+      max: maxConnections,
     }),
   });
 
@@ -751,5 +850,23 @@ export function getTenantSchemaName(companyId: string): string {
   return `tenant_${companyId.replace(/-/g, "_")}`;
 }
 
-// Default database instance using environment variable
-export const db = createDatabase(process.env.DATABASE_URL || "");
+function configuredPublicPoolMax(value: string | undefined): number {
+  if (value === undefined || value === "") return 10;
+  const parsed = Number(value);
+  if (
+    !/^\d+$/.test(value) ||
+    !Number.isSafeInteger(parsed) ||
+    parsed <= 0 ||
+    parsed > 50
+  ) {
+    throw new Error("PUBLIC_DB_POOL_MAX must be an integer between 1 and 50");
+  }
+  return parsed;
+}
+
+// Default database instance using environment variables. This pool is per API
+// replica, so production supplies a deliberately bounded value.
+export const db = createDatabase(
+  process.env.DATABASE_URL || "",
+  configuredPublicPoolMax(process.env.PUBLIC_DB_POOL_MAX),
+);

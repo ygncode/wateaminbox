@@ -90,7 +90,7 @@ export interface QREvent extends WhatsAppEvent {
 
 // Connection status event
 export interface ConnectionEvent extends WhatsAppEvent {
-  type: "connected" | "disconnected";
+  type: "paired" | "connected" | "disconnected" | "logged_out";
   payload: {
     phoneNumber?: string;
     jid?: string;
@@ -121,6 +121,9 @@ export interface MessageEvent extends WhatsAppEvent {
     fileName?: string;
     mediaType?: string;
     mediaSize?: number;
+    mediaAlbumId?: string;
+    mediaAlbumIndex?: number;
+    mediaAlbumCount?: number;
     // Deferred media download fields
     mediaDirectPath?: string;
     mediaKey?: string; // Base64 encoded

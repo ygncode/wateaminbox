@@ -63,6 +63,27 @@ type WorkerResponse struct {
 	ProcessReady      bool      `json:"process_ready"`
 	WhatsAppConnected bool      `json:"whatsapp_connected"`
 	Authenticated     bool      `json:"authenticated"`
+	NodeID            string    `json:"node_id,omitempty"`
+	// Remote marks a worker owned by another orchestrator node. Its fields
+	// come from the durable registry, not live process state: runtime flags
+	// are unknown here and reported false.
+	Remote bool `json:"remote,omitempty"`
+}
+
+// NodeResponse represents one orchestrator node's lease state.
+type NodeResponse struct {
+	NodeID         string    `json:"node_id"`
+	LeaseExpiresAt time.Time `json:"lease_expires_at"`
+	HeartbeatAt    time.Time `json:"heartbeat_at"`
+	StartedAt      time.Time `json:"started_at"`
+	LeaseExpired   bool      `json:"lease_expired"`
+	Self           bool      `json:"self"`
+}
+
+// NodesListResponse represents the nodes list response.
+type NodesListResponse struct {
+	Nodes []NodeResponse `json:"nodes"`
+	Count int            `json:"count"`
 }
 
 // WorkersListResponse represents the workers list response.
@@ -108,6 +129,7 @@ func NewServer(cfg Config) (*Server, error) {
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.Handle("/workers", s.requireBearer(http.HandlerFunc(s.handleWorkers)))
 	mux.Handle("/workers/", s.requireBearer(http.HandlerFunc(s.handleWorkerByID)))
+	mux.Handle("/nodes", s.requireBearer(http.HandlerFunc(s.handleNodes)))
 	mux.Handle("/rollouts", s.requireRolloutBearer(http.HandlerFunc(s.handleRollouts)))
 	mux.Handle("/rollouts/", s.requireRolloutBearer(http.HandlerFunc(s.handleRolloutByID)))
 
@@ -213,34 +235,83 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	s.writeJSON(w, http.StatusOK, response)
 }
 
-// handleWorkers handles GET /workers requests.
+// localWorkerResponse builds a response from this node's live runtime view.
+func (s *Server) localWorkerResponse(w *manager.WorkerProcess) WorkerResponse {
+	return WorkerResponse{
+		ID:                w.ID,
+		CompanyID:         w.CompanyID,
+		TenantSchema:      w.TenantSchema,
+		Status:            w.Status,
+		PID:               w.PID,
+		StartedAt:         w.StartedAt,
+		LastActivity:      w.LastActivity,
+		LaunchID:          w.LaunchID,
+		DesiredState:      w.DesiredState,
+		ArtifactVersion:   w.ArtifactVersion,
+		ArtifactSHA256:    w.ArtifactSHA256,
+		WorkerUID:         w.WorkerUID,
+		WorkerGID:         w.WorkerGID,
+		ProcessReady:      w.ProcessReady,
+		WhatsAppConnected: w.RuntimeConnected,
+		Authenticated:     w.Authenticated,
+		NodeID:            s.manager.NodeID(),
+	}
+}
+
+// fleetWorkerResponse builds a response from the durable fleet view, using
+// live runtime state when this node owns the worker.
+func (s *Server) fleetWorkerResponse(fleetWorker *manager.FleetWorker) WorkerResponse {
+	if fleetWorker.Local != nil {
+		response := s.localWorkerResponse(fleetWorker.Local)
+		response.NodeID = fleetWorker.Record.NodeID
+		return response
+	}
+	record := fleetWorker.Record
+	return WorkerResponse{
+		ID:              record.ConnectionID,
+		CompanyID:       record.CompanyID,
+		TenantSchema:    record.TenantSchema,
+		Status:          record.Status,
+		PID:             record.PID,
+		StartedAt:       record.StartedAt,
+		LastActivity:    record.LastHeartbeat,
+		LaunchID:        record.LaunchID,
+		DesiredState:    record.DesiredState,
+		ArtifactVersion: record.ArtifactVersion,
+		ArtifactSHA256:  record.ArtifactSHA256,
+		WorkerUID:       record.WorkerUID,
+		WorkerGID:       record.WorkerGID,
+		NodeID:          record.NodeID,
+		Remote:          record.NodeID != s.manager.NodeID(),
+	}
+}
+
+// handleWorkers handles GET /workers requests. With a registry configured the
+// response is the durable fleet across every node; otherwise it is this
+// instance's in-memory view.
 func (s *Server) handleWorkers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed", "")
 		return
 	}
 
-	workers := s.manager.ListWorkers()
-	workerResponses := make([]WorkerResponse, len(workers))
+	fleet, err := s.manager.ListFleetWorkers(r.Context())
+	if err != nil {
+		s.writeError(w, http.StatusServiceUnavailable, "fleet worker view unavailable", err.Error())
+		return
+	}
 
-	for i, w := range workers {
-		workerResponses[i] = WorkerResponse{
-			ID:                w.ID,
-			CompanyID:         w.CompanyID,
-			TenantSchema:      w.TenantSchema,
-			Status:            w.Status,
-			PID:               w.PID,
-			StartedAt:         w.StartedAt,
-			LastActivity:      w.LastActivity,
-			LaunchID:          w.LaunchID,
-			DesiredState:      w.DesiredState,
-			ArtifactVersion:   w.ArtifactVersion,
-			ArtifactSHA256:    w.ArtifactSHA256,
-			WorkerUID:         w.WorkerUID,
-			WorkerGID:         w.WorkerGID,
-			ProcessReady:      w.ProcessReady,
-			WhatsAppConnected: w.RuntimeConnected,
-			Authenticated:     w.Authenticated,
+	var workerResponses []WorkerResponse
+	if fleet != nil {
+		workerResponses = make([]WorkerResponse, len(fleet))
+		for i, fleetWorker := range fleet {
+			workerResponses[i] = s.fleetWorkerResponse(fleetWorker)
+		}
+	} else {
+		workers := s.manager.ListWorkers()
+		workerResponses = make([]WorkerResponse, len(workers))
+		for i, worker := range workers {
+			workerResponses[i] = s.localWorkerResponse(worker)
 		}
 	}
 
@@ -250,6 +321,35 @@ func (s *Server) handleWorkers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.writeJSON(w, http.StatusOK, response)
+}
+
+// handleNodes handles GET /nodes requests, reporting every registered
+// orchestrator node lease.
+func (s *Server) handleNodes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.writeError(w, http.StatusMethodNotAllowed, "method not allowed", "")
+		return
+	}
+
+	nodes, err := s.manager.ListOrchestratorNodes(r.Context())
+	if err != nil {
+		s.writeError(w, http.StatusServiceUnavailable, "node lease view unavailable", err.Error())
+		return
+	}
+
+	nodeResponses := make([]NodeResponse, len(nodes))
+	for i, node := range nodes {
+		nodeResponses[i] = NodeResponse{
+			NodeID:         node.NodeID,
+			LeaseExpiresAt: node.LeaseExpiresAt,
+			HeartbeatAt:    node.HeartbeatAt,
+			StartedAt:      node.StartedAt,
+			LeaseExpired:   node.LeaseExpired,
+			Self:           node.NodeID == s.manager.NodeID(),
+		}
+	}
+
+	s.writeJSON(w, http.StatusOK, NodesListResponse{Nodes: nodeResponses, Count: len(nodeResponses)})
 }
 
 // handleWorkerByID handles GET /workers/:id requests.
@@ -268,32 +368,25 @@ func (s *Server) handleWorkerByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Prefer the durable fleet view so a worker owned by another node still
+	// resolves; fall back to local memory without a registry.
+	fleetWorker, err := s.manager.GetFleetWorker(r.Context(), workerID)
+	if err != nil {
+		s.writeError(w, http.StatusServiceUnavailable, "fleet worker view unavailable", err.Error())
+		return
+	}
+	if fleetWorker != nil {
+		s.writeJSON(w, http.StatusOK, s.fleetWorkerResponse(fleetWorker))
+		return
+	}
+
 	worker, exists := s.manager.GetWorkerStatus(workerID)
 	if !exists {
 		s.writeError(w, http.StatusNotFound, "worker not found", workerID)
 		return
 	}
 
-	response := WorkerResponse{
-		ID:                worker.ID,
-		CompanyID:         worker.CompanyID,
-		TenantSchema:      worker.TenantSchema,
-		Status:            worker.Status,
-		PID:               worker.PID,
-		StartedAt:         worker.StartedAt,
-		LastActivity:      worker.LastActivity,
-		LaunchID:          worker.LaunchID,
-		DesiredState:      worker.DesiredState,
-		ArtifactVersion:   worker.ArtifactVersion,
-		ArtifactSHA256:    worker.ArtifactSHA256,
-		WorkerUID:         worker.WorkerUID,
-		WorkerGID:         worker.WorkerGID,
-		ProcessReady:      worker.ProcessReady,
-		WhatsAppConnected: worker.RuntimeConnected,
-		Authenticated:     worker.Authenticated,
-	}
-
-	s.writeJSON(w, http.StatusOK, response)
+	s.writeJSON(w, http.StatusOK, s.localWorkerResponse(worker))
 }
 
 // writeJSON writes a JSON response.

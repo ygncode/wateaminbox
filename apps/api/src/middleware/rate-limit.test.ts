@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import { setVerifiedRequestIp } from "../lib/client-ip.js";
-import type { RateLimitStore } from "../lib/rate-limit-store.js";
+import {
+  type RateLimitStore,
+  RateLimitStoreUnavailableError,
+} from "../lib/rate-limit-store.js";
 import { createRateLimitMiddleware } from "./rate-limit.js";
 
 describe("rate limit client IP trust", () => {
@@ -49,5 +52,33 @@ describe("rate limit client IP trust", () => {
     expect((await app.request(first)).status).toBe(200);
     expect((await app.request(second)).status).toBe(429);
     expect(counters.size).toBe(1);
+  });
+
+  test("maps a typed shared-store outage to a fail-closed 503", async () => {
+    const store: RateLimitStore = {
+      async increment() {
+        throw new RateLimitStoreUnavailableError("database unavailable");
+      },
+      async reset() {},
+      async clear() {},
+      async close() {},
+    };
+    const app = new Hono();
+    app.use(
+      "*",
+      createRateLimitMiddleware({
+        store,
+        tier: { requests: 10, windowSeconds: 60 },
+        keyStrategy: "ip",
+      }),
+    );
+    app.get("/", (c) => c.text("should not run"));
+
+    const response = await app.request("/");
+    expect(response.status).toBe(503);
+    expect(response.headers.get("Retry-After")).toBe("1");
+    expect(await response.json()).toMatchObject({
+      error: "Service Unavailable",
+    });
   });
 });

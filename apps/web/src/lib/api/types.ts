@@ -64,6 +64,7 @@ export interface RegisterRequest {
   password: string;
   name: string;
   companyName?: string;
+  invitationToken?: string;
 }
 
 export interface RegisterResponse {
@@ -80,6 +81,17 @@ export interface RegisterResponse {
 export interface ResendVerificationResponse {
   message: string;
   alreadyVerified: boolean;
+}
+
+export interface VerifyEmailResponse {
+  message: string;
+  user: {
+    id: string;
+    email: string;
+    emailVerified: boolean;
+  };
+  invitationAccepted: boolean;
+  companyId?: string;
 }
 
 export interface RefreshResponse {
@@ -618,4 +630,51 @@ export interface SyncCatalogsResponse {
 
 export interface CatalogActionResponse {
   message: string;
+}
+
+// ============================================================================
+// API Tokens (MCP)
+// ============================================================================
+
+export type ApiTokenScope = "read" | "write";
+
+export interface ApiToken {
+  id: string;
+  userId: string;
+  name: string;
+  tokenPrefix: string;
+  scopes: ApiTokenScope[];
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * An AI client authorized through OAuth, as opposed to a hand-made token.
+ * Grants are managed as connected apps because revoking the token alone would
+ * leave the client able to mint a replacement with its refresh token.
+ */
+export interface ConnectedApp {
+  grantId: string;
+  clientId: string;
+  clientName: string | null;
+  scopes: ApiTokenScope[];
+  createdAt: string;
+  lastUsedAt: string | null;
+  ownerUserId: string;
+  ownerName: string | null;
+  /** Server-computed; the client must not re-derive who may disconnect what. */
+  canDisconnect: boolean;
+}
+
+export interface ApiTokenWithSecret extends ApiToken {
+  /** Full secret, returned only once at creation time. */
+  token: string;
+}
+
+export interface CreateApiTokenInput {
+  name: string;
+  scopes: ApiTokenScope[];
+  expiresAt?: string;
 }

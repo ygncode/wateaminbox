@@ -4,14 +4,17 @@ import {
 } from "@tanstack/react-virtual";
 import type { Message, RemoteHistoryStatus } from "@wateaminbox/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  type MessageNavigationTarget,
-  matchesMessageNavigationTarget,
-} from "@/components/chat/message-navigation";
+import { groupMediaAlbumMessages } from "@/components/chat/media-albums";
 import {
   type BubbleGroupPosition,
   resolveBubbleGroupPositions,
 } from "@/components/chat/message-grouping";
+import {
+  type MessageNavigationTarget,
+  matchesMessageNavigationTarget,
+} from "@/components/chat/message-navigation";
+import { createBottomPin } from "./message-bottom-pin";
+import { MESSAGE_LIST_END_ANCHOR } from "./message-list-end-anchor";
 import { resolveNewestMessageAnchor } from "./message-scroll-anchor";
 
 // Estimated row heights for virtualization
@@ -23,6 +26,8 @@ export type VirtualItem =
   | {
       type: "message";
       message: Message;
+      albumMessages: Message[];
+      albumExpectedCount: number;
       id: string;
       /** Position in its run of same-author messages; see message-grouping.ts. */
       groupPosition: BubbleGroupPosition;
@@ -81,40 +86,48 @@ export function useMessageVirtualization({
     useState(false);
   const pendingHighlightedMessageIdRef = useRef<string | null>(null);
   const remoteRequestItemCountRef = useRef<number | null>(null);
+  // App-level "viewport belongs at the newest message" intent. See
+  // message-bottom-pin.ts for the clamped-write race it reconciles.
+  const bottomPinRef = useRef(createBottomPin());
 
   // Group messages by date and flatten into virtual items - memoized to prevent re-renders
   const items = useMemo<VirtualItem[]>(() => {
     if (messages.length === 0) return [];
 
-    const rows: (Message | null)[] = [];
+    const rows: (ReturnType<typeof groupMediaAlbumMessages>[number] | null)[] =
+      [];
     let currentDate = "";
 
-    messages.forEach((message) => {
-      const messageDate = new Date(message.createdAt).toDateString();
+    groupMediaAlbumMessages(messages).forEach((album) => {
+      const messageDate = new Date(album.primary.createdAt).toDateString();
       // A date separator is a `null` row so grouping sees it and refuses to
       // continue a run across the day boundary.
       if (messageDate !== currentDate) {
         currentDate = messageDate;
         rows.push(null);
       }
-      rows.push(message);
+      rows.push(album);
     });
 
-    const positions = resolveBubbleGroupPositions(rows);
+    const positions = resolveBubbleGroupPositions(
+      rows.map((album) => album?.primary ?? null),
+    );
 
-    return rows.map((message, index): VirtualItem => {
-      if (!message) {
+    return rows.map((album, index): VirtualItem => {
+      if (!album) {
         // A separator is always immediately followed by the first message of
         // the day it announces.
         const date = new Date(
-          (rows[index + 1] as Message).createdAt,
+          rows[index + 1]!.primary.createdAt,
         ).toDateString();
         return { type: "date", date, id: `date-${date}` };
       }
       return {
         type: "message",
-        message,
-        id: message.id,
+        message: album.primary,
+        albumMessages: album.messages,
+        albumExpectedCount: album.expectedCount,
+        id: album.id,
         groupPosition: positions[index] ?? "single",
       };
     });
@@ -145,6 +158,9 @@ export function useMessageVirtualization({
     estimateSize,
     overscan: 10,
     getItemKey,
+    // Keep the viewport pinned to the newest message when media rows grow
+    // after their lazily loaded asset decodes. See message-list-end-anchor.ts.
+    ...MESSAGE_LIST_END_ANCHOR,
   });
 
   // TanStack's getters may notify the React adapter when their memoized inputs
@@ -168,17 +184,38 @@ export function useMessageVirtualization({
     navigationTarget?.messageId ?? highlightedMessageId,
   );
 
+  // Re-checks the true DOM bottom while the pin holds and reasserts it when
+  // content grew underneath the viewport (late media decodes, clamped
+  // end-anchor writes). Runs on every scroll event and after every commit
+  // that changed measured sizes.
+  const reconcileBottomPin = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const decision = bottomPinRef.current.observe({
+      scrollTop: container.scrollTop,
+      scrollHeight: container.scrollHeight,
+      clientHeight: container.clientHeight,
+    });
+    if (decision === "repin") {
+      // The browser clamps to the maximum scroll offset.
+      container.scrollTop = container.scrollHeight;
+    }
+  }, []);
+
   // Handle scroll to detect when we're near the top (for loading more) and bottom
   const handleScroll = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
-    // Check if we're at the bottom
+    reconcileBottomPin();
+
+    // Check if we're at the bottom (reading scrollTop after a possible repin
+    // so the scroll-down button doesn't flicker mid-reconciliation).
     const isNearBottom =
       container.scrollHeight - container.scrollTop - container.clientHeight <
       100;
     setIsAtBottom(isNearBottom);
-  }, []);
+  }, [reconcileBottomPin]);
 
   // Reset viewport state when the conversation changes. The initial anchor is
   // guarded by conversation id, so it no longer depends on this effect running
@@ -186,7 +223,20 @@ export function useMessageVirtualization({
   useEffect(() => {
     prevItemsLengthRef.current = 0;
     setIsAtBottom(true);
+    // Forget the previous conversation's viewport so its scroll offsets are
+    // not misread as this conversation's upward scroll.
+    bottomPinRef.current.reset();
   }, [conversationId]);
+
+  // `totalSize` changes exactly when rows re-measure (estimates → real
+  // heights, late media decodes) — the moments the end-anchor's clamped
+  // scrollTop writes can strand the viewport short of the newest message.
+  // This runs after React committed the grown inner box, so the true bottom
+  // is reachable again. `totalSize` is intentionally the trigger, not an
+  // input read by the effect.
+  useEffect(() => {
+    reconcileBottomPin();
+  }, [totalSize, reconcileBottomPin]);
 
   // Scroll to bottom when new messages arrive (if already at bottom)
   useEffect(() => {
@@ -196,6 +246,7 @@ export function useMessageVirtualization({
       items.length > prevItemsLengthRef.current &&
       isAtBottom
     ) {
+      bottomPinRef.current.intend();
       // Use setTimeout to ensure scroll happens after render cycle completes
       const timeoutId = setTimeout(() => {
         virtualizer.scrollToIndex(items.length - 1, {
@@ -226,10 +277,14 @@ export function useMessageVirtualization({
     anchoredConversationIdRef.current = conversationId ?? null;
 
     if (anchor === "newest-message") {
+      bottomPinRef.current.intend();
       virtualizer.scrollToIndex(items.length - 1, {
         align: "end",
         behavior: "auto",
       });
+    } else {
+      // "highlighted-message": the navigation target owns the viewport.
+      bottomPinRef.current.release();
     }
   }, [conversationId, items.length, virtualizer]);
 
@@ -259,15 +314,19 @@ export function useMessageVirtualization({
     const messageIndex = itemsRef.current.findIndex(
       (item) =>
         item.type === "message" &&
-        (navigationTarget
-          ? matchesMessageNavigationTarget(item.message, navigationTarget)
-          : item.id === highlightedMessageId),
+        item.albumMessages.some((message) =>
+          navigationTarget
+            ? matchesMessageNavigationTarget(message, navigationTarget)
+            : message.id === highlightedMessageId,
+        ),
     );
 
     if (messageIndex !== -1) {
       setIsLoadingHighlightedMessage(false);
       setIsHighlightedMessageUnavailable(false);
       pendingHighlightedMessageIdRef.current = null;
+      // Centering an older message must not fight a held bottom pin.
+      bottomPinRef.current.release();
       virtualizerRef.current.scrollToIndex(messageIndex, {
         align: "center",
         behavior: "auto",
@@ -336,6 +395,9 @@ export function useMessageVirtualization({
   // Scroll to bottom button click
   const scrollToBottom = useCallback(() => {
     if (items.length > 0) {
+      // Hold the pin so measurement changes during the jump keep
+      // reconciling until the viewport reaches the true bottom.
+      bottomPinRef.current.intend();
       virtualizer.scrollToIndex(items.length - 1, {
         align: "end",
         behavior: "auto",

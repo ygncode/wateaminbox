@@ -88,6 +88,9 @@ type MessageEvent struct {
 	MediaURL           string
 	MediaType          string
 	MediaSize          int64
+	MediaAlbumID       string
+	MediaAlbumIndex    int
+	MediaAlbumCount    int
 	FileName           string
 	Caption            string
 	IsGroup            bool
@@ -151,7 +154,7 @@ type WhatsAppClient interface {
 	// GetJID returns the JID of the logged-in device.
 	GetJID() string
 	// SendMessage sends a text message.
-	SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (intTypes.SendResponse, error)
+	SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (intTypes.SendResponse, error)
 	// SendMediaMessage sends a media message.
 	SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (intTypes.SendResponse, error)
 	// SendReaction sends a reaction to a message.

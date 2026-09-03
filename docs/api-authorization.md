@@ -16,3 +16,17 @@ All tenant routes require an active session and company membership before the po
 | WhatsApp connections | Company membership | Create, rename, reconnect, disconnect, archive/unlink, and re-link require connection-management permission; permanent inbox deletion also requires delete-data permission |
 
 Routes which create external side effects must declare an explicit permission or role middleware. `apps/api/src/routes/message-send-policy.test.ts` audits every send surface against the shared send policy.
+
+## MCP endpoint and API tokens
+
+The MCP endpoint (`POST /api/mcp`) authenticates with personal API tokens (`Authorization: Bearer wti_...`) instead of a session JWT. Enforcement layers, in order:
+
+| Layer | Policy |
+| --- | --- |
+| Token | Must exist by SHA-256 hash, not revoked, not expired. Bound to one (user, workspace); no `X-Company-ID` is read. |
+| Membership | The owner's role and permissions are re-resolved on every request (`getMemberWithPermissions`); removing/leaving the workspace atomically revokes all of that membership's API tokens so re-invitation cannot reactivate an old secret. |
+| Scope | Tools are filtered by token scope: `read` tools always listed, `write` tools only for write-scoped tokens. |
+| Permission | Each write tool re-checks the owner's live permission (`can_send_messages`, `can_assign_contacts`, `can_send_bulk_messages` for broadcasts, which also require `can_send_messages`). Broadcast creation shares the REST `messaging.bulk` per-user rate limit and requires a stable idempotency key. |
+| Visibility | Contact/conversation/message tools apply the same assigned-contact visibility rules as the REST routes (`hasContactVisibility`); invisible contacts read as not found. |
+
+Token management (`/api/api-tokens`) uses the normal session auth: members create/list/revoke their own tokens; admins and owners can list and revoke any workspace token. MCP-triggered audit entries include `authSource: "mcp"` and the API token id for incident attribution.

@@ -48,7 +48,7 @@ services:
       edge:
         ipv4_address: ${PROXY_IP:-10.253.0.254}
     depends_on:
-      api:
+      api-router:
         condition: service_healthy
       web:
         condition: service_healthy
@@ -86,6 +86,29 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+  # Stable internal load balancer for horizontally scaled API containers.
+  # HAProxy discovers every `api` service address through Docker DNS and sends
+  # traffic only to replicas whose readiness endpoint succeeds.
+  api-router:
+    <<: *service-defaults
+    image: haproxy:3.1.8-alpine
+    volumes:
+      - ./infrastructure/production/haproxy-api.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks:
+      edge: {}
+      backend:
+        ipv4_address: ${API_ROUTER_IP:-10.254.0.254}
+    depends_on:
+      api:
+        condition: service_healthy
+    read_only: true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4451/api/health/ready"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
 
   migration:
     <<: *service-defaults
@@ -152,6 +175,7 @@ services:
       CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID:-}
       CLOUDFLARE_EMAIL_API_TOKEN_FILE: ${CLOUDFLARE_EMAIL_API_TOKEN_FILE:+/run/secrets/mail_api_key}
       EMAIL_FROM: ${EMAIL_FROM:?set EMAIL_FROM}
+      FEEDBACK_TO_EMAIL: ${FEEDBACK_TO_EMAIL:?set FEEDBACK_TO_EMAIL}
       MEILISEARCH_URL: http://meilisearch:7700
       MEILISEARCH_API_KEY_FILE: /run/secrets/meilisearch_master_key
       CENTRIFUGO_API_URL: http://centrifugo:8000/api
@@ -162,8 +186,18 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       LOG_PRETTY: "false"
       RATE_LIMIT_ENABLED: "true"
-      RATE_LIMIT_STORE_TYPE: memory
-      TRUSTED_PROXY_IPS: ${PROXY_IP:-10.253.0.254}
+      RATE_LIMIT_STORE_TYPE: ${RATE_LIMIT_STORE_TYPE:-postgres}
+      RATE_LIMIT_POSTGRES_CLEANUP_INTERVAL_SECONDS: ${RATE_LIMIT_POSTGRES_CLEANUP_INTERVAL_SECONDS:-60}
+      RATE_LIMIT_POSTGRES_CLEANUP_BATCH_SIZE: ${RATE_LIMIT_POSTGRES_CLEANUP_BATCH_SIZE:-1000}
+      API_REPLICA_COUNT: ${API_REPLICA_COUNT:-1}
+      PUBLIC_DB_POOL_MAX: ${PUBLIC_DB_POOL_MAX:-5}
+      TENANT_DB_POOL_MAX: ${TENANT_DB_POOL_MAX:-10}
+      # Cross-process membership invalidation is not yet enabled. Zero keeps a
+      # permission revocation authoritative on the next event in every replica.
+      REALTIME_MEMBERSHIP_CACHE_TTL_MS: ${REALTIME_MEMBERSHIP_CACHE_TTL_MS:-0}
+      # The API's only HTTP peer is HAProxy; Caddy and cloud-control are
+      # earlier hops whose verified address chain HAProxy appends to.
+      TRUSTED_PROXY_IPS: ${API_ROUTER_IP:-10.254.0.254}
       TRUSTED_PROXY_IP_HEADER: x-forwarded-for
     secrets:
       - postgres_password
@@ -175,7 +209,9 @@ services:
       - meilisearch_master_key
       - centrifugo_api_key
       - centrifugo_token_secret
-    networks: [edge, backend, data]
+    networks: [backend, data]
+    deploy:
+      replicas: ${API_REPLICA_COUNT:-1}
     depends_on:
       migration:
         condition: service_completed_successfully
@@ -194,7 +230,9 @@ services:
     # apps/api/src/lib/shutdown-config.test.ts holds the two together.
     stop_grace_period: 30s
     healthcheck:
-      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:4445/api/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      # Compose/deployment health must represent readiness for every replica;
+      # HAProxy performs the same check before routing application traffic.
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:4445/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       start_period: 20s
@@ -230,6 +268,18 @@ services:
       AUTO_RESTART_MAX_RETRIES: "5"
       AUTO_RESTART_BACKOFF: 5s
       ORCHESTRATOR_MAX_WORKERS: ${ORCHESTRATOR_MAX_WORKERS:-15}
+      # Stable node identity for durable worker ownership and per-node command
+      # routing. Must not change across restarts of the same instance; each
+      # additional orchestrator instance needs its own distinct value.
+      ORCHESTRATOR_NODE_ID: ${ORCHESTRATOR_NODE_ID:-node-1}
+      # Fleet-wide connection ceiling enforced atomically in the registry
+      # claim across all nodes; ORCHESTRATOR_MAX_WORKERS stays per-host.
+      ORCHESTRATOR_FLEET_MAX_CONNECTIONS: ${ORCHESTRATOR_FLEET_MAX_CONNECTIONS:-15}
+      # Node lease TTL and how long past expiry a peer waits before taking
+      # over a failed node's connections. The margin must exceed the fencing
+      # detection interval plus the worker stop budget.
+      ORCHESTRATOR_NODE_LEASE_DURATION: ${ORCHESTRATOR_NODE_LEASE_DURATION:-60s}
+      ORCHESTRATOR_NODE_TAKEOVER_MARGIN: ${ORCHESTRATOR_NODE_TAKEOVER_MARGIN:-60s}
       WORKER_DB_MAX_OPEN_CONNS: ${WORKER_DB_MAX_OPEN_CONNS:-}
       WORKER_DB_MAX_IDLE_CONNS: ${WORKER_DB_MAX_IDLE_CONNS:-}
       WORKER_DB_CONN_MAX_LIFETIME: ${WORKER_DB_CONN_MAX_LIFETIME:-}
@@ -400,7 +450,10 @@ networks:
     ipam:
       config:
         - subnet: ${EDGE_SUBNET:-10.253.0.0/24}
-  backend: {}
+  backend:
+    ipam:
+      config:
+        - subnet: ${BACKEND_SUBNET:-10.254.0.0/24}
   data:
     internal: true
 

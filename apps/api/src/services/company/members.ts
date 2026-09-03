@@ -175,22 +175,70 @@ export async function removeMember(
   companyId: string,
   userId: string,
 ): Promise<void> {
-  // Check if user is the owner
-  const role = await getMemberRole(companyId, userId);
+  await db.transaction().execute(async (transaction) => {
+    // Outstanding authorization codes are cleared before anything locks the
+    // membership row.
+    //
+    // They must be cleared at all: a code approved before removal is refused
+    // while the membership is absent, but it outlives its five-minute TTL, so
+    // reinviting the user inside that window would let the old code be
+    // redeemed without fresh consent - the reactivation that revoking tokens
+    // and grants exists to prevent.
+    //
+    // The position matters because the token exchange takes the code row and
+    // then the membership. Acquiring them in the opposite order here is a
+    // deadlock between a removal and a concurrent exchange, so this has to run
+    // before the FOR UPDATE below, not merely before the membership DELETE.
+    // Should the permission check further down reject, the transaction rolls
+    // back and these rows return with it.
+    await transaction
+      .deleteFrom("oauth_authorization_codes")
+      .where("company_id", "=", companyId)
+      .where("user_id", "=", userId)
+      .execute();
 
-  if (role === "owner") {
-    throw new InsufficientPermissionsError("remove the company owner");
-  }
+    // Lock and re-check in the mutation transaction so an ownership transfer
+    // cannot promote this member between authorization and deletion.
+    const membership = await transaction
+      .selectFrom("company_members")
+      .select(["id", "role"])
+      .where("company_id", "=", companyId)
+      .where("user_id", "=", userId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!membership) {
+      throw new CompanyNotFoundError(companyId);
+    }
+    if (membership.role === "owner") {
+      throw new InsufficientPermissionsError("remove the company owner");
+    }
 
-  const result = await db
-    .deleteFrom("company_members")
-    .where("company_id", "=", companyId)
-    .where("user_id", "=", userId)
-    .executeTakeFirst();
+    await transaction
+      .deleteFrom("company_members")
+      .where("id", "=", membership.id)
+      .executeTakeFirstOrThrow();
 
-  if (!result.numDeletedRows) {
-    throw new CompanyNotFoundError(companyId);
-  }
+    // Membership removal is a permanent credential boundary. Revoke every
+    // token now so re-inviting the same user cannot reactivate an old secret.
+    await transaction
+      .updateTable("api_tokens")
+      .set({ revoked_at: toDbDate() })
+      .where("company_id", "=", companyId)
+      .where("user_id", "=", userId)
+      .where("revoked_at", "is", null)
+      .execute();
+
+    // The grants behind any OAuth-issued tokens have to go too. Revoking only
+    // the token rows would leave the connector able to mint a replacement with
+    // its refresh token, so the credential boundary would not hold.
+    await transaction
+      .updateTable("oauth_grants")
+      .set({ revoked_at: toDbDate(), revoked_reason: "membership_removed" })
+      .where("company_id", "=", companyId)
+      .where("user_id", "=", userId)
+      .where("revoked_at", "is", null)
+      .execute();
+  });
   invalidateCompanyMembership(companyId);
 
   // Update company stats
@@ -212,32 +260,36 @@ export async function updateMemberRole(
   userId: string,
   newRole: "admin" | "member",
 ): Promise<CompanyMember> {
-  // Check current role - can't change owner role
-  const currentRole = await getMemberRole(companyId, userId);
+  const member = await db.transaction().execute(async (transaction) => {
+    const membership = await transaction
+      .selectFrom("company_members")
+      .select(["id", "role"])
+      .where("company_id", "=", companyId)
+      .where("user_id", "=", userId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!membership) {
+      throw new CompanyNotFoundError(companyId);
+    }
+    if (membership.role === "owner") {
+      throw new InsufficientPermissionsError("change owner's role");
+    }
 
-  if (currentRole === "owner") {
-    throw new InsufficientPermissionsError("change owner's role");
-  }
-
-  const member = await db
-    .updateTable("company_members")
-    .set({ role: newRole })
-    .where("company_id", "=", companyId)
-    .where("user_id", "=", userId)
-    .returning([
-      "id",
-      "user_id",
-      "company_id",
-      "role",
-      "permissions",
-      "invited_by",
-      "joined_at",
-    ])
-    .executeTakeFirst();
-
-  if (!member) {
-    throw new CompanyNotFoundError(companyId);
-  }
+    return transaction
+      .updateTable("company_members")
+      .set({ role: newRole })
+      .where("id", "=", membership.id)
+      .returning([
+        "id",
+        "user_id",
+        "company_id",
+        "role",
+        "permissions",
+        "invited_by",
+        "joined_at",
+      ])
+      .executeTakeFirstOrThrow();
+  });
   invalidateCompanyMembership(companyId);
 
   return member as unknown as CompanyMember;
@@ -252,15 +304,26 @@ export async function transferOwnership(
   if (currentOwnerId === newOwnerId) {
     throw new InsufficientPermissionsError("transfer ownership to yourself");
   }
-  const [currentRole, targetRole] = await Promise.all([
-    getMemberRole(companyId, currentOwnerId),
-    getMemberRole(companyId, newOwnerId),
-  ]);
-  if (currentRole !== "owner" || !targetRole || targetRole === "owner") {
-    throw new InsufficientPermissionsError("transfer workspace ownership");
-  }
-
   await db.transaction().execute(async (transaction) => {
+    // Lock both memberships in deterministic order before checking either
+    // role. This serializes transfers with removal and role changes.
+    const memberships = await transaction
+      .selectFrom("company_members")
+      .select(["user_id", "role"])
+      .where("company_id", "=", companyId)
+      .where("user_id", "in", [currentOwnerId, newOwnerId])
+      .orderBy("user_id", "asc")
+      .forUpdate()
+      .execute();
+    const roles = new Map(
+      memberships.map((membership) => [membership.user_id, membership.role]),
+    );
+    const currentRole = roles.get(currentOwnerId);
+    const targetRole = roles.get(newOwnerId);
+    if (currentRole !== "owner" || !targetRole || targetRole === "owner") {
+      throw new InsufficientPermissionsError("transfer workspace ownership");
+    }
+
     await transaction
       .updateTable("company_members")
       .set({ role: "admin" })

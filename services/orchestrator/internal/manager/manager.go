@@ -44,6 +44,25 @@ type Config struct {
 	DefaultArtifactSHA256  string        // Optional digest for the default artifact.
 	RolloutReadyTimeout    time.Duration // Process + authenticated WhatsApp readiness deadline.
 	RootManagerApproved    bool          // Explicit approval for Linux root credential isolation.
+	// NodeID is this orchestrator instance's stable identity. It scopes durable
+	// worker ownership, recovery, and per-node command routing. Required
+	// whenever the registry (DatabaseURL) is configured.
+	NodeID string
+	// FleetMaxConnections caps distinct connections across every node,
+	// enforced atomically inside the registry launch claim (0 = unlimited).
+	// This is generic capacity protection; commercial entitlement authority
+	// stays in the private control plane.
+	FleetMaxConnections int
+	// NodeLeaseDuration is this node's lease TTL in orchestrator_nodes. An
+	// instance that cannot renew within the TTL self-fences: it terminates its
+	// workers and exits rather than keep WhatsApp clients alive without
+	// ownership authority (default 60s).
+	NodeLeaseDuration time.Duration
+	// NodeTakeoverMargin is how long past lease expiry a peer waits before
+	// taking over a failed node's connections. It must comfortably exceed the
+	// fencing detection interval plus the worker stop budget, so the previous
+	// owner's clients are provably gone (default 60s).
+	NodeTakeoverMargin time.Duration
 }
 
 // Manager handles WhatsApp worker process lifecycle.
@@ -64,9 +83,13 @@ type Manager struct {
 	registryReady atomic.Bool     // enables promoted-artifact reads after recovery
 	lifecycle     [256]sync.Mutex // serializes operations for each connection
 	rolloutMu     sync.RWMutex    // rollout excludes every normal lifecycle mutation
-	readinessMu   sync.Mutex
-	readiness     map[string]chan struct{} // keyed by immutable launch ID
-	runtimeSub    *gnats.Subscription
+	// takeoverMu makes shutdown and failed-node ownership transfer mutually
+	// exclusive. Once shutdown sets shuttingDown while holding the write lock,
+	// no takeover may CAS a connection onto a node that will not restart it.
+	takeoverMu  sync.RWMutex
+	readinessMu sync.Mutex
+	readiness   map[string]chan struct{} // keyed by immutable launch ID
+	runtimeSub  *gnats.Subscription
 
 	// markWorkersRecovering records recovery intent for a whole set of workers
 	// at once. It is wired to the registry when persistence initialises, and is
@@ -89,6 +112,13 @@ type Manager struct {
 	// reservedRelaunch is a focused crash-boundary test seam. Production uses
 	// spawnWorkerArtifactWithLaunch when it is nil.
 	reservedRelaunch func(context.Context, *WorkerUpgradeItem, WorkerArtifact, string) error
+
+	// fenceOnce ensures self-fencing runs exactly once even if the lease loop
+	// and an operator signal race.
+	fenceOnce sync.Once
+	// fatal ends the process after fencing. It is a field rather than a direct
+	// os.Exit so fencing can be tested without killing the test binary.
+	fatal func(reason string)
 }
 
 // WorkerProcess represents a managed WhatsApp worker.
@@ -185,12 +215,21 @@ func New(cfg Config) *Manager {
 	if cfg.RolloutReadyTimeout == 0 {
 		cfg.RolloutReadyTimeout = 2 * time.Minute
 	}
+	if cfg.NodeLeaseDuration == 0 {
+		cfg.NodeLeaseDuration = 60 * time.Second
+	}
+	if cfg.NodeTakeoverMargin == 0 {
+		cfg.NodeTakeoverMargin = 60 * time.Second
+	}
 
 	return &Manager{
 		config:    cfg,
 		workers:   make(map[string]*WorkerProcess),
 		readiness: make(map[string]chan struct{}),
 		startedAt: time.Now(),
+		fatal: func(reason string) {
+			log.Fatalf("orchestrator self-fenced: %s", reason)
+		},
 	}
 }
 
@@ -199,6 +238,9 @@ func (m *Manager) Start(ctx context.Context) error {
 	log.Println("Starting process manager...")
 
 	if m.config.DatabaseURL != "" {
+		if err := validateNodeID(m.config.NodeID); err != nil {
+			return fmt.Errorf("ORCHESTRATOR_NODE_ID is required for durable worker ownership: %w", err)
+		}
 		if strings.TrimSpace(m.config.WorkerDatabaseURL) == "" {
 			return errors.New("WORKER_DATABASE_URL is required for durable worker isolation")
 		}
@@ -237,7 +279,7 @@ func (m *Manager) Start(ctx context.Context) error {
 
 	// Initialize worker registry for persistence (optional - works without it)
 	if m.config.DatabaseURL != "" {
-		registry, err := NewWorkerRegistry(m.config.DatabaseURL)
+		registry, err := NewWorkerRegistry(m.config.DatabaseURL, m.config.NodeID, m.config.FleetMaxConnections)
 		if err != nil {
 			return fmt.Errorf("failed to initialize required worker registry: %w", err)
 		} else {
@@ -247,17 +289,46 @@ func (m *Manager) Start(ctx context.Context) error {
 			m.checkConnectionAllowances = registry.CompaniesWithoutConnectionAllowance
 			log.Println("Worker registry initialized successfully")
 
+			// Claim the node identity before touching a single durable row.
+			// A live lease for this node means another instance is (or very
+			// recently was) running as it; recovering here would produce two
+			// orchestrators respawning one node's connections.
+			if err := registry.RegisterNodeLease(m.ctx, m.config.NodeLeaseDuration, m.config.MaxWorkers); err != nil {
+				_ = registry.Close()
+				return fmt.Errorf("failed to register orchestrator node lease: %w", err)
+			}
+			// Renew from the moment of registration so a long recovery cannot
+			// silently let the fresh lease lapse.
+			m.wg.Add(1)
+			go m.runNodeLease(m.ctx)
+
 			// Recovery must finish before commands are consumed. Continuing after
 			// an ambiguous durable intent could start a duplicate worker.
-			if err := m.recoverOrphanedWorkers(m.ctx); err != nil {
+			// A failed startup exits through log.Fatalf without reaching
+			// Stop(), so the fresh lease must be released here or the
+			// replacement container crash-loops on ErrNodeLeaseHeld until the
+			// TTL runs out. A failed release falls back to natural expiry.
+			releaseLeaseOnStartupFailure := func() {
+				m.cancel()
+				releaseCtx, cancelRelease := context.WithTimeout(context.Background(), markRecoveringTimeout)
+				if releaseErr := registry.ReleaseNodeLease(releaseCtx); releaseErr != nil {
+					log.Printf("Warning: failed to release node lease after startup failure: %v", releaseErr)
+				}
+				cancelRelease()
 				_ = registry.Close()
+			}
+			if err := m.recoverOrphanedWorkers(m.ctx); err != nil {
+				releaseLeaseOnStartupFailure()
 				return fmt.Errorf("failed to recover workers: %w", err)
 			}
 			if err := m.RecoverWorkerUpgrade(m.ctx); err != nil {
-				_ = registry.Close()
+				releaseLeaseOnStartupFailure()
 				return fmt.Errorf("failed to recover worker upgrade: %w", err)
 			}
 			m.registryReady.Store(true)
+
+			m.wg.Add(1)
+			go m.runNodeTakeover(m.ctx)
 		}
 	} else {
 		log.Println("No database URL configured - worker persistence disabled")
@@ -292,10 +363,16 @@ func validateRestrictedCredentialURL(name, raw, scheme, username string) error {
 func (m *Manager) Stop(ctx context.Context) error {
 	log.Println("Stopping process manager...")
 
-	// Set shutdown flag first to prevent NATS publishes during shutdown
+	// Publish the shutdown transition before waiting for failed-node takeover.
+	// New takeover attempts then return without touching durable ownership. Each
+	// takeover CAS has its own short database deadline; taking the write lock
+	// waits for any such bounded CAS and local insertion to finish before the
+	// worker snapshot below, so no transferred row can be inserted after it.
 	m.mu.Lock()
 	m.shuttingDown = true
 	m.mu.Unlock()
+	m.takeoverMu.Lock()
+	m.takeoverMu.Unlock()
 
 	// Stop NATS subscription first to prevent processing new commands
 	// and avoid "nats: connection closed" errors during shutdown
@@ -402,6 +479,18 @@ func (m *Manager) Stop(ctx context.Context) error {
 	// Wait for all goroutines to finish
 	m.wg.Wait()
 
+	// Release the node lease so a stop-first replacement of this node can
+	// register immediately instead of waiting out the TTL. Peers still wait
+	// the full takeover margin beyond this expiry. Failure is non-fatal: the
+	// lease then simply runs out on its own.
+	if m.registry != nil {
+		releaseCtx, cancelRelease := context.WithTimeout(context.Background(), markRecoveringTimeout)
+		if err := m.registry.ReleaseNodeLease(releaseCtx); err != nil {
+			log.Printf("Warning: failed to release node lease: %v", err)
+		}
+		cancelRelease()
+	}
+
 	// Close the worker registry
 	if m.registry != nil {
 		if err := m.registry.Close(); err != nil {
@@ -487,6 +576,23 @@ func (m *Manager) spawnWorkerArtifact(
 	)
 }
 
+func (m *Manager) workerRuntimeURLs(databaseURL string) (string, string, error) {
+	workerDatabaseURL := databaseURL
+	workerNATSURL := m.config.DefaultNATSURL
+	// Restricted NATS authority is useful independently of durable registry
+	// persistence, including on non-Linux development hosts.
+	if m.config.WorkerNATSURL != "" {
+		workerNATSURL = m.config.WorkerNATSURL
+	}
+	if m.registry != nil {
+		workerDatabaseURL = m.config.WorkerDatabaseURL
+		if workerDatabaseURL == "" || m.config.WorkerNATSURL == "" {
+			return "", "", errors.New("restricted worker database and NATS credentials are required")
+		}
+	}
+	return workerDatabaseURL, workerNATSURL, nil
+}
+
 // spawnWorkerArtifactWithLaunch uses a generation durably reserved by a rollout
 // before the registry CAS. Ordinary starts pass an empty plannedLaunchID.
 func (m *Manager) spawnWorkerArtifactWithLaunch(
@@ -545,14 +651,10 @@ func (m *Manager) spawnWorkerArtifactWithLaunch(
 	// Create the command without a context so the manager context cancellation
 	// does not kill the process — the manager has explicit signal ownership.
 	cmd := exec.Command(artifact.BinaryPath)
-	workerDatabaseURL := databaseURL
-	workerNATSURL := m.config.DefaultNATSURL
-	if m.registry != nil {
-		workerDatabaseURL = m.config.WorkerDatabaseURL
-		workerNATSURL = m.config.WorkerNATSURL
-		if workerDatabaseURL == "" || workerNATSURL == "" {
-			return errors.New("restricted worker database and NATS credentials are required")
-		}
+	workerDatabaseURL, workerNATSURL, err := m.workerRuntimeURLs(databaseURL)
+	if err != nil {
+		m.mu.Unlock()
+		return err
 	}
 	cmd.Env = append(workerBaseEnvironment(),
 		fmt.Sprintf("WORKER_ID=%s", connectionID),
@@ -1359,6 +1461,70 @@ func (m *Manager) ListWorkersByCompany(companyID string) []*WorkerProcess {
 	return workers
 }
 
+// FleetWorker pairs a durable registry record with this node's live runtime
+// view when the record is owned and tracked locally.
+type FleetWorker struct {
+	Record *WorkerRecord
+	Local  *WorkerProcess
+}
+
+// ListFleetWorkers returns the durable fleet-wide worker view, so an operator
+// sees every node's connections rather than one instance's memory. Locally
+// owned rows are enriched with this node's runtime state. Returns nil with no
+// error when no registry is configured.
+func (m *Manager) ListFleetWorkers(ctx context.Context) ([]*FleetWorker, error) {
+	if m.registry == nil {
+		return nil, nil
+	}
+	records, err := m.registry.GetAllWorkers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	fleet := make([]*FleetWorker, 0, len(records))
+	for _, record := range records {
+		fleetWorker := &FleetWorker{Record: record}
+		if worker, exists := m.GetWorkerStatus(record.ConnectionID); exists && worker.LaunchID == record.LaunchID {
+			fleetWorker.Local = worker
+		}
+		fleet = append(fleet, fleetWorker)
+	}
+	return fleet, nil
+}
+
+// GetFleetWorker returns one connection's durable record with local runtime
+// enrichment. Returns nil, nil when no registry is configured or no row exists.
+func (m *Manager) GetFleetWorker(ctx context.Context, connectionID string) (*FleetWorker, error) {
+	if m.registry == nil {
+		return nil, nil
+	}
+	record, err := m.registry.GetWorker(ctx, connectionID)
+	if err != nil {
+		return nil, err
+	}
+	if record == nil {
+		return nil, nil
+	}
+	fleetWorker := &FleetWorker{Record: record}
+	if worker, exists := m.GetWorkerStatus(record.ConnectionID); exists && worker.LaunchID == record.LaunchID {
+		fleetWorker.Local = worker
+	}
+	return fleetWorker, nil
+}
+
+// ListOrchestratorNodes reports every registered node lease. Returns nil with
+// no error when no registry is configured.
+func (m *Manager) ListOrchestratorNodes(ctx context.Context) ([]*OrchestratorNode, error) {
+	if m.registry == nil {
+		return nil, nil
+	}
+	return m.registry.ListNodes(ctx)
+}
+
+// NodeID reports this instance's configured node identity.
+func (m *Manager) NodeID() string {
+	return m.config.NodeID
+}
+
 // UpdateWorkerStatus updates the status of a worker (called by handlers).
 func (m *Manager) UpdateWorkerStatus(connectionID, status string) {
 	m.mu.Lock()
@@ -1884,13 +2050,26 @@ func (m *Manager) normalizeLegacyWorker(ctx context.Context, w *WorkerRecord) er
 	return nil
 }
 
-// recoverOrphanedWorkers recovers workers from the database after orchestrator restart.
+// recoverOrphanedWorkers recovers this node's workers from the database after
+// orchestrator restart. Rows owned by other nodes are never read: their PIDs
+// are host-local, and adopting or respawning them here would run a duplicate
+// whatsmeow client against a connection another node still manages.
 func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 	if m.registry == nil {
 		return nil
 	}
 
-	workers, err := m.registry.GetAllWorkers(ctx)
+	// Claim pre-migration rows first. NULL node_id is the CAS predicate, so a
+	// concurrently starting node can never adopt the same row.
+	adopted, err := m.registry.AdoptUnassignedWorkers(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to adopt unassigned workers: %w", err)
+	}
+	if adopted > 0 {
+		log.Printf("Adopted %d worker record(s) with no node owner as node %s", adopted, m.config.NodeID)
+	}
+
+	workers, err := m.registry.GetNodeWorkers(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get workers from registry: %w", err)
 	}
@@ -1900,7 +2079,7 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 		return nil
 	}
 
-	log.Printf("Found %d workers in registry, checking status...", len(workers))
+	log.Printf("Found %d workers owned by node %s in registry, checking status...", len(workers), m.config.NodeID)
 
 	// An unfinished artifact upgrade owns its connections before ordinary crash
 	// recovery. Otherwise a dead source generation could be auto-restarted with
@@ -2191,6 +2370,286 @@ type workerLogWriter struct {
 func (w *workerLogWriter) Write(p []byte) (n int, err error) {
 	log.Printf("[worker:%s:%s] %s", w.connectionID, w.stream, string(p))
 	return len(p), nil
+}
+
+// runNodeLease renews this node's ownership lease. Losing the lease is losing
+// the authority to run workers: another node may take over this node's
+// connections once the lease has been expired past the takeover margin, so an
+// instance that cannot renew must terminate its own workers first.
+func (m *Manager) runNodeLease(ctx context.Context) {
+	defer m.wg.Done()
+
+	interval := m.config.NodeLeaseDuration / 4
+	if interval < time.Second {
+		interval = time.Second
+	}
+
+	// Renewal I/O must not be the lease watchdog. A half-open PostgreSQL
+	// connection can leave ExecContext blocked well past the database lease and
+	// takeover margin, while this node's workers keep running. Keep an absolute
+	// deadline in this goroutine and perform each renewal asynchronously so the
+	// deadline can self-fence even when the driver never returns.
+	leaseDeadline := time.Now().Add(m.config.NodeLeaseDuration)
+	renewTimer := time.NewTimer(interval)
+	deadlineTimer := time.NewTimer(time.Until(leaseDeadline))
+	defer renewTimer.Stop()
+	defer deadlineTimer.Stop()
+
+	type renewalResult struct {
+		renewed bool
+		err     error
+	}
+	fence := func(reason string) {
+		go m.selfFence(reason)
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-deadlineTimer.C:
+			fence("node lease could not be renewed within its duration")
+			return
+		case <-renewTimer.C:
+			// Bound the database request too, so a cooperative driver releases its
+			// connection promptly. The independent deadlineTimer remains the
+			// authority when the driver does not honor cancellation.
+			renewCtx, cancelRenew := context.WithDeadline(ctx, leaseDeadline)
+			resultCh := make(chan renewalResult, 1)
+			go func() {
+				renewed, err := m.registry.RenewNodeLease(renewCtx, m.config.NodeLeaseDuration)
+				resultCh <- renewalResult{renewed: renewed, err: err}
+			}()
+
+			select {
+			case <-ctx.Done():
+				cancelRenew()
+				return
+			case <-deadlineTimer.C:
+				cancelRenew()
+				fence("node lease could not be renewed within its duration")
+				return
+			case result := <-resultCh:
+				cancelRenew()
+				// A result racing the deadline cannot restore authority. Fence
+				// conservatively even if the delayed query reports success: a peer
+				// may already have observed expiry and entered takeover.
+				if !time.Now().Before(leaseDeadline) {
+					fence("node lease could not be renewed within its duration")
+					return
+				}
+				if result.err != nil {
+					log.Printf("Warning: node lease renewal failed (will retry): %v", result.err)
+					renewTimer.Reset(interval)
+					continue
+				}
+				if !result.renewed {
+					fence("node lease expired or was taken")
+					return
+				}
+
+				leaseDeadline = time.Now().Add(m.config.NodeLeaseDuration)
+				if !deadlineTimer.Stop() {
+					select {
+					case <-deadlineTimer.C:
+					default:
+					}
+				}
+				deadlineTimer.Reset(time.Until(leaseDeadline))
+				renewTimer.Reset(interval)
+			}
+		}
+	}
+}
+
+// selfFence terminates every worker and exits the process. Runs at most once.
+// Registry rows are preserved (workers are marked recovering) so a peer's
+// takeover, or this node's own restart, can resume the connections. On Linux
+// the workers' parent-death SIGKILL backstops this even if the graceful stop
+// fails: exiting the process kills the children.
+func (m *Manager) selfFence(reason string) {
+	m.fenceOnce.Do(func() {
+		log.Printf("SELF-FENCE: %s; terminating workers before exit", reason)
+		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := m.Stop(stopCtx); err != nil {
+			log.Printf("Warning: fencing stop finished with errors: %v", err)
+		}
+		m.fatal(reason)
+	})
+}
+
+// runNodeTakeover periodically adopts connections owned by nodes whose lease
+// has been expired past the takeover margin, meaning the previous owner has
+// provably self-fenced. A missed heartbeat alone never triggers takeover: two
+// live whatsmeow clients on one connection's device rows can corrupt the
+// session or force a customer-visible re-pair.
+func (m *Manager) runNodeTakeover(ctx context.Context) {
+	defer m.wg.Done()
+
+	interval := m.config.NodeLeaseDuration / 2
+	if interval < 5*time.Second {
+		interval = 5 * time.Second
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			m.takeOverFailedNodes(ctx)
+		}
+	}
+}
+
+func (m *Manager) takeOverFailedNodes(ctx context.Context) {
+	m.mu.RLock()
+	shuttingDown := m.shuttingDown
+	m.mu.RUnlock()
+	if shuttingDown || m.registry == nil || !m.config.AutoRestartEnabled {
+		return
+	}
+	candidates, err := m.registry.ListFailedNodeWorkers(ctx, m.config.NodeTakeoverMargin)
+	if err != nil {
+		log.Printf("Warning: failed to list failed-node workers: %v", err)
+		return
+	}
+	if len(candidates) == 0 {
+		return
+	}
+
+	// A connection inside an unfinished rollout item belongs to the durable
+	// stop-first state machine, not to crash takeover. Adopting it here could
+	// overlap a source and target generation.
+	upgradeOwned := make(map[string]struct{})
+	if active, activeErr := m.registry.GetActiveWorkerUpgradeBatch(ctx); activeErr != nil {
+		log.Printf("Warning: skipping node takeover; cannot inspect active rollout: %v", activeErr)
+		return
+	} else if active != nil {
+		for _, item := range active.Items {
+			if item.CompletedAt == nil {
+				upgradeOwned[item.ConnectionID] = struct{}{}
+			}
+		}
+	}
+
+	for _, record := range candidates {
+		if _, owned := upgradeOwned[record.ConnectionID]; owned {
+			log.Printf("Leaving failed-node connection %s to the active rollout state machine", record.ConnectionID)
+			continue
+		}
+		if record.RestartCount >= m.config.AutoRestartMaxRetries {
+			log.Printf("Not taking over connection %s: restart budget exhausted (%d)", record.ConnectionID, record.RestartCount)
+			continue
+		}
+		if m.config.MaxWorkers > 0 && m.WorkerCount() >= m.config.MaxWorkers {
+			log.Printf("Node at local capacity (%d); deferring remaining failed-node takeovers", m.config.MaxWorkers)
+			return
+		}
+
+		// Shutdown takes the write lock before setting shuttingDown and taking
+		// its worker snapshot. Hold the read lock only across this row's CAS and
+		// local insertion: shutdown then either sees the adopted worker, or this
+		// takeover observes shutdown and performs no durable mutation.
+		m.takeoverMu.RLock()
+		m.mu.RLock()
+		shuttingDown := m.shuttingDown
+		m.mu.RUnlock()
+		if shuttingDown {
+			m.takeoverMu.RUnlock()
+			return
+		}
+
+		takeoverCtx, cancelTakeover := context.WithTimeout(ctx, markRecoveringTimeout)
+		transferred, err := m.registry.TakeOverFailedNodeWorker(takeoverCtx, record.ConnectionID, record.NodeID, m.config.NodeTakeoverMargin)
+		cancelTakeover()
+		if err != nil {
+			// A timed-out UPDATE is ambiguous: PostgreSQL may have committed the
+			// ownership transfer even though the client received an error. Resolve
+			// from a fresh connection before releasing the shutdown barrier; if
+			// ownership is ours, track the authoritative row locally so shutdown
+			// sees it and normal restart can resume it.
+			verifyCtx, cancelVerify := context.WithTimeout(context.Background(), markRecoveringTimeout)
+			current, verifyErr := m.registry.GetWorker(verifyCtx, record.ConnectionID)
+			cancelVerify()
+			if verifyErr == nil && current != nil && current.NodeID == m.config.NodeID && current.DesiredState == DesiredStateRunning {
+				log.Printf("Takeover of connection %s returned an ambiguous error but durable ownership is node %s", record.ConnectionID, m.config.NodeID)
+				record = current
+				transferred = true
+			} else {
+				if verifyErr != nil {
+					// Preserve a provisional local entry before releasing the barrier.
+					// Whether the UPDATE committed or not, shutdown will include this
+					// launch in its recovery snapshot instead of allowing a possibly
+					// transferred row to appear after the snapshot.
+					provisional := &WorkerProcess{
+						ID: record.ConnectionID, LaunchID: record.LaunchID,
+						DesiredState: record.DesiredState, ConnectionID: record.ConnectionID,
+						CompanyID: record.CompanyID, TenantSchema: record.TenantSchema,
+						DatabaseURL: m.config.WorkerDatabaseURL, Status: types.StatusError,
+						RestartCount: record.RestartCount, ArtifactVersion: record.ArtifactVersion,
+						ArtifactSHA256: record.ArtifactSHA256, WorkerUID: record.WorkerUID, WorkerGID: record.WorkerGID,
+					}
+					m.mu.Lock()
+					if _, exists := m.workers[record.ConnectionID]; !exists {
+						m.workers[record.ConnectionID] = provisional
+					}
+					alreadyShuttingDown := m.shuttingDown
+					m.mu.Unlock()
+					m.takeoverMu.RUnlock()
+					log.Printf("Error: takeover of connection %s is ambiguous and ownership verification failed: update=%v verify=%v", record.ConnectionID, err, verifyErr)
+					if !alreadyShuttingDown {
+						go m.selfFence("failed to resolve ambiguous node takeover for connection " + record.ConnectionID)
+					}
+					return
+				}
+				m.takeoverMu.RUnlock()
+				log.Printf("Warning: takeover of connection %s from node %s failed: %v", record.ConnectionID, record.NodeID, err)
+				continue
+			}
+		}
+		if !transferred {
+			m.takeoverMu.RUnlock()
+			// The owner came back and renewed, or a sibling won the CAS.
+			continue
+		}
+		log.Printf("Took over connection %s from failed node %s", record.ConnectionID, record.NodeID)
+
+		// Carry the durable artifact identity into the respawn: with it set,
+		// scheduleRestart resolves exactly the persisted artifact (and refuses
+		// loudly when this host lacks it) instead of silently rewriting the
+		// row to this node's default artifact through the claim upsert.
+		workerProcess := &WorkerProcess{
+			ID:              record.ConnectionID,
+			LaunchID:        record.LaunchID,
+			DesiredState:    record.DesiredState,
+			ConnectionID:    record.ConnectionID,
+			CompanyID:       record.CompanyID,
+			TenantSchema:    record.TenantSchema,
+			DatabaseURL:     m.config.WorkerDatabaseURL,
+			Status:          types.StatusError,
+			RestartCount:    record.RestartCount,
+			ArtifactVersion: record.ArtifactVersion,
+			ArtifactSHA256:  record.ArtifactSHA256,
+			WorkerUID:       record.WorkerUID,
+			WorkerGID:       record.WorkerGID,
+		}
+		m.mu.Lock()
+		if _, exists := m.workers[record.ConnectionID]; exists {
+			m.mu.Unlock()
+			m.takeoverMu.RUnlock()
+			log.Printf("Warning: connection %s already tracked locally after takeover; leaving existing entry", record.ConnectionID)
+			continue
+		}
+		m.workers[record.ConnectionID] = workerProcess
+		m.mu.Unlock()
+		m.takeoverMu.RUnlock()
+
+		m.publishConnectionStatus(record.CompanyID, record.ConnectionID, types.StatusConnecting, "recovering connection from failed orchestrator node")
+		go m.scheduleRestart(workerProcess.Copy(), "taken over from failed node "+record.NodeID)
+	}
 }
 
 // runAllowanceEnforcement periodically reconciles running workers against their

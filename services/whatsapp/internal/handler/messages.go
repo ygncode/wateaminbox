@@ -142,6 +142,7 @@ func (h *Handler) handleMessage(msg *events.Message) {
 		log.Println("Message content is nil")
 		return
 	}
+	msg.Message = unwrapMediaAlbumMessage(msg.Message)
 
 	// Reaction message - handle separately and return early
 	if msg.Message.ReactionMessage != nil {
@@ -155,7 +156,15 @@ func (h *Handler) handleMessage(msg *events.Message) {
 		return
 	}
 
+	// The album parent is a manifest, not a visible chat row. Its ordinary
+	// image/video children carry a MEDIA_ALBUM association to this message ID.
+	if album := msg.Message.GetAlbumMessage(); album != nil {
+		h.rememberMediaAlbum(chatJID.String(), msg.Info.ID, album)
+		return
+	}
+
 	msgEvent.QuotedMessageID = getQuotedMessageID(msg.Message)
+	h.applyMediaAlbumMetadata(chatJID.String(), msg.Message, &msgEvent)
 
 	// Text message
 	if msg.Message.Conversation != nil {

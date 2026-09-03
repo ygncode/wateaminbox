@@ -3,6 +3,7 @@ package nats
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -12,7 +13,27 @@ import (
 // Consumer names (orchestrator-specific)
 const (
 	ConsumerCommands = "orchestrator-commands"
+
+	// ConsumerNodeCommandsPrefix prefixes each node's durable consumer name.
+	ConsumerNodeCommandsPrefix = "orchestrator-node-"
+
+	// NodeCommandSubjectPrefix prefixes commands addressed to one orchestrator
+	// node. These subjects sit inside the shared commands stream, so the shared
+	// consumer also sees them and must ack-and-skip; only the owning node's
+	// filtered consumer processes them.
+	NodeCommandSubjectPrefix = "WHATSAPP.commands.node."
 )
+
+// NodeCommandSubject addresses a command to the orchestrator node that owns
+// the given connection.
+func NodeCommandSubject(nodeID, companyID, connectionID string) string {
+	return fmt.Sprintf("%s%s.%s.%s", NodeCommandSubjectPrefix, nodeID, companyID, connectionID)
+}
+
+// IsNodeCommandSubject reports whether a subject is node-addressed.
+func IsNodeCommandSubject(subject string) bool {
+	return strings.HasPrefix(subject, NodeCommandSubjectPrefix)
+}
 
 // CreateStreams creates the required JetStream streams for the orchestrator.
 // Uses shared stream configurations from the shared/nats package.
@@ -98,6 +119,60 @@ func (c *Client) SubscribeToCommands(handler func(msg *nats.Msg)) (*nats.Subscri
 
 	return sub, nil
 }
+
+// SubscribeToNodeCommands creates this node's durable consumer and pull
+// subscription for commands forwarded to it by other orchestrator instances.
+// Existing consumer state is retained so commands forwarded while this node
+// was offline are delivered after restart.
+func (c *Client) SubscribeToNodeCommands(nodeID string) (*nats.Subscription, error) {
+	js := c.conn.JetStream()
+	durable := ConsumerNodeCommandsPrefix + nodeID
+	filter := NodeCommandSubjectPrefix + nodeID + ".>"
+
+	if _, err := js.ConsumerInfo(sharednats.StreamCommands, durable); err == nil {
+		log.Printf("Reusing durable consumer %s", durable)
+	} else if err != nats.ErrConsumerNotFound {
+		return nil, fmt.Errorf("failed to inspect consumer %s: %w", durable, err)
+	} else {
+		consumerCfg := &nats.ConsumerConfig{
+			Durable:       durable,
+			Description:   "Orchestrator node consumer for commands owned by " + nodeID,
+			DeliverPolicy: nats.DeliverAllPolicy,
+			AckPolicy:     nats.AckExplicitPolicy,
+			AckWait:       30 * time.Second,
+			MaxDeliver:    5,
+			FilterSubject: filter,
+			MaxAckPending: 1000,
+		}
+		if _, err := js.AddConsumer(sharednats.StreamCommands, consumerCfg); err != nil {
+			return nil, fmt.Errorf("failed to add consumer %s: %w", durable, err)
+		}
+		log.Printf("Created durable consumer: %s (filter %s)", durable, filter)
+	}
+
+	sub, err := js.PullSubscribe(filter, durable, nats.ManualAck())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create node pull subscription: %w", err)
+	}
+	return sub, nil
+}
+
+// ForwardCommandToNode republishes a command onto the owning node's subject.
+// The headers carry the forwarding hop count so an ownership race cannot
+// bounce one command between nodes forever.
+func (c *Client) ForwardCommandToNode(nodeID, companyID, connectionID string, data []byte, hops int) error {
+	msg := nats.NewMsg(NodeCommandSubject(nodeID, companyID, connectionID))
+	msg.Data = data
+	msg.Header.Set(ForwardHopsHeader, fmt.Sprint(hops))
+	if _, err := c.conn.JetStream().PublishMsg(msg); err != nil {
+		return fmt.Errorf("failed to forward command to node %s: %w", nodeID, err)
+	}
+	return nil
+}
+
+// ForwardHopsHeader counts how many times a command has been forwarded
+// between orchestrator nodes.
+const ForwardHopsHeader = "Wa-Forward-Hops"
 
 // PublishEvent publishes an event to the events stream.
 func (c *Client) PublishEvent(subject string, data []byte) error {

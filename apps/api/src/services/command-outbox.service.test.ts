@@ -35,8 +35,15 @@ describe("command outbox", () => {
     expect(source).toContain('status: "claimed"');
     expect(source).toContain("publish(row.subject, row.payload, row.id)");
     expect(source).toContain('.where("status", "=", "claimed")');
+    expect(source).toContain('.where("next_attempt_at", "=", row.claimUntil)');
+    expect(
+      source.match(/\.where\("next_attempt_at", "=", claimUntil\)/g),
+    ).toHaveLength(2);
     expect(source.indexOf("await publish(")).toBeLessThan(
       source.indexOf('status: "published"'),
+    );
+    expect(source).toContain(
+      "Published outbox command but could not persist its outcome",
     );
   });
 
@@ -55,6 +62,24 @@ describe("command outbox", () => {
     expect(command.connection_id).toBe("connection-id");
     expect(command.type).toBe("text");
     expect(command.to).toBe("15551234567@s.whatsapp.net");
+  });
+
+  test("carries group mention JIDs in a queued text send", async () => {
+    const command = await buildSendMessageCommand(
+      "company-id",
+      "connection-id",
+      "120363000000000000@g.us",
+      "hello @6585719494172749",
+      "text",
+      "user-id",
+      "pending_internal-id",
+      undefined,
+      undefined,
+      undefined,
+      ["6585719494172749@lid"],
+    );
+
+    expect(command.mentioned_jids).toEqual(["6585719494172749@lid"]);
   });
 
   test("builds a bounded per-conversation history request", async () => {

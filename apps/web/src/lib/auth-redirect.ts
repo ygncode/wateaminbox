@@ -14,6 +14,20 @@ export function getSafeAuthRedirect(
   return value;
 }
 
+export function getInvitationTokenFromRedirect(
+  redirect: string | null | undefined,
+): string | undefined {
+  const safeRedirect = getSafeAuthRedirect(redirect);
+  if (!safeRedirect) return undefined;
+  const match = safeRedirect.match(/^\/invite\/([^/?#]+)\/?(?:[?#].*)?$/);
+  if (!match?.[1]) return undefined;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return undefined;
+  }
+}
+
 export function getAuthRedirectFromState(state: unknown): string | null {
   const from = (state as RedirectLocationState | null)?.from;
   if (!from?.pathname) return null;

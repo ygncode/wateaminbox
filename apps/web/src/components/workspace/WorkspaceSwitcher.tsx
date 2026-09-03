@@ -1,9 +1,11 @@
 import { Check, ChevronsUpDown, Loader2, Plus, Search } from "lucide-react";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { useCreateCompany } from "../../hooks/useTeam";
+import { getWorkspaceBillingUrl } from "../../lib/billing-url";
 import { cn } from "../../lib/utils";
 import { resolveWorkspaceDestination } from "../../lib/workspace-routes";
 import { Button } from "../ui/button";
@@ -18,7 +20,7 @@ import {
 import { Input } from "../ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { WorkspaceAvatar } from "./WorkspaceAvatar";
-import { useTranslation } from "react-i18next";
+
 export { workspaceMonogram } from "./WorkspaceAvatar";
 
 function roleLabel(role: "owner" | "admin" | "member") {
@@ -103,6 +105,16 @@ export function WorkspaceSwitcher({
           const membership = refreshed.find((item) => item.id === created.id);
           if (membership) {
             await switchWorkspace(membership.id);
+            setWorkspaceName("");
+            setCreateOpen(false);
+            toast.success(`${created.name} is ready`);
+            const billingUrl = getWorkspaceBillingUrl(membership.id, {
+              onboarding: true,
+            });
+            if (billingUrl) {
+              window.location.assign(billingUrl);
+              return;
+            }
             navigate(
               resolveWorkspaceDestination(
                 membership.id,
@@ -110,6 +122,7 @@ export function WorkspaceSwitcher({
                 membership.permissions,
               ).path,
             );
+            return;
           }
           setWorkspaceName("");
           setCreateOpen(false);

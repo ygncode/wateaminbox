@@ -13,6 +13,12 @@ describe("readiness policy", () => {
     expect(evaluateReadiness({ ...healthy, postgres: false })).toBe("unready");
   });
 
+  test("shared rate-limiter failure makes the API unready", () => {
+    expect(evaluateReadiness({ ...healthy, rateLimiter: false })).toBe(
+      "unready",
+    );
+  });
+
   test("NATS or event consumer failure makes the API unready", () => {
     expect(evaluateReadiness({ ...healthy, nats: false })).toBe("unready");
     expect(evaluateReadiness({ ...healthy, eventConsumer: false })).toBe(

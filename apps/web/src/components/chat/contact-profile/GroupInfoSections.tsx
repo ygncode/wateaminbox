@@ -36,6 +36,8 @@ interface GroupInfoSectionsProps {
   group: GroupDetail | undefined;
   isLoading: boolean;
   error: Error | null;
+  /** Re-points the profile panel at one member, the way WhatsApp does. */
+  onOpenParticipantProfile?: (participantContactId: string) => void;
 }
 
 const INITIAL_MEMBER_LIMIT = 12;
@@ -50,6 +52,7 @@ export function GroupInfoSections({
   group,
   isLoading,
   error,
+  onOpenParticipantProfile,
 }: GroupInfoSectionsProps) {
   const { t } = useTranslation();
 
@@ -179,6 +182,7 @@ export function GroupInfoSections({
                 canAdminister={canAdminister}
                 busy={actionPending}
                 onAction={(kind) => setPendingAction({ kind, participant })}
+                onOpenProfile={onOpenParticipantProfile}
               />
             ))}
             {(group?.participants.length ?? 0) > INITIAL_MEMBER_LIMIT && (
@@ -303,6 +307,8 @@ interface ParticipantRowProps {
   canAdminister: boolean;
   busy: boolean;
   onAction: (kind: PendingAction["kind"]) => void;
+  /** Absent, or absent for this member, leaves the row as static text. */
+  onOpenProfile?: (participantContactId: string) => void;
 }
 
 function ParticipantRow({
@@ -310,7 +316,10 @@ function ParticipantRow({
   canAdminister,
   busy,
   onAction,
+  onOpenProfile,
 }: ParticipantRowProps) {
+  const { t } = useTranslation();
+
   const displayName = formatPhoneLikeText(participant.displayName);
   const phone = participant.phoneNumber
     ? formatPhoneNumber(participant.phoneNumber)
@@ -318,9 +327,13 @@ function ParticipantRow({
   // Acting on this account's own membership belongs in the leave control, which
   // states what leaving does; offering "remove" here would bypass that wording.
   const showActions = canAdminister && !participant.isSelf;
+  // A member the workspace holds no contact record for has no profile to open,
+  // so their row stays inert rather than becoming a dead control.
+  const profileContactId = participant.contactId ?? null;
+  const canOpenProfile = Boolean(profileContactId && onOpenProfile);
 
-  return (
-    <div className="flex min-w-0 items-center gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 dark:hover:bg-dark-elevated">
+  const identity = (
+    <>
       <Avatar className="h-10 w-10">
         <AvatarImage
           src={participant.profilePictureUrl || undefined}
@@ -349,6 +362,29 @@ function ParticipantRow({
           {phone || formatPhoneLikeText(participant.jid)}
         </p>
       </div>
+    </>
+  );
+
+  return (
+    <div className="flex min-w-0 items-center gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 dark:hover:bg-dark-elevated">
+      {canOpenProfile && profileContactId ? (
+        // The admin controls to the right are buttons of their own, so the
+        // identity is its own control rather than the whole row - nesting them
+        // would be invalid and would make the row's action ambiguous.
+        <button
+          type="button"
+          onClick={() => onOpenProfile?.(profileContactId)}
+          aria-label={t("groups.openParticipantProfile", {
+            defaultValue: "Open {{name}}'s contact info",
+            name: displayName,
+          })}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/50"
+        >
+          {identity}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3">{identity}</div>
+      )}
       {participant.isAdmin && (
         <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
           <Crown className="h-3 w-3" />

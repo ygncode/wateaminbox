@@ -48,6 +48,22 @@ func loadHTTPBearerToken() (string, error) {
 	return strings.TrimSpace(string(contents)), nil
 }
 
+type managerStopper interface {
+	Stop(context.Context) error
+}
+
+// stopManagerAfterStartupFailure releases durable ownership and terminates any
+// recovered workers before main exits. log.Fatalf skips defers, so calling it
+// directly after a partially successful startup would otherwise leave the node
+// lease live until its TTL and make the replacement container fail to register.
+func stopManagerAfterStartupFailure(mgr managerStopper) {
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+	if err := mgr.Stop(shutdownCtx); err != nil {
+		log.Printf("Error cleaning up manager after startup failure: %v", err)
+	}
+}
+
 func main() {
 	log.Println("Starting WhatsApp Orchestrator...")
 
@@ -77,8 +93,27 @@ func main() {
 	defaultArtifactSHA256 := config.GetEnv("WORKER_DEFAULT_ARTIFACT_SHA256", "")
 	rolloutReadyTimeout := config.GetDurationEnv("WORKER_ROLLOUT_READY_TIMEOUT", 2*time.Minute)
 	rootManagerApproved := config.GetBoolEnv("ORCHESTRATOR_ROOT_MANAGER_APPROVED", false)
+	// The node identity scopes durable worker ownership and per-node command
+	// routing. It must be stable across restarts of the same instance, so it is
+	// explicit configuration rather than a derived value like the container
+	// hostname, which changes on recreate and would strand owned records.
+	nodeID := strings.TrimSpace(config.GetEnv("ORCHESTRATOR_NODE_ID", ""))
+	if databaseURL != "" && nodeID == "" {
+		log.Fatalf("ORCHESTRATOR_NODE_ID is required when DATABASE_URL is configured")
+	}
+	// Fleet-wide connection ceiling enforced atomically inside the registry
+	// claim; per-process ORCHESTRATOR_MAX_WORKERS remains host capacity.
+	fleetMaxConnections := config.GetIntEnv("ORCHESTRATOR_FLEET_MAX_CONNECTIONS", 15)
+	nodeLeaseDuration := config.GetDurationEnv("ORCHESTRATOR_NODE_LEASE_DURATION", 60*time.Second)
+	nodeTakeoverMargin := config.GetDurationEnv("ORCHESTRATOR_NODE_TAKEOVER_MARGIN", 60*time.Second)
 	if maxWorkers < 0 {
 		log.Fatalf("ORCHESTRATOR_MAX_WORKERS must be non-negative, got %d", maxWorkers)
+	}
+	if fleetMaxConnections < 0 {
+		log.Fatalf("ORCHESTRATOR_FLEET_MAX_CONNECTIONS must be non-negative, got %d", fleetMaxConnections)
+	}
+	if nodeLeaseDuration <= 0 || nodeTakeoverMargin <= 0 {
+		log.Fatalf("ORCHESTRATOR_NODE_LEASE_DURATION and ORCHESTRATOR_NODE_TAKEOVER_MARGIN must be positive")
 	}
 	if rolloutReadyTimeout <= 0 {
 		log.Fatalf("WORKER_ROLLOUT_READY_TIMEOUT must be positive, got %s", rolloutReadyTimeout)
@@ -116,14 +151,15 @@ func main() {
 		DefaultArtifactSHA256:  defaultArtifactSHA256,
 		RolloutReadyTimeout:    rolloutReadyTimeout,
 		RootManagerApproved:    rootManagerApproved,
+		NodeID:                 nodeID,
+		FleetMaxConnections:    fleetMaxConnections,
+		NodeLeaseDuration:      nodeLeaseDuration,
+		NodeTakeoverMargin:     nodeTakeoverMargin,
 	})
 
-	// Start the manager
-	if err := mgr.Start(ctx); err != nil {
-		log.Fatalf("Failed to start manager: %v", err)
-	}
-
-	// Initialize and start HTTP server
+	// Validate the HTTP server before the manager registers its node lease or
+	// recovers workers. Configuration errors can then fail without any durable
+	// or process cleanup.
 	httpServer, err := api.NewServer(api.Config{
 		Address:     httpAddr,
 		BearerToken: httpBearerToken,
@@ -132,7 +168,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("Invalid HTTP server configuration: %v", err)
 	}
+
+	// Start the manager only after all static HTTP configuration is valid. Start
+	// can fail after registering the lease (for example while creating command
+	// subscriptions), so run the same bounded cleanup on every error.
+	if err := mgr.Start(ctx); err != nil {
+		stopManagerAfterStartupFailure(mgr)
+		log.Fatalf("Failed to start manager: %v", err)
+	}
 	if err := httpServer.Start(); err != nil {
+		stopManagerAfterStartupFailure(mgr)
 		log.Fatalf("Failed to start HTTP server: %v", err)
 	}
 

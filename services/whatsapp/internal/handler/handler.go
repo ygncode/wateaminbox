@@ -128,6 +128,20 @@ type Handler struct {
 	groupRefreshSlots   chan struct{}
 	// refreshGroupFn overrides the WhatsApp round trip in tests.
 	refreshGroupFn func(types.JID)
+
+	// Group metadata syncs are connection-scoped. A new Connected event cancels
+	// the previous sync, while the heavier LID directory repair runs at most once
+	// during a worker process lifetime.
+	groupSyncMu              sync.Mutex
+	groupSyncCancel          context.CancelFunc
+	groupLIDRepairStarted    bool
+	groupLIDRepairInProgress bool
+
+	// Album parents declare the total media count while each child carries the
+	// parent ID and tile index. Keep that short-lived manifest in memory so the
+	// child event can preserve both pieces without storing a protocol-only row.
+	mediaAlbumMu        sync.Mutex
+	mediaAlbumManifests map[string]mediaAlbumManifest
 }
 
 // maxConcurrentGroupRefreshes bounds how many group metadata reads are in
@@ -153,6 +167,7 @@ func New(cfg Config) *Handler {
 		historySyncIdleTimeout: historySyncIdleTimeout,
 		groupRefreshPending:    make(map[string]bool),
 		groupRefreshSlots:      make(chan struct{}, maxConcurrentGroupRefreshes),
+		mediaAlbumManifests:    make(map[string]mediaAlbumManifest),
 	}
 }
 

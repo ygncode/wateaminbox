@@ -18,6 +18,13 @@ export interface MessageActionsContextValue {
   onStar?: (message: Message) => void;
   /** React to a message with an emoji */
   onReact?: (message: Message, emoji: string) => void;
+  /**
+   * Open the profile of a group member whose identity was clicked in the
+   * thread. Takes a resolved workspace contact ID: the bubble knows the
+   * sender's WhatsApp JID, and the group participant list it already receives
+   * is what turns that into a contact.
+   */
+  onOpenParticipantProfile?: (participantContactId: string) => void;
 }
 
 const MessageActionsContext = createContext<
@@ -36,6 +43,8 @@ export interface MessageActionsProviderProps {
   onStar?: (message: Message) => void;
   /** React to a message with an emoji */
   onReact?: (message: Message, emoji: string) => void;
+  /** Open the profile of a group member clicked in the thread. */
+  onOpenParticipantProfile?: (participantContactId: string) => void;
 }
 
 export function MessageActionsProvider({
@@ -45,6 +54,7 @@ export function MessageActionsProvider({
   onDelete,
   onStar,
   onReact,
+  onOpenParticipantProfile,
 }: MessageActionsProviderProps) {
   const value = useMemo<MessageActionsContextValue>(
     () => ({
@@ -53,8 +63,9 @@ export function MessageActionsProvider({
       onDelete,
       onStar,
       onReact,
+      onOpenParticipantProfile,
     }),
-    [onReply, onForward, onDelete, onStar, onReact],
+    [onReply, onForward, onDelete, onStar, onReact, onOpenParticipantProfile],
   );
 
   return (

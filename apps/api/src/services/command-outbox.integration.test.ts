@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { sql } from "kysely";
 import { connect, JSONCodec, type NatsConnection } from "nats";
+import { parseNatsServerAuth } from "../lib/nats/lifecycle.js";
 import { dispatchCompany, enqueueCommand } from "./command-outbox.service.js";
 import {
   clearTenantConnection,
@@ -23,9 +24,9 @@ describe("command outbox PostgreSQL integration", () => {
       const subject = `TEST.outbox.${companyId}`;
       let nc: NatsConnection | undefined;
       try {
-        nc = await connect({
-          servers: process.env.NATS_URL || "nats://localhost:4448",
-        });
+        nc = await connect(
+          parseNatsServerAuth(process.env.NATS_URL || "nats://localhost:4448"),
+        );
         const js = nc.jetstream();
         const jsm = await nc.jetstreamManager();
         await jsm.streams.add({ name: stream, subjects: [subject] });
@@ -107,6 +108,98 @@ describe("command outbox PostgreSQL integration", () => {
           await jsm.streams.delete(stream).catch(() => false);
           await nc.drain();
         }
+      }
+    },
+    30_000,
+  );
+
+  integrationTest(
+    "fences stale success and failure outcomes while a newer claimer is running",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+
+        const runRace = async (
+          staleOutcome: "success" | "failure",
+          currentOutcome: "success" | "failure",
+        ) => {
+          const id = await enqueueCommand(tenantDb, "TEST.outbox.fence", {
+            type: "kill",
+          });
+          let signalStaleStarted!: () => void;
+          let releaseStale!: () => void;
+          const staleStarted = new Promise<void>((resolve) => {
+            signalStaleStarted = resolve;
+          });
+          const staleGate = new Promise<void>((resolve) => {
+            releaseStale = resolve;
+          });
+          const staleRunner = dispatchCompany(companyId, async () => {
+            signalStaleStarted();
+            await staleGate;
+            if (staleOutcome === "failure") throw new Error("stale failure");
+          });
+          await staleStarted;
+
+          // Simulate the first runner outliving its lease so another replica
+          // can claim the same row while the first publish is still in flight.
+          await tenantDb
+            .updateTable("nats_outbox")
+            .set({ next_attempt_at: new Date(0) })
+            .where("id", "=", id)
+            .execute();
+
+          let signalCurrentStarted!: () => void;
+          let releaseCurrent!: () => void;
+          const currentStarted = new Promise<void>((resolve) => {
+            signalCurrentStarted = resolve;
+          });
+          const currentGate = new Promise<void>((resolve) => {
+            releaseCurrent = resolve;
+          });
+          const currentRunner = dispatchCompany(companyId, async () => {
+            signalCurrentStarted();
+            await currentGate;
+            if (currentOutcome === "failure")
+              throw new Error("current failure");
+          });
+          await currentStarted;
+
+          releaseStale();
+          await staleRunner;
+          expect(
+            await tenantDb
+              .selectFrom("nats_outbox")
+              .select(["status", "attempts"])
+              .where("id", "=", id)
+              .executeTakeFirstOrThrow(),
+          ).toEqual({ status: "claimed", attempts: 0 });
+
+          releaseCurrent();
+          await currentRunner;
+          return tenantDb
+            .selectFrom("nats_outbox")
+            .select(["status", "attempts", "last_error"])
+            .where("id", "=", id)
+            .executeTakeFirstOrThrow();
+        };
+
+        expect(await runRace("success", "failure")).toEqual({
+          status: "pending",
+          attempts: 1,
+          last_error: "current failure",
+        });
+        expect(await runRace("failure", "success")).toEqual({
+          status: "published",
+          attempts: 1,
+          last_error: null,
+        });
+      } finally {
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
       }
     },
     30_000,

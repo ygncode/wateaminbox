@@ -16,6 +16,7 @@ function productionEnv(overrides: Partial<Env> = {}): Env {
     MAIL_DRIVER: "resend",
     RESEND_API_KEY: "re_live_acme_123456789",
     EMAIL_FROM: "WATeamInbox <noreply@acme.test>",
+    FEEDBACK_TO_EMAIL: "feedback@acme.test",
     APP_URL: "https://inbox.acme.test",
     CORS_ORIGINS: "https://inbox.acme.test,https://admin.acme.test",
     CENTRIFUGO_API_URL: "https://realtime.acme.test/api",
@@ -76,6 +77,7 @@ describe("production environment validation", () => {
     "MEILISEARCH_API_KEY",
     "RESEND_API_KEY",
     "EMAIL_FROM",
+    "FEEDBACK_TO_EMAIL",
     "JWT_SECRET",
     "CENTRIFUGO_API_KEY",
     "CORS_ORIGINS",
@@ -149,6 +151,10 @@ describe("production environment validation", () => {
     expectInvalid({ RESEND_API_KEY: "re_xxxxxxxxxxxxx" }, /placeholder value/);
     expectInvalid({ EMAIL_FROM: "not-an-email" }, /valid email address/);
     expectInvalid(
+      { FEEDBACK_TO_EMAIL: "not-an-email" },
+      /FEEDBACK_TO_EMAIL must contain a valid email address/,
+    );
+    expectInvalid(
       { EMAIL_FROM: "WATeamInbox <noreply@example.com>" },
       /reserved example domain/,
     );
@@ -183,15 +189,15 @@ describe("production environment validation", () => {
       ).not.toThrow();
     });
 
-    test.each([
-      "CLOUDFLARE_ACCOUNT_ID",
-      "CLOUDFLARE_EMAIL_API_TOKEN",
-    ] as const)("requires Cloudflare setting %s", (key) => {
-      expectInvalid(
-        { ...cloudflare, [key]: "" },
-        /Missing required production environment variables/,
-      );
-    });
+    test.each(["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_EMAIL_API_TOKEN"] as const)(
+      "requires Cloudflare setting %s",
+      (key) => {
+        expectInvalid(
+          { ...cloudflare, [key]: "" },
+          /Missing required production environment variables/,
+        );
+      },
+    );
 
     test("rejects an account ID that is not a Cloudflare account ID", () => {
       for (const accountId of [
@@ -267,8 +273,40 @@ describe("production environment validation", () => {
     expectInvalid({ RATE_LIMIT_ENABLED: false }, /must be true/);
     expectInvalid(
       { RATE_LIMIT_STORE_TYPE: "invalid" },
-      /must be one of: memory, redis/,
+      /must be one of: memory, postgres, redis/,
     );
+    expectInvalid(
+      { API_REPLICA_COUNT: 2, RATE_LIMIT_STORE_TYPE: "memory" },
+      /postgres is required when API_REPLICA_COUNT is greater than 1/,
+    );
+    expectInvalid(
+      {
+        API_REPLICA_COUNT: 2,
+        RATE_LIMIT_STORE_TYPE: "redis",
+        RATE_LIMIT_REDIS_URL: "redis://redis.internal:6379",
+      },
+      /postgres is required when API_REPLICA_COUNT is greater than 1/,
+    );
+    expectInvalid(
+      { API_REPLICA_COUNT: 11, RATE_LIMIT_STORE_TYPE: "postgres" },
+      /between 1 and 10/,
+    );
+    expectInvalid(
+      { PUBLIC_DB_POOL_MAX: 51 },
+      /pool limits must be integers between 1 and 50/,
+    );
+    expectInvalid(
+      { TENANT_DB_POOL_MAX: 0 },
+      /pool limits must be integers between 1 and 50/,
+    );
+    expect(() =>
+      validateProductionEnv(
+        productionEnv({
+          API_REPLICA_COUNT: 3,
+          RATE_LIMIT_STORE_TYPE: "postgres",
+        }),
+      ),
+    ).not.toThrow();
     expectInvalid(
       { RATE_LIMIT_STORE_TYPE: "redis", RATE_LIMIT_REDIS_URL: "" },
       /RATE_LIMIT_REDIS_URL is required/,
@@ -364,18 +402,16 @@ describe("signing secrets are validated in every environment", () => {
     expect(() => validateSigningSecrets()).not.toThrow();
   });
 
-  test.each([
-    "development",
-    "test",
-    "staging",
-    "",
-  ])("a missing JWT_SECRET fails closed when NODE_ENV is %p", (nodeEnv) => {
-    expect(() =>
-      validateSigningSecrets(
-        nonProductionEnv({ NODE_ENV: nodeEnv, JWT_SECRET: "" }),
-      ),
-    ).toThrow(/JWT_SECRET is required and must not be blank/);
-  });
+  test.each(["development", "test", "staging", ""])(
+    "a missing JWT_SECRET fails closed when NODE_ENV is %p",
+    (nodeEnv) => {
+      expect(() =>
+        validateSigningSecrets(
+          nonProductionEnv({ NODE_ENV: nodeEnv, JWT_SECRET: "" }),
+        ),
+      ).toThrow(/JWT_SECRET is required and must not be blank/);
+    },
+  );
 
   test("a whitespace-only JWT_SECRET is treated as missing", () => {
     expect(() =>

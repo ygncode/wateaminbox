@@ -3,7 +3,9 @@ package manager
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -79,11 +81,16 @@ func TestSpawnWorker_ConcurrentAdmissionRespectsLimit(t *testing.T) {
 		t.Skip("timing test")
 	}
 
-	m := New(Config{WhatsAppBinaryPath: "/bin/sh", MaxWorkers: 3})
+	workerPath := filepath.Join(t.TempDir(), "long-running-worker")
+	require.NoError(t, os.WriteFile(workerPath, []byte("#!/bin/sh\nsleep 60\n"), 0o700))
+
+	m := New(Config{WhatsAppBinaryPath: workerPath, MaxWorkers: 3})
 	m.ctx, m.cancel = context.WithCancel(context.Background())
 	defer m.cancel()
 
-	// Use real short-lived processes so cmd.Start() succeeds.
+	// Keep admitted processes alive until every concurrent request reaches the
+	// admission gate. A short-lived command can exit and free its slot before
+	// the remaining requests arrive, which tests throughput instead of the cap.
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	var admitted, rejected int

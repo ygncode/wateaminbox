@@ -44,6 +44,7 @@ import { resolveIncomingMessageRecipients } from "../notification-recipient.serv
 import { updateMessageSearchVector } from "../search.service.js";
 import { getTenantConnection } from "../tenant.service.js";
 import { lockActiveConnectionForEvent } from "./connection-event-guard.js";
+import { buildIncomingMessageMetadata } from "./message-metadata.js";
 import { getProfilePictureRequestJid } from "./profile-picture-request.js";
 import { handlerLogger as logger } from "./types.js";
 
@@ -271,6 +272,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     const messageStatus: MessageStatus = payload.fromMe
       ? (payload.status ?? "sent")
       : "delivered";
+    const incomingMetadata = buildIncomingMessageMetadata(payload);
 
     const messageId = crypto.randomUUID();
 
@@ -299,9 +301,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           sender_avatar_url: null,
           message_type: payload.messageType as MessageType,
           content: payload.content,
-          metadata: payload.protocolSenderJid
-            ? { protocolSenderJid: payload.protocolSenderJid }
-            : null,
+          metadata: incomingMetadata,
           media_url: payload.mediaUrl || null,
           media_mime_type: payload.mediaType || null,
           media_size: payload.mediaSize || null,
@@ -327,9 +327,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         });
 
         // A reconnect can resend history that was previously imported without
-        // its group participant. Update just the sender fields so that a new
-        // history sync repairs those existing rows without duplicating
-        // messages.
+        // its group participant. Repair sender fields when the replay is more
+        // complete, but never let a replay that names the group itself erase a
+        // participant identity the live/original import already preserved.
         const insertResult = payload.isHistorySync
           ? await insertQuery
               .onConflict((oc) =>
@@ -337,11 +337,21 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
                   .columns(["whatsapp_connection_id", "message_id"])
                   .doUpdateSet({
                     from_me: payload.fromMe,
-                    sender_jid: normalizedSenderJid,
-                    sender_name: senderName,
-                    metadata: payload.protocolSenderJid
-                      ? { protocolSenderJid: payload.protocolSenderJid }
-                      : null,
+                    sender_jid: sql<string | null>`CASE
+                WHEN excluded.sender_jid LIKE '%@g.us'
+                  AND messages.sender_jid IS NOT NULL
+                  AND messages.sender_jid NOT LIKE '%@g.us'
+                  THEN messages.sender_jid
+                ELSE excluded.sender_jid
+              END`,
+                    sender_name: sql<string | null>`CASE
+                WHEN excluded.sender_jid LIKE '%@g.us'
+                  AND messages.sender_jid IS NOT NULL
+                  AND messages.sender_jid NOT LIKE '%@g.us'
+                  THEN messages.sender_name
+                ELSE COALESCE(excluded.sender_name, messages.sender_name)
+              END`,
+                    metadata: incomingMetadata ?? sql`messages.metadata`,
                     quoted_message_id: payload.quotedMessageId || null,
                     // History sync contains the original WhatsApp status. Merge
                     // it monotonically so imported messages get their old
@@ -517,7 +527,11 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       messageId: payload.messageId,
       content: payload.content || null,
       messageType: payload.messageType || "text",
-      timestamp: toDate(payload.timestamp)?.getTime() || Date.now(),
+      // Unix SECONDS - must match the reindex path (routes/search.ts) and the
+      // second-based filters/parsing in meilisearch.service.ts.
+      timestamp: Math.floor(
+        (toDate(payload.timestamp)?.getTime() || Date.now()) / 1000,
+      ),
       fromMe: payload.fromMe,
     };
 
@@ -565,6 +579,16 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     // Frontend expects { message: Message, conversationId: string }
     // Skip for history sync messages to avoid flooding during initial sync
     if (!payload.isHistorySync) {
+      const realtimeMetadata = {
+        ...(payload.mediaUrl ? { mediaAvailable: true } : {}),
+        ...(incomingMetadata?.mediaAlbumId
+          ? {
+              mediaAlbumId: incomingMetadata.mediaAlbumId,
+              mediaAlbumIndex: incomingMetadata.mediaAlbumIndex,
+              mediaAlbumCount: incomingMetadata.mediaAlbumCount,
+            }
+          : {}),
+      };
       await broadcastNewMessageToViewers(
         companyId,
         contact.id,
@@ -583,7 +607,10 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
             whatsappMessageId: payload.messageId,
             // Private media URLs are issued only by visibility-checked HTTP
             // reads; realtime payloads carry update signals only.
-            metadata: payload.mediaUrl ? { mediaAvailable: true } : undefined,
+            metadata:
+              Object.keys(realtimeMetadata).length > 0
+                ? realtimeMetadata
+                : undefined,
             replyToMessageId: payload.quotedMessageId,
             replyToMessage,
             isForwarded: false,

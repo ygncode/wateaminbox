@@ -179,21 +179,7 @@ tokenInvitationRoutes.post("/:token/accept", authMiddleware, async (c) => {
   const token = c.req.param("token")!;
   const user = c.get("user");
 
-  const result = await companyService.acceptInvitation(token, user.id);
-  await createAuditLog({
-    companyId: result.company.id,
-    userId: user.id,
-    action: "invitation.accepted",
-    entityType: "member",
-    entityId: result.member.id,
-    details: {
-      role: result.member.role,
-      accessMode:
-        Object.keys(result.member.permissions).length > 0
-          ? "custom"
-          : "role_defaults",
-      permissionOverrides: result.member.permissions,
-    },
+  const result = await companyService.acceptInvitation(token, user.id, {
     ipAddress: getClientIp(c),
   });
   return successWithMessage(c, `Successfully joined ${result.company.name}`, {

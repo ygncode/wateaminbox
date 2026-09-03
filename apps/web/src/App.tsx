@@ -10,6 +10,7 @@ import {
   ProtectedRoute,
   WorkspaceRouteGuard,
 } from "./components/auth";
+import { FeedbackWidget } from "./components/feedback";
 import { ProtectedAppLayout } from "./components/layout/ProtectedAppLayout";
 import { KeyboardShortcutsModal } from "./components/settings";
 import { PageSkeleton } from "./components/ui";
@@ -44,6 +45,11 @@ const CompanySetupPage = lazy(() =>
 const WorkspaceChooserPage = lazy(() =>
   import("./pages/WorkspaceChooserPage").then((m) => ({
     default: m.WorkspaceChooserPage,
+  })),
+);
+const OAuthConsentPage = lazy(() =>
+  import("./pages/OAuthConsentPage").then((m) => ({
+    default: m.OAuthConsentPage,
   })),
 );
 const ChatPage = lazy(() =>
@@ -148,6 +154,16 @@ function App() {
             <ProtectedRoute workspaceMode="setup">
               <LazyPage variant="auth">
                 <CompanySetupPage />
+              </LazyPage>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/oauth/consent"
+          element={
+            <ProtectedRoute workspaceMode="chooser">
+              <LazyPage>
+                <OAuthConsentPage />
               </LazyPage>
             </ProtectedRoute>
           }
@@ -296,6 +312,7 @@ function App() {
       <AnalyticsRouteTracker />
       <AnalyticsConsent />
       <KeyboardShortcutsModal />
+      <FeedbackWidget />
       <Toaster position="top-right" richColors />
     </>
   );

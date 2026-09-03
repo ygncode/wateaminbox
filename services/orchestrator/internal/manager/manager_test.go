@@ -399,6 +399,26 @@ func TestConfig_Fields(t *testing.T) {
 	assert.Equal(t, 60*time.Second, cfg.HealthCheckInterval)
 }
 
+func TestPersistenceFreeWorkerPrefersRestrictedNATSURL(t *testing.T) {
+	m := New(Config{
+		DefaultNATSURL: "nats://service-control",
+		WorkerNATSURL:  "nats://worker-data-plane",
+	})
+
+	databaseURL, natsURL, err := m.workerRuntimeURLs("postgresql://worker-data-plane")
+	require.NoError(t, err)
+	assert.Equal(t, "postgresql://worker-data-plane", databaseURL)
+	assert.Equal(t, "nats://worker-data-plane", natsURL)
+}
+
+func TestPersistenceFreeWorkerFallsBackToDefaultNATSURL(t *testing.T) {
+	m := New(Config{DefaultNATSURL: "nats://local-development"})
+
+	_, natsURL, err := m.workerRuntimeURLs("postgresql://local-development")
+	require.NoError(t, err)
+	assert.Equal(t, "nats://local-development", natsURL)
+}
+
 // TestWorkerLogWriter tests the worker log writer.
 func TestDurableManagerRequiresDistinctRestrictedWorkerCredentials(t *testing.T) {
 	for _, testCase := range []struct {
@@ -406,12 +426,14 @@ func TestDurableManagerRequiresDistinctRestrictedWorkerCredentials(t *testing.T)
 		cfg  Config
 		want string
 	}{
-		{name: "missing database", cfg: Config{DatabaseURL: "manager", WorkerNATSURL: "worker-nats"}, want: "WORKER_DATABASE_URL"},
-		{name: "missing nats", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "worker-db"}, want: "WORKER_NATS_URL"},
-		{name: "reused database", cfg: Config{DatabaseURL: "same", WorkerDatabaseURL: "same", WorkerNATSURL: "worker-nats"}, want: "must not reuse"},
-		{name: "reused nats", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "worker-db", DefaultNATSURL: "same", WorkerNATSURL: "same"}, want: "must not reuse"},
-		{name: "wrong database user", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "postgresql://manager:secret@db/app", WorkerNATSURL: "nats://worker:secret@nats"}, want: "dedicated"},
-		{name: "wrong nats user", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "postgresql://wateaminbox_worker:secret@db/app", WorkerNATSURL: "nats://service:secret@nats"}, want: "dedicated"},
+		{name: "missing node identity", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "worker-db", WorkerNATSURL: "worker-nats"}, want: "ORCHESTRATOR_NODE_ID"},
+		{name: "unsafe node identity", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "worker-db", WorkerNATSURL: "worker-nats", NodeID: "node.one"}, want: "invalid character"},
+		{name: "missing database", cfg: Config{DatabaseURL: "manager", WorkerNATSURL: "worker-nats", NodeID: "node-1"}, want: "WORKER_DATABASE_URL"},
+		{name: "missing nats", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "worker-db", NodeID: "node-1"}, want: "WORKER_NATS_URL"},
+		{name: "reused database", cfg: Config{DatabaseURL: "same", WorkerDatabaseURL: "same", WorkerNATSURL: "worker-nats", NodeID: "node-1"}, want: "must not reuse"},
+		{name: "reused nats", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "worker-db", DefaultNATSURL: "same", WorkerNATSURL: "same", NodeID: "node-1"}, want: "must not reuse"},
+		{name: "wrong database user", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "postgresql://manager:secret@db/app", WorkerNATSURL: "nats://worker:secret@nats", NodeID: "node-1"}, want: "dedicated"},
+		{name: "wrong nats user", cfg: Config{DatabaseURL: "manager", WorkerDatabaseURL: "postgresql://wateaminbox_worker:secret@db/app", WorkerNATSURL: "nats://service:secret@nats", NodeID: "node-1"}, want: "dedicated"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			manager := New(testCase.cfg)

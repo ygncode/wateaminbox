@@ -9,7 +9,11 @@
 import type { Context, Next } from "hono";
 import type { RateLimitTier } from "../config/rate-limit.config";
 import { resolveClientIp } from "../lib/client-ip.js";
-import type { RateLimitResult, RateLimitStore } from "../lib/rate-limit-store";
+import {
+  type RateLimitResult,
+  type RateLimitStore,
+  RateLimitStoreUnavailableError,
+} from "../lib/rate-limit-store";
 
 /**
  * Standard rate limit response headers
@@ -241,12 +245,24 @@ export function createRateLimitMiddleware(options: RateLimitOptions) {
       ? await customKeyGenerator(c)
       : await generateKey(c, keyStrategy, keyPrefix);
 
-    // Increment the counter and check if limit is exceeded
-    const result = await store.increment(
-      key,
-      tier.requests,
-      tier.windowSeconds,
-    );
+    // A shared limiter must fail closed: admitting traffic on a backend error
+    // would let an outage bypass every replica's policy.
+    let result: RateLimitResult;
+    try {
+      result = await store.increment(key, tier.requests, tier.windowSeconds);
+    } catch (error) {
+      if (error instanceof RateLimitStoreUnavailableError) {
+        c.header("Retry-After", "1");
+        return c.json(
+          {
+            error: "Service Unavailable",
+            message: "Rate limiting is temporarily unavailable",
+          },
+          503,
+        );
+      }
+      throw error;
+    }
 
     // Set headers on all responses if enabled
     if (setHeaders) {

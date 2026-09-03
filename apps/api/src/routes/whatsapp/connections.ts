@@ -15,10 +15,6 @@ import {
 import { createLogger, formatError } from "../../lib/logger.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import {
-  legacyMessageSendRemoved,
-  requireMessageSendPermission,
-} from "../../middleware/message-send-policy.js";
-import {
   requirePermission,
   tenantFromHeader,
 } from "../../middleware/tenant.js";
@@ -424,13 +420,11 @@ connectionRoutes.post(
         });
       }
 
-      // A pending worker owns a QR session that must be replaced before a new
-      // pairing attempt. A disconnected connection has no active worker;
-      // killConnection intentionally rejects it, so do not turn a valid retry
-      // into a misleading "connection not found" error.
-      if (connection.status === "pending") {
-        await whatsappService.killConnection(tenantDb, companyId, connectionId);
-      }
+      // Always fence the previous worker before spawning a pairing attempt.
+      // WhatsApp can revoke and delete a worker's credentials while its OS
+      // process remains alive, even though the API has already recorded the
+      // stable account as disconnected.
+      await whatsappService.killConnection(tenantDb, companyId, connectionId);
 
       await tenantDb.transaction().execute(async (trx) => {
         const session = await trx
@@ -540,17 +534,6 @@ connectionRoutes.post(
       });
     }
   },
-);
-
-/**
- * POST /connections/:connectionId/send - Send message via specific connection
- */
-connectionRoutes.post(
-  "/:connectionId/send",
-  authMiddleware,
-  tenantFromHeader("X-Company-ID"),
-  requireMessageSendPermission,
-  legacyMessageSendRemoved,
 );
 
 /**

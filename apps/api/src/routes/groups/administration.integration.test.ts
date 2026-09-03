@@ -1183,6 +1183,73 @@ describe("group administration - review follow-ups", () => {
   );
 
   integrationTest(
+    "participant contact IDs follow the same visibility rule as contact details",
+    async () => {
+      await withTenantAndUsers(async ({ companyId, createMember }) => {
+        const { contactId, connectionId } = await setupGroup(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const restricted = await createMember({ can_view_all_chats: false });
+        const participant = await tenantDb
+          .insertInto("contacts")
+          .values({
+            whatsapp_connection_id: connectionId,
+            jid: MEMBER_JID,
+            phone_number: "15550000002",
+            push_name: "Visible group member",
+            is_group: false,
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        await tenantDb
+          .insertInto("contact_assignments")
+          .values({
+            contact_id: contactId,
+            assigned_to: restricted.userId,
+            assigned_by: restricted.userId,
+          })
+          .execute();
+
+        const hidden = await app.request(`/api/groups/${contactId}`, {
+          headers: restricted.headers,
+        });
+        expect(hidden.status).toBe(200);
+        const hiddenBody = (await hidden.json()) as {
+          data: {
+            participants: Array<{ jid: string; contactId: string | null }>;
+          };
+        };
+        expect(
+          hiddenBody.data.participants.find(
+            (candidate) => candidate.jid === MEMBER_JID,
+          )?.contactId,
+        ).toBeNull();
+
+        await tenantDb
+          .insertInto("contact_assignments")
+          .values({
+            contact_id: participant.id,
+            assigned_to: restricted.userId,
+            assigned_by: restricted.userId,
+          })
+          .execute();
+        const visible = await app.request(`/api/groups/${contactId}`, {
+          headers: restricted.headers,
+        });
+        const visibleBody = (await visible.json()) as {
+          data: {
+            participants: Array<{ jid: string; contactId: string | null }>;
+          };
+        };
+        expect(
+          visibleBody.data.participants.find(
+            (candidate) => candidate.jid === MEMBER_JID,
+          )?.contactId,
+        ).toBe(participant.id);
+      });
+    },
+  );
+
+  integrationTest(
     "the invite link needs the caller's outbound permission, not just an admin account",
     async () => {
       await withTenantAndUsers(async ({ companyId, createMember, ownerId }) => {
@@ -1227,76 +1294,33 @@ describe("group administration - review follow-ups", () => {
   );
 
   integrationTest(
-    "the deprecated single-participant routes still work and point at the replacement",
+    "removed single-participant routes return 404 without queuing commands",
     async () => {
       await withTenantAndUsers(async ({ companyId, ownerHeaders }) => {
-        const { contactId, groupJid } = await setupGroup(companyId);
+        const { contactId } = await setupGroup(companyId);
         const encoded = encodeURIComponent(MEMBER_JID);
+        const removedRoutes = [
+          {
+            method: "POST",
+            path: `/api/groups/${contactId}/participants/${encoded}/promote`,
+          },
+          {
+            method: "POST",
+            path: `/api/groups/${contactId}/participants/${encoded}/demote`,
+          },
+          {
+            method: "DELETE",
+            path: `/api/groups/${contactId}/participants/${encoded}`,
+          },
+        ];
 
-        const promote = await app.request(
-          `/api/groups/${contactId}/participants/${encoded}/promote`,
-          { method: "POST", headers: ownerHeaders },
-        );
-        expect(promote.status).toBe(200);
-        expect(promote.headers.get("Deprecation")).toBe("true");
-        expect(promote.headers.get("Link")).toContain("successor-version");
-
-        const remove = await app.request(
-          `/api/groups/${contactId}/participants/${encoded}`,
-          { method: "DELETE", headers: ownerHeaders },
-        );
-        expect(remove.status).toBe(200);
-
-        const commands = await queuedCommands(companyId);
-        expect(commands.map((command) => command.type)).toEqual([
-          "group_promote_admin",
-          "group_remove_participants",
-        ]);
-        for (const command of commands) {
-          expect(command.group_jid).toBe(groupJid);
-          expect(command.participant_jids).toEqual([MEMBER_JID]);
+        for (const route of removedRoutes) {
+          const response = await app.request(route.path, {
+            method: route.method,
+            headers: ownerHeaders,
+          });
+          expect(response.status, `${route.method} ${route.path}`).toBe(404);
         }
-      });
-    },
-  );
-
-  integrationTest(
-    "the deprecated routes keep the same guards as their replacements",
-    async () => {
-      await withTenantAndUsers(async ({ companyId, createMember }) => {
-        const { contactId } = await setupGroup(companyId);
-        const encoded = encodeURIComponent(MEMBER_JID);
-        const { headers } = await createMember({
-          can_view_all_chats: true,
-          can_send_messages: false,
-        });
-
-        const promote = await app.request(
-          `/api/groups/${contactId}/participants/${encoded}/promote`,
-          { method: "POST", headers },
-        );
-        expect(promote.status).toBe(403);
-
-        const remove = await app.request(
-          `/api/groups/${contactId}/participants/${encoded}`,
-          { method: "DELETE", headers },
-        );
-        expect(remove.status).toBe(403);
-        expect(await queuedCommands(companyId)).toEqual([]);
-      });
-    },
-  );
-
-  integrationTest(
-    "the deprecated route rejects a participant path segment that is not a user JID",
-    async () => {
-      await withTenantAndUsers(async ({ companyId, ownerHeaders }) => {
-        const { contactId } = await setupGroup(companyId);
-        const response = await app.request(
-          `/api/groups/${contactId}/participants/${encodeURIComponent("120363000000000000@g.us")}/promote`,
-          { method: "POST", headers: ownerHeaders },
-        );
-        expect(response.status).toBe(400);
         expect(await queuedCommands(companyId)).toEqual([]);
       });
     },

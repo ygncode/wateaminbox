@@ -5,6 +5,7 @@ import {
 } from "@wateaminbox/shared";
 import { type Kysely, sql } from "kysely";
 import type { TenantDatabase } from "./tenant.service.js";
+import { fetchStoredWhatsAppNames } from "./whatsapp-stored-names.js";
 
 export interface ListGroupsOptions {
   search?: string;
@@ -62,6 +63,15 @@ export interface GroupSettings {
 export interface EnrichedGroupParticipant {
   jid: string;
   phoneNumber: string | null;
+  /** Raw WhatsApp mention tokens, including LIDs mapped to this participant. */
+  mentionIds: string[];
+  /**
+   * The workspace contact this member resolves to on the group's own
+   * connection, when one exists. Null for a member nobody has a contact record
+   * for yet, which is why the client must treat the profile affordance as
+   * conditional rather than assuming every member is openable.
+   */
+  contactId: string | null;
   displayName: string;
   profilePictureUrl: string | null;
   isAdmin: boolean;
@@ -241,54 +251,104 @@ export async function getEnrichedGroupParticipants(
   ];
   if (participantJids.length === 0) return [];
 
-  const [contacts, messageSenders, storedNames] = await Promise.all([
-    options.connectionId
-      ? tenantDb
-          .selectFrom("contacts")
-          .select(["jid", "custom_name", "push_name", "profile_picture_url"])
-          .where("whatsapp_connection_id", "=", options.connectionId)
-          .where("jid", "in", participantJids)
-          .execute()
-      : Promise.resolve([]),
-    tenantDb
-      .selectFrom("messages")
-      .select(["sender_jid", "sender_name", "sender_avatar_url", "timestamp"])
-      .where("contact_id", "=", options.contactId)
-      .where("sender_jid", "in", participantJids)
-      .orderBy("timestamp", "desc")
-      .execute(),
-    options.connectionId
-      ? sql<{ jid: string; name: string | null }>`
-          SELECT DISTINCT ON (normalized_jid)
-            normalized_jid AS jid,
-            coalesce(
-              nullif(stored.full_name, ''),
-              nullif(stored.push_name, ''),
-              nullif(stored.first_name, ''),
-              nullif(stored.business_name, '')
-            ) AS name
-          FROM (
+  const [contacts, messageSenders, storedNames, lidMappings] =
+    await Promise.all([
+      options.connectionId
+        ? tenantDb
+            .selectFrom("contacts")
+            .select([
+              "id",
+              "jid",
+              "custom_name",
+              "push_name",
+              "profile_picture_url",
+            ])
+            .where("whatsapp_connection_id", "=", options.connectionId)
+            .where("jid", "in", participantJids)
+            .execute()
+        : Promise.resolve([]),
+      tenantDb
+        .selectFrom("messages")
+        .select(["sender_jid", "sender_name", "sender_avatar_url", "timestamp"])
+        .where("contact_id", "=", options.contactId)
+        .where("sender_jid", "in", participantJids)
+        .orderBy("timestamp", "desc")
+        .execute(),
+      options.connectionId
+        ? fetchStoredWhatsAppNames(
+            tenantDb,
+            options.connectionId,
+            participantJids,
+          )
+        : Promise.resolve(new Map<string, string>()),
+      options.connectionId
+        ? sql<{ jid: string; lid: string }>`
+          WITH candidate_tokens AS MATERIALIZED (
+            SELECT DISTINCT
+              split_part(split_part(mapping.lid, '@', 1), ':', 1) AS token
+            FROM whatsapp_sessions.whatsmeow_lid_mappings AS mapping
+            WHERE (
+              split_part(split_part(mapping.jid, '@', 1), ':', 1)
+              || '@' || split_part(mapping.jid, '@', 2)
+            ) IN (${sql.join(participantJids.map((jid) => sql`${jid}`))})
+          ),
+          relevant_mappings AS MATERIALIZED (
             SELECT
-              contacts.*,
-              regexp_replace(
-                coalesce(mapping.jid, contacts.their_jid),
-                ':[0-9]+@',
-                '@'
-              ) AS normalized_jid
-            FROM whatsapp_sessions.whatsmeow_contacts AS contacts
-            LEFT JOIN whatsapp_sessions.whatsmeow_lid_mappings AS mapping
-              ON mapping.connection_id::text = contacts.connection_id::text
-              AND regexp_replace(mapping.lid, ':[0-9]+@', '@') =
-                  regexp_replace(contacts.their_jid, ':[0-9]+@', '@')
-            WHERE contacts.connection_id::text = ${options.connectionId}
-          ) AS stored
-          WHERE normalized_jid IN (${sql.join(
-            participantJids.map((jid) => sql`${jid}`),
-          )})
-          ORDER BY normalized_jid
+              mapping.connection_id,
+              candidate.token,
+              split_part(split_part(mapping.jid, '@', 1), ':', 1)
+                || '@' || split_part(mapping.jid, '@', 2) AS jid
+            FROM whatsapp_sessions.whatsmeow_lid_mappings AS mapping
+            INNER JOIN candidate_tokens AS candidate
+              ON candidate.token =
+                split_part(split_part(mapping.lid, '@', 1), ':', 1)
+            WHERE candidate.token ~ '^[0-9]+$'
+          ),
+          local_tokens AS (
+            SELECT mapping.token, min(mapping.jid) AS jid
+            FROM relevant_mappings AS mapping
+            WHERE mapping.connection_id = ${options.connectionId}
+            GROUP BY mapping.token
+            HAVING count(DISTINCT mapping.jid) = 1
+          ),
+          globally_unambiguous_tokens AS (
+            SELECT mapping.token, min(mapping.jid) AS jid
+            FROM relevant_mappings AS mapping
+            GROUP BY mapping.token
+            HAVING count(DISTINCT mapping.jid) = 1
+          ),
+          safe_aliases AS (
+            -- A locally unique token remains authoritative even if another
+            -- connection has conflicting historical data for that token.
+            SELECT alias.jid, alias.token AS lid
+            FROM local_tokens AS alias
+            WHERE alias.jid IN (${sql.join(
+              participantJids.map((jid) => sql`${jid}`),
+            )})
+            UNION
+            -- WhatsApp may stop returning an old LID alias. Use another
+            -- connection's observation only when the numeric token (regardless
+            -- of @lid versus @hosted.lid) maps globally to one identity that is
+            -- already a member of this exact group. Any local observation,
+            -- including a conflicting one, suppresses this fallback.
+            -- This is display-only: nothing is copied into whatsmeow's
+            -- connection-owned protocol mapping store.
+            SELECT alias.jid, alias.token AS lid
+            FROM globally_unambiguous_tokens AS alias
+            WHERE alias.jid IN (${sql.join(
+              participantJids.map((jid) => sql`${jid}`),
+            )})
+              AND NOT EXISTS (
+                SELECT 1
+                FROM relevant_mappings AS local_mapping
+                WHERE local_mapping.connection_id = ${options.connectionId}
+                  AND local_mapping.token = alias.token
+              )
+          )
+          SELECT jid, lid FROM safe_aliases
         `.execute(tenantDb)
-      : Promise.resolve({ rows: [] }),
-  ]);
+        : Promise.resolve({ rows: [] }),
+    ]);
 
   const contactByJid = new Map(
     contacts.map((contact) => [contact.jid, contact]),
@@ -301,9 +361,16 @@ export async function getEnrichedGroupParticipants(
     const jid = normalizeJid(sender.sender_jid);
     if (jid && !senderByJid.has(jid)) senderByJid.set(jid, sender);
   }
-  const storedNameByJid = new Map(
-    storedNames.rows.map((stored) => [stored.jid, stored.name]),
-  );
+  const storedNameByJid = storedNames;
+  const mentionIdsByJid = new Map<string, Set<string>>();
+  for (const mapping of lidMappings.rows) {
+    const jid = normalizeJid(mapping.jid);
+    const mentionId = normalizeJid(mapping.lid)?.split("@")[0];
+    if (!jid || !mentionId) continue;
+    const ids = mentionIdsByJid.get(jid) ?? new Set<string>();
+    ids.add(mentionId);
+    mentionIdsByJid.set(jid, ids);
+  }
   const ownJid = normalizeJid(options.connectionJid);
 
   return participantRows
@@ -323,9 +390,19 @@ export async function getEnrichedGroupParticipants(
         (phoneNumber ? `+${phoneNumber}` : jid.split("@")[0]) ||
         "Unknown participant";
 
+      const mentionIds = new Set(mentionIdsByJid.get(jid));
+      const jidMentionId = jid.split("@")[0];
+      if (jidMentionId) mentionIds.add(jidMentionId);
+      if (phoneNumber) mentionIds.add(phoneNumber);
+
       return {
         jid,
         phoneNumber,
+        mentionIds: [...mentionIds],
+        // Only the contact record on this group's own connection: the same
+        // number reached through a different connection is a different
+        // conversation, and opening that one would show the wrong history.
+        contactId: contact?.id ?? null,
         displayName,
         profilePictureUrl:
           contact?.profile_picture_url || sender?.sender_avatar_url || null,

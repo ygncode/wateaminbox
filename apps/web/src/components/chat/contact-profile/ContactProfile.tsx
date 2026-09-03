@@ -32,6 +32,7 @@ export function ContactProfile({
   contactId,
   isOpen,
   onClose,
+  onOpenParticipantProfile,
 }: ContactProfileProps) {
   const { t } = useTranslation();
 
@@ -78,6 +79,7 @@ export function ContactProfile({
                 group={group}
                 isLoading={isGroupLoading}
                 error={groupError}
+                onOpenParticipantProfile={onOpenParticipantProfile}
               />
             )}
 

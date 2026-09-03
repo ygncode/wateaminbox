@@ -17,14 +17,14 @@ import (
 
 // mockMessageSender is a mock implementation of MessageSender for testing.
 type mockMessageSender struct {
-	sendMessageFunc      func(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error)
+	sendMessageFunc      func(ctx context.Context, jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (types.SendResponse, error)
 	sendMediaMessageFunc func(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (types.SendResponse, error)
 	sendReactionFunc     func(ctx context.Context, chatJID string, messageID string, emoji string, targetSenderJID string, fromMe bool) (types.SendResponse, error)
 }
 
-func (m *mockMessageSender) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error) {
+func (m *mockMessageSender) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (types.SendResponse, error) {
 	if m.sendMessageFunc != nil {
-		return m.sendMessageFunc(ctx, jid, text, replyTo, replyToSender)
+		return m.sendMessageFunc(ctx, jid, text, replyTo, replyToSender, mentionedJIDs)
 	}
 	return types.SendResponse{}, nil
 }
@@ -563,6 +563,23 @@ func TestSendMessageCommand_WithReply(t *testing.T) {
 	assert.Equal(t, "9876543210@s.whatsapp.net", unmarshaled.ReplyToSender)
 }
 
+func TestSendMessageCommand_WithMentions(t *testing.T) {
+	cmd := SendMessageCommand{
+		MessageID:     "pending_mention_001",
+		To:            "120363000000000000@g.us",
+		Type:          "text",
+		Content:       "Hello @6585719494172749",
+		MentionedJIDs: []string{"6585719494172749@lid"},
+	}
+
+	data, err := json.Marshal(cmd)
+	require.NoError(t, err)
+
+	var unmarshaled SendMessageCommand
+	require.NoError(t, json.Unmarshal(data, &unmarshaled))
+	assert.Equal(t, []string{"6585719494172749@lid"}, unmarshaled.MentionedJIDs)
+}
+
 // TestSendMessageCommand_WithMedia tests media message fields.
 func TestSendMessageCommand_WithMedia(t *testing.T) {
 	cmd := SendMessageCommand{
@@ -630,7 +647,7 @@ func TestMessageSender_InterfaceImplementation(t *testing.T) {
 
 	// Should not panic - verifies the interface is correctly implemented
 	assert.NotPanics(t, func() {
-		sender.SendMessage(ctx, "jid", "text", "", "")
+		sender.SendMessage(ctx, "jid", "text", "", "", nil)
 		sender.SendMediaMessage(ctx, "jid", "image", []byte("data"), "caption", "file.jpg", "image/jpeg", "", "")
 	})
 }
@@ -643,7 +660,7 @@ func TestMessageSender_SendMessage_Success(t *testing.T) {
 	}
 
 	mockSender := &mockMessageSender{
-		sendMessageFunc: func(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error) {
+		sendMessageFunc: func(ctx context.Context, jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (types.SendResponse, error) {
 			assert.Equal(t, "1234567890@s.whatsapp.net", jid)
 			assert.Equal(t, "Hello, World!", text)
 			return expectedResp, nil
@@ -651,7 +668,7 @@ func TestMessageSender_SendMessage_Success(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	resp, err := mockSender.SendMessage(ctx, "1234567890@s.whatsapp.net", "Hello, World!", "", "")
+	resp, err := mockSender.SendMessage(ctx, "1234567890@s.whatsapp.net", "Hello, World!", "", "", nil)
 
 	assert.NoError(t, err)
 	assert.Equal(t, expectedResp.ID, resp.ID)
@@ -661,13 +678,13 @@ func TestMessageSender_SendMessage_Success(t *testing.T) {
 // TestMessageSender_SendMessage_Error tests error handling.
 func TestMessageSender_SendMessage_Error(t *testing.T) {
 	mockSender := &mockMessageSender{
-		sendMessageFunc: func(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error) {
+		sendMessageFunc: func(ctx context.Context, jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (types.SendResponse, error) {
 			return types.SendResponse{}, errors.New("connection failed")
 		},
 	}
 
 	ctx := context.Background()
-	resp, err := mockSender.SendMessage(ctx, "1234567890@s.whatsapp.net", "Hello", "", "")
+	resp, err := mockSender.SendMessage(ctx, "1234567890@s.whatsapp.net", "Hello", "", "", nil)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection failed")
@@ -821,7 +838,7 @@ func TestHandleSendCommand_PublishConfirmationFlow(t *testing.T) {
 	var publishedConfirmation bool
 
 	mockSender := &mockMessageSender{
-		sendMessageFunc: func(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error) {
+		sendMessageFunc: func(ctx context.Context, jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (types.SendResponse, error) {
 			sentMessage = true
 			return types.SendResponse{
 				ID:        "3EB0TEST789@s.whatsapp.net",
@@ -839,7 +856,7 @@ func TestHandleSendCommand_PublishConfirmationFlow(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	resp, err := mockSender.SendMessage(ctx, "1234567890@s.whatsapp.net", "Test flow", "", "")
+	resp, err := mockSender.SendMessage(ctx, "1234567890@s.whatsapp.net", "Test flow", "", "", nil)
 
 	assert.NoError(t, err)
 	assert.True(t, sentMessage, "message should be sent")
@@ -1006,7 +1023,7 @@ func TestConfirmedMissingProfilePicturePublishesRemoval(t *testing.T) {
 
 func TestSendResultReplayPreventsDuplicateSideEffect(t *testing.T) {
 	sendCalls := 0
-	sender := &mockMessageSender{sendMessageFunc: func(context.Context, string, string, string, string) (types.SendResponse, error) {
+	sender := &mockMessageSender{sendMessageFunc: func(context.Context, string, string, string, string, []string) (types.SendResponse, error) {
 		sendCalls++
 		return types.SendResponse{ID: "wa-real-id", Timestamp: time.Now()}, nil
 	}}
@@ -1035,7 +1052,7 @@ func TestSendResultReplayPreventsDuplicateSideEffect(t *testing.T) {
 
 func TestFailedSendResultReplayPreventsExtraWhatsAppAttempts(t *testing.T) {
 	sendCalls := 0
-	sender := &mockMessageSender{sendMessageFunc: func(context.Context, string, string, string, string) (types.SendResponse, error) {
+	sender := &mockMessageSender{sendMessageFunc: func(context.Context, string, string, string, string, []string) (types.SendResponse, error) {
 		sendCalls++
 		return types.SendResponse{}, errors.New("whatsapp unavailable")
 	}}

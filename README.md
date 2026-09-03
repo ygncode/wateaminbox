@@ -61,8 +61,8 @@ flowchart TB
 
 ### Beta limitations
 
-- The supplied production topology is one API and one orchestrator on a single host; high availability and horizontal orchestrator scaling are not supported by the baseline.
-- Rate limiting is in memory unless an operator adds and validates shared Redis for multiple API replicas.
+- The production topology can run multiple homogeneous API replicas behind its internal readiness-aware router, but all services still share one host; this is not host HA. Horizontal orchestrator scaling is not supported.
+- Multi-replica API deployments use shared PostgreSQL rate limiting and database-fenced background work. Memory limiting remains available only for a single API process.
 - WhatsApp history depends on what the primary device and protocol make available. Protocol changes can interrupt pairing, sync, or delivery.
 - Durable messaging is at-least-once. A crash after WhatsApp accepts a send but before the result is recorded can leave delivery outcome uncertain and requires operator reconciliation.
 - Scheduled and bulk sends are paced and capped, but those controls do not establish recipient consent or guarantee account safety. Media uploads are capped at 50 MiB.

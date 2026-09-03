@@ -11,9 +11,15 @@ import (
 	"github.com/lib/pq"
 )
 
-// WorkerRegistry provides persistent storage for worker state.
+// WorkerRegistry provides persistent storage for worker state. Every registry
+// is bound to one orchestrator node identity: claims record it as the owner
+// and recovery reads only rows it owns.
 type WorkerRegistry struct {
-	db *sql.DB
+	db     *sql.DB
+	nodeID string
+	// fleetMaxConnections caps the number of distinct connections across every
+	// node, enforced atomically inside the launch claim. 0 disables the cap.
+	fleetMaxConnections int
 }
 
 var (
@@ -21,7 +27,14 @@ var (
 	ErrWorkerUpgradeBatchActive      = errors.New("a worker upgrade batch is already active")
 	ErrWorkerUpgradeSnapshotConflict = errors.New("worker upgrade snapshot no longer matches the source generation")
 	ErrWorkerArtifactNormalization   = errors.New("worker artifact normalization is incomplete")
+	ErrFleetConnectionLimit          = errors.New("fleet-wide connection limit reached")
+	ErrNodeLeaseHeld                 = errors.New("orchestrator node identity is held by a live lease")
 )
+
+// fleetCapacityAdvisoryLockID serializes fleet-capacity claim checks across
+// every orchestrator node without blocking unrelated registry writes such as
+// heartbeats. Transaction-scoped, so a crashed claimer releases it implicitly.
+const fleetCapacityAdvisoryLockID int64 = 0x57415465616D4942 // "WATeamIB"
 
 const (
 	WorkerUpgradePhaseStop      = "stop"
@@ -114,9 +127,32 @@ type WorkerRecord struct {
 	ArtifactSHA256  string
 	WorkerUID       int
 	WorkerGID       int
+	NodeID          string // owning orchestrator node; empty only for pre-adoption legacy rows
 }
 
-func NewWorkerRegistry(databaseURL string) (*WorkerRegistry, error) {
+// validateNodeID accepts only NATS-token- and consumer-name-safe identities so
+// a node ID can appear verbatim in subjects and durable consumer names.
+func validateNodeID(nodeID string) error {
+	if nodeID == "" || len(nodeID) > 64 {
+		return errors.New("orchestrator node ID must be 1-64 characters")
+	}
+	for _, r := range nodeID {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+		default:
+			return fmt.Errorf("orchestrator node ID contains invalid character %q; use letters, digits, '-' or '_'", r)
+		}
+	}
+	return nil
+}
+
+func NewWorkerRegistry(databaseURL, nodeID string, fleetMaxConnections int) (*WorkerRegistry, error) {
+	if err := validateNodeID(nodeID); err != nil {
+		return nil, err
+	}
+	if fleetMaxConnections < 0 {
+		return nil, errors.New("fleet-wide connection limit must be non-negative")
+	}
 	db, err := sql.Open("postgres", databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database connection: %w", err)
@@ -234,11 +270,43 @@ func NewWorkerRegistry(databaseURL string) (*WorkerRegistry, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("worker identity schema is not collision-safe")
 	}
+	var nodeIdentityColumns int
+	if err := db.QueryRow(`
+		SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_schema = 'public' AND table_name = 'worker_registry'
+			AND column_name = 'node_id'
+	`).Scan(&nodeIdentityColumns); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to verify worker node identity schema: %w", err)
+	}
+	if nodeIdentityColumns != 1 {
+		_ = db.Close()
+		return nil, fmt.Errorf("worker registry node identity migration is not applied")
+	}
+	var nodeLeaseTables int
+	if err := db.QueryRow(`
+		SELECT COUNT(*)
+		FROM information_schema.tables
+		WHERE table_schema = 'public' AND table_name = 'orchestrator_nodes'
+	`).Scan(&nodeLeaseTables); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("failed to verify orchestrator node lease schema: %w", err)
+	}
+	if nodeLeaseTables != 1 {
+		_ = db.Close()
+		return nil, fmt.Errorf("orchestrator node lease migration is not applied")
+	}
 	db.SetMaxOpenConns(5)
 	db.SetMaxIdleConns(2)
 	db.SetConnMaxLifetime(5 * time.Minute)
-	log.Println("Worker registry connected to database")
-	return &WorkerRegistry{db: db}, nil
+	log.Printf("Worker registry connected to database as node %s", nodeID)
+	return &WorkerRegistry{db: db, nodeID: nodeID, fleetMaxConnections: fleetMaxConnections}, nil
+}
+
+// NodeID reports the orchestrator node identity this registry claims for.
+func (r *WorkerRegistry) NodeID() string {
+	return r.nodeID
 }
 
 func (r *WorkerRegistry) Close() error {
@@ -248,20 +316,9 @@ func (r *WorkerRegistry) Close() error {
 	return nil
 }
 
-// ClaimWorkerLaunch atomically replaces only the launch the caller observed.
-// This compare-and-swap prevents overlapping orchestrators from both claiming
-// the same live connection. A durable stopped row may be reclaimed explicitly.
-func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess, expectedLaunchID string) error {
-	now := time.Now()
-	// A first launch expects no prior launch: PostgreSQL needs a typed NULL,
-	// never the invalid empty UUID. A nonempty expectation remains an exact CAS.
-	var expected any
-	if expectedLaunchID != "" {
-		expected = expectedLaunchID
-	}
-	err := r.db.QueryRowContext(ctx, `
-		INSERT INTO worker_registry (connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, artifact_normalized)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, true)
+const claimWorkerLaunchSQL = `
+		INSERT INTO worker_registry (connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, artifact_normalized, node_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, true, $14)
 		ON CONFLICT (connection_id) DO UPDATE SET
 			tenant_schema = EXCLUDED.tenant_schema,
 			database_url = EXCLUDED.database_url,
@@ -275,13 +332,47 @@ func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess
 			artifact_version = EXCLUDED.artifact_version,
 			artifact_sha256 = EXCLUDED.artifact_sha256,
 			artifact_normalized = true,
-			worker_uid = EXCLUDED.worker_uid
+			worker_uid = EXCLUDED.worker_uid,
+			node_id = EXCLUDED.node_id
 		WHERE worker_registry.company_id = EXCLUDED.company_id
 			AND worker_registry.launch_id IS NOT DISTINCT FROM $13::uuid
 		RETURNING worker_uid, worker_gid
-	`, w.ConnectionID, w.CompanyID, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.LaunchID, w.DesiredState, w.ArtifactVersion, w.ArtifactSHA256, expected).Scan(&w.WorkerUID, &w.WorkerGID)
+	`
+
+// ClaimWorkerLaunch atomically replaces only the launch the caller observed.
+// This compare-and-swap prevents overlapping orchestrators from both claiming
+// the same live connection. A durable stopped row may be reclaimed explicitly.
+//
+// When a fleet-wide connection limit is configured, admission is checked in
+// the same transaction as the claim, serialized across nodes by an advisory
+// lock: counting and then claiming as separate steps is a race that two nodes
+// can both win. Reclaiming a connection that already has a row never counts
+// against the limit, so recovery, restart, and takeover are unaffected.
+func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess, expectedLaunchID string) error {
+	now := time.Now()
+	// A first launch expects no prior launch: PostgreSQL needs a typed NULL,
+	// never the invalid empty UUID. A nonempty expectation remains an exact CAS.
+	var expected any
+	if expectedLaunchID != "" {
+		expected = expectedLaunchID
+	}
+	claimArgs := []any{
+		w.ConnectionID, w.CompanyID, w.TenantSchema, "", w.PID, w.Status, now,
+		w.RestartCount, w.LaunchID, w.DesiredState, w.ArtifactVersion,
+		w.ArtifactSHA256, expected, r.nodeID,
+	}
+
+	var err error
+	if r.fleetMaxConnections > 0 {
+		err = r.claimWithFleetLimit(ctx, w, claimArgs)
+	} else {
+		err = r.db.QueryRowContext(ctx, claimWorkerLaunchSQL, claimArgs...).Scan(&w.WorkerUID, &w.WorkerGID)
+	}
 	if err == sql.ErrNoRows {
 		return ErrWorkerLaunchConflict
+	}
+	if errors.Is(err, ErrFleetConnectionLimit) {
+		return err
 	}
 	if err != nil {
 		return fmt.Errorf("failed to claim worker launch: %w", err)
@@ -292,8 +383,47 @@ func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess
 	return nil
 }
 
+func (r *WorkerRegistry) claimWithFleetLimit(ctx context.Context, w *WorkerProcess, claimArgs []any) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin fleet-limited worker claim: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, fleetCapacityAdvisoryLockID); err != nil {
+		return fmt.Errorf("serialize fleet capacity check: %w", err)
+	}
+	var (
+		connectionExists bool
+		occupied         int
+	)
+	if err := tx.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM worker_registry WHERE connection_id = $1
+		), COUNT(*)
+		FROM worker_registry
+	`, w.ConnectionID).Scan(&connectionExists, &occupied); err != nil {
+		return fmt.Errorf("inspect fleet capacity: %w", err)
+	}
+	// Capacity is admission control, not a recovery gate. Once a connection
+	// has a durable row, reclaiming its generation adds no fleet occupancy and
+	// must remain possible even if an operator lowered the ceiling below the
+	// current count. The launch CAS below still enforces tenant and generation
+	// ownership for that existing row.
+	if !connectionExists && occupied >= r.fleetMaxConnections {
+		return fmt.Errorf("%w (%d/%d)", ErrFleetConnectionLimit, occupied, r.fleetMaxConnections)
+	}
+	if err := tx.QueryRowContext(ctx, claimWorkerLaunchSQL, claimArgs...).Scan(&w.WorkerUID, &w.WorkerGID); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit fleet-limited worker claim: %w", err)
+	}
+	return nil
+}
+
 // ActivateWorkerLaunch records the PID only if the caller still owns the exact
-// tenant-scoped generation it reserved before starting the child.
+// tenant-scoped generation it reserved before starting the child, and only
+// while that generation is still assigned to this node.
 func (r *WorkerRegistry) ActivateWorkerLaunch(ctx context.Context, w *WorkerProcess) error {
 	now := time.Now()
 	result, err := r.db.ExecContext(ctx, `
@@ -302,8 +432,8 @@ func (r *WorkerRegistry) ActivateWorkerLaunch(ctx context.Context, w *WorkerProc
 			started_at = $5, last_heartbeat = $5, restart_count = $6,
 			desired_state = $7, artifact_version = $8, artifact_sha256 = $9
 		WHERE connection_id = $10 AND company_id = $11 AND launch_id = $12
-			AND worker_uid = $13 AND worker_gid = $14
-	`, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.DesiredState, w.ArtifactVersion, w.ArtifactSHA256, w.ConnectionID, w.CompanyID, w.LaunchID, w.WorkerUID, w.WorkerGID)
+			AND worker_uid = $13 AND worker_gid = $14 AND node_id = $15
+	`, w.TenantSchema, "", w.PID, w.Status, now, w.RestartCount, w.DesiredState, w.ArtifactVersion, w.ArtifactSHA256, w.ConnectionID, w.CompanyID, w.LaunchID, w.WorkerUID, w.WorkerGID, r.nodeID)
 	if err != nil {
 		return fmt.Errorf("failed to activate worker launch: %w", err)
 	}
@@ -356,28 +486,237 @@ func (r *WorkerRegistry) RemoveWorkerLaunch(ctx context.Context, connectionID, c
 	return removed == 1, nil
 }
 
-func (r *WorkerRegistry) GetAllWorkers(ctx context.Context) ([]*WorkerRecord, error) {
-	rows, err := r.db.QueryContext(ctx, `
-		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid
-		FROM worker_registry
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query workers: %w", err)
-	}
+func (r *WorkerRegistry) scanWorkerRows(rows *sql.Rows) ([]*WorkerRecord, error) {
 	defer rows.Close()
-
 	var workers []*WorkerRecord
 	for rows.Next() {
 		w := &WorkerRecord{}
-		if err := rows.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState, &w.ArtifactVersion, &w.ArtifactSHA256, &w.WorkerUID, &w.WorkerGID); err != nil {
+		var nodeID sql.NullString
+		if err := rows.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState, &w.ArtifactVersion, &w.ArtifactSHA256, &w.WorkerUID, &w.WorkerGID, &nodeID); err != nil {
 			return nil, fmt.Errorf("failed to scan worker: %w", err)
 		}
+		w.NodeID = nodeID.String
 		workers = append(workers, w)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating workers: %w", err)
 	}
 	return workers, nil
+}
+
+func (r *WorkerRegistry) GetAllWorkers(ctx context.Context) ([]*WorkerRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id
+		FROM worker_registry
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query workers: %w", err)
+	}
+	return r.scanWorkerRows(rows)
+}
+
+// GetNodeWorkers returns only the launches this node owns. Recovery must never
+// see, adopt, or respawn a row owned by another orchestrator node: PIDs are
+// host-local, so a foreign row's dead-looking PID may be a live process on its
+// owner's host, and respawning it would run two whatsmeow clients against one
+// connection's device rows.
+func (r *WorkerRegistry) GetNodeWorkers(ctx context.Context) ([]*WorkerRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id
+		FROM worker_registry
+		WHERE node_id = $1
+	`, r.nodeID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query node workers: %w", err)
+	}
+	return r.scanWorkerRows(rows)
+}
+
+// AdoptUnassignedWorkers claims every row written before the node identity
+// migration. NULL node_id is the compare-and-swap predicate, so two nodes
+// starting concurrently can never both adopt one row. Rows already assigned to
+// another node are never touched.
+func (r *WorkerRegistry) AdoptUnassignedWorkers(ctx context.Context) (int64, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry SET node_id = $1 WHERE node_id IS NULL
+	`, r.nodeID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to adopt unassigned workers: %w", err)
+	}
+	adopted, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("inspect unassigned worker adoption: %w", err)
+	}
+	return adopted, nil
+}
+
+// OrchestratorNode is one node's durable lease state.
+type OrchestratorNode struct {
+	NodeID         string
+	LeaseExpiresAt time.Time
+	HeartbeatAt    time.Time
+	StartedAt      time.Time
+	LeaseExpired   bool
+}
+
+// RegisterNodeLease claims this node's identity for one running instance. A
+// live lease refuses registration, enforcing per-node stop-first replacement
+// from shared state: two orchestrators believing they are the same node would
+// both recover and respawn that node's connections. The node's local worker
+// capacity is recorded so peers can place new connections by free slots.
+func (r *WorkerRegistry) RegisterNodeLease(ctx context.Context, leaseDuration time.Duration, maxWorkers int) error {
+	result, err := r.db.ExecContext(ctx, `
+		INSERT INTO orchestrator_nodes (node_id, lease_expires_at, heartbeat_at, started_at, max_workers)
+		VALUES ($1, now() + make_interval(secs => $2), now(), now(), $3)
+		ON CONFLICT (node_id) DO UPDATE SET
+			lease_expires_at = EXCLUDED.lease_expires_at,
+			heartbeat_at = now(),
+			started_at = now(),
+			max_workers = EXCLUDED.max_workers
+		WHERE orchestrator_nodes.lease_expires_at <= now()
+	`, r.nodeID, leaseDuration.Seconds(), maxWorkers)
+	if err != nil {
+		return fmt.Errorf("register node lease: %w", err)
+	}
+	registered, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("inspect node lease registration: %w", err)
+	}
+	if registered != 1 {
+		return fmt.Errorf("%w: node %s", ErrNodeLeaseHeld, r.nodeID)
+	}
+	return nil
+}
+
+// RenewNodeLease extends only a lease that has not yet expired. A false
+// return is authoritative: the lease lapsed, the node has lost ownership
+// authority, and the caller must self-fence rather than keep running workers.
+func (r *WorkerRegistry) RenewNodeLease(ctx context.Context, leaseDuration time.Duration) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE orchestrator_nodes
+		SET lease_expires_at = now() + make_interval(secs => $2), heartbeat_at = now()
+		WHERE node_id = $1 AND lease_expires_at > now()
+	`, r.nodeID, leaseDuration.Seconds())
+	if err != nil {
+		return false, fmt.Errorf("renew node lease: %w", err)
+	}
+	renewed, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("inspect node lease renewal: %w", err)
+	}
+	return renewed == 1, nil
+}
+
+// ReleaseNodeLease expires this node's lease immediately on graceful
+// shutdown, so a stop-first replacement of the same node can register without
+// waiting out the lease. Peers still wait the full takeover margin beyond the
+// expiry before touching this node's connections.
+func (r *WorkerRegistry) ReleaseNodeLease(ctx context.Context) error {
+	if _, err := r.db.ExecContext(ctx, `
+		UPDATE orchestrator_nodes SET lease_expires_at = now() WHERE node_id = $1
+	`, r.nodeID); err != nil {
+		return fmt.Errorf("release node lease: %w", err)
+	}
+	return nil
+}
+
+// ListNodes reports every registered orchestrator node and its lease state.
+func (r *WorkerRegistry) ListNodes(ctx context.Context) ([]*OrchestratorNode, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT node_id, lease_expires_at, heartbeat_at, started_at, lease_expires_at <= now()
+		FROM orchestrator_nodes ORDER BY node_id
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("list orchestrator nodes: %w", err)
+	}
+	defer rows.Close()
+	var nodes []*OrchestratorNode
+	for rows.Next() {
+		node := &OrchestratorNode{}
+		if err := rows.Scan(&node.NodeID, &node.LeaseExpiresAt, &node.HeartbeatAt, &node.StartedAt, &node.LeaseExpired); err != nil {
+			return nil, fmt.Errorf("scan orchestrator node: %w", err)
+		}
+		nodes = append(nodes, node)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate orchestrator nodes: %w", err)
+	}
+	return nodes, nil
+}
+
+// ListFailedNodeWorkers returns desired-running rows owned by nodes whose
+// lease has been expired for at least the takeover margin. The owner must
+// have a lease row: takeover deliberately requires provable expiry rather
+// than mere absence, so workers owned by a binary that predates leases are
+// never silently stolen. Stopped and unlinking rows stay with their owner —
+// their durable intent needs no live process here.
+func (r *WorkerRegistry) ListFailedNodeWorkers(ctx context.Context, takeoverMargin time.Duration) ([]*WorkerRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT w.connection_id, w.company_id, w.tenant_schema, w.database_url, w.pid, w.status, w.started_at, w.last_heartbeat, w.restart_count, w.launch_id, w.desired_state, w.artifact_version, w.artifact_sha256, w.worker_uid, w.worker_gid, w.node_id
+		FROM worker_registry w
+		WHERE w.node_id IS NOT NULL AND w.node_id <> $1
+			AND w.desired_state = 'running'
+			AND EXISTS (
+				SELECT 1 FROM orchestrator_nodes n
+				WHERE n.node_id = w.node_id
+					AND n.lease_expires_at + make_interval(secs => $2) <= now()
+			)
+	`, r.nodeID, takeoverMargin.Seconds())
+	if err != nil {
+		return nil, fmt.Errorf("list failed-node workers: %w", err)
+	}
+	return r.scanWorkerRows(rows)
+}
+
+// SelectSpawnNode returns the live peer node with the most free worker slots,
+// for placing a brand-new connection when this node is at local capacity.
+// Existing connections are never moved by placement: node affinity is the
+// default because a worker's outbound IP is part of its WhatsApp identity.
+func (r *WorkerRegistry) SelectSpawnNode(ctx context.Context) (string, bool, error) {
+	var target string
+	err := r.db.QueryRowContext(ctx, `
+		SELECT n.node_id
+		FROM orchestrator_nodes n
+		LEFT JOIN (
+			SELECT node_id, COUNT(*) AS owned FROM worker_registry GROUP BY node_id
+		) w ON w.node_id = n.node_id
+		WHERE n.node_id <> $1 AND n.lease_expires_at > now()
+			AND (n.max_workers = 0 OR COALESCE(w.owned, 0) < n.max_workers)
+		ORDER BY CASE WHEN n.max_workers = 0 THEN 2147483647
+			ELSE n.max_workers - COALESCE(w.owned, 0) END DESC, n.node_id
+		LIMIT 1
+	`, r.nodeID).Scan(&target)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("select spawn placement node: %w", err)
+	}
+	return target, true, nil
+}
+
+// TakeOverFailedNodeWorker CASes one connection's ownership away from a node
+// that has provably self-fenced: the previous owner's lease must still be
+// expired past the margin at the moment of transfer, so a node that came back
+// and re-registered keeps its workers.
+func (r *WorkerRegistry) TakeOverFailedNodeWorker(ctx context.Context, connectionID, previousNodeID string, takeoverMargin time.Duration) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry w SET node_id = $1
+		WHERE w.connection_id = $2 AND w.node_id = $3
+			AND w.desired_state = 'running'
+			AND EXISTS (
+				SELECT 1 FROM orchestrator_nodes n
+				WHERE n.node_id = $3 AND n.lease_expires_at + make_interval(secs => $4) <= now()
+			)
+	`, r.nodeID, connectionID, previousNodeID, takeoverMargin.Seconds())
+	if err != nil {
+		return false, fmt.Errorf("take over failed-node worker: %w", err)
+	}
+	transferred, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("inspect failed-node worker takeover: %w", err)
+	}
+	return transferred == 1, nil
 }
 
 func (r *WorkerRegistry) UpdateStatusLaunch(
@@ -571,17 +910,19 @@ func (r *WorkerRegistry) NormalizeLegacyWorkerArtifact(
 
 func (r *WorkerRegistry) GetWorker(ctx context.Context, connectionID string) (*WorkerRecord, error) {
 	row := r.db.QueryRowContext(ctx, `
-		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid
+		SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id
 		FROM worker_registry WHERE connection_id = $1
 	`, connectionID)
 	w := &WorkerRecord{}
-	err := row.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState, &w.ArtifactVersion, &w.ArtifactSHA256, &w.WorkerUID, &w.WorkerGID)
+	var nodeID sql.NullString
+	err := row.Scan(&w.ConnectionID, &w.CompanyID, &w.TenantSchema, &w.DatabaseURL, &w.PID, &w.Status, &w.StartedAt, &w.LastHeartbeat, &w.RestartCount, &w.LaunchID, &w.DesiredState, &w.ArtifactVersion, &w.ArtifactSHA256, &w.WorkerUID, &w.WorkerGID, &nodeID)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get worker: %w", err)
 	}
+	w.NodeID = nodeID.String
 	return w, nil
 }
 

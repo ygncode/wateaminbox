@@ -28,6 +28,14 @@ import {
   toDbDate,
 } from "@wateaminbox/shared";
 import { sql, type Transaction } from "kysely";
+import {
+  batchPlannedContacts,
+  isPhoneAddressableJid,
+  planParticipantContactBackfill,
+  resolveMemberPushName,
+  shouldNameExistingMember,
+} from "./group-participant-contacts.js";
+import { fetchStoredWhatsAppNames } from "./whatsapp-stored-names.js";
 import { createLogger } from "../lib/logger.js";
 import type { GroupSnapshotPayload } from "../lib/nats/index.js";
 import type { TenantDatabase } from "./tenant.service.js";
@@ -308,9 +316,175 @@ export async function syncGroupSnapshotWithin(
 
   if (participants) {
     await reconcileParticipants(trx, target.groupId, participants);
+    await backfillParticipantContacts(trx, connectionId, participants);
   }
 
   return target;
+}
+
+/**
+ * Give every phone-addressable member a contact row.
+ *
+ * Inbound group messages only ever created a contact for the GROUP, keeping the
+ * author on the message row, so a member was resolvable only if they also held
+ * a direct conversation. That is what left member identities unopenable in the
+ * group panel and the thread.
+ *
+ * Runs on the snapshot sync rather than on read: this is the transaction that
+ * already owns group membership, already holds the per-group advisory lock, and
+ * is already idempotent. Repeating it plans nothing once the rows exist, and
+ * `ON CONFLICT DO NOTHING` absorbs a member inserted concurrently by an inbound
+ * direct message.
+ *
+ * These rows carry no `conversation_states` entry, so they read as "resolved"
+ * and stay out of the default inbox until the member actually messages in.
+ */
+async function backfillParticipantContacts(
+  trx: Transaction<TenantDatabase>,
+  connectionId: string,
+  participants: Array<{ jid: string; isAdmin: boolean }>,
+): Promise<void> {
+  // Only the members that could be planned are worth asking the database
+  // about, so a group of unresolved LIDs costs no query at all.
+  const candidateJids = [
+    ...new Set(
+      participants
+        .map((participant) => normalizeJid(participant.jid))
+        .filter(
+          (jid): jid is string => jid !== null && isPhoneAddressableJid(jid),
+        ),
+    ),
+  ];
+  if (candidateJids.length === 0) return;
+
+  const [existing, connection, namesByJid] = await Promise.all([
+    trx
+      .selectFrom("contacts")
+      .select(["id", "jid", "push_name"])
+      .where("whatsapp_connection_id", "=", connectionId)
+      .where("jid", "in", candidateJids)
+      .execute(),
+    trx
+      .selectFrom("whatsapp_connections")
+      .select(["jid", "phone_number"])
+      .where("id", "=", connectionId)
+      .executeTakeFirst(),
+    resolveMemberNames(trx, connectionId, candidateJids),
+  ]);
+
+  const planned = planParticipantContactBackfill({
+    participants,
+    existingContactJids: existing
+      .map((contact) => contact.jid)
+      .filter((jid): jid is string => Boolean(jid)),
+    connectionJid:
+      connection?.jid ??
+      (connection?.phone_number
+        ? `${connection.phone_number.replace(/\D/g, "")}@s.whatsapp.net`
+        : null),
+    namesByJid,
+  });
+
+  for (const batch of batchPlannedContacts(planned)) {
+    await trx
+      .insertInto("contacts")
+      .values(
+        batch.map((contact) => ({
+          id: crypto.randomUUID(),
+          whatsapp_connection_id: connectionId,
+          jid: contact.jid,
+          phone_number: contact.phoneNumber,
+          push_name: contact.pushName,
+          is_group: false,
+          created_at: toDbDate(),
+          updated_at: toDbDate(),
+        })),
+      )
+      // The partial unique index is `(whatsapp_connection_id, jid)` where both
+      // are non-null, which every row here satisfies. Losing the race to an
+      // inbound message that created the same contact is a no-op, not an abort.
+      .onConflict((oc) =>
+        oc
+          .columns(["whatsapp_connection_id", "jid"])
+          .where("whatsapp_connection_id", "is not", null)
+          .where("jid", "is not", null)
+          .doNothing(),
+      )
+      .execute();
+  }
+
+  // Re-read after inserts so a concurrent direct-message transaction that won
+  // ON CONFLICT is included too. Naming only the pre-insert snapshot would
+  // leave that race winner bare until WhatsApp happened to send another group
+  // snapshot, which may never occur. `custom_name` remains untouched: it
+  // outranks this in every display path and is the agent's own choice.
+  const contactsToName = await trx
+    .selectFrom("contacts")
+    .select(["id", "jid", "push_name"])
+    .where("whatsapp_connection_id", "=", connectionId)
+    .where("jid", "in", candidateJids)
+    .execute();
+  for (const contact of contactsToName) {
+    if (!contact.jid || !shouldNameExistingMember(contact)) continue;
+    const pushName = resolveMemberPushName(
+      namesByJid.get(contact.jid),
+      contact.jid,
+    );
+    if (!pushName) continue;
+    await trx
+      .updateTable("contacts")
+      .set({ push_name: pushName, updated_at: toDbDate() })
+      .where("id", "=", contact.id)
+      // Re-checked in the write so a concurrent namer wins rather than being
+      // overwritten by the name this transaction read earlier.
+      //
+      // The parentheses are load-bearing: SQL binds AND tighter than OR, so an
+      // unwrapped `push_name IS NULL OR btrim(push_name) = ''` parses as
+      // `(id = $1 AND push_name IS NULL) OR btrim(push_name) = ''` and stops
+      // being scoped to this row at all - it would name EVERY blank contact in
+      // the tenant after the first member processed here.
+      .where(sql<boolean>`(push_name IS NULL OR btrim(push_name) = '')`)
+      .execute();
+  }
+}
+
+/**
+ * WhatsApp's name for each member, on this connection only.
+ *
+ * Mirrors the precedence the group panel already displays: the connection's own
+ * WhatsApp address book first, then the name carried on the member's most
+ * recent message. Both are scoped to `connectionId`, so one workspace account
+ * can never name a member using another account's address book.
+ */
+async function resolveMemberNames(
+  trx: Transaction<TenantDatabase>,
+  connectionId: string,
+  memberJids: string[],
+): Promise<Map<string, string | null>> {
+  const names = new Map<string, string | null>();
+  if (memberJids.length === 0) return names;
+
+  // The one definition of "the name WhatsApp knows", shared with the group
+  // panel's own enrichment. Copying it here instead would drop the LID join and
+  // silently disagree with the row the member was clicked on.
+  const stored = await fetchStoredWhatsAppNames(trx, connectionId, memberJids);
+  for (const [jid, name] of stored) names.set(jid, name);
+
+  const senders = await trx
+    .selectFrom("messages")
+    .select(["sender_jid", "sender_name", "timestamp"])
+    .where("whatsapp_connection_id", "=", connectionId)
+    .where("sender_jid", "in", memberJids)
+    .where("sender_name", "is not", null)
+    .orderBy("timestamp", "desc")
+    .execute();
+  for (const sender of senders) {
+    const jid = normalizeJid(sender.sender_jid);
+    if (!jid || names.has(jid)) continue;
+    if (sender.sender_name) names.set(jid, sender.sender_name);
+  }
+
+  return names;
 }
 
 /**

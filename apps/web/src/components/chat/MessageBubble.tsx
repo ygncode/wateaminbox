@@ -1,9 +1,9 @@
 import type { Message } from "@wateaminbox/shared";
 import { formatMessageTime } from "@wateaminbox/shared";
+import type { TFunction } from "i18next";
 import { Smartphone } from "lucide-react";
 import { lazy, memo, Suspense, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import type { GroupParticipant } from "@/hooks/useGroups";
@@ -11,6 +11,11 @@ import type { TeamMemberIdentity } from "@/hooks/useTeam";
 import { cn, formatPhoneLikeText } from "@/lib/utils";
 import { useMessageActions } from "../../contexts";
 import { useClickOutside } from "../../hooks/ui";
+import type { MentionParticipant } from "./group-mentions";
+import {
+  type ParticipantIdentity,
+  resolveParticipantContactId,
+} from "./group-participant-identity";
 import { LinkifiedText } from "./LinkifiedText";
 import { MessageContent } from "./MessageContent";
 import {
@@ -67,6 +72,9 @@ export function shouldShowReplyPreview(
 
 interface MessageBubbleProps {
   message: Message;
+  /** Consecutive WhatsApp album children collapsed into this bubble. */
+  albumMessages?: Message[];
+  albumExpectedCount?: number;
   isOwn: boolean;
   /** Whether the active conversation is a WhatsApp group. */
   isGroup?: boolean;
@@ -92,7 +100,7 @@ interface MessageBubbleProps {
   /** Resolved group members used to display WhatsApp mentions by name. */
   mentionParticipants?: Pick<
     GroupParticipant,
-    "jid" | "phoneNumber" | "displayName"
+    "jid" | "phoneNumber" | "mentionIds" | "displayName" | "contactId"
   >[];
   /** Navigate the thread to the original message referenced by a reply. */
   onNavigateToMessage?: (target: MessageNavigationTarget) => void;
@@ -106,6 +114,8 @@ interface MessageBubbleProps {
 
 export const MessageBubble = memo(function MessageBubble({
   message,
+  albumMessages = [message],
+  albumExpectedCount = albumMessages.length,
   isOwn,
   isGroup = false,
   currentUserId,
@@ -245,7 +255,12 @@ export const MessageBubble = memo(function MessageBubble({
       )}
 
       {isGroup && !isOwn && (
-        <GroupParticipantAvatar message={message} hidden={!isRunEnd} />
+        <GroupParticipantAvatar
+          message={message}
+          hidden={!isRunEnd}
+          participants={mentionParticipants}
+          selectionMode={selectionMode}
+        />
       )}
 
       <div
@@ -273,7 +288,11 @@ export const MessageBubble = memo(function MessageBubble({
           />
         )}
         {isGroup && !isOwn && isRunStart && !message.isDeleted && (
-          <GroupParticipantLabel message={message} />
+          <GroupParticipantLabel
+            message={message}
+            participants={mentionParticipants}
+            selectionMode={selectionMode}
+          />
         )}
 
         {/* Forwarded indicator */}
@@ -291,6 +310,7 @@ export const MessageBubble = memo(function MessageBubble({
             replyToMessageId={message.replyToMessageId}
             isOwn={isOwn}
             currentUserId={currentUserId}
+            mentionParticipants={mentionParticipants}
             onNavigateToMessage={onNavigateToMessage}
           />
         )}
@@ -309,6 +329,8 @@ export const MessageBubble = memo(function MessageBubble({
         ) : (
           <MessageContent
             message={message}
+            albumMessages={albumMessages}
+            albumExpectedCount={albumExpectedCount}
             isOwn={isOwn}
             mentionParticipants={mentionParticipants}
             enableMediaPreview={!selectionMode}
@@ -521,12 +543,14 @@ function ReplyPreview({
   replyToMessageId,
   isOwn,
   currentUserId,
+  mentionParticipants,
   onNavigateToMessage,
 }: {
   replyToMessage: Message["replyToMessage"];
   replyToMessageId: Message["replyToMessageId"];
   isOwn: boolean;
   currentUserId: string;
+  mentionParticipants: MentionParticipant[];
   onNavigateToMessage?: (target: MessageNavigationTarget) => void;
 }) {
   const { t } = useTranslation();
@@ -588,15 +612,17 @@ function ReplyPreview({
           >
             {replySender}
           </p>
-          <p
-            className={`text-xs line-clamp-2 ${
+          <LinkifiedText
+            text={replyContent}
+            isOwn={isOwn}
+            mentionParticipants={mentionParticipants}
+            enableInteractions={false}
+            className={`line-clamp-2 text-xs ${
               isOwn
                 ? "text-current opacity-70"
                 : "text-gray-700 dark:text-dark-text-secondary"
             }`}
-          >
-            {replyContent}
-          </p>
+          />
         </div>
       </div>
     </Component>
@@ -875,14 +901,24 @@ function getParticipantLabel(t: TFunction, message: Message): string {
 function GroupParticipantAvatar({
   message,
   hidden = false,
+  participants = [],
+  selectionMode = false,
 }: {
   message: Message;
   hidden?: boolean;
+  participants?: ParticipantIdentity[];
+  selectionMode?: boolean;
 }) {
   const { t } = useTranslation();
+  const { onOpenParticipantProfile } = useMessageActions();
 
   const label = getParticipantLabel(t, message);
-  return (
+  const contactId = resolveParticipantContactId(
+    message.senderJid || message.senderId,
+    participants,
+  );
+
+  const avatar = (
     <SenderAvatar
       label={label}
       identity={message.senderJid || message.senderId}
@@ -890,6 +926,32 @@ function GroupParticipantAvatar({
       side="left"
       hidden={hidden}
     />
+  );
+
+  // The gutter placeholder that keeps a run aligned carries no identity, so it
+  // must never become a control. While messages are being selected the whole
+  // row is the selection target, so the identity stops being one.
+  if (hidden || selectionMode || !contactId || !onOpenParticipantProfile) {
+    return avatar;
+  }
+
+  return (
+    <button
+      type="button"
+      // Selection mode and the long-press menu both live on the row that wraps
+      // this avatar, so the click must stop here.
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpenParticipantProfile(contactId);
+      }}
+      aria-label={t("chat.openParticipantProfile", {
+        defaultValue: "Open {{name}}'s contact info",
+        name: label,
+      })}
+      className="flex shrink-0 self-end rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/50"
+    >
+      {avatar}
+    </button>
   );
 }
 
@@ -969,20 +1031,55 @@ function SenderAvatar({
   );
 }
 
-function GroupParticipantLabel({ message }: { message: Message }) {
+function GroupParticipantLabel({
+  message,
+  participants = [],
+  selectionMode = false,
+}: {
+  message: Message;
+  participants?: ParticipantIdentity[];
+  selectionMode?: boolean;
+}) {
   const { t } = useTranslation();
+  const { onOpenParticipantProfile } = useMessageActions();
 
   const senderIdentity = message.senderJid || message.senderId;
   const label = getParticipantLabel(t, message);
   const color = getSenderColor(senderIdentity, label, participantColors);
+  const contactId = resolveParticipantContactId(senderIdentity, participants);
+
+  // A sender the workspace holds no contact for stays plain text: a control
+  // that opened an empty profile would be worse than no control. The same
+  // applies while selecting, where the row itself is the target.
+  if (selectionMode || !contactId || !onOpenParticipantProfile) {
+    return (
+      <div
+        className={`mb-1 truncate text-[13px] font-semibold leading-4 ${color}`}
+        title={senderIdentity || label}
+      >
+        {label}
+      </div>
+    );
+  }
 
   return (
-    <div
-      className={`mb-1 truncate text-[13px] font-semibold leading-4 ${color}`}
+    <button
+      type="button"
+      // The bubble itself handles click for selection mode and long-press for
+      // the context menu; this control must not hand it either.
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpenParticipantProfile(contactId);
+      }}
+      aria-label={t("chat.openParticipantProfile", {
+        defaultValue: "Open {{name}}'s contact info",
+        name: label,
+      })}
       title={senderIdentity || label}
+      className={`mb-1 block max-w-full truncate rounded text-left text-[13px] font-semibold leading-4 underline-offset-2 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/50 ${color}`}
     >
       {label}
-    </div>
+    </button>
   );
 }
 

@@ -7,7 +7,9 @@ import {
   Globe2,
   ImagePlus,
   Keyboard,
+  KeyRound,
   LoaderCircle,
+  MessageSquareHeart,
   MessageSquareText,
   Package,
   Plug,
@@ -25,8 +27,11 @@ import { toast } from "sonner";
 import { AnalyticsPreferences } from "../components/analytics";
 import { ThemeToggle } from "../components/chat/ThemeToggle";
 import { ContactImport } from "../components/contacts";
+import { FeedbackSettings } from "../components/feedback";
 import {
   AccountSettings,
+  ApiTokensSection,
+  ConnectedAppsSection,
   CatalogManager,
   LabelSyncManager,
   LanguageSwitcher,
@@ -78,7 +83,9 @@ type SettingsSection =
   | "notifications"
   | "data"
   | "appearance"
-  | "privacy";
+  | "privacy"
+  | "api-tokens"
+  | "feedback";
 
 interface SectionDefinition {
   id: SettingsSection;
@@ -96,6 +103,7 @@ const SECTION_GROUP_LABELS: Record<string, string> = {
   "Inbox tools": "settings.groups.inboxTools",
   Personal: "settings.groups.personal",
   Data: "settings.groups.data",
+  Help: "settings.groups.help",
 };
 
 function groupLabel(t: TFunction, group: string): string {
@@ -195,12 +203,30 @@ export function SettingsPage() {
       visible: productAnalytics.isConfigured(),
     },
     {
+      id: "api-tokens",
+      labelKey: "settings.sections.apiTokens",
+      label: "AI agents (MCP)",
+      group: "Personal",
+      icon: KeyRound,
+      visible: true,
+    },
+    {
       id: "data",
       labelKey: "settings.sections.data",
       label: "Data tools",
       group: "Data",
       icon: Database,
       visible: can("can_assign_contacts") || can("can_export"),
+    },
+    {
+      id: "feedback",
+      labelKey: "settings.sections.feedback",
+      label: "Send feedback",
+      group: "Help",
+      icon: MessageSquareHeart,
+      // Always reachable: the floating feedback tab can be dismissed for good,
+      // so this is the durable way back to the form.
+      visible: true,
     },
   ];
   const visibleSections = sections.filter((item) => item.visible);
@@ -396,6 +422,21 @@ function SettingsSectionContent({
           <CatalogManager />
         </Panel>
       );
+    case "api-tokens":
+      return (
+        <Panel
+          title={t("settings.apiTokensPanel.title", "AI agents (MCP)")}
+          description={t(
+            "settings.apiTokensPanel.description",
+            "Connect AI agents to this workspace through the MCP endpoint with personal, revocable tokens.",
+          )}
+        >
+          <div className="space-y-8">
+            <ConnectedAppsSection key={`apps-${workspaceId}`} />
+            <ApiTokensSection key={workspaceId} />
+          </div>
+        </Panel>
+      );
     case "notifications":
       return <NotificationSettings />;
     case "appearance":
@@ -414,6 +455,18 @@ function SettingsSectionContent({
       );
     case "data":
       return <DataSettings />;
+    case "feedback":
+      return (
+        <Panel
+          title={t("settings.feedbackPanel.title", "Send feedback")}
+          description={t(
+            "settings.feedbackPanel.description",
+            "Tell us what's working and what we can improve. Feedback reaches the team directly, and this form stays here even if you dismissed the floating feedback tab.",
+          )}
+        >
+          <FeedbackSettings />
+        </Panel>
+      );
   }
 }
 

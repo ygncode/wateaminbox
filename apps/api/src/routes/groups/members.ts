@@ -16,10 +16,7 @@ import { type Context, Hono } from "hono";
 import { badRequest, conflict } from "../../lib/errors.js";
 import type { NatsCommandPublisher } from "../../lib/nats/command-builder.js";
 import { successWithMessage } from "../../lib/response.js";
-import {
-  groupParticipantsSchema,
-  participantJidSchema,
-} from "../../lib/schemas/index.js";
+import { groupParticipantsSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
@@ -61,16 +58,10 @@ interface ParticipantMutation {
   ) => Promise<void>;
 }
 
-interface MutateOptions {
-  /** Echoes the singular field the deprecated routes used to return. */
-  legacyParticipantJid?: string;
-}
-
 async function mutateParticipants(
   c: Context,
   participantJids: string[],
   mutation: ParticipantMutation,
-  options: MutateOptions = {},
 ): Promise<Response> {
   const { tenantDb, companyId, user } = getRouteContext(c);
 
@@ -145,13 +136,7 @@ async function mutateParticipants(
   return successWithMessage(
     c,
     "Requested from WhatsApp. Members update once WhatsApp confirms the change.",
-    {
-      participantJids,
-      ...(options.legacyParticipantJid
-        ? { participantJid: options.legacyParticipantJid }
-        : {}),
-      pending: true,
-    },
+    { participantJids, pending: true },
   );
 }
 
@@ -275,56 +260,4 @@ memberRoutes.post(
   zValidator("json", groupParticipantsSchema),
   async (c) =>
     mutateParticipants(c, c.req.valid("json").participantJids, DEMOTE_MUTATION),
-);
-
-/**
- * Compatibility wrappers for the single-participant routes this suite replaced.
- *
- * The batch routes above are the current shape, but the old per-participant
- * paths were a published API. They are kept as thin adapters - same guards,
- * same command, one-element batch - so an external client that still calls them
- * keeps working instead of silently 404-ing. The `Deprecation` header points
- * callers at the replacement, matching how message-send handles its own legacy
- * surface.
- *
- * What did change, and cannot be preserved, is the MEANING of a 200: these
- * routes used to answer once the change was applied locally, and now answer
- * once it has been requested from WhatsApp. `pending: true` says so explicitly,
- * and the singular `participantJid` the old shape returned is echoed back
- * alongside the batch field so a client reading either key still works.
- */
-function legacyParticipantHandler(mutation: ParticipantMutation) {
-  return async (c: Context): Promise<Response> => {
-    c.header("Deprecation", "true");
-    c.header("Link", '</api/groups>; rel="successor-version"');
-
-    // Hono has already percent-decoded the path parameter, and it does so with
-    // a decoder that returns the raw string rather than throwing. Decoding
-    // again here would throw a URIError on a lone `%` and surface as a 500
-    // instead of the 400 this validation exists to produce.
-    const parsed = participantJidSchema.safeParse(
-      c.req.param("participantJid") ?? "",
-    );
-    if (!parsed.success) {
-      return badRequest(c, "Participant must be a WhatsApp user JID");
-    }
-    return mutateParticipants(c, [parsed.data], mutation, {
-      legacyParticipantJid: parsed.data,
-    });
-  };
-}
-
-memberRoutes.post(
-  "/:id/participants/:participantJid/promote",
-  legacyParticipantHandler(PROMOTE_MUTATION),
-);
-
-memberRoutes.post(
-  "/:id/participants/:participantJid/demote",
-  legacyParticipantHandler(DEMOTE_MUTATION),
-);
-
-memberRoutes.delete(
-  "/:id/participants/:participantJid",
-  legacyParticipantHandler(REMOVE_MUTATION),
 );

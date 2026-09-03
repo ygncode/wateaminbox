@@ -1,5 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { app } from "./app.js";
+import { app, shouldSkipGlobalRateLimit } from "./app.js";
+
+describe("global rate-limit routing", () => {
+  test("leaves sensitive auth endpoints to their dedicated limiters", () => {
+    expect(shouldSkipGlobalRateLimit("/api/auth/login")).toBe(true);
+    expect(shouldSkipGlobalRateLimit("/api/auth/register")).toBe(true);
+    expect(shouldSkipGlobalRateLimit("/api/auth/refresh")).toBe(true);
+    expect(shouldSkipGlobalRateLimit("/api/contacts")).toBe(false);
+  });
+});
 
 describe("CORS", () => {
   test("allows the realtime client header for action requests", async () => {
