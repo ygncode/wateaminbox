@@ -21,11 +21,11 @@
   },
   "dependencies": {
     "@wateaminbox/shared": "workspace:*",
-    "kysely": "^0.28.17",
-    "pg": "^8.11.3"
+    "kysely": "^0.29.5",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
-    "@types/pg": "^8.10.9",
+    "@types/pg": "^8.23.1",
     "typescript": "^5.7.2",
     "tsup": "^8.0.1",
     "kysely-codegen": "^0.20.0"
