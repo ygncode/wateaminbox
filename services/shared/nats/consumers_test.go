@@ -197,14 +197,23 @@ func TestEnsureEventsStreamCreatesStreamAndConsumer(t *testing.T) {
 	if fake.added == nil {
 		t.Fatal("events stream was not created")
 	}
-	if fake.addedConsumer == nil {
-		t.Fatal("API events consumer was not created; events published before the API starts would be dropped")
+	// EnsureEventsStream registers the critical/transient split on a fresh
+	// stream - see TestEnsureEventsStreamCreatesOnlyCriticalAndTransientConsumers
+	// for the full set and TestEnsureEventsStreamDoesNotCreateLegacyConsumer
+	// for the explicit "no legacy on a fresh install" guarantee. This test
+	// keeps its original, narrower scope: at least one durable consumer must
+	// exist so events published before the API starts are never dropped.
+	critical := fake.addedConsumers[APICriticalEventsConsumer]
+	if critical == nil {
+		t.Fatal("API critical events consumer was not created; events published before the API starts would be dropped")
 	}
-	if got := fake.addedConsumer.Durable; got != APIEventsConsumer {
-		t.Errorf("created consumer %q, want %q", got, APIEventsConsumer)
+	if got := critical.Durable; got != APICriticalEventsConsumer {
+		t.Errorf("created consumer %q, want %q", got, APICriticalEventsConsumer)
 	}
-	if len(fake.consumerStreams) != 1 || fake.consumerStreams[0] != StreamEvents {
-		t.Errorf("consumer attached to %v, want [%s]", fake.consumerStreams, StreamEvents)
+	for _, stream := range fake.consumerStreams {
+		if stream != StreamEvents {
+			t.Errorf("consumer attached to %v, want every entry to be %s", fake.consumerStreams, StreamEvents)
+		}
 	}
 }
 
@@ -224,5 +233,262 @@ func TestEnsureAPIEventsConsumerKeepsExistingConsumer(t *testing.T) {
 	}
 	if fake.addedConsumer != nil {
 		t.Error("EnsureAPIEventsConsumer recreated an existing durable consumer")
+	}
+}
+
+// --- Critical/transient consumer split --------------------------------
+
+// allEventSubjectPatterns is every Subject* pattern defined in subjects.go
+// that lives under WHATSAPP.events.>. Extend this map (and
+// apiCriticalEventSubjectPatterns or apiTransientEventSubjectPatterns) when
+// a new one is added; TestAPICriticalAndTransientFilterSubjectsCoverAllEventSubjects
+// fails otherwise instead of silently leaking an uncovered subject.
+func allEventSubjectPatterns() map[string]string {
+	return map[string]string{
+		"qr":                SubjectQR,
+		"status":            SubjectStatus,
+		"message":           SubjectMessage,
+		"receipt":           SubjectReceipt,
+		"presence":          SubjectPresence,
+		"contact":           SubjectContact,
+		"profile_picture":   SubjectProfilePicture,
+		"message_revoke":    SubjectMessageRevoke,
+		"send_confirmation": SubjectSendConfirm,
+		"typing":            SubjectTyping,
+		"reaction":          SubjectReaction,
+		"sync_status":       SubjectSyncStatus,
+		"history_sync_page": SubjectHistorySyncPage,
+		"labels":            SubjectLabels,
+		"catalogs":          SubjectCatalogs,
+		"catalog_products":  SubjectCatalogProducts,
+		"command_result":    SubjectCommandResult,
+		"group":             SubjectGroup,
+		"download_response": SubjectDownloadResponse,
+		"connection_status": SubjectConnectionStatus,
+	}
+}
+
+func TestAPICriticalAndTransientFilterSubjectsAreDisjoint(t *testing.T) {
+	seen := map[string]bool{}
+	for _, s := range apiCriticalEventSubjectPatterns {
+		seen[s] = true
+	}
+	for _, s := range apiTransientEventSubjectPatterns {
+		if seen[s] {
+			t.Errorf("subject pattern %q is in both the critical and transient filter lists; a consumer split must not double-deliver", s)
+		}
+	}
+}
+
+// Every subject the current single-consumer filter covers must land in
+// exactly one of the two new consumers, or the split silently drops
+// (uncovered) or double-processes (covered twice) events.
+func TestAPICriticalAndTransientFilterSubjectsCoverAllEventSubjects(t *testing.T) {
+	critical := map[string]bool{}
+	for _, s := range apiCriticalEventSubjectPatterns {
+		critical[s] = true
+	}
+	transient := map[string]bool{}
+	for _, s := range apiTransientEventSubjectPatterns {
+		transient[s] = true
+	}
+
+	for name, pattern := range allEventSubjectPatterns() {
+		t.Run(name, func(t *testing.T) {
+			inCritical := critical[pattern]
+			inTransient := transient[pattern]
+			if inCritical == inTransient {
+				t.Fatalf("subject pattern %q (%s) must be covered by exactly one of apiCriticalEventSubjectPatterns/apiTransientEventSubjectPatterns; critical=%v transient=%v",
+					pattern, name, inCritical, inTransient)
+			}
+
+			subject := fmt.Sprintf(pattern, "company-1", "connection-1")
+			wantFilters := APICriticalEventsConsumerConfig().FilterSubjects
+			if inTransient {
+				wantFilters = APITransientEventsConsumerConfig().FilterSubjects
+			}
+			matched := false
+			for _, filter := range wantFilters {
+				if subjectMatches(filter, subject) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				t.Fatalf("%q is not matched by the expected consumer's FilterSubjects %v", subject, wantFilters)
+			}
+		})
+	}
+}
+
+func TestAPICriticalEventsConsumerConfigMatchesAPIClient(t *testing.T) {
+	cfg := APICriticalEventsConsumerConfig()
+
+	if cfg.Durable != "whatsapp-api-critical-events-v1" {
+		t.Errorf("Durable = %q, want %q", cfg.Durable, "whatsapp-api-critical-events-v1")
+	}
+	if cfg.DeliverSubject != "WHATSAPP.api.critical-events.delivery" {
+		t.Errorf("DeliverSubject = %q, want %q", cfg.DeliverSubject, "WHATSAPP.api.critical-events.delivery")
+	}
+	if cfg.DeliverGroup != "whatsapp-api-critical-events" {
+		t.Errorf("DeliverGroup = %q, want %q", cfg.DeliverGroup, "whatsapp-api-critical-events")
+	}
+	if cfg.AckWait != 60*time.Second {
+		t.Errorf("AckWait = %v, want 60s", cfg.AckWait)
+	}
+	if cfg.MaxDeliver != 10 {
+		t.Errorf("MaxDeliver = %d, want 10", cfg.MaxDeliver)
+	}
+	if cfg.MaxAckPending != 128 {
+		t.Errorf("MaxAckPending = %d, want 128", cfg.MaxAckPending)
+	}
+	if cfg.DeliverPolicy != nats.DeliverNewPolicy {
+		t.Errorf("DeliverPolicy = %v, want %v", cfg.DeliverPolicy, nats.DeliverNewPolicy)
+	}
+	if cfg.FilterSubject != "" {
+		t.Errorf("FilterSubject = %q, want empty (must use FilterSubjects)", cfg.FilterSubject)
+	}
+	if len(cfg.FilterSubjects) == 0 {
+		t.Fatal("FilterSubjects is empty")
+	}
+}
+
+func TestAPITransientEventsConsumerConfigMatchesAPIClient(t *testing.T) {
+	cfg := APITransientEventsConsumerConfig()
+
+	if cfg.Durable != "whatsapp-api-transient-events-v1" {
+		t.Errorf("Durable = %q, want %q", cfg.Durable, "whatsapp-api-transient-events-v1")
+	}
+	if cfg.DeliverSubject != "WHATSAPP.api.transient-events.delivery" {
+		t.Errorf("DeliverSubject = %q, want %q", cfg.DeliverSubject, "WHATSAPP.api.transient-events.delivery")
+	}
+	if cfg.DeliverGroup != "whatsapp-api-transient-events" {
+		t.Errorf("DeliverGroup = %q, want %q", cfg.DeliverGroup, "whatsapp-api-transient-events")
+	}
+	if cfg.AckWait != 30*time.Second {
+		t.Errorf("AckWait = %v, want 30s", cfg.AckWait)
+	}
+	if cfg.MaxDeliver != 5 {
+		t.Errorf("MaxDeliver = %d, want 5", cfg.MaxDeliver)
+	}
+	if cfg.MaxAckPending != 1024 {
+		t.Errorf("MaxAckPending = %d, want 1024", cfg.MaxAckPending)
+	}
+	if cfg.DeliverPolicy != nats.DeliverNewPolicy {
+		t.Errorf("DeliverPolicy = %v, want %v", cfg.DeliverPolicy, nats.DeliverNewPolicy)
+	}
+	want := []string{
+		fmt.Sprintf(SubjectPresence, "*", "*"),
+		fmt.Sprintf(SubjectTyping, "*", "*"),
+	}
+	if len(cfg.FilterSubjects) != len(want) {
+		t.Fatalf("FilterSubjects = %v, want %v", cfg.FilterSubjects, want)
+	}
+	for i, s := range want {
+		if cfg.FilterSubjects[i] != s {
+			t.Errorf("FilterSubjects[%d] = %q, want %q", i, cfg.FilterSubjects[i], s)
+		}
+	}
+}
+
+// A fresh install (no pre-existing consumers) must get exactly the two new
+// durables and nothing else - the legacy consumer only ever exists on a
+// deployment that already had it before this split shipped.
+func TestEnsureEventsStreamCreatesOnlyCriticalAndTransientConsumers(t *testing.T) {
+	fake := &fakeJetStream{}
+
+	if err := EnsureEventsStream(fake); err != nil {
+		t.Fatalf("EnsureEventsStream: %v", err)
+	}
+
+	for _, durable := range []string{APICriticalEventsConsumer, APITransientEventsConsumer} {
+		if _, ok := fake.addedConsumers[durable]; !ok {
+			t.Errorf("EnsureEventsStream did not create durable consumer %q", durable)
+		}
+	}
+	if len(fake.addedConsumers) != 2 {
+		t.Errorf("addedConsumers = %v, want exactly 2 durables (fresh installs need only the critical/transient split)", fake.addedConsumers)
+	}
+}
+
+// Complements the test above: explicitly pins that a fresh install never
+// gets the legacy durable, since EnsureEventsStream no longer calls
+// EnsureAPIEventsConsumer.
+func TestEnsureEventsStreamDoesNotCreateLegacyConsumerOnFreshInstall(t *testing.T) {
+	fake := &fakeJetStream{}
+
+	if err := EnsureEventsStream(fake); err != nil {
+		t.Fatalf("EnsureEventsStream: %v", err)
+	}
+
+	if _, ok := fake.addedConsumers[APIEventsConsumer]; ok {
+		t.Errorf("EnsureEventsStream created the legacy consumer %q on a fresh install; fresh installs must not get it", APIEventsConsumer)
+	}
+	if _, err := fake.ConsumerInfo(StreamEvents, APIEventsConsumer); err == nil {
+		t.Error("legacy consumer is registered after a fresh EnsureEventsStream run, want ErrConsumerNotFound")
+	} else if err != nats.ErrConsumerNotFound {
+		t.Errorf("ConsumerInfo(legacy) error = %v, want ErrConsumerNotFound", err)
+	}
+}
+
+// Matching existing durables are kept so their acknowledgement floors are
+// never reset. A mismatch fails closed: accepting a narrower filter could make
+// API readiness healthy while critical events are silently discarded.
+func TestEnsureSplitEventsConsumersKeepMatchingExistingConsumers(t *testing.T) {
+	critical := *APICriticalEventsConsumerConfig()
+	transient := *APITransientEventsConsumerConfig()
+	fake := &fakeJetStream{existingConsumers: map[string]*nats.ConsumerInfo{
+		APICriticalEventsConsumer:  {Stream: StreamEvents, Name: APICriticalEventsConsumer, Config: critical},
+		APITransientEventsConsumer: {Stream: StreamEvents, Name: APITransientEventsConsumer, Config: transient},
+	}}
+
+	if err := EnsureEventsStream(fake); err != nil {
+		t.Fatalf("EnsureEventsStream: %v", err)
+	}
+	if len(fake.addedConsumers) != 0 {
+		t.Errorf("matching existing consumers were recreated: %v", fake.addedConsumers)
+	}
+}
+
+func TestEnsureSplitEventsConsumerRejectsConfigurationMismatch(t *testing.T) {
+	existing := *APICriticalEventsConsumerConfig()
+	existing.FilterSubjects = existing.FilterSubjects[1:]
+	fake := &fakeJetStream{existingConsumers: map[string]*nats.ConsumerInfo{
+		APICriticalEventsConsumer: {Stream: StreamEvents, Name: APICriticalEventsConsumer, Config: existing},
+	}}
+
+	if err := EnsureAPICriticalEventsConsumer(fake); err == nil {
+		t.Fatal("EnsureAPICriticalEventsConsumer accepted a mismatched filter configuration")
+	}
+	if fake.addedConsumers[APICriticalEventsConsumer] != nil {
+		t.Error("EnsureAPICriticalEventsConsumer recreated a mismatched durable")
+	}
+}
+
+// Documents the intentional cutover invariant for a deployment that already
+// has the legacy consumer registered from before this split shipped:
+// EnsureEventsStream must neither delete it nor recreate/touch it in any
+// way. Retirement is a separate, explicitly confirmed manual production step
+// (see the comment above APICriticalEventsConsumer in consumers.go), never a
+// side effect of this function running again on a later deploy.
+func TestEnsureEventsStreamLeavesPreExistingLegacyConsumerUntouched(t *testing.T) {
+	existingLegacy := *APIEventsConsumerConfig()
+	fake := &fakeJetStream{existingConsumers: map[string]*nats.ConsumerInfo{
+		APIEventsConsumer: {Stream: StreamEvents, Name: APIEventsConsumer, Config: existingLegacy},
+	}}
+
+	if err := EnsureEventsStream(fake); err != nil {
+		t.Fatalf("EnsureEventsStream: %v", err)
+	}
+
+	if _, ok := fake.addedConsumers[APIEventsConsumer]; ok {
+		t.Error("EnsureEventsStream touched/recreated the pre-existing legacy consumer")
+	}
+	info, err := fake.ConsumerInfo(StreamEvents, APIEventsConsumer)
+	if err != nil {
+		t.Fatalf("pre-existing legacy consumer should remain registered until manually deleted: %v", err)
+	}
+	if info.Config.FilterSubject != APIEventsFilterSubject {
+		t.Errorf("legacy consumer FilterSubject = %q, want unchanged %q", info.Config.FilterSubject, APIEventsFilterSubject)
 	}
 }

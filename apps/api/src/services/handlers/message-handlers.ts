@@ -809,7 +809,19 @@ export async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
     // Note: We store the WhatsApp message ID in message_id column.
     const updatedMessage = await tenantDb
       .updateTable("messages")
-      .set({ status: dbStatus })
+      .set({
+        status: dbStatus,
+        // A delayed receipt can prove that a cleanup timeout was a false
+        // failure. Preserve unrelated metadata (document names, protocol
+        // sender identity, etc.) while removing only the stale timeout marker.
+        metadata: sql<Record<string, unknown> | null>`CASE
+          WHEN metadata->>'error' = 'delivery_timeout' THEN NULLIF(
+            metadata - ARRAY['error', 'error_message', 'failed_at'],
+            '{}'::jsonb
+          )
+          ELSE metadata
+        END`,
+      })
       .where("message_id", "=", payload.messageId)
       .where("whatsapp_connection_id", "=", connectionId)
       .where("from_me", "=", true)
@@ -883,6 +895,16 @@ export async function handleSendConfirmationEvent(
         status: sql<MessageStatus>`CASE
           WHEN status IN ('delivered', 'read') THEN status
           ELSE 'sent'::message_status
+        END`,
+        // The worker result is authoritative: WhatsApp accepted the send.
+        // Clear a timeout written while its confirmation was waiting behind
+        // other events, without discarding unrelated message metadata.
+        metadata: sql<Record<string, unknown> | null>`CASE
+          WHEN metadata->>'error' = 'delivery_timeout' THEN NULLIF(
+            metadata - ARRAY['error', 'error_message', 'failed_at'],
+            '{}'::jsonb
+          )
+          ELSE metadata
         END`,
       })
       .where("message_id", "=", payload.pendingMessageId)

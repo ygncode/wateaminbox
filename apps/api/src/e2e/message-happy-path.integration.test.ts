@@ -2,10 +2,13 @@ import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { sql } from "kysely";
 import { app } from "../app.js";
-import type { SendConfirmationEvent } from "../lib/nats/index.js";
+import type { ReceiptEvent, SendConfirmationEvent } from "../lib/nats/index.js";
 import { hashPassword } from "../lib/password.js";
 import { createCompany } from "../services/company/core.js";
-import { handleSendConfirmationEvent } from "../services/handlers/message-handlers.js";
+import {
+  handleReceiptEvent,
+  handleSendConfirmationEvent,
+} from "../services/handlers/message-handlers.js";
 import {
   clearTenantConnection,
   getSchemaName,
@@ -123,6 +126,23 @@ describe("login to send confirmation happy path", () => {
         };
         expect(sent.message.status).toBe("pending");
 
+        // Simulate the cleanup race from production: WhatsApp accepted the
+        // send, but its confirmation was delayed behind other events long
+        // enough for the API to record a timeout first.
+        await tenantDb
+          .updateTable("messages")
+          .set({
+            status: "failed",
+            metadata: {
+              error: "delivery_timeout",
+              error_message: "Message delivery timed out after 5 minutes",
+              failed_at: new Date().toISOString(),
+              preserved: "message metadata",
+            },
+          })
+          .where("id", "=", sent.message.id)
+          .execute();
+
         await handleSendConfirmationEvent({
           contractVersion: 1,
           type: "send_confirmation",
@@ -138,12 +158,51 @@ describe("login to send confirmation happy path", () => {
 
         const confirmed = await tenantDb
           .selectFrom("messages")
-          .select(["message_id", "status"])
+          .select(["message_id", "status", "metadata"])
           .where("id", "=", sent.message.id)
           .executeTakeFirstOrThrow();
         expect(confirmed).toEqual({
           message_id: "whatsapp-confirmed-id",
           status: "sent",
+          metadata: { preserved: "message metadata" },
+        });
+
+        // Receipts are another authoritative late-success path and must repair
+        // the same stale timeout metadata without losing unrelated fields.
+        await tenantDb
+          .updateTable("messages")
+          .set({
+            status: "failed",
+            metadata: {
+              error: "delivery_timeout",
+              error_message: "Message delivery timed out after 5 minutes",
+              failed_at: new Date().toISOString(),
+              preserved: "message metadata",
+            },
+          })
+          .where("id", "=", sent.message.id)
+          .execute();
+        await handleReceiptEvent({
+          contractVersion: 1,
+          type: "receipt",
+          companyId,
+          connectionId,
+          payload: {
+            messageId: "whatsapp-confirmed-id",
+            status: "delivered",
+            timestamp: new Date().toISOString(),
+          },
+          timestamp: new Date().toISOString(),
+        } satisfies ReceiptEvent);
+
+        const delivered = await tenantDb
+          .selectFrom("messages")
+          .select(["status", "metadata"])
+          .where("id", "=", sent.message.id)
+          .executeTakeFirstOrThrow();
+        expect(delivered).toEqual({
+          status: "delivered",
+          metadata: { preserved: "message metadata" },
         });
       } finally {
         if (companyId) {

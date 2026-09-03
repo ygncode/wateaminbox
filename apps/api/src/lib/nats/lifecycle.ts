@@ -1,24 +1,31 @@
 import {
   type ConnectionOptions,
+  connect,
   type JetStreamClient,
   type JetStreamSubscription,
   JSONCodec,
   type JsMsg,
   type NatsConnection,
-  connect,
 } from "nats";
 import { env } from "../env.js";
 import { createLogger, formatError } from "../logger.js";
 import {
-  PermanentEventError,
+  API_CRITICAL_EVENT_FILTER_SUBJECTS,
+  API_CRITICAL_EVENTS_IDENTITY,
+  API_CRITICAL_EVENTS_TUNING,
+  API_TRANSIENT_EVENT_FILTER_SUBJECTS,
+  API_TRANSIENT_EVENTS_IDENTITY,
+  API_TRANSIENT_EVENTS_TUNING,
   buildEventConsumerOptions,
+  type EventConsumerIdentity,
+  type EventConsumerTuning,
+  PermanentEventError,
   parseWhatsAppEvent,
 } from "./client.js";
 import type { WhatsAppEvent } from "./types/index.js";
 
 const logger = createLogger("NatsLifecycle");
 
-const API_EVENTS_SUBJECT = "WHATSAPP.events.>";
 const API_EVENTS_DEAD_LETTER_SUBJECT = "WHATSAPP.dead_letter.api_events";
 
 const INITIAL_RETRY_MS = 1_000;
@@ -33,14 +40,33 @@ type ConnectionState =
   | "closed"
   | "shutting_down";
 
+/**
+ * Two independent event consumer loops - see APICriticalEventsConsumer /
+ * APITransientEventsConsumer in services/shared/nats/consumers.go for the
+ * full rationale. "critical" carries message/receipt/send_confirmation/...;
+ * "transient" carries presence/typing. Splitting them means a presence
+ * storm on the transient loop cannot delay processing on the critical loop.
+ */
+type EventLoopName = "critical" | "transient";
+const EVENT_LOOP_NAMES: EventLoopName[] = ["critical", "transient"];
+
+interface EventLoopReadiness {
+  active: boolean;
+  generation: number | null;
+  lastExitAt: string | null;
+  lastError: string | null;
+}
+
 export interface NatsReadinessState {
   nats: { connected: boolean; state: ConnectionState; generation: number };
-  eventConsumer: {
-    active: boolean;
-    generation: number | null;
-    lastExitAt: string | null;
-    lastError: string | null;
-  };
+  // The critical loop's own readiness, kept under this name for backward
+  // compatibility with existing readers (apps/api/src/routes/health.ts).
+  // Deliberately NOT merged with the transient loop: presence/typing are
+  // loss-tolerant, so a transient-loop outage must not fail readiness and
+  // pull an otherwise-healthy replica out of rotation. See eventConsumers
+  // below for the transient loop's own detail.
+  eventConsumer: EventLoopReadiness;
+  eventConsumers: Record<EventLoopName, EventLoopReadiness>;
 }
 
 const jc = JSONCodec<unknown>();
@@ -65,7 +91,9 @@ export function parseNatsServerAuth(input: string): {
       }
       authenticated = true;
       if (!parsedUser || !parsedPass) {
-        throw new Error("NATS_URL credentials require both username and password");
+        throw new Error(
+          "NATS_URL credentials require both username and password",
+        );
       }
       if (user !== undefined && (user !== parsedUser || pass !== parsedPass)) {
         throw new Error("NATS_URL servers must use the same credentials");
@@ -84,6 +112,55 @@ export function parseNatsServerAuth(input: string): {
   return { servers, user, pass };
 }
 
+interface EventLoopConfig {
+  identity: EventConsumerIdentity;
+  filterSubjects: string[];
+  tuning: EventConsumerTuning;
+}
+
+interface EventLoopState {
+  subscription: JetStreamSubscription | null;
+  subscriptionGeneration: number | null;
+  active: boolean;
+  lastExitAt: Date | null;
+  lastError: string | null;
+  supervisorPromise: Promise<void> | null;
+}
+
+function newEventLoopState(): EventLoopState {
+  return {
+    subscription: null,
+    subscriptionGeneration: null,
+    active: false,
+    lastExitAt: null,
+    lastError: null,
+    supervisorPromise: null,
+  };
+}
+
+// A function rather than a module-level object: client.ts and lifecycle.ts
+// import from each other (client.ts needs natsLifecycle; lifecycle.ts needs
+// these consumer identities), and a top-level object literal evaluated
+// during that circular load can observe the other module's const exports
+// before they are initialized. Evaluating this lazily, only once the class's
+// methods actually run, sidesteps the ordering entirely.
+function eventLoopConfig(name: EventLoopName): EventLoopConfig {
+  switch (name) {
+    case "critical":
+      return {
+        identity: API_CRITICAL_EVENTS_IDENTITY,
+        filterSubjects: API_CRITICAL_EVENT_FILTER_SUBJECTS,
+        tuning: API_CRITICAL_EVENTS_TUNING,
+      };
+    case "transient":
+      return {
+        identity: API_TRANSIENT_EVENTS_IDENTITY,
+        filterSubjects: API_TRANSIENT_EVENT_FILTER_SUBJECTS,
+        tuning: API_TRANSIENT_EVENTS_TUNING,
+      };
+  }
+}
+
 export class NatsLifecycleManager {
   private connection: NatsConnection | null = null;
   private jsClient: JetStreamClient | null = null;
@@ -91,14 +168,12 @@ export class NatsLifecycleManager {
   private generation = 0;
   private state: ConnectionState = "disconnected";
 
-  private eventSubscription: JetStreamSubscription | null = null;
-  private eventSubscriptionGeneration: number | null = null;
-  private consumerActive = false;
-  private lastConsumerExitAt: Date | null = null;
-  private lastConsumerError: string | null = null;
+  private loops: Record<EventLoopName, EventLoopState> = {
+    critical: newEventLoopState(),
+    transient: newEventLoopState(),
+  };
 
   private shutdownController = new AbortController();
-  private supervisorPromise: Promise<void> | null = null;
   private connectPromise: Promise<NatsConnection> | null = null;
 
   private connectFn: ConnectFn;
@@ -232,16 +307,34 @@ export class NatsLifecycleManager {
     return this.jsClient;
   }
 
+  /**
+   * Starts both event consumer loops. Idempotent per loop: calling this
+   * again while a loop's supervisor is already running does not start a
+   * second one for that loop.
+   */
   startEventSupervisor(
     callback: (event: WhatsAppEvent) => void | Promise<void>,
   ): void {
-    if (this.supervisorPromise) return;
-    this.supervisorPromise = this.runSupervisor(callback);
+    for (const name of EVENT_LOOP_NAMES) {
+      this.startLoop(name, callback);
+    }
+  }
+
+  private startLoop(
+    name: EventLoopName,
+    callback: (event: WhatsAppEvent) => void | Promise<void>,
+  ): void {
+    const loop = this.loops[name];
+    if (loop.supervisorPromise) return;
+    loop.supervisorPromise = this.runSupervisor(name, callback);
   }
 
   private async runSupervisor(
+    name: EventLoopName,
     callback: (event: WhatsAppEvent) => void | Promise<void>,
   ): Promise<void> {
+    const loop = this.loops[name];
+    const config = eventLoopConfig(name);
     let retryMs = INITIAL_RETRY_MS;
 
     while (!this.shutdownController.signal.aborted) {
@@ -250,36 +343,39 @@ export class NatsLifecycleManager {
         const gen = this.generation;
 
         const subscription = await js.subscribe(
-          API_EVENTS_SUBJECT,
-          buildEventConsumerOptions(API_EVENTS_SUBJECT),
+          config.filterSubjects[0],
+          buildEventConsumerOptions(
+            config.filterSubjects,
+            config.identity,
+            config.tuning,
+          ),
         );
-        this.eventSubscription = subscription;
-        this.eventSubscriptionGeneration = gen;
-        this.consumerActive = true;
+        loop.subscription = subscription;
+        loop.subscriptionGeneration = gen;
+        loop.active = true;
         retryMs = INITIAL_RETRY_MS;
 
         logger.info(
-          { generation: gen },
+          { generation: gen, loop: name, durable: config.identity.durable },
           "Event consumer subscribed and active",
         );
 
-        await this.processMessages(subscription, js, callback);
+        await this.processMessages(name, subscription, js, callback);
       } catch (err) {
         if (this.shutdownController.signal.aborted) break;
 
-        this.lastConsumerError =
-          err instanceof Error ? err.message : String(err);
+        loop.lastError = err instanceof Error ? err.message : String(err);
 
         logger.error(
-          { ...formatError(err), retryMs },
+          { ...formatError(err), retryMs, loop: name },
           "Event consumer exited; retrying",
         );
       }
 
-      this.consumerActive = false;
-      this.lastConsumerExitAt = new Date();
-      this.eventSubscription = null;
-      this.eventSubscriptionGeneration = null;
+      loop.active = false;
+      loop.lastExitAt = new Date();
+      loop.subscription = null;
+      loop.subscriptionGeneration = null;
 
       if (this.shutdownController.signal.aborted) break;
 
@@ -288,21 +384,23 @@ export class NatsLifecycleManager {
       retryMs = Math.min(retryMs * BACKOFF_FACTOR, MAX_RETRY_MS);
     }
 
-    this.consumerActive = false;
+    loop.active = false;
   }
 
   private async processMessages(
+    name: EventLoopName,
     subscription: JetStreamSubscription,
     js: JetStreamClient,
     callback: (event: WhatsAppEvent) => void | Promise<void>,
   ): Promise<void> {
     for await (const msg of subscription) {
       if (this.shutdownController.signal.aborted) break;
-      await this.handleMessage(msg, js, callback);
+      await this.handleMessage(name, msg, js, callback);
     }
   }
 
   private async handleMessage(
+    name: EventLoopName,
     msg: JsMsg,
     js: JetStreamClient,
     callback: (event: WhatsAppEvent) => void | Promise<void>,
@@ -312,13 +410,16 @@ export class NatsLifecycleManager {
       try {
         event = parseWhatsAppEvent(jc.decode(msg.data));
       } catch (error) {
-        logger.error(formatError(error), "Terminating invalid NATS event");
+        logger.error(
+          { ...formatError(error), loop: name },
+          "Terminating invalid NATS event",
+        );
         try {
           await this.publishDeadLetter(js, msg, error, 1);
           msg.term();
         } catch (deadLetterError) {
           logger.error(
-            formatError(deadLetterError),
+            { ...formatError(deadLetterError), loop: name },
             "Failed to persist invalid event to dead-letter stream",
           );
           msg.nak(1_000);
@@ -329,17 +430,21 @@ export class NatsLifecycleManager {
       msg.ack();
     } catch (error) {
       const deliveries = msg.info?.redeliveryCount ?? 0;
+      // nats.js exposes the one-based JetStream delivery count under the
+      // redeliveryCount property. Terminate only after the configured final
+      // attempt has actually run.
+      const maxDeliver = eventLoopConfig(name).tuning.maxDeliver;
       logger.error(
-        { ...formatError(error), deliveries },
+        { ...formatError(error), deliveries, loop: name, maxDeliver },
         "Error processing message; scheduling redelivery",
       );
-      if (error instanceof PermanentEventError || deliveries >= 9) {
+      if (error instanceof PermanentEventError || deliveries >= maxDeliver) {
         try {
-          await this.publishDeadLetter(js, msg, error, deliveries + 1);
+          await this.publishDeadLetter(js, msg, error, deliveries);
           msg.term();
         } catch (deadLetterError) {
           logger.error(
-            formatError(deadLetterError),
+            { ...formatError(deadLetterError), loop: name },
             "Failed to persist event to dead-letter stream",
           );
           msg.nak(1_000);
@@ -373,26 +478,34 @@ export class NatsLifecycleManager {
     this.state = "shutting_down";
     this.shutdownController.abort();
 
-    if (this.eventSubscription) {
-      try {
-        this.eventSubscription.unsubscribe();
-      } catch {
-        // already unsubscribed
+    for (const name of EVENT_LOOP_NAMES) {
+      const loop = this.loops[name];
+      if (loop.subscription) {
+        try {
+          loop.subscription.unsubscribe();
+        } catch {
+          // already unsubscribed
+        }
+        loop.subscription = null;
       }
-      this.eventSubscription = null;
+      loop.active = false;
     }
-    this.consumerActive = false;
 
-    if (this.supervisorPromise) {
+    const pendingSupervisors = EVENT_LOOP_NAMES.map(
+      (name) => this.loops[name].supervisorPromise,
+    ).filter((p): p is Promise<void> => p !== null);
+    if (pendingSupervisors.length > 0) {
       try {
         await Promise.race([
-          this.supervisorPromise,
+          Promise.all(pendingSupervisors),
           new Promise((r) => setTimeout(r, 5_000)),
         ]);
       } catch {
         // supervisor exited
       }
-      this.supervisorPromise = null;
+      for (const name of EVENT_LOOP_NAMES) {
+        this.loops[name].supervisorPromise = null;
+      }
     }
 
     if (this.connection && !this.connection.isClosed()) {
@@ -418,31 +531,55 @@ export class NatsLifecycleManager {
     );
   }
 
+  /**
+   * The critical loop's own active state - message/receipt/send_confirmation/
+   * etc. processing. The transient (presence/typing) loop is deliberately
+   * excluded from this and from the rest of the aggregate readiness surface
+   * below: presence/typing are loss-tolerant, so a transient-loop outage
+   * must not take a healthy-for-critical-work API replica out of rotation
+   * (Kubernetes/Docker would otherwise kill or stop routing to a replica
+   * that is still correctly processing every message). See
+   * eventConsumers.transient on getReadinessState() for its own detail.
+   */
   isConsumerActive(): boolean {
-    return this.consumerActive;
+    return this.loops.critical.active;
   }
 
+  /** The critical loop's own last exit time. */
   getLastConsumerExitAt(): Date | null {
-    return this.lastConsumerExitAt;
+    return this.loops.critical.lastExitAt;
   }
 
+  /** The critical loop's own last error. */
   getLastConsumerError(): string | null {
-    return this.lastConsumerError;
+    return this.loops.critical.lastError;
+  }
+
+  private loopReadiness(name: EventLoopName): EventLoopReadiness {
+    const loop = this.loops[name];
+    return {
+      active: loop.active,
+      generation: loop.subscriptionGeneration,
+      lastExitAt: loop.lastExitAt?.toISOString() ?? null,
+      lastError: loop.lastError,
+    };
   }
 
   getReadinessState(): NatsReadinessState {
+    const critical = this.loopReadiness("critical");
+    const transient = this.loopReadiness("transient");
     return {
       nats: {
         connected: this.isConnected(),
         state: this.state,
         generation: this.generation,
       },
-      eventConsumer: {
-        active: this.consumerActive,
-        generation: this.eventSubscriptionGeneration,
-        lastExitAt: this.lastConsumerExitAt?.toISOString() ?? null,
-        lastError: this.lastConsumerError,
-      },
+      // Deliberately just the critical loop's own readiness, not merged with
+      // transient - see isConsumerActive's comment. eventConsumers.transient
+      // below carries the transient loop's detail for observability/alerting
+      // without it gating readiness.
+      eventConsumer: critical,
+      eventConsumers: { critical, transient },
     };
   }
 
