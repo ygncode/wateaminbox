@@ -307,9 +307,10 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
 
   const handleCloseProfile = React.useCallback(() => {
     setIsProfileOpen(false);
-    // Dropped on close so the next open starts from the conversation rather
-    // than re-showing whichever member was last inspected.
-    setParticipantProfileId(null);
+    // Retain the member while the bottom sheet slides out. Clearing it here
+    // switches the closing surface back to the group's fullscreen side panel
+    // for one frame. `handleOpenProfile` still resets it before the conversation
+    // profile is opened again.
   }, []);
 
   // Switching conversations must not leave the panel pointed at a member of

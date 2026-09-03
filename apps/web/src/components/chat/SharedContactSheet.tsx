@@ -1,4 +1,5 @@
 import { Loader2, MessageCircle, Phone } from "lucide-react";
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
@@ -21,7 +22,10 @@ export function SharedContactSheet({
   isMessaging = false,
 }: SharedContactSheetProps) {
   const { t } = useTranslation();
-  const primaryPhone = contact?.phoneNumbers[0]?.value;
+  const lastContactRef = useRef<SharedContactCard | null>(contact);
+  if (contact) lastContactRef.current = contact;
+  const renderedContact = contact ?? lastContactRef.current;
+  const primaryPhone = renderedContact?.phoneNumbers[0]?.value;
 
   return (
     <MobileSlideInPanel
@@ -29,25 +33,25 @@ export function SharedContactSheet({
       onClose={onClose}
       position="bottom"
       title={t("chat.contactInfo", "Contact info")}
-      className="sm:inset-x-auto sm:left-1/2 sm:w-[30rem] sm:-translate-x-1/2"
+      className="sm:inset-x-auto sm:left-1/2 sm:-ml-[15rem] sm:w-[30rem]"
     >
-      {contact && (
+      {renderedContact && (
         <div className="flex min-h-full flex-col bg-[#f0f2f5] dark:bg-dark-primary">
           <div className="flex flex-col items-center bg-white px-6 pb-6 pt-7 dark:bg-dark-secondary">
             <div className="size-24 overflow-hidden rounded-full shadow-md ring-1 ring-black/[0.06] dark:ring-white/10">
               <IdentityAvatarFallback
-                displayName={contact.displayName}
-                identity={primaryPhone || contact.displayName}
+                displayName={renderedContact.displayName}
+                identity={primaryPhone || renderedContact.displayName}
                 className="text-2xl"
               />
             </div>
             <h3 className="mt-4 max-w-full truncate text-xl font-semibold text-[#111b21] dark:text-dark-text-primary">
-              {contact.displayName}
+              {renderedContact.displayName}
             </h3>
 
             <Button
               type="button"
-              onClick={() => onMessage(contact)}
+              onClick={() => onMessage(renderedContact)}
               disabled={!primaryPhone || isMessaging}
               className="mt-5 min-w-32 rounded-full bg-[#00a884] px-6 text-white hover:bg-[#008f72]"
             >
@@ -61,8 +65,8 @@ export function SharedContactSheet({
           </div>
 
           <div className="mt-2 bg-white px-4 py-2 dark:bg-dark-secondary">
-            {contact.phoneNumbers.length > 0 ? (
-              contact.phoneNumbers.map((phone, index) => (
+            {renderedContact.phoneNumbers.length > 0 ? (
+              renderedContact.phoneNumbers.map((phone, index) => (
                 <a
                   key={`${phone.value}-${index}`}
                   href={`tel:${phone.value}`}
