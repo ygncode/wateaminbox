@@ -40,7 +40,9 @@ export function RightPanel({
 }: RightPanelProps) {
   const surface = useRightPanelSurface();
 
-  if (!isOpen) return null;
+  // A touch host owns the slide-out transition. Keep its content mounted while
+  // that transition runs so closing does not reveal an empty fullscreen panel.
+  if (!isOpen && surface === "docked") return null;
 
   return (
     <aside
@@ -79,7 +81,7 @@ export function RightPanelHeader({
       className={cn(
         "flex shrink-0 items-center gap-4 px-4",
         surface === "sheet"
-          ? "h-14 border-b border-black/[0.07] bg-white text-[#111b21] dark:border-white/[0.08] dark:bg-dark-secondary dark:text-dark-text-primary"
+          ? "h-14 touch-none border-b border-black/[0.07] bg-white text-[#111b21] dark:border-white/[0.08] dark:bg-dark-secondary dark:text-dark-text-primary"
           : [
               "bg-whatsapp-teal-green text-white",
               // Responsive height, with the notch inset added on top of the

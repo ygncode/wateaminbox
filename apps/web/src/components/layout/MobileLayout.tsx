@@ -3,6 +3,7 @@ import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { shouldDismissBottomSheet } from "./bottom-sheet-gesture";
 import { type MobileView, resolveMobileView } from "./mobile-layout-state";
 
 export type { MobileView } from "./mobile-layout-state";
@@ -282,9 +283,83 @@ export function MobileSlideInPanel({
   title,
   titleId,
   position = "right",
+  style,
   ...props
 }: MobileSlideInPanelProps) {
   const { t } = useTranslation();
+  const panelRef = React.useRef<HTMLElement>(null);
+  const dragStartRef = React.useRef<{
+    pointerId: number;
+    startY: number;
+    startedAt: number;
+  } | null>(null);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragStart = useCallback(
+    (event: React.PointerEvent<HTMLElement>) => {
+      if (position !== "bottom" || !isOpen || !onClose || event.button !== 0) {
+        return;
+      }
+
+      const target = event.target;
+      const panelTop = event.currentTarget.getBoundingClientRect().top;
+      const isInteractiveTarget =
+        target instanceof Element &&
+        Boolean(
+          target.closest("button, a, input, textarea, select, [role='button']"),
+        );
+      // The grabber and header form one forgiving swipe target. Keeping the
+      // gesture out of the scrolling body avoids stealing normal page scrolls.
+      if (isInteractiveTarget || event.clientY - panelTop > 88) return;
+
+      event.currentTarget.setPointerCapture(event.pointerId);
+      dragStartRef.current = {
+        pointerId: event.pointerId,
+        startY: event.clientY,
+        startedAt: event.timeStamp,
+      };
+      setIsDragging(true);
+    },
+    [isOpen, onClose, position],
+  );
+
+  const handleDragMove = useCallback(
+    (event: React.PointerEvent<HTMLElement>) => {
+      const dragStart = dragStartRef.current;
+      if (!dragStart || dragStart.pointerId !== event.pointerId) return;
+      setDragOffset(Math.max(0, event.clientY - dragStart.startY));
+    },
+    [],
+  );
+
+  const finishDrag = useCallback(
+    (event: React.PointerEvent<HTMLElement>, cancelled = false) => {
+      const dragStart = dragStartRef.current;
+      if (!dragStart || dragStart.pointerId !== event.pointerId) return;
+
+      const offsetY = Math.max(0, event.clientY - dragStart.startY);
+      const elapsed = Math.max(1, event.timeStamp - dragStart.startedAt);
+      const panelHeight = panelRef.current?.getBoundingClientRect().height ?? 0;
+      const shouldClose =
+        !cancelled &&
+        shouldDismissBottomSheet({
+          offsetY,
+          velocityY: offsetY / elapsed,
+          panelHeight,
+        });
+
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      dragStartRef.current = null;
+      setIsDragging(false);
+      setDragOffset(0);
+
+      if (shouldClose) onClose?.();
+    },
+    [onClose],
+  );
 
   // Prevent body scroll when panel is open
   useEffect(() => {
@@ -328,8 +403,10 @@ export function MobileSlideInPanel({
 
       {/* Panel */}
       <aside
+        ref={panelRef}
         className={cn(
-          "fixed z-50 flex flex-col overflow-hidden bg-white shadow-xl transition-transform duration-300 ease-in-out dark:bg-dark-secondary",
+          "fixed z-50 flex flex-col overflow-hidden bg-white shadow-xl transition-[transform,translate] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform dark:bg-dark-secondary",
+          isDragging && "transition-none",
           position === "right" && "right-0",
           position === "left" && "left-0",
           position !== "bottom" &&
@@ -355,11 +432,22 @@ export function MobileSlideInPanel({
         // Closed panels stay mounted for the slide transition; without `inert`
         // their links and inputs remain tabbable behind the chat view.
         inert={!isOpen}
+        style={{
+          ...style,
+          translate:
+            position === "bottom" && dragOffset > 0
+              ? `0 ${dragOffset}px`
+              : style?.translate,
+        }}
         {...props}
+        onPointerDown={handleDragStart}
+        onPointerMove={handleDragMove}
+        onPointerUp={finishDrag}
+        onPointerCancel={(event) => finishDrag(event, true)}
       >
         {position === "bottom" && (
           <div
-            className="flex h-5 shrink-0 items-center justify-center bg-white dark:bg-dark-secondary"
+            className="flex h-6 shrink-0 touch-none cursor-grab items-center justify-center bg-white active:cursor-grabbing dark:bg-dark-secondary"
             aria-hidden="true"
           >
             <span className="h-1 w-10 rounded-full bg-[#c7d0d5] dark:bg-white/20" />
@@ -368,7 +456,12 @@ export function MobileSlideInPanel({
 
         {/* Panel Header - omitted when the content supplies its own chrome. */}
         {title && !titleId && (
-          <header className="flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-gray-200 dark:border-dark-border bg-whatsapp-teal-green px-4 text-white safe-area-top">
+          <header
+            className={cn(
+              "flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-gray-200 dark:border-dark-border bg-whatsapp-teal-green px-4 text-white safe-area-top",
+              position === "bottom" && "touch-none",
+            )}
+          >
             {onClose && (
               <button
                 onClick={onClose}

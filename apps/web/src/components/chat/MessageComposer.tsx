@@ -26,13 +26,18 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useRealtimeContext } from "../../contexts/RealtimeProvider";
 import { useScheduleMessage } from "../../hooks/messages";
-import { useClickOutside, useTextareaAutoResize } from "../../hooks/ui";
+import {
+  useClickOutside,
+  useIsMobile,
+  useTextareaAutoResize,
+} from "../../hooks/ui";
 import type { GroupParticipant } from "../../hooks/useGroups";
 import { useQuickReplySuggestions } from "../../hooks/useQuickReplies";
 import { uploadMedia } from "../../lib/api";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
-import { pickPastedAttachment } from "./composer-paste";
 import { ConnectionRoute } from "./ConnectionIdentity";
+import { shouldSendMessageOnEnter } from "./composer-keyboard";
+import { pickPastedAttachment } from "./composer-paste";
 import { canScheduleMessage } from "./composer-schedule";
 import { GroupMentionPicker } from "./GroupMentionPicker";
 import {
@@ -151,6 +156,7 @@ export function MessageComposer({
   mentionParticipants = [],
 }: MessageComposerProps) {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
 
   // A conversation is permanently routed through the account that owns it.
   const isDisconnected = !connection || connection.status !== "connected";
@@ -378,6 +384,11 @@ export function MessageComposer({
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Mobile keyboards use Enter to grow the message into multiple lines. The
+    // dedicated send button remains the only mobile send action. Composition
+    // Enter also belongs to the input method, not to the composer shortcuts.
+    if (e.key === "Enter" && (isMobile || e.nativeEvent.isComposing)) return;
+
     if (shouldShowMentionPicker) {
       if (e.key === "ArrowDown" && mentionSuggestions.length > 0) {
         e.preventDefault();
@@ -448,8 +459,15 @@ export function MessageComposer({
       }
     }
 
-    // Send on Enter, new line on Shift+Enter
-    if (e.key === "Enter" && !e.shiftKey) {
+    // Desktop keeps Enter-to-send; Shift+Enter remains a newline everywhere.
+    if (
+      shouldSendMessageOnEnter({
+        key: e.key,
+        shiftKey: e.shiftKey,
+        isMobile,
+        isComposing: e.nativeEvent.isComposing,
+      })
+    ) {
       e.preventDefault();
       handleSend();
     }
@@ -970,6 +988,7 @@ export function MessageComposer({
                   }
                   disabled={isTextareaDisabled}
                   rows={1}
+                  enterKeyHint="enter"
                   aria-label={t("chat.messageInput", "Message input")}
                   aria-autocomplete="list"
                   aria-controls={
