@@ -31,6 +31,7 @@ import type { GroupParticipant } from "../../hooks/useGroups";
 import { useQuickReplySuggestions } from "../../hooks/useQuickReplies";
 import { uploadMedia } from "../../lib/api";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
+import { pickPastedAttachment } from "./composer-paste";
 import { ConnectionRoute } from "./ConnectionIdentity";
 import { canScheduleMessage } from "./composer-schedule";
 import { GroupMentionPicker } from "./GroupMentionPicker";
@@ -153,7 +154,12 @@ export function MessageComposer({
 
   // A conversation is permanently routed through the account that owns it.
   const isDisconnected = !connection || connection.status !== "connected";
+  // `disabled` is the in-flight send from ChatPage. Disabling the textarea for
+  // it makes the browser blur the element, which drops the caret mid-typing and
+  // forces the user back to the mouse - so only a real disconnect takes the
+  // textarea out of service. Send actions stay gated by isInputDisabled.
   const isInputDisabled = disabled || isDisconnected;
+  const isTextareaDisabled = isDisconnected;
   const [message, setMessage] = useState("");
   const [caretPosition, setCaretPosition] = useState(0);
   const [selectedQuickReplyIndex, setSelectedQuickReplyIndex] = useState(0);
@@ -198,7 +204,7 @@ export function MessageComposer({
   const shouldShowQuickReplyPicker =
     activeQuickReplyToken !== null &&
     !isQuickReplyPickerDismissed &&
-    !isInputDisabled;
+    !isTextareaDisabled;
   const activeMentionToken = useMemo(
     () =>
       mentionParticipants.length > 0
@@ -315,7 +321,7 @@ export function MessageComposer({
     if (
       shouldRestoreFocusRef.current &&
       textareaRef.current &&
-      !isInputDisabled
+      !isTextareaDisabled
     ) {
       textareaRef.current.focus();
       shouldRestoreFocusRef.current = false;
@@ -526,7 +532,7 @@ export function MessageComposer({
     // Fallback: restore focus after a delay to catch focus loss from sibling re-renders
     // The flushSync from MessageThread can steal focus after MessageComposer has rendered
     setTimeout(() => {
-      if (textareaRef.current && !isInputDisabled) {
+      if (textareaRef.current && !isTextareaDisabled) {
         textareaRef.current.focus();
         shouldRestoreFocusRef.current = false;
       }
@@ -638,6 +644,43 @@ export function MessageComposer({
     e.target.value = "";
     setShowAttachmentMenu(false);
   };
+
+  // Pasting a screenshot is the fastest way to attach one, and it is what
+  // every other chat app does. The handler lives on the composer rather than
+  // the textarea so a paste still lands after clicking around the footer, and
+  // it defers to the browser for anything that carries text.
+  const handlePaste = useCallback(
+    (event: ClipboardEvent) => {
+      if (isTextareaDisabled || !conversationId) return;
+      // The preview dialog owns its own caption field; a paste there is text.
+      if (pendingAttachment) return;
+
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        target !== textareaRef.current &&
+        (target.isContentEditable ||
+          target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA")
+      ) {
+        return;
+      }
+
+      const attachment = pickPastedAttachment(event.clipboardData, Date.now());
+      if (!attachment) return;
+
+      event.preventDefault();
+      setShowAttachmentMenu(false);
+      setShowEmojiPicker(false);
+      setPendingAttachment(attachment);
+    },
+    [conversationId, isTextareaDisabled, pendingAttachment],
+  );
+
+  useEffect(() => {
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [handlePaste]);
 
   const triggerFileInput = (type: "image" | "document") => {
     if (type === "image") {
@@ -925,7 +968,7 @@ export function MessageComposer({
                           t("chat.typeAMessage", "Type a message"),
                         )
                   }
-                  disabled={isInputDisabled}
+                  disabled={isTextareaDisabled}
                   rows={1}
                   aria-label={t("chat.messageInput", "Message input")}
                   aria-autocomplete="list"

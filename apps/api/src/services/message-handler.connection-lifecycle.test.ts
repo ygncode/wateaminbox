@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 
 process.env.JWT_SECRET ??= "test-jwt-secret-at-least-32-characters-long";
 process.env.CENTRIFUGO_TOKEN_HMAC_SECRET ??=
@@ -8,62 +8,8 @@ const connectedEvents: Array<{ type: string; sessionId?: string }> = [];
 const disconnectedEvents: Array<{ type: string; sessionId?: string }> = [];
 let sessionStatus = "connected";
 
-mock.module("../lib/nats/index.js", () => ({
-  natsLifecycle: {
-    startEventSupervisor: () => {},
-    shutdown: () => Promise.resolve(),
-    isConsumerActive: () => false,
-  },
-}));
-
-mock.module("./tenant.service.js", () => ({
-  getTenantConnection: () => ({}),
-}));
-
-mock.module("./whatsapp/session.js", () => ({
-  resolveWhatsAppSession: () =>
-    Promise.resolve({
-      sessionId: "22222222-2222-4222-8222-222222222222",
-      connectionId: "33333333-3333-4333-8333-333333333333",
-      status: sessionStatus,
-    }),
-}));
-
-const noOpHandler = () => Promise.resolve();
-mock.module("./handlers/index.js", () => ({
-  handleCatalogProductsEvent: noOpHandler,
-  handleCatalogsEvent: noOpHandler,
-  handleCommandResultEvent: noOpHandler,
-  handleConnectedEvent: (event: { type: string; sessionId?: string }) => {
-    connectedEvents.push(event);
-    return Promise.resolve();
-  },
-  handleContactEvent: noOpHandler,
-  handleDisconnectedEvent: (event: { type: string; sessionId?: string }) => {
-    disconnectedEvents.push(event);
-    return Promise.resolve();
-  },
-  handleDownloadResponseEvent: noOpHandler,
-  handleErrorEvent: noOpHandler,
-  handleGroupEvent: noOpHandler,
-  handleLabelsEvent: noOpHandler,
-  handleHistorySyncPageEvent: noOpHandler,
-  handleMessageEvent: noOpHandler,
-  handleMessageRevokeEvent: noOpHandler,
-  handlePresenceEvent: noOpHandler,
-  handleProfilePictureEvent: noOpHandler,
-  handleQREvent: noOpHandler,
-  handleReactionEvent: noOpHandler,
-  handleReceiptEvent: noOpHandler,
-  handleSendConfirmationEvent: noOpHandler,
-  handleSendFailedEvent: noOpHandler,
-  handleStatusEvent: noOpHandler,
-  handleSyncStatusEvent: noOpHandler,
-  handleTypingEvent: noOpHandler,
-  handleWorkerConnectionStatusEvent: noOpHandler,
-}));
-
 const { handleWhatsAppEvent } = await import("./message-handler.js");
+type FakeDb = Parameters<typeof handleWhatsAppEvent>[1];
 
 function connectionEvent(
   type: "paired" | "connected" | "disconnected" | "logged_out",
@@ -86,6 +32,27 @@ function connectionEvent(
   };
 }
 
+function handleConnectionEvent(
+  type: "paired" | "connected" | "disconnected" | "logged_out",
+) {
+  return handleWhatsAppEvent(connectionEvent(type), {} as FakeDb, {
+    resolveSession: () =>
+      Promise.resolve({
+        sessionId: "22222222-2222-4222-8222-222222222222",
+        connectionId: "33333333-3333-4333-8333-333333333333",
+        status: sessionStatus,
+      }),
+    handleConnected: (event) => {
+      connectedEvents.push(event);
+      return Promise.resolve();
+    },
+    handleDisconnected: (event) => {
+      disconnectedEvents.push(event);
+      return Promise.resolve();
+    },
+  });
+}
+
 describe("worker connection lifecycle routing", () => {
   beforeEach(() => {
     connectedEvents.length = 0;
@@ -96,7 +63,7 @@ describe("worker connection lifecycle routing", () => {
   test.each(["paired", "connected"] as const)(
     "routes %s through the connected identity claim",
     async (type) => {
-      await handleWhatsAppEvent(connectionEvent(type));
+      await handleConnectionEvent(type);
 
       expect(connectedEvents).toHaveLength(1);
       expect(connectedEvents[0]).toMatchObject({
@@ -110,7 +77,7 @@ describe("worker connection lifecycle routing", () => {
   test.each(["disconnected", "logged_out"] as const)(
     "routes %s through disconnect persistence",
     async (type) => {
-      await handleWhatsAppEvent(connectionEvent(type));
+      await handleConnectionEvent(type);
 
       expect(disconnectedEvents).toHaveLength(1);
       expect(disconnectedEvents[0]).toMatchObject({
@@ -124,7 +91,7 @@ describe("worker connection lifecycle routing", () => {
   test("does not drop logged_out for an already-ended session", async () => {
     sessionStatus = "ended";
 
-    await handleWhatsAppEvent(connectionEvent("logged_out"));
+    await handleConnectionEvent("logged_out");
 
     expect(disconnectedEvents).toHaveLength(1);
   });

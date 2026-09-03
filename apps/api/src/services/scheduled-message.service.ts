@@ -362,6 +362,11 @@ async function sendScheduledMessage(
         content: row.content,
         media_url: row.media_url,
         media_mime_type: row.media_mime_type,
+        // The scheduled row kept the filename the operator uploaded; carry it
+        // onto the sent message so its download is named like any other.
+        metadata: row.media_file_name
+          ? { fileName: row.media_file_name }
+          : null,
         quoted_message_id: quotedWaMessageId || null,
         sent_by_user_id: row.created_by,
         status: "pending",
