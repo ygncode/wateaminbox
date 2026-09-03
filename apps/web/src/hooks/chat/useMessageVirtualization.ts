@@ -4,14 +4,15 @@ import {
 } from "@tanstack/react-virtual";
 import type { Message, RemoteHistoryStatus } from "@wateaminbox/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  type MessageNavigationTarget,
-  matchesMessageNavigationTarget,
-} from "@/components/chat/message-navigation";
+import { groupMediaAlbumMessages } from "@/components/chat/media-albums";
 import {
   type BubbleGroupPosition,
   resolveBubbleGroupPositions,
 } from "@/components/chat/message-grouping";
+import {
+  type MessageNavigationTarget,
+  matchesMessageNavigationTarget,
+} from "@/components/chat/message-navigation";
 import { createBottomPin } from "./message-bottom-pin";
 import { MESSAGE_LIST_END_ANCHOR } from "./message-list-end-anchor";
 import { resolveNewestMessageAnchor } from "./message-scroll-anchor";
@@ -25,6 +26,8 @@ export type VirtualItem =
   | {
       type: "message";
       message: Message;
+      albumMessages: Message[];
+      albumExpectedCount: number;
       id: string;
       /** Position in its run of same-author messages; see message-grouping.ts. */
       groupPosition: BubbleGroupPosition;
@@ -91,35 +94,40 @@ export function useMessageVirtualization({
   const items = useMemo<VirtualItem[]>(() => {
     if (messages.length === 0) return [];
 
-    const rows: (Message | null)[] = [];
+    const rows: (ReturnType<typeof groupMediaAlbumMessages>[number] | null)[] =
+      [];
     let currentDate = "";
 
-    messages.forEach((message) => {
-      const messageDate = new Date(message.createdAt).toDateString();
+    groupMediaAlbumMessages(messages).forEach((album) => {
+      const messageDate = new Date(album.primary.createdAt).toDateString();
       // A date separator is a `null` row so grouping sees it and refuses to
       // continue a run across the day boundary.
       if (messageDate !== currentDate) {
         currentDate = messageDate;
         rows.push(null);
       }
-      rows.push(message);
+      rows.push(album);
     });
 
-    const positions = resolveBubbleGroupPositions(rows);
+    const positions = resolveBubbleGroupPositions(
+      rows.map((album) => album?.primary ?? null),
+    );
 
-    return rows.map((message, index): VirtualItem => {
-      if (!message) {
+    return rows.map((album, index): VirtualItem => {
+      if (!album) {
         // A separator is always immediately followed by the first message of
         // the day it announces.
         const date = new Date(
-          (rows[index + 1] as Message).createdAt,
+          rows[index + 1]!.primary.createdAt,
         ).toDateString();
         return { type: "date", date, id: `date-${date}` };
       }
       return {
         type: "message",
-        message,
-        id: message.id,
+        message: album.primary,
+        albumMessages: album.messages,
+        albumExpectedCount: album.expectedCount,
+        id: album.id,
         groupPosition: positions[index] ?? "single",
       };
     });
@@ -306,9 +314,11 @@ export function useMessageVirtualization({
     const messageIndex = itemsRef.current.findIndex(
       (item) =>
         item.type === "message" &&
-        (navigationTarget
-          ? matchesMessageNavigationTarget(item.message, navigationTarget)
-          : item.id === highlightedMessageId),
+        item.albumMessages.some((message) =>
+          navigationTarget
+            ? matchesMessageNavigationTarget(message, navigationTarget)
+            : message.id === highlightedMessageId,
+        ),
     );
 
     if (messageIndex !== -1) {

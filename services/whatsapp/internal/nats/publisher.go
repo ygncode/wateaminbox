@@ -380,6 +380,10 @@ func (p *Publisher) PublishMessage(msg MessageEvent) error {
 	if content == "" && msg.Caption != "" {
 		content = msg.Caption
 	}
+	var mediaAlbumIndex *int
+	if msg.MediaAlbumID != "" {
+		mediaAlbumIndex = &msg.MediaAlbumIndex
+	}
 
 	event := WhatsAppEvent{
 		Type:         "message",
@@ -404,6 +408,9 @@ func (p *Publisher) PublishMessage(msg MessageEvent) error {
 			FileName:           msg.FileName,
 			MediaType:          msg.MediaType,
 			MediaSize:          msg.MediaSize,
+			MediaAlbumID:       msg.MediaAlbumID,
+			MediaAlbumIndex:    mediaAlbumIndex,
+			MediaAlbumCount:    msg.MediaAlbumCount,
 			MediaDirectPath:    msg.MediaDirectPath,
 			MediaKey:           msg.MediaKey,
 			MediaFileSHA256:    msg.MediaFileSHA256,

@@ -33,6 +33,7 @@ import { useAuth } from "../contexts/auth-context";
 import { MessageActionsProvider } from "../contexts/message-actions-context";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useChatPageState } from "../hooks/chat";
+import { useGroup } from "../hooks/useGroups";
 import { useKeyboardInset } from "../hooks/ui";
 import { useComposerAccess } from "../hooks/useComposerAccess";
 import { useWhatsAppConnectionsList } from "../hooks/whatsapp";
@@ -126,6 +127,13 @@ export function ChatPage() {
   // diverge from what the composer itself shows.
   const { access: composerAccess } = useComposerAccess(selectedChatId ?? null);
   const canSend = composerAccess.kind === "sendable";
+  const isSelectedGroup = Boolean(
+    selectedContact &&
+      (selectedContact.isGroup || selectedContact.jid?.endsWith("@g.us")),
+  );
+  const { data: selectedGroup } = useGroup(
+    isSelectedGroup ? (selectedChatId ?? null) : null,
+  );
 
   // Publishes the on-screen keyboard overlap for the composer footer to pad
   // by. Gated on an open conversation: the inbox list has no composer to keep
@@ -232,10 +240,7 @@ export function ChatPage() {
                 currentUserName={user?.name}
                 currentUserAvatarUrl={user?.avatarUrl}
                 currentUserGravatarUrl={user?.gravatarUrl}
-                isGroup={
-                  selectedContact.isGroup ||
-                  selectedContact.jid?.endsWith("@g.us")
-                }
+                isGroup={isSelectedGroup}
                 highlightedMessageId={highlightedMessageId}
                 onOpenContactInfo={handleOpenProfile}
                 canRetry={canSend}
@@ -258,6 +263,7 @@ export function ChatPage() {
               disabled={isSending}
               connection={selectedContact.connection}
               currentUserName={user?.name}
+              mentionParticipants={selectedGroup?.participants}
             />
           </ComposerLifecycleArea>
         </>

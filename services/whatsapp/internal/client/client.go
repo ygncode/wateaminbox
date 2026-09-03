@@ -563,38 +563,157 @@ func (c *Client) RegisterEventHandler(handler func(interface{})) {
 	c.handlers = append(c.handlers, handler)
 }
 
-// SendMessage sends a text message.
-func (c *Client) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string) (types.SendResponse, error) {
+func buildTextMessage(jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (*waE2E.Message, error) {
+	contextInfo := &waE2E.ContextInfo{}
+	for _, rawJID := range mentionedJIDs {
+		mentionedJID, err := waTypes.ParseJID(rawJID)
+		if err != nil {
+			return nil, fmt.Errorf("invalid mentioned JID %s: %w", rawJID, err)
+		}
+		switch mentionedJID.Server {
+		case waTypes.DefaultUserServer, waTypes.HiddenUserServer, waTypes.HostedLIDServer:
+			contextInfo.MentionedJID = append(contextInfo.MentionedJID, mentionedJID.ToNonAD().String())
+		default:
+			return nil, fmt.Errorf("unsupported mentioned JID server %s", mentionedJID.Server)
+		}
+	}
+
+	if replyTo != "" {
+		participant := replyToSender
+		if participant == "" {
+			participant = jid
+		}
+		contextInfo.StanzaID = proto.String(replyTo)
+		contextInfo.Participant = proto.String(participant)
+	}
+
+	if replyTo == "" && len(contextInfo.MentionedJID) == 0 {
+		return &waE2E.Message{Conversation: proto.String(text)}, nil
+	}
+	return &waE2E.Message{
+		ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text:        proto.String(text),
+			ContextInfo: contextInfo,
+		},
+	}, nil
+}
+
+type mentionPhoneResolver func(context.Context, waTypes.JID) (waTypes.JID, error)
+
+func replaceMentionToken(text, fromUser, toUser string) (string, bool) {
+	if fromUser == "" || toUser == "" || fromUser == toUser {
+		return text, false
+	}
+
+	from := "@" + fromUser
+	to := "@" + toUser
+	var rewritten strings.Builder
+	cursor := 0
+	searchFrom := 0
+	replaced := false
+	for searchFrom < len(text) {
+		relativeStart := strings.Index(text[searchFrom:], from)
+		if relativeStart < 0 {
+			break
+		}
+		start := searchFrom + relativeStart
+		end := start + len(from)
+		// A shorter ID must not replace the prefix of another numeric token.
+		if end < len(text) && text[end] >= '0' && text[end] <= '9' {
+			searchFrom = end
+			continue
+		}
+		rewritten.WriteString(text[cursor:start])
+		rewritten.WriteString(to)
+		cursor = end
+		searchFrom = end
+		replaced = true
+	}
+	if !replaced {
+		return text, false
+	}
+	rewritten.WriteString(text[cursor:])
+	return rewritten.String(), true
+}
+
+// prepareTextMentions keeps WhatsApp's two mention identities aligned. In
+// LID-addressed groups ContextInfo names the opaque LID, but the visible
+// @token still contains the participant's phone number. Sending the LID digits
+// as text makes official clients treat them as an unrelated phone number.
+func prepareTextMentions(
+	ctx context.Context,
+	text string,
+	mentionedJIDs []string,
+	resolvePhone mentionPhoneResolver,
+) (string, []string, error) {
+	normalized := make([]string, 0, len(mentionedJIDs))
+	for _, rawJID := range mentionedJIDs {
+		mentionedJID, err := waTypes.ParseJID(rawJID)
+		if err != nil {
+			return "", nil, fmt.Errorf("invalid mentioned JID %s: %w", rawJID, err)
+		}
+		mentionedJID = mentionedJID.ToNonAD()
+		switch mentionedJID.Server {
+		case waTypes.DefaultUserServer:
+			normalized = append(normalized, mentionedJID.String())
+		case waTypes.HiddenUserServer, waTypes.HostedLIDServer:
+			if resolvePhone == nil {
+				return "", nil, fmt.Errorf("cannot resolve phone number for mentioned LID %s", mentionedJID)
+			}
+			phoneJID, resolveErr := resolvePhone(ctx, mentionedJID)
+			if resolveErr != nil {
+				return "", nil, fmt.Errorf("failed to resolve phone number for mentioned LID %s: %w", mentionedJID, resolveErr)
+			}
+			phoneJID = phoneJID.ToNonAD()
+			if phoneJID.IsEmpty() || phoneJID.Server != waTypes.DefaultUserServer {
+				return "", nil, fmt.Errorf("phone-number mapping unavailable for mentioned LID %s", mentionedJID)
+			}
+			var replaced bool
+			text, replaced = replaceMentionToken(text, mentionedJID.User, phoneJID.User)
+			if !replaced {
+				return "", nil, fmt.Errorf("message has no token for mentioned LID %s", mentionedJID)
+			}
+			normalized = append(normalized, mentionedJID.String())
+		default:
+			return "", nil, fmt.Errorf("unsupported mentioned JID server %s", mentionedJID.Server)
+		}
+	}
+	return text, normalized, nil
+}
+
+// SendMessage sends a text message, including WhatsApp mention metadata.
+func (c *Client) SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (types.SendResponse, error) {
 	// Parse JID
 	recipient, err := waTypes.ParseJID(jid)
 	if err != nil {
 		return types.SendResponse{}, fmt.Errorf("invalid JID %s: %w", jid, err)
 	}
 
-	var msg *waE2E.Message
+	text, mentionedJIDs, err = prepareTextMentions(
+		ctx,
+		text,
+		mentionedJIDs,
+		func(ctx context.Context, lid waTypes.JID) (waTypes.JID, error) {
+			if c.client == nil || c.client.Store == nil || c.client.Store.LIDs == nil {
+				return waTypes.EmptyJID, errors.New("LID mapping store is unavailable")
+			}
+			return c.client.Store.LIDs.GetPNForLID(ctx, lid)
+		},
+	)
+	if err != nil {
+		return types.SendResponse{}, err
+	}
 
-	// If replying to a message, use ExtendedTextMessage with ContextInfo
+	msg, err := buildTextMessage(jid, text, replyTo, replyToSender, mentionedJIDs)
+	if err != nil {
+		return types.SendResponse{}, err
+	}
 	if replyTo != "" {
-		// Use provided sender JID, or fall back to recipient JID
 		participant := replyToSender
 		if participant == "" {
 			participant = jid
 		}
 		log.Printf("Sending reply message: stanzaId=%s, participant=%s", replyTo, participant)
-		msg = &waE2E.Message{
-			ExtendedTextMessage: &waE2E.ExtendedTextMessage{
-				Text: proto.String(text),
-				ContextInfo: &waE2E.ContextInfo{
-					StanzaID:    proto.String(replyTo),
-					Participant: proto.String(participant),
-				},
-			},
-		}
-	} else {
-		// Simple text message
-		msg = &waE2E.Message{
-			Conversation: proto.String(text),
-		}
 	}
 
 	// Send message

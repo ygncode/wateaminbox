@@ -6,6 +6,8 @@ export interface SendMessageInput {
   messageType?: "text" | "image" | "video" | "audio" | "document";
   mediaUrl?: string;
   replyToMessageId?: string;
+  /** WhatsApp member JIDs referenced by numeric @tokens in content. */
+  mentionedJids?: string[];
 }
 
 export interface RetryMessageResponse {

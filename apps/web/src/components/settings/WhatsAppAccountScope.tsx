@@ -1,5 +1,6 @@
 import { Loader2, Smartphone } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Select,
   SelectContent,
@@ -9,7 +10,6 @@ import {
 } from "@/components/ui/select";
 import { useWhatsAppConnectionsList } from "@/hooks/whatsapp";
 import type { WhatsAppConnection } from "@/lib/api/types";
-import { useTranslation } from "react-i18next";
 
 export function useWhatsAppAccountScope() {
   const {
@@ -107,20 +107,41 @@ export function WhatsAppAccountScope({
       ) : connections.length > 0 ? (
         <Select value={connectionId} onValueChange={onConnectionChange}>
           <SelectTrigger
-            className="h-10 w-full bg-white shadow-sm sm:w-64 dark:bg-white/[0.05]"
+            className="h-10 min-w-0 w-full bg-white shadow-sm transition-all focus:border-whatsapp-green focus:ring-1 focus:ring-whatsapp-green focus:ring-offset-0 dark:bg-white/[0.05] dark:focus:border-whatsapp-green dark:focus:ring-whatsapp-green sm:w-64 [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1 [&>span:first-child]:overflow-hidden [&>span:first-child]:text-left"
             aria-label={t("connections.whatsappAccount", "WhatsApp account")}
           >
             <SelectValue
               placeholder={t("connections.selectAccount", "Select an account")}
-            />
+            >
+              {selected && (
+                <span className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden whitespace-nowrap">
+                  <span
+                    className="min-w-0 flex-1 truncate"
+                    title={selected.name}
+                  >
+                    {selected.name}
+                  </span>
+                  {selected.phoneNumber && (
+                    <span className="shrink-0 tabular-nums text-muted-foreground">
+                      {selected.phoneNumber}
+                    </span>
+                  )}
+                </span>
+              )}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {connections.map((connection) => (
               <SelectItem key={connection.id} value={connection.id}>
-                <span className="flex items-center gap-2">
-                  <span>{connection.name}</span>
+                <span className="flex min-w-0 max-w-full items-center gap-2 overflow-hidden whitespace-nowrap">
+                  <span
+                    className="min-w-0 flex-1 truncate"
+                    title={connection.name}
+                  >
+                    {connection.name}
+                  </span>
                   {connection.phoneNumber && (
-                    <span className="text-muted-foreground">
+                    <span className="shrink-0 tabular-nums text-muted-foreground">
                       {connection.phoneNumber}
                     </span>
                   )}
