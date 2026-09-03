@@ -108,6 +108,9 @@ export async function updateConnectionStatus(
     updateData.connected_at = toDbDate();
     updateData.qr_code = null;
     updateData.qr_expires_at = null;
+    // A successful connect ends any logout: the device is linked again, so the
+    // stamp must not outlive the condition it records.
+    updateData.logged_out_at = null;
   }
 
   if (status === "disconnected") {

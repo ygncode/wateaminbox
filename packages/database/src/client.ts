@@ -297,6 +297,13 @@ export interface WhatsAppConnectionsTable {
   qr_code: string | null;
   qr_expires_at: Date | null;
   archived_at: Date | null;
+  /**
+   * Set when whatsmeow reported terminal session loss, cleared on the next
+   * connect. A logged-out connection is also `status = 'disconnected'`; this
+   * marks the disconnect as unrecoverable, so nothing waits for a reconnect
+   * that cannot come without a fresh QR scan.
+   */
+  logged_out_at: Date | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

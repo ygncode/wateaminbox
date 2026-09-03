@@ -1,3 +1,4 @@
+import type { Kysely } from "kysely";
 import { createLogger, formatError } from "../lib/logger.js";
 import { PermanentEventError } from "../lib/nats/client.js";
 import {
@@ -52,10 +53,16 @@ import {
   handleTypingEvent,
   handleWorkerConnectionStatusEvent,
 } from "./handlers/index.js";
-import { getTenantConnection } from "./tenant.service.js";
+import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 import { resolveWhatsAppSession } from "./whatsapp/session.js";
 
 const logger = createLogger("MessageHandler");
+
+interface MessageHandlerDependencies {
+  resolveSession?: typeof resolveWhatsAppSession;
+  handleConnected?: typeof handleConnectedEvent;
+  handleDisconnected?: typeof handleDisconnectedEvent;
+}
 
 export function initializeMessageHandler(): void {
   natsLifecycle.startEventSupervisor(handleWhatsAppEvent);
@@ -66,11 +73,15 @@ export async function shutdownMessageHandler(): Promise<void> {
   await natsLifecycle.shutdown();
 }
 
-export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
+export async function handleWhatsAppEvent(
+  event: WhatsAppEvent,
+  tenantDb: Kysely<TenantDatabase> = getTenantConnection(event.companyId),
+  dependencies: MessageHandlerDependencies = {},
+): Promise<void> {
   const { type, companyId } = event;
   const sessionId = event.connectionId;
-  const session = await resolveWhatsAppSession(
-    getTenantConnection(companyId),
+  const session = await (dependencies.resolveSession ?? resolveWhatsAppSession)(
+    tenantDb,
     sessionId,
   );
   if (!session) {
@@ -114,7 +125,9 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
       // it is idempotent when the subsequent Connected event arrives.
       case "paired":
       case "connected":
-        await handleConnectedEvent(resolvedEvent as ConnectionEvent);
+        await (dependencies.handleConnected ?? handleConnectedEvent)(
+          resolvedEvent as ConnectionEvent,
+        );
         break;
 
       // whatsmeow emits LoggedOut for terminal 401/403 session loss. Persist it
@@ -122,7 +135,9 @@ export async function handleWhatsAppEvent(event: WhatsAppEvent): Promise<void> {
       // account after the worker has deleted its credentials.
       case "logged_out":
       case "disconnected":
-        await handleDisconnectedEvent(resolvedEvent as ConnectionEvent);
+        await (dependencies.handleDisconnected ?? handleDisconnectedEvent)(
+          resolvedEvent as ConnectionEvent,
+        );
         break;
 
       case "message":
