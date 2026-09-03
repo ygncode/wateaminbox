@@ -8,6 +8,7 @@ import { zValidator } from "@hono/zod-validator";
 import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
+import { buildOutboundMediaColumns } from "../../lib/message-formatters.js";
 import {
   buildCommandSubject,
   buildSendMessageCommand,
@@ -166,6 +167,7 @@ sendRoutes.post(
           message_type: body.messageType,
           content: body.content,
           media_url: storedMediaReference,
+          ...buildOutboundMediaColumns(sendCommand),
           quoted_message_id: quotedWaMessageId || null,
           sent_by_user_id: user.id,
           status: "pending",
@@ -320,6 +322,7 @@ sendRoutes.post(
           message_type: originalMessage.message_type,
           content: originalMessage.content,
           media_url: originalMessage.media_url,
+          ...buildOutboundMediaColumns(sendCommand),
           is_forwarded: true,
           sent_by_user_id: user.id,
           status: "pending",
@@ -463,7 +466,7 @@ sendRoutes.post(
           message_type: originalMessage.message_type,
           content: originalMessage.content,
           media_url: originalMessage.media_url,
-          media_mime_type: originalMessage.media_mime_type,
+          ...buildOutboundMediaColumns(sendCommand),
           quoted_message_id: originalMessage.quoted_message_id,
           sent_by_user_id: user.id,
           status: "pending",

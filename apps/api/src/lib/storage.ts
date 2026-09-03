@@ -225,10 +225,24 @@ export async function deleteMedia(key: string): Promise<void> {
   );
 }
 
+/**
+ * Response headers to override on a signed GET.
+ *
+ * S3/R2 return these instead of the values stored with the object, and they
+ * are covered by the signature, so a recipient cannot tamper with them. This
+ * is how a document keeps its original filename and type on download even
+ * though it is stored under a UUID key.
+ */
+export interface SignedResponseOverrides {
+  contentDisposition?: string;
+  contentType?: string;
+}
+
 /** Generate a short-lived URL for private media access. */
 export async function getPresignedUrl(
   key: string,
   expiresIn: number = env.S3_SIGNED_URL_TTL_SECONDS,
+  responseOverrides?: SignedResponseOverrides,
 ): Promise<string> {
   if (!Number.isInteger(expiresIn) || expiresIn <= 0) {
     throw new Error("Signed URL expiry must be a positive integer");
@@ -239,6 +253,12 @@ export async function getPresignedUrl(
   const command = new GetObjectCommand({
     Bucket: BUCKET,
     Key: key,
+    ...(responseOverrides?.contentDisposition
+      ? { ResponseContentDisposition: responseOverrides.contentDisposition }
+      : {}),
+    ...(responseOverrides?.contentType
+      ? { ResponseContentType: responseOverrides.contentType }
+      : {}),
   });
 
   return await getSignedUrl(s3Client, command, { expiresIn: signedExpiry });
@@ -316,6 +336,37 @@ export function resolveMediaKeyForCompany(
   return key;
 }
 
+/**
+ * Read a byte range from an object.
+ *
+ * Used by repair tooling that needs to identify a file from its magic bytes
+ * without pulling a 40 MB attachment through the API host. `end` is inclusive,
+ * matching the HTTP Range header.
+ */
+export async function readMediaRange(
+  key: string,
+  start: number,
+  end: number,
+): Promise<Buffer> {
+  const response = await s3Client.send(
+    new GetObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Range: `bytes=${start}-${end}`,
+    }),
+  );
+  const body = await response.Body?.transformToByteArray();
+  return Buffer.from(body ?? new Uint8Array());
+}
+
+/** Object size without transferring the object. */
+export async function getMediaObjectSize(key: string): Promise<number> {
+  const head = await s3Client.send(
+    new HeadObjectCommand({ Bucket: BUCKET, Key: key }),
+  );
+  return head.ContentLength ?? 0;
+}
+
 /** Resolve and authorize an internally persisted media reference. */
 export async function getMediaObjectReference(
   mediaUrl: string,
@@ -354,10 +405,11 @@ export async function getAuthorizedMediaUrl(
   mediaReference: string | null | undefined,
   companyId: string,
   expiresIn: number = 5 * 60,
+  responseOverrides?: SignedResponseOverrides,
 ): Promise<string | null> {
   if (!mediaReference) return null;
   const key = resolveMediaKeyForCompany(mediaReference, companyId);
-  return getPresignedUrl(key, expiresIn);
+  return getPresignedUrl(key, expiresIn, responseOverrides);
 }
 
 /** Never echo an invalid persisted reference into an authorized API response. */

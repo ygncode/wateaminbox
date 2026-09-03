@@ -376,11 +376,13 @@ export function MessageContent({
         );
       }
 
+      // Non-previewable documents are served with an `attachment`
+      // disposition, so a plain link downloads them in place. Opening a tab
+      // for that just flashes a blank window that closes itself.
       return withCaption(
         <a
           href={mediaUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+          download={fileName}
           className={cardClassName}
           onClick={(event) => event.stopPropagation()}
         >
