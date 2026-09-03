@@ -3,6 +3,7 @@
  */
 
 import { toDbDate } from "@wateaminbox/shared";
+import type { Kysely } from "kysely";
 import {
   DuplicateWhatsAppPhoneError,
   WhatsAppIdentityMismatchError,
@@ -15,7 +16,7 @@ import type {
 } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/realtime.js";
 import { enqueueSessionCommand } from "../command-outbox.service.js";
-import { getTenantConnection } from "../tenant.service.js";
+import { getTenantConnection, type TenantDatabase } from "../tenant.service.js";
 import {
   claimConnectedSession,
   updateConnectionStatus,
@@ -174,17 +175,25 @@ export async function handleConnectedEvent(
  */
 export async function handleDisconnectedEvent(
   event: ConnectionEvent,
+  // Injected so tests need no global module mock for the tenant database.
+  // Mocking `tenant.service` swaps it for every test file in the run, which
+  // breaks suites that need the real Kysely builder.
+  tenantDb: Kysely<TenantDatabase> = getTenantConnection(event.companyId),
 ): Promise<void> {
   const { companyId, connectionId, sessionId, payload } = event;
 
+  // Both event types land here, but only one can recover on its own. A drop is
+  // retried with backoff and usually heals unattended; whatsmeow emits
+  // LoggedOut after terminal 401/403 session loss, having deleted the
+  // credentials, so no retry brings that session back.
+  const loggedOut = event.type === "logged_out";
+
   logger.info(
-    { companyId, connectionId, reason: payload.reason },
-    "WhatsApp disconnected",
+    { companyId, connectionId, reason: payload.reason, loggedOut },
+    loggedOut ? "WhatsApp logged out" : "WhatsApp disconnected",
   );
 
   try {
-    const tenantDb = getTenantConnection(companyId);
-
     // Check if sync was in progress before disconnection
     const connection = await tenantDb
       .selectFrom("whatsapp_connections")
@@ -225,15 +234,54 @@ export async function handleDisconnectedEvent(
       );
     }
 
+    if (loggedOut) {
+      // Recorded separately from `status`, which stays `disconnected` because
+      // that is accurate and is what every status consumer already handles.
+      // A QR issued before the logout can no longer pair this device.
+      await tenantDb
+        .updateTable("whatsapp_connections")
+        .set({
+          logged_out_at: toDbDate(),
+          qr_code: null,
+          qr_expires_at: null,
+          updated_at: toDbDate(),
+        })
+        .where("id", "=", connectionId)
+        .execute();
+    }
+
     // Broadcast to clients with connectionId
     await broadcastToCompany(
       companyId,
       "disconnected",
-      { reason: payload.reason },
+      // The code lets clients distinguish the permanent case without changing
+      // the event name they already listen for.
+      { reason: payload.reason, ...(loggedOut ? { code: "logged_out" } : {}) },
       connectionId,
     );
+
+    // An ordinary disconnect stays quiet because it usually self-heals. This
+    // one never does, so it is worth interrupting someone for.
+    if (loggedOut) {
+      await broadcastToCompany(
+        companyId,
+        "notification:toast",
+        {
+          type: "error",
+          title: "WhatsApp logged out",
+          message:
+            "This number was unlinked from WhatsApp. Scan a new QR code to reconnect.",
+        },
+        connectionId,
+      );
+    }
   } catch (error) {
-    logger.error(formatError(error), "Failed to handle disconnected event");
+    logger.error(
+      formatError(error),
+      loggedOut
+        ? "Failed to handle logged out event"
+        : "Failed to handle disconnected event",
+    );
     throw error;
   }
 }

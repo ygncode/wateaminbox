@@ -33,6 +33,7 @@ export const TENANT_SCHEMA_CONTRACT = {
     "qr_code",
     "qr_expires_at",
     "archived_at",
+    "logged_out_at",
     "created_at",
     "updated_at",
   ],
@@ -990,6 +991,7 @@ export async function reconcileTenantSchema<Database>(
       "sync_message_count",
       "sync_conversation_count",
       "archived_at",
+      "logged_out_at",
     ].every((column) => connectionColumns.has(column)),
     () =>
       sql`
@@ -998,7 +1000,8 @@ export async function reconcileTenantSchema<Database>(
         ADD COLUMN IF NOT EXISTS qr_expires_at TIMESTAMPTZ,
         ADD COLUMN IF NOT EXISTS sync_message_count INTEGER NOT NULL DEFAULT 0,
         ADD COLUMN IF NOT EXISTS sync_conversation_count INTEGER NOT NULL DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ
+        ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS logged_out_at TIMESTAMPTZ
       `.execute(db),
   );
 
