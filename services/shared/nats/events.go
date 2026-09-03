@@ -190,20 +190,28 @@ type MessagePayload struct {
 	// ProtocolSenderJID preserves the participant identity used in WhatsApp's
 	// message key (often a LID in modern groups), while From remains the
 	// user-facing phone-number identity when one is available.
-	ProtocolSenderJID string `json:"protocolSenderJid,omitempty"`
-	Caption           string `json:"caption,omitempty"`
-	FileName          string `json:"fileName,omitempty"`
-	MediaType         string `json:"mediaType,omitempty"`
-	MediaSize         int64  `json:"mediaSize,omitempty"`
-	MediaAlbumID      string `json:"mediaAlbumId,omitempty"`
-	MediaAlbumIndex   *int   `json:"mediaAlbumIndex,omitempty"`
-	MediaAlbumCount   int    `json:"mediaAlbumCount,omitempty"`
+	ProtocolSenderJID string               `json:"protocolSenderJid,omitempty"`
+	Caption           string               `json:"caption,omitempty"`
+	FileName          string               `json:"fileName,omitempty"`
+	ContactCards      []ContactCardPayload `json:"contactCards,omitempty"`
+	MediaType         string               `json:"mediaType,omitempty"`
+	MediaSize         int64                `json:"mediaSize,omitempty"`
+	MediaAlbumID      string               `json:"mediaAlbumId,omitempty"`
+	MediaAlbumIndex   *int                 `json:"mediaAlbumIndex,omitempty"`
+	MediaAlbumCount   int                  `json:"mediaAlbumCount,omitempty"`
 	// Deferred media download fields - for on-demand download
 	MediaDirectPath    string `json:"mediaDirectPath,omitempty"`
 	MediaKey           []byte `json:"mediaKey,omitempty"`
 	MediaFileSHA256    []byte `json:"mediaFileSha256,omitempty"`
 	MediaFileEncSHA256 []byte `json:"mediaFileEncSha256,omitempty"`
 	IsHistorySync      bool   `json:"isHistorySync,omitempty"`
+}
+
+// ContactCardPayload carries the vCard WhatsApp attached to a shared contact.
+// The API normalizes it before persistence so raw vCards never reach clients.
+type ContactCardPayload struct {
+	DisplayName string `json:"displayName"`
+	VCard       string `json:"vcard"`
 }
 
 // MessageRevokePayload is the payload for message revocation events.
@@ -481,27 +489,28 @@ type ConnectionStatusEvent struct {
 
 // MessageEvent represents an incoming WhatsApp message (internal use).
 type MessageEvent struct {
-	MessageID         string    `json:"message_id"`
-	From              string    `json:"from"`
-	To                string    `json:"to"`
-	FromMe            bool      `json:"from_me"`
-	Type              string    `json:"type"` // "text", "image", "video", "audio", "document"
-	Status            string    `json:"status,omitempty"`
-	Content           string    `json:"content,omitempty"`
-	MediaURL          string    `json:"media_url,omitempty"`
-	MediaType         string    `json:"media_type,omitempty"`
-	MediaSize         int64     `json:"media_size,omitempty"`
-	MediaAlbumID      string    `json:"media_album_id,omitempty"`
-	MediaAlbumIndex   int       `json:"media_album_index,omitempty"`
-	MediaAlbumCount   int       `json:"media_album_count,omitempty"`
-	FileName          string    `json:"file_name,omitempty"`
-	Caption           string    `json:"caption,omitempty"`
-	IsGroup           bool      `json:"is_group"`
-	GroupID           string    `json:"group_id,omitempty"`
-	SenderName        string    `json:"sender_name,omitempty"`
-	ProtocolSenderJID string    `json:"protocol_sender_jid,omitempty"`
-	QuotedMessageID   string    `json:"quoted_message_id,omitempty"`
-	Timestamp         time.Time `json:"timestamp"`
+	MessageID         string               `json:"message_id"`
+	From              string               `json:"from"`
+	To                string               `json:"to"`
+	FromMe            bool                 `json:"from_me"`
+	Type              string               `json:"type"` // "text", "image", "video", "audio", "document"
+	Status            string               `json:"status,omitempty"`
+	Content           string               `json:"content,omitempty"`
+	MediaURL          string               `json:"media_url,omitempty"`
+	MediaType         string               `json:"media_type,omitempty"`
+	MediaSize         int64                `json:"media_size,omitempty"`
+	MediaAlbumID      string               `json:"media_album_id,omitempty"`
+	MediaAlbumIndex   int                  `json:"media_album_index,omitempty"`
+	MediaAlbumCount   int                  `json:"media_album_count,omitempty"`
+	FileName          string               `json:"file_name,omitempty"`
+	ContactCards      []ContactCardPayload `json:"contact_cards,omitempty"`
+	Caption           string               `json:"caption,omitempty"`
+	IsGroup           bool                 `json:"is_group"`
+	GroupID           string               `json:"group_id,omitempty"`
+	SenderName        string               `json:"sender_name,omitempty"`
+	ProtocolSenderJID string               `json:"protocol_sender_jid,omitempty"`
+	QuotedMessageID   string               `json:"quoted_message_id,omitempty"`
+	Timestamp         time.Time            `json:"timestamp"`
 	// Deferred media download fields
 	MediaDirectPath    string `json:"media_direct_path,omitempty"`
 	MediaKey           []byte `json:"media_key,omitempty"`

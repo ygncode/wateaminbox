@@ -35,6 +35,12 @@ import {
   getReplyNavigationTarget,
   type MessageNavigationTarget,
 } from "./message-navigation";
+import {
+  isDoubleTouchTap,
+  isInteractiveMessageTarget,
+  isMobileReactionSurface,
+  type TouchTap,
+} from "./mobile-message-gestures";
 
 /**
  * Bubble fills.
@@ -140,6 +146,7 @@ export const MessageBubble = memo(function MessageBubble({
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const lastTouchTapRef = useRef<TouchTap | null>(null);
 
   // Both context menu and reaction picker use fixed positioning with viewport coordinates
   const [contextMenuPosition, setContextMenuPosition] = useState({
@@ -172,6 +179,8 @@ export const MessageBubble = memo(function MessageBubble({
   );
 
   const handleReactionClick = useCallback(() => {
+    if (!onReact || message.isDeleted || selectionMode) return;
+
     // Calculate viewport coordinates for fixed positioning
     const rect = bubbleRef.current?.getBoundingClientRect();
     if (rect) {
@@ -206,7 +215,51 @@ export const MessageBubble = memo(function MessageBubble({
     }
     setShowReactionPicker(true);
     setShowContextMenu(false);
-  }, [isOwn]);
+  }, [isOwn, message.isDeleted, onReact, selectionMode]);
+
+  const handlePointerUp = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (
+        event.pointerType !== "touch" ||
+        !onReact ||
+        message.isDeleted ||
+        selectionMode ||
+        isInteractiveMessageTarget(event.target)
+      ) {
+        lastTouchTapRef.current = null;
+        return;
+      }
+
+      const tap = { at: Date.now(), x: event.clientX, y: event.clientY };
+      const previousTap = lastTouchTapRef.current;
+      lastTouchTapRef.current = tap;
+      if (!previousTap || !isDoubleTouchTap(previousTap, tap)) return;
+
+      lastTouchTapRef.current = null;
+      event.preventDefault();
+      event.stopPropagation();
+      handleReactionClick();
+    },
+    [handleReactionClick, message.isDeleted, onReact, selectionMode],
+  );
+
+  // Some mobile browsers synthesize dblclick rather than exposing the two
+  // touch pointer events consistently. Keep that path mobile-only so desktop
+  // text selection remains unchanged.
+  const handleDoubleClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (
+        !isMobileReactionSurface() ||
+        isInteractiveMessageTarget(event.target)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      handleReactionClick();
+    },
+    [handleReactionClick],
+  );
 
   const handleSelectReaction = useCallback(
     (emoji: string) => {
@@ -273,8 +326,11 @@ export const MessageBubble = memo(function MessageBubble({
             "ring-2 ring-yellow-400 ring-offset-2 dark:ring-offset-dark-primary",
           isSelected &&
             "ring-2 ring-whatsapp-teal-green ring-offset-1 dark:ring-offset-dark-primary",
+          "touch-manipulation",
         )}
         onContextMenu={selectionMode ? undefined : handleContextMenu}
+        onPointerUp={handlePointerUp}
+        onDoubleClick={handleDoubleClick}
         data-message-id={message.id}
       >
         {/* Identity is explicit on both sides of a shared team conversation,

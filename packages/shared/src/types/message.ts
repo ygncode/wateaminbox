@@ -156,6 +156,14 @@ export interface MessageMetadata {
   mediaAlbumIndex?: number;
   /** Total image/video children declared by the album parent. */
   mediaAlbumCount?: number;
+  /** Contact details carried by WhatsApp contact/vCard messages. */
+  contactCards?: Array<{
+    displayName: string;
+    phoneNumbers: Array<{
+      value: string;
+      label?: string;
+    }>;
+  }>;
   // Deferred media download fields
   mediaPending?: boolean; // True if media needs to be downloaded on-demand
   mediaDownloadStatus?: MediaDownloadStatus;

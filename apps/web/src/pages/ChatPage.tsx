@@ -8,9 +8,10 @@ import {
   RotateCcw,
   UsersRound,
 } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
+import { toast } from "sonner";
 import { ChatSidebar, type SidebarView } from "../components/chat/ChatSidebar";
 import { ComposerLifecycleArea } from "../components/chat/ComposerLifecycleArea";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
@@ -24,19 +25,25 @@ import {
 import { MessageComposer } from "../components/chat/MessageComposer";
 import { MessageHeader } from "../components/chat/MessageHeader";
 import { MessageThread } from "../components/chat/MessageThread";
+import { SharedContactSheet } from "../components/chat/SharedContactSheet";
 import { AppLayout, ResponsiveLayout } from "../components/layout/app-layout";
 import { CONVERSATION_HEADER_INSET_CLASS } from "../components/layout/conversation-chrome";
 import { MainContent } from "../components/layout/main-content";
 import { Sidebar } from "../components/layout/sidebar";
 import { Skeleton } from "../components/ui";
 import { useAuth } from "../contexts/auth-context";
-import { MessageActionsProvider } from "../contexts/message-actions-context";
+import {
+  MessageActionsProvider,
+  type SharedContactCard,
+} from "../contexts/message-actions-context";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useChatPageState } from "../hooks/chat";
-import { useGroup } from "../hooks/useGroups";
 import { useKeyboardInset } from "../hooks/ui";
 import { useComposerAccess } from "../hooks/useComposerAccess";
+import { useCreateContact } from "../hooks/useContact";
+import { useGroup } from "../hooks/useGroups";
 import { useWhatsAppConnectionsList } from "../hooks/whatsapp";
+import { ApiRequestError } from "../lib/api/client";
 import { cn } from "../lib/utils";
 import {
   parseChatView,
@@ -50,6 +57,9 @@ export function ChatPage() {
   const { user } = useAuth();
   const { activeWorkspace, can } = useWorkspace();
   const navigate = useNavigate();
+  const createSharedContact = useCreateContact();
+  const [sharedContactCard, setSharedContactCard] =
+    useState<SharedContactCard | null>(null);
   const { pathname, search } = useLocation();
   const {
     data: connections = [],
@@ -120,6 +130,57 @@ export function ChatPage() {
     handleForwardToContact,
     handleCloseForwardDialog,
   } = useChatPageState();
+
+  const handleOpenSharedContact = useCallback((contact: SharedContactCard) => {
+    setSharedContactCard(contact);
+  }, []);
+
+  const handleCloseSharedContact = useCallback(() => {
+    if (!createSharedContact.isPending) setSharedContactCard(null);
+  }, [createSharedContact.isPending]);
+
+  const handleMessageSharedContact = useCallback(
+    async (contact: SharedContactCard) => {
+      const phoneNumber = contact.phoneNumbers[0]?.value;
+      if (!phoneNumber || createSharedContact.isPending) return;
+
+      try {
+        const destination = await createSharedContact.mutateAsync({
+          phoneNumber,
+          connectionId: selectedContact?.connection?.id,
+          customName: contact.displayName.slice(0, 100),
+        });
+        setSharedContactCard(null);
+        handleChatSelect(destination.id);
+      } catch (error) {
+        const existingContactId =
+          error instanceof ApiRequestError && error.statusCode === 409
+            ? error.details?.id
+            : undefined;
+        if (typeof existingContactId === "string") {
+          setSharedContactCard(null);
+          handleChatSelect(existingContactId);
+          return;
+        }
+
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : t(
+                "chat.messageContactFailed",
+                "Could not open this contact's conversation",
+              ),
+        );
+      }
+    },
+    [createSharedContact, handleChatSelect, selectedContact?.connection?.id, t],
+  );
+
+  const handleMessageProfileContact = useCallback(() => {
+    if (!profileContactId || profileContactId === selectedChatId) return;
+    handleCloseProfile();
+    handleChatSelect(profileContactId);
+  }, [handleChatSelect, handleCloseProfile, profileContactId, selectedChatId]);
 
   // Single source of truth for the composer gate, shared with
   // ComposerLifecycleArea below - both must agree on whether this user can
@@ -233,6 +294,8 @@ export function ChatPage() {
               // Read-only: opening a member's profile is a detail view, so it
               // is offered regardless of whether this user can send here.
               onOpenParticipantProfile={handleOpenParticipantProfile}
+              onOpenSharedContact={handleOpenSharedContact}
+              onMessageSharedContact={handleMessageSharedContact}
             >
               <MessageThread
                 conversationId={selectedChatId}
@@ -277,6 +340,11 @@ export function ChatPage() {
       contactId={profileContactId || null}
       isOpen={isProfileOpen}
       onClose={handleCloseProfile}
+      onMessage={
+        profileContactId && profileContactId !== selectedChatId
+          ? handleMessageProfileContact
+          : undefined
+      }
       onOpenParticipantProfile={handleOpenParticipantProfile}
     />
   );
@@ -292,8 +360,19 @@ export function ChatPage() {
         rightPanel={rightPanel}
         isRightPanelOpen={isProfileOpen}
         onRightPanelClose={handleCloseProfile}
+        rightPanelPresentation={
+          profileContactId && profileContactId !== selectedChatId
+            ? "bottom-sheet"
+            : "side"
+        }
         selectedChatId={selectedChatId}
         onChatSelect={handleChatSelect}
+      />
+      <SharedContactSheet
+        contact={sharedContactCard}
+        onClose={handleCloseSharedContact}
+        onMessage={handleMessageSharedContact}
+        isMessaging={createSharedContact.isPending}
       />
       <ForwardMessageDialog
         open={forwardDialogOpen}

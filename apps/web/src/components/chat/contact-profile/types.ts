@@ -4,6 +4,8 @@ export interface ContactProfileProps {
   contactId: string | null;
   isOpen: boolean;
   onClose: () => void;
+  /** Open this contact's conversation from a member profile sheet. */
+  onMessage?: () => void;
   /**
    * Re-point this panel at a group member. Omitted where the host has no way
    * to switch the panel's subject, in which case member rows stay static text

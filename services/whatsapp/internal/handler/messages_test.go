@@ -170,6 +170,28 @@ func TestGetQuotedMessageIDReturnsEmptyForRegularMessage(t *testing.T) {
 	}
 }
 
+func TestContactCardPayloadsPreserveDisplayNameAndVCard(t *testing.T) {
+	cards := contactCardPayloads([]*waE2E.ContactMessage{
+		{
+			DisplayName: proto.String("My Universe 🌟❤️"),
+			Vcard: proto.String(
+				"BEGIN:VCARD\nFN:My Universe 🌟❤️\nTEL:+6591234567\nEND:VCARD",
+			),
+		},
+		nil,
+	})
+
+	if len(cards) != 1 {
+		t.Fatalf("expected one contact card, got %d", len(cards))
+	}
+	if cards[0].DisplayName != "My Universe 🌟❤️" {
+		t.Fatalf("unexpected contact name %q", cards[0].DisplayName)
+	}
+	if cards[0].VCard == "" {
+		t.Fatal("expected vCard details to be preserved")
+	}
+}
+
 func TestGetHistorySenderJIDUsesGroupParticipant(t *testing.T) {
 	handler := New(Config{})
 

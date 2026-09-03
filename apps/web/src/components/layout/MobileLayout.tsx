@@ -1,12 +1,9 @@
 import { ArrowLeft, X } from "lucide-react";
 import * as React from "react";
 import { useCallback, useEffect, useState } from "react";
-import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
-import {
-  type MobileView,
-  resolveMobileView,
-} from "./mobile-layout-state";
+import { cn } from "@/lib/utils";
+import { type MobileView, resolveMobileView } from "./mobile-layout-state";
 
 export type { MobileView } from "./mobile-layout-state";
 
@@ -274,7 +271,7 @@ export interface MobileSlideInPanelProps
    * content already draws its own header, so the panel does not stack two.
    */
   titleId?: string;
-  position?: "left" | "right";
+  position?: "left" | "right" | "bottom";
 }
 
 export function MobileSlideInPanel({
@@ -332,14 +329,22 @@ export function MobileSlideInPanel({
       {/* Panel */}
       <aside
         className={cn(
-          "fixed inset-y-0 z-50 flex w-full max-w-[26rem] flex-col overflow-hidden bg-white dark:bg-dark-secondary shadow-xl transition-transform duration-300 ease-in-out safe-area-left safe-area-right",
+          "fixed z-50 flex flex-col overflow-hidden bg-white shadow-xl transition-transform duration-300 ease-in-out dark:bg-dark-secondary",
           position === "right" && "right-0",
           position === "left" && "left-0",
+          position !== "bottom" &&
+            "inset-y-0 w-full max-w-[26rem] safe-area-left safe-area-right",
+          position === "bottom" &&
+            "inset-x-0 bottom-0 h-[78dvh] max-h-[48rem] w-full rounded-t-[1.4rem] shadow-[0_-12px_44px_rgba(11,20,26,0.24)]",
           isOpen
-            ? "translate-x-0"
-            : position === "right"
-              ? "translate-x-full"
-              : "-translate-x-full",
+            ? position === "bottom"
+              ? "translate-y-0"
+              : "translate-x-0"
+            : position === "bottom"
+              ? "translate-y-full"
+              : position === "right"
+                ? "translate-x-full"
+                : "-translate-x-full",
           className,
         )}
         role="dialog"
@@ -352,6 +357,15 @@ export function MobileSlideInPanel({
         inert={!isOpen}
         {...props}
       >
+        {position === "bottom" && (
+          <div
+            className="flex h-5 shrink-0 items-center justify-center bg-white dark:bg-dark-secondary"
+            aria-hidden="true"
+          >
+            <span className="h-1 w-10 rounded-full bg-[#c7d0d5] dark:bg-white/20" />
+          </div>
+        )}
+
         {/* Panel Header - omitted when the content supplies its own chrome. */}
         {title && !titleId && (
           <header className="flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-gray-200 dark:border-dark-border bg-whatsapp-teal-green px-4 text-white safe-area-top">

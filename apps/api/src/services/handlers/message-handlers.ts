@@ -595,6 +595,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     if (!payload.isHistorySync) {
       const realtimeMetadata = {
         ...(payload.mediaUrl ? { mediaAvailable: true } : {}),
+        ...(payload.messageType === "contact" && incomingMetadata?.contactCards
+          ? { contactCards: incomingMetadata.contactCards }
+          : {}),
         ...(incomingMetadata?.mediaAlbumId
           ? {
               mediaAlbumId: incomingMetadata.mediaAlbumId,

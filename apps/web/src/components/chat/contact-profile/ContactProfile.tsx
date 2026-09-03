@@ -1,5 +1,6 @@
 import { Download } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ExportDialog } from "@/components/export";
 import {
   RightPanel,
@@ -10,19 +11,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { useContact } from "@/hooks/useContact";
 import { useGroup } from "@/hooks/useGroups";
-import { GroupInfoSections } from "./GroupInfoSections";
-import type { ContactProfileProps } from "./types";
-import { ContactProfileSkeleton } from "./ContactProfileSkeleton";
-import { ProfileHeader } from "./ProfileHeader";
-import { ContactInfoSection } from "./ContactInfoSection";
-import { EditableNameSection } from "./EditableNameSection";
-import { SharedNotesSection, PrivateNotesSection } from "./NotesPanel";
-import { TagsSection } from "./TagsSection";
-import { AssignmentSection } from "./AssignmentSection";
 import { AssignmentHistorySection } from "./AssignmentHistorySection";
+import { AssignmentSection } from "./AssignmentSection";
 import { BlockStatusSection } from "./BlockStatusSection";
+import { ContactInfoSection } from "./ContactInfoSection";
+import { ContactProfileSkeleton } from "./ContactProfileSkeleton";
+import { EditableNameSection } from "./EditableNameSection";
+import { GroupInfoSections } from "./GroupInfoSections";
+import { PrivateNotesSection, SharedNotesSection } from "./NotesPanel";
 import { NotificationMuteSection } from "./NotificationMuteSection";
-import { useTranslation } from "react-i18next";
+import { ProfileHeader } from "./ProfileHeader";
+import { TagsSection } from "./TagsSection";
+import type { ContactProfileProps } from "./types";
 
 /**
  * Contact Profile Panel - shows detailed contact information
@@ -32,6 +32,7 @@ export function ContactProfile({
   contactId,
   isOpen,
   onClose,
+  onMessage,
   onOpenParticipantProfile,
 }: ContactProfileProps) {
   const { t } = useTranslation();
@@ -69,7 +70,7 @@ export function ContactProfile({
         ) : contact ? (
           <>
             {/* Profile Header */}
-            <ProfileHeader contact={contact} />
+            <ProfileHeader contact={contact} onMessage={onMessage} />
 
             {/* Contact Info Section */}
             <ContactInfoSection contact={contact} />

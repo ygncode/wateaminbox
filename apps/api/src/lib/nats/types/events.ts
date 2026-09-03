@@ -119,6 +119,10 @@ export interface MessageEvent extends WhatsAppEvent {
     protocolSenderJid?: string;
     caption?: string;
     fileName?: string;
+    contactCards?: Array<{
+      displayName: string;
+      vcard: string;
+    }>;
     mediaType?: string;
     mediaSize?: number;
     mediaAlbumId?: string;
