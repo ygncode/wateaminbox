@@ -38,6 +38,8 @@ jobs:
       - run: bun run typecheck
       - run: bun run check:unused
       - run: bun run build -- --force
+      - name: Validate migration image manifest permissions
+        run: ./scripts/migration-image-permissions.test.sh
       - name: Validate worker artifact installer
         run: ./scripts/worker-artifact-installer.test.sh
       - name: Validate production worker artifact Compose wiring

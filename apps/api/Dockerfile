@@ -48,6 +48,11 @@ CMD ["bun", "run", "apps/api/dist/index.js"]
 FROM production-dependencies AS migration
 WORKDIR /app
 ENV NODE_ENV=production
+# Production deploys use a restrictive umask, so Git may materialize changed
+# manifests as 0600. Bun resolves the workspace manifest before running the
+# migration entry point; make its runtime ownership and mode independent of the
+# checkout rather than weakening the host's deployment permissions.
+COPY --chown=bun:bun --chmod=0444 package.json ./package.json
 COPY --from=build /app/packages/shared/dist packages/shared/dist
 COPY packages/database packages/database
 COPY infrastructure/docker/secret-entrypoint.sh /usr/local/bin/secret-entrypoint
