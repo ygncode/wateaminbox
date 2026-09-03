@@ -77,4 +77,35 @@ describe("contact API transformation", () => {
       status: "connected",
     });
   });
+
+  test("preserves mention names needed by the chat-list preview", () => {
+    const transformed = transformContact(
+      contact({
+        jid: "120363000000000000@g.us",
+        is_group: true,
+        last_message: {
+          id: crypto.randomUUID(),
+          messageId: "wa-mentioned-message",
+          fromMe: false,
+          messageType: "text",
+          content: "Hello @6585719494172749",
+          status: "delivered",
+          timestamp: new Date(),
+          mentionParticipants: [
+            {
+              displayName: "Eddie Tan",
+              mentionIds: ["6585719494172749"],
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(transformed.lastMessage?.mentionParticipants).toEqual([
+      {
+        displayName: "Eddie Tan",
+        mentionIds: ["6585719494172749"],
+      },
+    ]);
+  });
 });

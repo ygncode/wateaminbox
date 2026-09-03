@@ -39,6 +39,10 @@ export interface ContactApiResponse {
     timestamp: string;
     sentByUserId: string | null;
     sentByUserName: string | null;
+    mentionParticipants?: {
+      displayName: string;
+      mentionIds: string[];
+    }[];
   } | null;
   unreadCount: number;
   assignedTo: string | null;
@@ -111,6 +115,7 @@ export function transformContactToChat(contact: ContactApiResponse): Chat {
           isFromMe: contact.lastMessage.fromMe,
           sentByUserId: contact.lastMessage.sentByUserId || undefined,
           sentByUserName: contact.lastMessage.sentByUserName || undefined,
+          mentionParticipants: contact.lastMessage.mentionParticipants,
         }
       : undefined,
     unreadCount: contact.unreadCount,

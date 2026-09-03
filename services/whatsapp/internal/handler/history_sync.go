@@ -597,6 +597,23 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 		}
 	}
 
+	// Contact shares have no downloadable media, but their vCards carry the
+	// phone details needed to render more than a display-name placeholder.
+	if waMsg.ContactMessage != nil {
+		msgEvent.Type = "contact"
+		msgEvent.Content = waMsg.ContactMessage.GetDisplayName()
+		msgEvent.ContactCards = contactCardPayloads([]*waE2E.ContactMessage{
+			waMsg.ContactMessage,
+		})
+	}
+	if waMsg.ContactsArrayMessage != nil {
+		msgEvent.Type = "contact"
+		msgEvent.Content = waMsg.ContactsArrayMessage.GetDisplayName()
+		msgEvent.ContactCards = contactCardPayloads(
+			waMsg.ContactsArrayMessage.GetContacts(),
+		)
+	}
+
 	// Skip if we couldn't determine message type
 	if msgEvent.Type == "" {
 		return false, false

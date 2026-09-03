@@ -1,8 +1,8 @@
 import { X } from "lucide-react";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { useTranslation } from "react-i18next";
 
 /**
  * Where the right panel is being drawn.
@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
  * the desktop-only visibility and sizing - applying them there is what left
  * the touch drawer rendering an empty box.
  */
-export type RightPanelSurface = "docked" | "embedded";
+export type RightPanelSurface = "docked" | "embedded" | "sheet";
 
 export const RightPanelSurfaceContext =
   React.createContext<RightPanelSurface>("docked");
@@ -77,12 +77,16 @@ export function RightPanelHeader({
   return (
     <header
       className={cn(
-        "flex shrink-0 items-center gap-4 bg-whatsapp-teal-green px-4 text-white",
-        // Responsive height, with the notch inset added on top of the row
-        // rather than subtracted from it - `box-sizing: border-box` is global,
-        // so pairing a fixed height with `safe-area-top` crushes the content.
-        "h-[calc(3.5rem+env(safe-area-inset-top))] md:h-[calc(3.75rem+env(safe-area-inset-top))]",
-        "safe-area-top",
+        "flex shrink-0 items-center gap-4 px-4",
+        surface === "sheet"
+          ? "h-14 border-b border-black/[0.07] bg-white text-[#111b21] dark:border-white/[0.08] dark:bg-dark-secondary dark:text-dark-text-primary"
+          : [
+              "bg-whatsapp-teal-green text-white",
+              // Responsive height, with the notch inset added on top of the
+              // row rather than subtracted from it.
+              "h-[calc(3.5rem+env(safe-area-inset-top))] md:h-[calc(3.75rem+env(safe-area-inset-top))]",
+              "safe-area-top",
+            ],
         className,
       )}
       {...props}
@@ -90,14 +94,19 @@ export function RightPanelHeader({
       {onClose && (
         <button
           onClick={onClose}
-          className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-white/10 transition-colors touch-manipulation"
+          className={cn(
+            "flex h-10 w-10 touch-manipulation items-center justify-center rounded-full transition-colors",
+            surface === "sheet"
+              ? "text-[#54656f] hover:bg-black/[0.055] active:bg-black/10 dark:text-dark-text-secondary dark:hover:bg-white/[0.06]"
+              : "hover:bg-white/10",
+          )}
           aria-label={t("common.closePanel", "Close panel")}
         >
           <X className="h-5 w-5" />
         </button>
       )}
       <h2
-        id={surface === "embedded" ? RIGHT_PANEL_TITLE_ID : undefined}
+        id={surface !== "docked" ? RIGHT_PANEL_TITLE_ID : undefined}
         className="text-lg font-medium"
       >
         {title}

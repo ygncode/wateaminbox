@@ -1,5 +1,6 @@
 import { formatChatListTime } from "@wateaminbox/shared";
 import { memo, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import { useAuth } from "@/contexts/auth-context";
 import {
@@ -10,7 +11,7 @@ import {
 import type { ChatListItemProps } from "../../types/chat";
 import { ConnectionBadge } from "./ConnectionIdentity";
 import { ConversationStatusBadge } from "./ConversationStatusBadge";
-import { useTranslation } from "react-i18next";
+import { resolveMentionNames } from "./group-mentions";
 
 /**
  * Truncate message content for preview display
@@ -85,11 +86,28 @@ export const ChatListItem = memo(function ChatListItem({
       case "location":
         return `${prefix}${t("chat.mediaTypes.location", "Location")}`;
       case "contact":
-        return `${prefix}${t("chat.mediaTypes.contact", "Contact")}`;
-      default:
-        return prefix + truncateMessage(lastMessage.content);
+        return lastMessage.content
+          ? `${prefix}${t("chat.sharedContactPreview", {
+              defaultValue: "Contact: {{name}}",
+              name: lastMessage.content,
+            })}`
+          : `${prefix}${t("chat.mediaTypes.contact", "Contact")}`;
+      default: {
+        const content = contact.isGroup
+          ? resolveMentionNames(
+              lastMessage.content,
+              (lastMessage.mentionParticipants || []).map((participant) => ({
+                jid: "",
+                phoneNumber: null,
+                contactId: null,
+                ...participant,
+              })),
+            )
+          : lastMessage.content;
+        return prefix + truncateMessage(content);
+      }
     }
-  }, [lastMessage, user?.id, t]);
+  }, [contact.isGroup, lastMessage, user?.id, t]);
 
   // Build accessible label with contact name, message preview, and status
   const accessibleLabel = useMemo(() => {

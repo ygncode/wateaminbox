@@ -1,8 +1,11 @@
 import type { Message, MessageType } from "@wateaminbox/shared";
-import { Maximize2, Play } from "lucide-react";
+import { Maximize2, MessageCircle, Play, UserRound } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
+import { useMessageActions } from "@/contexts/message-actions-context";
 import type { GroupParticipant } from "@/hooks/useGroups";
+import { cn, formatPhoneNumber } from "@/lib/utils";
 import { LinkifiedText } from "./LinkifiedText";
 import { MediaAlbumContent } from "./MediaAlbumContent";
 import { MediaLightbox } from "./MediaLightbox";
@@ -15,7 +18,7 @@ interface MessageContentProps {
   isOwn: boolean;
   mentionParticipants?: Pick<
     GroupParticipant,
-    "jid" | "phoneNumber" | "mentionIds" | "displayName"
+    "jid" | "phoneNumber" | "mentionIds" | "displayName" | "contactId"
   >[];
   enableMediaPreview?: boolean;
 }
@@ -484,14 +487,7 @@ export function MessageContent({
         <LinkifiedText text={message.content} isOwn={isOwn} />
       </div>
     ),
-    contact: () => (
-      <div className="p-3 bg-gray-50 dark:bg-dark-tertiary rounded-lg border border-gray-200 dark:border-dark-border">
-        <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-1">
-          {t("chat.contactCard", "Contact Card")}
-        </p>
-        <LinkifiedText text={message.content} isOwn={isOwn} />
-      </div>
-    ),
+    contact: () => <ContactCardMessage message={message} isOwn={isOwn} />,
     reaction: () => (
       <div className="flex items-center gap-2">
         <span className="text-2xl">{message.content}</span>
@@ -506,6 +502,128 @@ export function MessageContent({
     contentRenderer[message.messageType]?.() || (
       <LinkifiedText text={message.content} isOwn={isOwn} />
     )
+  );
+}
+
+function ContactCardMessage({
+  message,
+  isOwn,
+}: {
+  message: Message;
+  isOwn: boolean;
+}) {
+  const { t } = useTranslation();
+  const { onOpenSharedContact, onMessageSharedContact } = useMessageActions();
+  const cards = message.metadata?.contactCards?.length
+    ? message.metadata.contactCards
+    : message.content.trim()
+      ? [{ displayName: message.content.trim(), phoneNumbers: [] }]
+      : [];
+  const heading =
+    cards.length > 1
+      ? t("chat.sharedContacts", {
+          defaultValue: "{{count}} shared contacts",
+          count: cards.length,
+        })
+      : t("chat.sharedContact", "Shared contact");
+
+  return (
+    <section
+      className={cn(
+        "min-w-[15rem] max-w-[19rem] overflow-hidden rounded-xl border",
+        isOwn
+          ? "border-black/[0.08] bg-white/45 dark:border-white/[0.1] dark:bg-black/15"
+          : "border-black/[0.07] bg-[#f7f9fa] dark:border-white/[0.08] dark:bg-white/[0.045]",
+      )}
+      aria-label={heading}
+    >
+      <div className="flex items-center gap-1.5 border-b border-black/[0.06] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#667781] dark:border-white/[0.07] dark:text-dark-text-tertiary">
+        <UserRound className="size-3.5" aria-hidden="true" />
+        <span>{heading}</span>
+      </div>
+
+      <div className="divide-y divide-black/[0.06] dark:divide-white/[0.07]">
+        {cards.length > 0 ? (
+          cards.map((card, cardIndex) => {
+            const primaryPhone = card.phoneNumbers[0]?.value;
+            return (
+              <div key={`${card.displayName}-${cardIndex}`}>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onOpenSharedContact?.(card);
+                  }}
+                  disabled={!onOpenSharedContact}
+                  className="flex w-full items-start gap-3 px-3 py-3 text-left outline-none transition-colors enabled:hover:bg-black/[0.035] enabled:focus-visible:ring-2 enabled:focus-visible:ring-inset enabled:focus-visible:ring-[#00a884]/40 disabled:cursor-default dark:enabled:hover:bg-white/[0.04]"
+                  aria-label={t("chat.openSharedContact", {
+                    defaultValue: "Open contact info for {{name}}",
+                    name: card.displayName,
+                  })}
+                >
+                  <div className="size-11 shrink-0 overflow-hidden rounded-full shadow-sm ring-1 ring-black/[0.06] dark:ring-white/[0.1]">
+                    <IdentityAvatarFallback
+                      displayName={card.displayName}
+                      identity={`${card.displayName}-${cardIndex}`}
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1 pt-0.5">
+                    <p className="truncate text-[15px] font-semibold leading-5 text-[#111b21] dark:text-dark-text-primary">
+                      {card.displayName}
+                    </p>
+                    {card.phoneNumbers.length > 0 ? (
+                      <div className="mt-1 space-y-1">
+                        {card.phoneNumbers.map((phone, phoneIndex) => (
+                          <div
+                            key={`${phone.value}-${phoneIndex}`}
+                            className="flex min-h-5 items-center gap-1.5 text-xs text-[#54656f] dark:text-dark-text-secondary"
+                          >
+                            <span className="truncate tabular-nums">
+                              {formatPhoneNumber(phone.value)}
+                            </span>
+                            {phone.label && (
+                              <span className="ml-auto shrink-0 text-[10px] text-[#8696a0] dark:text-dark-text-tertiary">
+                                {phone.label}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-xs text-[#8696a0] dark:text-dark-text-tertiary">
+                        {t(
+                          "chat.contactDetailsUnavailable",
+                          "Phone number unavailable",
+                        )}
+                      </p>
+                    )}
+                  </div>
+                </button>
+
+                {primaryPhone && onMessageSharedContact && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onMessageSharedContact(card);
+                    }}
+                    className="flex min-h-10 w-full items-center justify-center gap-2 border-t border-black/[0.06] px-3 text-sm font-semibold text-[#008069] outline-none transition-colors hover:bg-black/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#00a884]/40 dark:border-white/[0.07] dark:text-[#53bdeb] dark:hover:bg-white/[0.04]"
+                  >
+                    <MessageCircle className="size-4" aria-hidden="true" />
+                    {t("chat.messageContact", "Message")}
+                  </button>
+                )}
+              </div>
+            );
+          })
+        ) : (
+          <p className="px-3 py-4 text-sm text-[#667781] dark:text-dark-text-secondary">
+            {t("chat.contactDetailsUnavailable", "Contact details unavailable")}
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 

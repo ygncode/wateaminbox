@@ -52,6 +52,11 @@ export interface Message {
   isFromMe: boolean;
   sentByUserId?: string;
   sentByUserName?: string;
+  /** Names needed to replace serialized numeric mentions in the inbox preview. */
+  mentionParticipants?: {
+    displayName: string;
+    mentionIds: string[];
+  }[];
   replyToId?: string;
   isForwarded?: boolean;
   isDeleted?: boolean;

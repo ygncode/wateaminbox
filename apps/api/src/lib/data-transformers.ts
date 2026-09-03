@@ -54,6 +54,10 @@ export interface RawContactFromDb {
     content: string | null;
     status: string;
     timestamp: Date | string;
+    mentionParticipants?: {
+      displayName: string;
+      mentionIds: string[];
+    }[];
   } | null;
 }
 
@@ -85,6 +89,10 @@ export interface TransformedContact {
     content: string | null;
     status: string;
     timestamp: Date | string;
+    mentionParticipants?: {
+      displayName: string;
+      mentionIds: string[];
+    }[];
   } | null;
   connection: {
     id: string;
@@ -165,6 +173,7 @@ export function transformContact(
           content: contact.last_message.content,
           status: contact.last_message.status,
           timestamp: contact.last_message.timestamp,
+          mentionParticipants: contact.last_message.mentionParticipants,
         }
       : null,
     connection: contact.connection_id

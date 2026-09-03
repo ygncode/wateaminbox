@@ -96,6 +96,7 @@ func getQuotedMessageID(message *waE2E.Message) string {
 		message.StickerMessage,
 		message.LocationMessage,
 		message.ContactMessage,
+		message.ContactsArrayMessage,
 	}
 	for _, carrier := range carriers {
 		if contextInfo := carrier.GetContextInfo(); contextInfo != nil {
@@ -105,6 +106,24 @@ func getQuotedMessageID(message *waE2E.Message) string {
 		}
 	}
 	return ""
+}
+
+func contactCardPayloads(contacts []*waE2E.ContactMessage) []natsClient.ContactCardPayload {
+	const maxContactCards = 20
+	cards := make([]natsClient.ContactCardPayload, 0, min(len(contacts), maxContactCards))
+	for _, contact := range contacts {
+		if contact == nil || (contact.GetDisplayName() == "" && contact.GetVcard() == "") {
+			continue
+		}
+		cards = append(cards, natsClient.ContactCardPayload{
+			DisplayName: contact.GetDisplayName(),
+			VCard:       contact.GetVcard(),
+		})
+		if len(cards) == maxContactCards {
+			break
+		}
+	}
+	return cards
 }
 
 // handleMessage processes incoming messages.
@@ -244,9 +263,20 @@ func (h *Handler) handleMessage(msg *events.Message) {
 	// Contact message
 	if msg.Message.ContactMessage != nil {
 		msgEvent.Type = "contact"
-		if msg.Message.ContactMessage.DisplayName != nil {
-			msgEvent.Content = *msg.Message.ContactMessage.DisplayName
-		}
+		msgEvent.Content = msg.Message.ContactMessage.GetDisplayName()
+		msgEvent.ContactCards = contactCardPayloads([]*waE2E.ContactMessage{
+			msg.Message.ContactMessage,
+		})
+	}
+
+	// Multiple contacts shared in one WhatsApp message use the same UI type,
+	// with every card preserved in metadata.
+	if msg.Message.ContactsArrayMessage != nil {
+		msgEvent.Type = "contact"
+		msgEvent.Content = msg.Message.ContactsArrayMessage.GetDisplayName()
+		msgEvent.ContactCards = contactCardPayloads(
+			msg.Message.ContactsArrayMessage.GetContacts(),
+		)
 	}
 
 	// If we couldn't determine the message type, skip

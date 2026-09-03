@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  buildInboundMessageMetadata,
   buildQuotedMessageData,
   formatMessageForConversation,
   type MessageDbRow,
@@ -143,5 +144,33 @@ describe("incoming reply formatting", () => {
       mediaAlbumIndex: 0,
       mediaAlbumCount: 13,
     });
+  });
+});
+
+describe("contact card formatting", () => {
+  test("stores normalized vCard details and returns them to the message UI", () => {
+    const metadata = buildInboundMessageMetadata({
+      messageType: "contact",
+      content: "My Universe",
+      contactCards: [
+        {
+          displayName: "My Universe",
+          vcard:
+            "BEGIN:VCARD\nFN:My Universe\nTEL;TYPE=CELL:+65 9123 4567\nEND:VCARD",
+        },
+      ],
+    });
+    const formatted = formatMessageForConversation(
+      baseMessage({ message_type: "contact", metadata }),
+      new Map(),
+      new Map(),
+    );
+
+    expect(formatted.metadata.contactCards).toEqual([
+      {
+        displayName: "My Universe",
+        phoneNumbers: [{ value: "+6591234567", label: "Cell" }],
+      },
+    ]);
   });
 });

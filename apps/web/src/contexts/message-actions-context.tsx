@@ -1,6 +1,10 @@
 import type { Message } from "@wateaminbox/shared";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 
+export type SharedContactCard = NonNullable<
+  NonNullable<Message["metadata"]>["contactCards"]
+>[number];
+
 /**
  * Message action handlers that can be triggered from MessageBubble
  * This context eliminates prop drilling through MessageThread → VirtualMessageList → MessageBubble
@@ -25,6 +29,10 @@ export interface MessageActionsContextValue {
    * is what turns that into a contact.
    */
   onOpenParticipantProfile?: (participantContactId: string) => void;
+  /** Open a shared vCard in the contact details bottom sheet. */
+  onOpenSharedContact?: (contact: SharedContactCard) => void;
+  /** Start or open the inbox conversation for a shared vCard. */
+  onMessageSharedContact?: (contact: SharedContactCard) => void;
 }
 
 const MessageActionsContext = createContext<
@@ -45,6 +53,10 @@ export interface MessageActionsProviderProps {
   onReact?: (message: Message, emoji: string) => void;
   /** Open the profile of a group member clicked in the thread. */
   onOpenParticipantProfile?: (participantContactId: string) => void;
+  /** Open a shared vCard in the contact details bottom sheet. */
+  onOpenSharedContact?: (contact: SharedContactCard) => void;
+  /** Start or open the inbox conversation for a shared vCard. */
+  onMessageSharedContact?: (contact: SharedContactCard) => void;
 }
 
 export function MessageActionsProvider({
@@ -55,6 +67,8 @@ export function MessageActionsProvider({
   onStar,
   onReact,
   onOpenParticipantProfile,
+  onOpenSharedContact,
+  onMessageSharedContact,
 }: MessageActionsProviderProps) {
   const value = useMemo<MessageActionsContextValue>(
     () => ({
@@ -64,8 +78,19 @@ export function MessageActionsProvider({
       onStar,
       onReact,
       onOpenParticipantProfile,
+      onOpenSharedContact,
+      onMessageSharedContact,
     }),
-    [onReply, onForward, onDelete, onStar, onReact, onOpenParticipantProfile],
+    [
+      onReply,
+      onForward,
+      onDelete,
+      onStar,
+      onReact,
+      onOpenParticipantProfile,
+      onOpenSharedContact,
+      onMessageSharedContact,
+    ],
   );
 
   return (

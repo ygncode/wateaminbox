@@ -1,15 +1,20 @@
+import { MessageCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import type { ContactData } from "./types";
 
 interface ProfileHeaderProps {
   contact: ContactData;
+  onMessage?: () => void;
 }
 
 /**
  * Profile header with avatar and display name
  */
-export function ProfileHeader({ contact }: ProfileHeaderProps) {
+export function ProfileHeader({ contact, onMessage }: ProfileHeaderProps) {
+  const { t } = useTranslation();
   const username = contact.username ? `@${contact.username}` : null;
   const secondaryIdentity =
     username && contact.displayName !== username
@@ -45,6 +50,16 @@ export function ProfileHeader({ contact }: ProfileHeaderProps) {
           </p>
         )}
       </div>
+      {onMessage && !contact.isGroup && (
+        <Button
+          type="button"
+          onClick={onMessage}
+          className="min-w-32 rounded-full bg-[#00a884] px-6 text-white hover:bg-[#008f72]"
+        >
+          <MessageCircle aria-hidden="true" />
+          {t("chat.messageContact", "Message")}
+        </Button>
+      )}
     </div>
   );
 }

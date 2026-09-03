@@ -6,6 +6,11 @@
  */
 
 import {
+  type ContactCardData,
+  normalizeContactCards,
+  type RawContactCard,
+} from "./contact-card.js";
+import {
   buildContentDisposition,
   fileNameFromMediaKey,
   resolveDownloadContentType,
@@ -98,6 +103,7 @@ export interface MessageMetadata {
   mediaAlbumId?: string;
   mediaAlbumIndex?: number;
   mediaAlbumCount?: number;
+  contactCards?: ContactCardData[];
 }
 
 function optionalAlbumString(
@@ -128,6 +134,7 @@ function optionalAlbumInteger(
 export interface StoredMessageMetadata extends Record<string, unknown> {
   protocolSenderJid?: string;
   fileName?: string;
+  contactCards?: ContactCardData[];
 }
 
 /**
@@ -138,11 +145,21 @@ export interface StoredMessageMetadata extends Record<string, unknown> {
 export function buildInboundMessageMetadata(payload: {
   protocolSenderJid?: string;
   fileName?: string;
+  messageType?: string;
+  content?: string;
+  contactCards?: RawContactCard[];
 }): StoredMessageMetadata | null {
   const metadata: StoredMessageMetadata = {};
   if (payload.protocolSenderJid)
     metadata.protocolSenderJid = payload.protocolSenderJid;
   if (payload.fileName) metadata.fileName = payload.fileName;
+  if (payload.messageType === "contact") {
+    const contactCards = normalizeContactCards(
+      payload.contactCards,
+      payload.content,
+    );
+    if (contactCards.length > 0) metadata.contactCards = contactCards;
+  }
   return Object.keys(metadata).length > 0 ? metadata : null;
 }
 
@@ -247,6 +264,7 @@ function documentDownloadOverrides(
  * Build metadata object from database row
  */
 export function buildMessageMetadata(msg: MessageDbRow): MessageMetadata {
+  const contactCards = normalizeStoredContactCards(msg.metadata?.contactCards);
   return {
     mediaUrl: msg.media_url,
     mimeType: msg.media_mime_type,
@@ -261,7 +279,31 @@ export function buildMessageMetadata(msg: MessageDbRow): MessageMetadata {
     mediaAlbumId: optionalAlbumString(msg.metadata, "mediaAlbumId"),
     mediaAlbumIndex: optionalAlbumInteger(msg.metadata, "mediaAlbumIndex"),
     mediaAlbumCount: optionalAlbumInteger(msg.metadata, "mediaAlbumCount"),
+    ...(contactCards.length > 0 ? { contactCards } : {}),
   };
+}
+
+function normalizeStoredContactCards(value: unknown): ContactCardData[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 20).flatMap((card) => {
+    if (!card || typeof card !== "object") return [];
+    const candidate = card as Record<string, unknown>;
+    if (typeof candidate.displayName !== "string") return [];
+    const phoneNumbers = Array.isArray(candidate.phoneNumbers)
+      ? candidate.phoneNumbers.slice(0, 10).flatMap((phone) => {
+          if (!phone || typeof phone !== "object") return [];
+          const item = phone as Record<string, unknown>;
+          if (typeof item.value !== "string") return [];
+          return [
+            {
+              value: item.value,
+              ...(typeof item.label === "string" ? { label: item.label } : {}),
+            },
+          ];
+        })
+      : [];
+    return [{ displayName: candidate.displayName, phoneNumbers }];
+  });
 }
 
 /**

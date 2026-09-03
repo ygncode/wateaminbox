@@ -92,6 +92,7 @@ type MessageEvent struct {
 	MediaAlbumIndex    int
 	MediaAlbumCount    int
 	FileName           string
+	ContactCards       []sharednats.ContactCardPayload
 	Caption            string
 	IsGroup            bool
 	GroupID            string

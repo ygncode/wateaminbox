@@ -81,6 +81,7 @@ type (
 	QRPayload               = sharednats.QRPayload
 	ConnectionPayload       = sharednats.ConnectionPayload
 	MessagePayload          = sharednats.MessagePayload
+	ContactCardPayload      = sharednats.ContactCardPayload
 	MessageRevokePayload    = sharednats.MessageRevokePayload
 	ReceiptPayload          = sharednats.ReceiptPayload
 	PresencePayload         = sharednats.PresencePayload
@@ -406,6 +407,7 @@ func (p *Publisher) PublishMessage(msg MessageEvent) error {
 			ProtocolSenderJID:  msg.ProtocolSenderJID,
 			Caption:            msg.Caption,
 			FileName:           msg.FileName,
+			ContactCards:       msg.ContactCards,
 			MediaType:          msg.MediaType,
 			MediaSize:          msg.MediaSize,
 			MediaAlbumID:       msg.MediaAlbumID,

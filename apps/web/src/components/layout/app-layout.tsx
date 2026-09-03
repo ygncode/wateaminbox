@@ -1,8 +1,8 @@
 import type * as React from "react";
 import { useIsMobile, useIsTablet } from "@/hooks/ui";
 import { cn } from "@/lib/utils";
-import { RIGHT_PANEL_TITLE_ID, RightPanelSurfaceContext } from "./right-panel";
 import { ResizableSidebar } from "./resizable-sidebar";
+import { RIGHT_PANEL_TITLE_ID, RightPanelSurfaceContext } from "./right-panel";
 
 export interface AppLayoutProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
@@ -58,6 +58,8 @@ export interface ResponsiveLayoutProps {
   isRightPanelOpen?: boolean;
   /** Callback when right panel should close */
   onRightPanelClose?: () => void;
+  /** Mobile presentation; group-member profiles use a WhatsApp-style sheet. */
+  rightPanelPresentation?: "side" | "bottom-sheet";
   /** Currently selected chat ID */
   selectedChatId?: string | null;
   /** Callback when chat selection changes */
@@ -75,6 +77,7 @@ export function ResponsiveLayout({
   rightPanel,
   isRightPanelOpen = false,
   onRightPanelClose,
+  rightPanelPresentation = "side",
   selectedChatId,
   onChatSelect,
 }: ResponsiveLayoutProps) {
@@ -90,6 +93,7 @@ export function ResponsiveLayout({
         rightPanel={rightPanel}
         isRightPanelOpen={isRightPanelOpen}
         onRightPanelClose={onRightPanelClose}
+        rightPanelPresentation={rightPanelPresentation}
         selectedChatId={selectedChatId}
         onChatSelect={onChatSelect}
       />
@@ -105,6 +109,7 @@ export function ResponsiveLayout({
         rightPanel={rightPanel}
         isRightPanelOpen={isRightPanelOpen}
         onRightPanelClose={onRightPanelClose}
+        rightPanelPresentation={rightPanelPresentation}
       />
     );
   }
@@ -141,19 +146,23 @@ function TouchRightPanel({
   children,
   isOpen,
   onClose,
+  presentation = "side",
 }: {
   children: React.ReactNode;
   isOpen: boolean;
   onClose?: () => void;
+  presentation?: "side" | "bottom-sheet";
 }) {
   return (
     <MobileSlideInPanel
       isOpen={isOpen}
       onClose={onClose}
       titleId={RIGHT_PANEL_TITLE_ID}
-      position="right"
+      position={presentation === "bottom-sheet" ? "bottom" : "right"}
     >
-      <RightPanelSurfaceContext.Provider value="embedded">
+      <RightPanelSurfaceContext.Provider
+        value={presentation === "bottom-sheet" ? "sheet" : "embedded"}
+      >
         {children}
       </RightPanelSurfaceContext.Provider>
     </MobileSlideInPanel>
@@ -166,6 +175,7 @@ interface MobileResponsiveLayoutProps {
   rightPanel?: React.ReactNode;
   isRightPanelOpen?: boolean;
   onRightPanelClose?: () => void;
+  rightPanelPresentation?: "side" | "bottom-sheet";
   selectedChatId?: string | null;
   onChatSelect?: (chatId: string | null) => void;
 }
@@ -176,6 +186,7 @@ function MobileResponsiveLayout({
   rightPanel,
   isRightPanelOpen = false,
   onRightPanelClose,
+  rightPanelPresentation = "side",
   selectedChatId,
   onChatSelect,
 }: MobileResponsiveLayoutProps) {
@@ -196,6 +207,7 @@ function MobileResponsiveLayout({
           <TouchRightPanel
             isOpen={isRightPanelOpen}
             onClose={onRightPanelClose}
+            presentation={rightPanelPresentation}
           >
             {rightPanel}
           </TouchRightPanel>
@@ -211,6 +223,7 @@ interface TabletResponsiveLayoutProps {
   rightPanel?: React.ReactNode;
   isRightPanelOpen?: boolean;
   onRightPanelClose?: () => void;
+  rightPanelPresentation?: "side" | "bottom-sheet";
 }
 
 function TabletResponsiveLayout({
@@ -219,6 +232,7 @@ function TabletResponsiveLayout({
   rightPanel,
   isRightPanelOpen = false,
   onRightPanelClose,
+  rightPanelPresentation = "side",
 }: TabletResponsiveLayoutProps) {
   return (
     <>
@@ -234,7 +248,11 @@ function TabletResponsiveLayout({
 
       {/* Right panel as overlay on tablet */}
       {rightPanel && (
-        <TouchRightPanel isOpen={isRightPanelOpen} onClose={onRightPanelClose}>
+        <TouchRightPanel
+          isOpen={isRightPanelOpen}
+          onClose={onRightPanelClose}
+          presentation={rightPanelPresentation}
+        >
           {rightPanel}
         </TouchRightPanel>
       )}
