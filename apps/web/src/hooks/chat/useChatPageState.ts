@@ -542,7 +542,11 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
         },
         {
           onSuccess: (data) => {
-            toast.success("Message forwarded successfully");
+            toast.success(
+              data.forwardedCount > 1
+                ? "Media collection forwarded successfully"
+                : "Message forwarded successfully",
+            );
             if (data.autoAssigned) {
               toast.info("Contact was automatically assigned to you");
             }
