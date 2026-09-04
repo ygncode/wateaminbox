@@ -7,6 +7,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
+import { sql } from "kysely";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { buildOutboundMediaColumns } from "../../lib/message-formatters.js";
 import {
@@ -30,11 +31,15 @@ import { requireMessageVisibility } from "../../middleware/resource-visibility.j
 import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
 import { toAuthUserResponse } from "../../services/auth.service.js";
 import { enqueueCommand } from "../../services/command-outbox.service.js";
+import { validateGroupMentionJids } from "../../services/group-mention.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
 import { broadcastNewMessageToViewers } from "../../services/message-broadcast.service.js";
 import { requireSendAccess } from "../../services/send-access.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
-import { validateGroupMentionJids } from "../../services/group-mention.service.js";
+import {
+  IncompleteForwardAlbumError,
+  planForwardBatch,
+} from "./forward-batch.js";
 
 // Message send rate limiter: 60 requests per minute per user
 const messageSendRateLimiter = createConditionalRateLimiter(
@@ -306,7 +311,7 @@ sendRoutes.post(
     const connection = targetContact.whatsapp_connection_id
       ? await tenantDb
           .selectFrom("whatsapp_connections")
-          .select(["id"])
+          .select(["id", "jid"])
           .where("id", "=", targetContact.whatsapp_connection_id)
           .where("status", "=", "connected")
           .executeTakeFirst()
@@ -316,57 +321,98 @@ sendRoutes.post(
       return badRequest(c, "The contact's WhatsApp connection is not active");
     }
 
-    // Create forwarded message
-    const newMessageId = crypto.randomUUID();
-    const waMessageId = `pending_${newMessageId}`;
-    const sessionId = await getActiveSessionId(tenantDb, connection.id);
+    const sourceAlbumId =
+      originalMessage.message_type === "image" ||
+      originalMessage.message_type === "video"
+        ? originalMessage.metadata?.mediaAlbumId
+        : undefined;
+    const albumCandidates =
+      typeof sourceAlbumId === "string" && sourceAlbumId.trim().length > 0
+        ? await tenantDb
+            .selectFrom("messages")
+            .selectAll()
+            .where("contact_id", "=", originalMessage.contact_id)
+            .where(
+              sql<boolean>`metadata ->> 'mediaAlbumId' = ${sourceAlbumId.trim()}`,
+            )
+            .execute()
+        : [originalMessage];
 
-    const sendCommand = await buildSendMessageCommand(
-      companyId,
-      sessionId,
-      targetContact.jid,
-      originalMessage.content || "",
-      originalMessage.message_type,
-      user.id,
-      waMessageId,
-      originalMessage.media_url || undefined,
+    let forwardBatch;
+    try {
+      forwardBatch = planForwardBatch(originalMessage, albumCandidates);
+    } catch (error) {
+      if (error instanceof IncompleteForwardAlbumError) {
+        return badRequest(c, error.message);
+      }
+      throw error;
+    }
+
+    const sessionId = await getActiveSessionId(tenantDb, connection.id);
+    const pendingMessages = await Promise.all(
+      forwardBatch.map(async ({ source, mediaAlbum }) => {
+        const id = crypto.randomUUID();
+        const waMessageId = `pending_${id}`;
+        const sendCommand = await buildSendMessageCommand(
+          companyId,
+          sessionId,
+          targetContact.jid!,
+          source.content || "",
+          source.message_type,
+          user.id,
+          waMessageId,
+          source.media_url || undefined,
+          undefined,
+          undefined,
+          undefined,
+          mediaAlbum,
+        );
+        return { id, waMessageId, source, sendCommand };
+      }),
     );
 
     let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
-      // The forwarded copy reuses the source message's object.
-      await reserveMediaReferences(trx, companyId, [originalMessage.media_url]);
+      // Forwarded copies reuse the source messages' objects. Reserve the full
+      // collection before inserting any row so the batch is all-or-nothing.
+      await reserveMediaReferences(
+        trx,
+        companyId,
+        pendingMessages.map(({ source }) => source.media_url),
+      );
       const result = await requireSendAccess(
         trx,
         body.targetContactId,
         user.id,
       );
       autoAssigned = result.autoAssigned;
-      await trx
-        .insertInto("messages")
-        .values({
-          id: newMessageId,
-          whatsapp_connection_id: connection.id,
-          contact_id: body.targetContactId,
-          message_id: waMessageId,
-          from_me: true,
-          sender_jid: null,
-          message_type: originalMessage.message_type,
-          content: originalMessage.content,
-          media_url: originalMessage.media_url,
-          ...buildOutboundMediaColumns(sendCommand),
-          is_forwarded: true,
-          sent_by_user_id: user.id,
-          status: "pending",
-          timestamp: toDbDate(),
-          case_id: result.caseId,
-        })
-        .execute();
-      await enqueueCommand(
-        trx,
-        buildCommandSubject(companyId, sessionId),
-        sendCommand,
-      );
+      for (const pending of pendingMessages) {
+        await trx
+          .insertInto("messages")
+          .values({
+            id: pending.id,
+            whatsapp_connection_id: connection.id,
+            contact_id: body.targetContactId,
+            message_id: pending.waMessageId,
+            from_me: true,
+            sender_jid: connection.jid,
+            message_type: pending.source.message_type,
+            content: pending.source.content,
+            media_url: pending.source.media_url,
+            ...buildOutboundMediaColumns(pending.sendCommand),
+            is_forwarded: true,
+            sent_by_user_id: user.id,
+            status: "pending",
+            timestamp: toDbDate(),
+            case_id: result.caseId,
+          })
+          .execute();
+        await enqueueCommand(
+          trx,
+          buildCommandSubject(companyId, sessionId),
+          pending.sendCommand,
+        );
+      }
     });
     if (autoAssigned) {
       await broadcastAutoAssignment(
@@ -379,8 +425,11 @@ sendRoutes.post(
 
     return c.json({
       success: true,
+      forwardedMessageId: pendingMessages[0]!.id,
+      forwardedMessageIds: pendingMessages.map(({ id }) => id),
+      forwardedCount: pendingMessages.length,
       message: {
-        id: newMessageId,
+        id: pendingMessages[0]!.id,
         contactId: body.targetContactId,
         isForwarded: true,
       },

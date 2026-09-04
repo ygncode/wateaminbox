@@ -31,6 +31,8 @@ export interface MediaDownloadResponse {
 export interface ForwardMessageResponse {
   success: boolean;
   forwardedMessageId: string;
+  forwardedMessageIds: string[];
+  forwardedCount: number;
   autoAssigned: boolean;
 }
 
