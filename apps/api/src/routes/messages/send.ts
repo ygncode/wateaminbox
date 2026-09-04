@@ -95,6 +95,23 @@ sendRoutes.post(
     if (body.mentionedJids?.length && body.messageType !== "text") {
       return badRequest(c, "Mentions are currently supported in text messages");
     }
+    if (
+      body.mediaAlbum &&
+      body.messageType !== "image" &&
+      body.messageType !== "video"
+    ) {
+      return badRequest(c, "Albums support only image and video messages");
+    }
+    if (body.mediaAlbum && !body.mediaUrl) {
+      return badRequest(c, "Album items require mediaUrl");
+    }
+    if (
+      body.mediaAlbum &&
+      ((body.messageType === "image" && body.mediaAlbum.imageCount === 0) ||
+        (body.messageType === "video" && body.mediaAlbum.videoCount === 0))
+    ) {
+      return badRequest(c, "Album media type does not match its item counts");
+    }
     const mentionValidation = await validateGroupMentionJids(
       tenantDb,
       { id: contact.id, jid: contact.jid, isGroup: contact.is_group },
@@ -143,6 +160,7 @@ sendRoutes.post(
       quotedWaMessageId,
       quotedSenderJid,
       mentionValidation.mentionedJids,
+      body.mediaAlbum,
     );
 
     const storedMediaReference = body.mediaUrl
@@ -206,7 +224,14 @@ sendRoutes.post(
       sentByUserGravatarUrl: senderProfile.gravatarUrl,
       messageType: body.messageType,
       content: body.content || "",
-      metadata: body.mediaUrl ? { mediaUrl: body.mediaUrl } : undefined,
+      metadata: body.mediaUrl
+        ? {
+            mediaUrl: body.mediaUrl,
+            mediaAlbumId: body.mediaAlbum?.id,
+            mediaAlbumIndex: body.mediaAlbum?.index,
+            mediaAlbumCount: body.mediaAlbum?.count,
+          }
+        : undefined,
       replyToMessageId: body.replyToMessageId || undefined,
       status: "pending" as const,
       createdAt,
@@ -219,7 +244,14 @@ sendRoutes.post(
       {
         message: {
           ...formattedMessage,
-          metadata: body.mediaUrl ? { mediaAvailable: true } : undefined,
+          metadata: body.mediaUrl
+            ? {
+                mediaAvailable: true,
+                mediaAlbumId: body.mediaAlbum?.id,
+                mediaAlbumIndex: body.mediaAlbum?.index,
+                mediaAlbumCount: body.mediaAlbum?.count,
+              }
+            : undefined,
         },
         conversationId: body.contactId,
       },

@@ -23,7 +23,14 @@ export function createOptimisticMessage(
     sentByUserGravatarUrl: sender?.gravatarUrl,
     messageType: input.messageType || "text",
     content: input.content,
-    metadata: input.mediaUrl ? { mediaUrl: input.mediaUrl } : undefined,
+    metadata: input.mediaUrl
+      ? {
+          mediaUrl: input.mediaUrl,
+          mediaAlbumId: input.mediaAlbum?.id,
+          mediaAlbumIndex: input.mediaAlbum?.index,
+          mediaAlbumCount: input.mediaAlbum?.count,
+        }
+      : undefined,
     replyToMessageId: input.replyToMessageId,
     isStarred: false,
     isDeleted: false,

@@ -221,6 +221,13 @@ export async function buildSendMessageCommand(
   replyTo?: string,
   replyToSender?: string,
   mentionedJids?: string[],
+  mediaAlbum?: {
+    id: string;
+    index: number;
+    count: number;
+    imageCount: number;
+    videoCount: number;
+  },
 ): Promise<Record<string, unknown>> {
   let caption: string | undefined;
   let mediaReference:
@@ -263,6 +270,11 @@ export async function buildSendMessageCommand(
     reply_to: replyTo,
     reply_to_sender: replyToSender,
     mentioned_jids: mentionedJids?.length ? mentionedJids : undefined,
+    media_album_id: mediaAlbum?.id,
+    media_album_index: mediaAlbum?.index,
+    media_album_count: mediaAlbum?.count,
+    media_album_image_count: mediaAlbum?.imageCount,
+    media_album_video_count: mediaAlbum?.videoCount,
     correlation_id: correlationId,
   };
 

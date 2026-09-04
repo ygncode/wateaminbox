@@ -82,6 +82,38 @@ describe("command outbox", () => {
     expect(command.mentioned_jids).toEqual(["6585719494172749@lid"]);
   });
 
+  test("carries WhatsApp album association data in an ordered media send", async () => {
+    const album = {
+      id: "3EB0000102030405FAFBFF",
+      index: 1,
+      count: 3,
+      imageCount: 2,
+      videoCount: 1,
+    };
+    const command = await buildSendMessageCommand(
+      "company-id",
+      "connection-id",
+      "15551234567@s.whatsapp.net",
+      "",
+      "image",
+      "user-id",
+      "pending_internal-id",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      album,
+    );
+
+    expect(command).toMatchObject({
+      media_album_id: album.id,
+      media_album_index: 1,
+      media_album_count: 3,
+      media_album_image_count: 2,
+      media_album_video_count: 1,
+    });
+  });
+
   test("builds a bounded per-conversation history request", async () => {
     const commands: Array<Record<string, unknown>> = [];
     const publisher = new NatsCommandPublisher(

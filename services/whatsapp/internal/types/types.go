@@ -8,6 +8,16 @@ type SendResponse struct {
 	Timestamp time.Time // Server timestamp from WhatsApp
 }
 
+// MediaAlbumContext identifies one image/video child in a WhatsApp album.
+// The first child sends the album manifest before sending itself.
+type MediaAlbumContext struct {
+	ID         string
+	Index      int
+	Count      int
+	ImageCount int
+	VideoCount int
+}
+
 type WhatsAppLabel struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`

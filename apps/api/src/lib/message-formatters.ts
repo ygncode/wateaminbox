@@ -174,13 +174,24 @@ export function buildInboundMessageMetadata(payload: {
 export function buildOutboundMediaColumns(command: {
   file_name?: string;
   mime_type?: string;
+  media_album_id?: string;
+  media_album_index?: number;
+  media_album_count?: number;
 }): {
   media_mime_type: string | null;
   metadata: StoredMessageMetadata | null;
 } {
+  const metadata: StoredMessageMetadata = {};
+  if (command.file_name) metadata.fileName = command.file_name;
+  if (command.media_album_id) {
+    metadata.mediaAlbumId = command.media_album_id;
+    metadata.mediaAlbumIndex = command.media_album_index;
+    metadata.mediaAlbumCount = command.media_album_count;
+  }
+
   return {
     media_mime_type: command.mime_type ?? null,
-    metadata: command.file_name ? { fileName: command.file_name } : null,
+    metadata: Object.keys(metadata).length > 0 ? metadata : null,
   };
 }
 

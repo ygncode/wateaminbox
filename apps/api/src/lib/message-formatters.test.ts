@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildInboundMessageMetadata,
+  buildOutboundMediaColumns,
   buildQuotedMessageData,
   formatMessageForConversation,
   type MessageDbRow,
@@ -143,6 +144,28 @@ describe("incoming reply formatting", () => {
       mediaAlbumId: "album-parent",
       mediaAlbumIndex: 0,
       mediaAlbumCount: 13,
+    });
+  });
+});
+
+describe("outbound media formatting", () => {
+  test("persists album metadata alongside the media filename", () => {
+    expect(
+      buildOutboundMediaColumns({
+        file_name: "holiday.jpg",
+        mime_type: "image/jpeg",
+        media_album_id: "3EB0000102030405FAFBFF",
+        media_album_index: 2,
+        media_album_count: 4,
+      }),
+    ).toEqual({
+      media_mime_type: "image/jpeg",
+      metadata: {
+        fileName: "holiday.jpg",
+        mediaAlbumId: "3EB0000102030405FAFBFF",
+        mediaAlbumIndex: 2,
+        mediaAlbumCount: 4,
+      },
     });
   });
 });

@@ -66,19 +66,24 @@ type FetchProfilePictureCommand struct {
 
 // SendMessageCommand represents a command to send a message.
 type SendMessageCommand struct {
-	MessageID      string   `json:"message_id"`
-	To             string   `json:"to"`               // JID of the recipient
-	Type           string   `json:"type"`             // "text", "image", "document", "video", "audio", "reaction"
-	Content        string   `json:"content"`          // Text content or media URL
-	Caption        string   `json:"caption"`          // Caption for media messages
-	FileName       string   `json:"file_name"`        // File name for documents
-	MimeType       string   `json:"mime_type"`        // MIME type for media
-	MediaObjectKey string   `json:"media_object_key"` // Tenant-scoped storage key
-	MediaSize      int64    `json:"media_size"`
-	MediaChecksum  string   `json:"media_checksum"`
-	ReplyTo        string   `json:"reply_to"`        // Message ID to reply to
-	ReplyToSender  string   `json:"reply_to_sender"` // JID of the sender of the quoted message
-	MentionedJIDs  []string `json:"mentioned_jids,omitempty"`
+	MessageID            string   `json:"message_id"`
+	To                   string   `json:"to"`               // JID of the recipient
+	Type                 string   `json:"type"`             // "text", "image", "document", "video", "audio", "reaction"
+	Content              string   `json:"content"`          // Text content or media URL
+	Caption              string   `json:"caption"`          // Caption for media messages
+	FileName             string   `json:"file_name"`        // File name for documents
+	MimeType             string   `json:"mime_type"`        // MIME type for media
+	MediaObjectKey       string   `json:"media_object_key"` // Tenant-scoped storage key
+	MediaSize            int64    `json:"media_size"`
+	MediaChecksum        string   `json:"media_checksum"`
+	ReplyTo              string   `json:"reply_to"`        // Message ID to reply to
+	ReplyToSender        string   `json:"reply_to_sender"` // JID of the sender of the quoted message
+	MentionedJIDs        []string `json:"mentioned_jids,omitempty"`
+	MediaAlbumID         string   `json:"media_album_id,omitempty"`
+	MediaAlbumIndex      int      `json:"media_album_index,omitempty"`
+	MediaAlbumCount      int      `json:"media_album_count,omitempty"`
+	MediaAlbumImageCount int      `json:"media_album_image_count,omitempty"`
+	MediaAlbumVideoCount int      `json:"media_album_video_count,omitempty"`
 	// Reaction-specific fields
 	TargetMessageID string `json:"target_message_id"` // Message ID to react to (for reaction type)
 	Emoji           string `json:"emoji"`             // Emoji for reaction (for reaction type)
@@ -135,6 +140,10 @@ type MessageSender interface {
 	SendMessage(ctx context.Context, jid string, text string, replyTo string, replyToSender string, mentionedJIDs []string) (types.SendResponse, error)
 	SendMediaMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string) (types.SendResponse, error)
 	SendReaction(ctx context.Context, chatJID string, messageID string, emoji string, targetSenderJID string, fromMe bool) (types.SendResponse, error)
+}
+
+type mediaAlbumSender interface {
+	SendMediaAlbumMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string, album types.MediaAlbumContext) (types.SendResponse, error)
 }
 
 // ContactBlocker is the interface for blocking/unblocking contacts.
@@ -743,7 +752,31 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 		if err == nil && int64(len(mediaData)) != cmd.MediaSize {
 			err = fmt.Errorf("media size mismatch: expected %d, got %d", cmd.MediaSize, len(mediaData))
 		}
-		if err == nil {
+		if err == nil && cmd.MediaAlbumID != "" {
+			albumSender, ok := s.sender.(mediaAlbumSender)
+			if !ok {
+				err = fmt.Errorf("media album sending is not supported")
+			} else {
+				resp, err = albumSender.SendMediaAlbumMessage(
+					ctx,
+					cmd.To,
+					cmd.Type,
+					mediaData,
+					cmd.Caption,
+					cmd.FileName,
+					cmd.MimeType,
+					cmd.ReplyTo,
+					cmd.ReplyToSender,
+					types.MediaAlbumContext{
+						ID:         cmd.MediaAlbumID,
+						Index:      cmd.MediaAlbumIndex,
+						Count:      cmd.MediaAlbumCount,
+						ImageCount: cmd.MediaAlbumImageCount,
+						VideoCount: cmd.MediaAlbumVideoCount,
+					},
+				)
+			}
+		} else if err == nil {
 			resp, err = s.sender.SendMediaMessage(ctx, cmd.To, cmd.Type, mediaData, cmd.Caption, cmd.FileName, cmd.MimeType, cmd.ReplyTo, cmd.ReplyToSender)
 		}
 	case "reaction":
