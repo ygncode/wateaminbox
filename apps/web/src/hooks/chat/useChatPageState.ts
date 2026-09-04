@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
+import { createWhatsAppAlbumId } from "../../components/chat/media-gallery";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { markConversationAsRead, uploadMedia } from "../../lib/api";
 import { workspacePath } from "../../lib/workspace-routes";
@@ -99,7 +100,7 @@ export interface ChatPageActions {
     mentionedJids?: string[],
   ) => void;
   handleAttachFile: (
-    file: File,
+    files: File[],
     type: "image" | "document",
     caption: string,
   ) => Promise<boolean>;
@@ -367,42 +368,79 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
   // File attachment handler
   const handleAttachFile = React.useCallback(
     async (
-      file: File,
+      files: File[],
       type: "image" | "document",
       caption: string,
     ): Promise<boolean> => {
-      if (!selectedChatId) return false;
+      if (!selectedChatId || files.length === 0) return false;
       if (isContactBlocked) {
         toast.error(blockedSendMessage);
         return false;
       }
 
-      const sendingToastId = toast.loading(`Sending ${file.name}...`);
+      const isAlbum = type === "image" && files.length > 1;
+      const sendingToastId = toast.loading(
+        isAlbum
+          ? `Sending ${files.length} photos and videos...`
+          : `Sending ${files[0].name}...`,
+      );
 
       try {
-        console.log("Uploading file:", file.name, type);
+        const uploads = await Promise.all(
+          files.map((file) => uploadMedia(file)),
+        );
+        const prepared = uploads.map((uploadResponse) => {
+          let messageType: "image" | "video" | "audio" | "document" =
+            "document";
+          if (uploadResponse.mimeType.startsWith("image/")) {
+            messageType = "image";
+          } else if (uploadResponse.mimeType.startsWith("video/")) {
+            messageType = "video";
+          } else if (uploadResponse.mimeType.startsWith("audio/")) {
+            messageType = "audio";
+          }
+          return { uploadResponse, messageType };
+        });
 
-        const uploadResponse = await uploadMedia(file);
-
-        console.log("File uploaded successfully:", uploadResponse.mediaUrl);
-
-        let messageType: "image" | "video" | "audio" | "document" = "document";
-        if (uploadResponse.mimeType.startsWith("image/")) {
-          messageType = "image";
-        } else if (uploadResponse.mimeType.startsWith("video/")) {
-          messageType = "video";
-        } else if (uploadResponse.mimeType.startsWith("audio/")) {
-          messageType = "audio";
+        if (
+          isAlbum &&
+          prepared.some(
+            ({ messageType }) =>
+              messageType !== "image" && messageType !== "video",
+          )
+        ) {
+          throw new Error("A gallery can contain only photos and videos");
         }
 
-        await sendMessage.mutateAsync({
-          contactId: selectedChatId,
-          content: caption,
-          messageType,
-          mediaUrl: uploadResponse.mediaUrl,
-        });
+        const albumId = isAlbum ? createWhatsAppAlbumId() : undefined;
+        const imageCount = prepared.filter(
+          ({ messageType }) => messageType === "image",
+        ).length;
+        const videoCount = prepared.filter(
+          ({ messageType }) => messageType === "video",
+        ).length;
+
+        // Keep these sends ordered: item zero creates the WhatsApp album
+        // manifest that every following image/video references.
+        for (const [index, item] of prepared.entries()) {
+          await sendMessage.mutateAsync({
+            contactId: selectedChatId,
+            content: index === 0 ? caption : "",
+            messageType: item.messageType,
+            mediaUrl: item.uploadResponse.mediaUrl,
+            mediaAlbum: albumId
+              ? {
+                  id: albumId,
+                  index,
+                  count: prepared.length,
+                  imageCount,
+                  videoCount,
+                }
+              : undefined,
+          });
+        }
         toast.dismiss(sendingToastId);
-        toast.success("Attachment sent");
+        toast.success(isAlbum ? "Gallery sent" : "Attachment sent");
         return true;
       } catch (error) {
         toast.dismiss(sendingToastId);

@@ -777,6 +777,80 @@ func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType str
 	}, nil
 }
 
+// SendMediaAlbumMessage sends one image/video child associated with a WhatsApp
+// album manifest. Index zero owns the manifest send; ordered command delivery
+// ensures the remaining children can reference the same parent message key.
+func (c *Client) SendMediaAlbumMessage(ctx context.Context, jid string, mediaType string, data []byte, caption string, fileName string, mimeType string, replyTo string, replyToSender string, album types.MediaAlbumContext) (types.SendResponse, error) {
+	recipient, err := waTypes.ParseJID(jid)
+	if err != nil {
+		return types.SendResponse{}, fmt.Errorf("invalid JID %s: %w", jid, err)
+	}
+	if mediaType != "image" && mediaType != "video" {
+		return types.SendResponse{}, fmt.Errorf("unsupported album media type: %s", mediaType)
+	}
+	if album.ID == "" || album.Count < 2 || album.ImageCount+album.VideoCount != album.Count || album.Index < 0 || album.Index >= album.Count {
+		return types.SendResponse{}, fmt.Errorf("invalid media album context")
+	}
+
+	participant := replyToSender
+	if participant == "" {
+		participant = jid
+	}
+
+	var msg *waE2E.Message
+	if mediaType == "image" {
+		msg, err = c.createImageMessage(ctx, data, caption, mimeType, participant, replyTo)
+	} else {
+		msg, err = c.createVideoMessage(ctx, data, caption, mimeType, participant, replyTo)
+	}
+	if err != nil {
+		return types.SendResponse{}, fmt.Errorf("failed to create album media message: %w", err)
+	}
+
+	if album.Index == 0 {
+		_, err = c.client.SendMessage(
+			ctx,
+			recipient,
+			buildMediaAlbumManifest(album),
+			whatsmeow.SendRequestExtra{ID: waTypes.MessageID(album.ID)},
+		)
+		if err != nil {
+			return types.SendResponse{}, fmt.Errorf("failed to send media album manifest: %w", err)
+		}
+	}
+
+	applyMediaAlbumAssociation(msg, recipient, album)
+
+	resp, err := c.client.SendMessage(ctx, recipient, msg)
+	if err != nil {
+		return types.SendResponse{}, fmt.Errorf("failed to send media album child: %w", err)
+	}
+
+	log.Printf("Media album child sent: ID=%s, AlbumID=%s, Index=%d/%d", resp.ID, album.ID, album.Index+1, album.Count)
+	return types.SendResponse{ID: string(resp.ID), Timestamp: resp.Timestamp}, nil
+}
+
+func buildMediaAlbumManifest(album types.MediaAlbumContext) *waE2E.Message {
+	return &waE2E.Message{AlbumMessage: &waE2E.AlbumMessage{
+		ExpectedImageCount: proto.Uint32(uint32(album.ImageCount)),
+		ExpectedVideoCount: proto.Uint32(uint32(album.VideoCount)),
+	}}
+}
+
+func applyMediaAlbumAssociation(msg *waE2E.Message, recipient waTypes.JID, album types.MediaAlbumContext) {
+	msg.MessageContextInfo = &waE2E.MessageContextInfo{
+		MessageAssociation: &waE2E.MessageAssociation{
+			AssociationType: waE2E.MessageAssociation_MEDIA_ALBUM.Enum(),
+			ParentMessageKey: &waCommon.MessageKey{
+				FromMe:    proto.Bool(true),
+				ID:        proto.String(album.ID),
+				RemoteJID: proto.String(recipient.String()),
+			},
+			MessageIndex: proto.Int32(int32(album.Index)),
+		},
+	}
+}
+
 // SendReaction sends a reaction to a message.
 // emoji can be an emoji string to add a reaction, or empty string to remove reaction.
 // targetSenderJID identifies the author of the target message. WhatsApp requires

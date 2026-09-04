@@ -49,6 +49,11 @@ import {
   serializeMentionsForSend,
 } from "./group-mentions";
 import { LinkifiedText } from "./LinkifiedText";
+import {
+  appendGalleryFiles,
+  MAX_MEDIA_GALLERY_ITEMS,
+  type PendingAttachment,
+} from "./media-gallery";
 import { QuickReplyPicker } from "./QuickReplyPicker";
 import {
   filterQuickReplies,
@@ -133,7 +138,7 @@ interface MessageComposerProps {
     mentionedJids?: string[],
   ) => void;
   onAttachFile: (
-    file: File,
+    files: File[],
     type: "image" | "document",
     caption: string,
   ) => Promise<boolean>;
@@ -180,10 +185,9 @@ export function MessageComposer({
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showSchedulePopover, setShowSchedulePopover] = useState(false);
-  const [pendingAttachment, setPendingAttachment] = useState<{
-    file: File;
-    type: "image" | "document";
-  } | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<
+    PendingAttachment[]
+  >([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachmentMenuRef = useRef<HTMLDivElement>(null);
   const schedulePopoverRef = useRef<HTMLDivElement>(null);
@@ -287,7 +291,7 @@ export function MessageComposer({
   }, [replyToMessage]);
 
   useEffect(() => {
-    setPendingAttachment(null);
+    setPendingAttachments([]);
     setSelectedMentions([]);
     setIsMentionPickerDismissed(false);
   }, [conversationId]);
@@ -654,9 +658,24 @@ export function MessageComposer({
     e: ChangeEvent<HTMLInputElement>,
     type: "image" | "document",
   ) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setPendingAttachment({ file, type });
+    const selectedFiles = Array.from(e.target.files ?? []);
+    if (selectedFiles.length > 0) {
+      if (type === "document") {
+        setPendingAttachments([{ file: selectedFiles[0], type }]);
+      } else {
+        setPendingAttachments((current) => {
+          const gallery = appendGalleryFiles(
+            current.filter((attachment) => attachment.type === "image"),
+            selectedFiles,
+          );
+          if (gallery.omitted > 0) {
+            toast.warning(
+              `A gallery supports up to ${MAX_MEDIA_GALLERY_ITEMS} photos and videos.`,
+            );
+          }
+          return gallery.attachments;
+        });
+      }
     }
     // Reset input
     e.target.value = "";
@@ -671,7 +690,7 @@ export function MessageComposer({
     (event: ClipboardEvent) => {
       if (isTextareaDisabled || !conversationId) return;
       // The preview dialog owns its own caption field; a paste there is text.
-      if (pendingAttachment) return;
+      if (pendingAttachments.length > 0) return;
 
       const target = event.target as HTMLElement | null;
       if (
@@ -690,9 +709,9 @@ export function MessageComposer({
       event.preventDefault();
       setShowAttachmentMenu(false);
       setShowEmojiPicker(false);
-      setPendingAttachment(attachment);
+      setPendingAttachments([attachment]);
     },
-    [conversationId, isTextareaDisabled, pendingAttachment],
+    [conversationId, isTextareaDisabled, pendingAttachments.length],
   );
 
   useEffect(() => {
@@ -937,6 +956,7 @@ export function MessageComposer({
                 ref={imageInputRef}
                 type="file"
                 accept="image/*,video/*"
+                multiple
                 disabled={isInputDisabled}
                 className="hidden"
                 onChange={(e) => handleFileSelect(e, "image")}
@@ -1074,13 +1094,27 @@ export function MessageComposer({
         </div>
       </footer>
 
-      {pendingAttachment && (
+      {pendingAttachments.length > 0 && (
         <AttachmentPreviewDialog
-          file={pendingAttachment.file}
-          attachmentType={pendingAttachment.type}
-          onCancel={() => setPendingAttachment(null)}
+          attachments={pendingAttachments}
+          attachmentType={pendingAttachments[0].type}
+          onCancel={() => setPendingAttachments([])}
+          onAddFiles={
+            pendingAttachments[0].type === "image"
+              ? () => imageInputRef.current?.click()
+              : undefined
+          }
+          onRemoveFile={(index) =>
+            setPendingAttachments((current) =>
+              current.filter((_, itemIndex) => itemIndex !== index),
+            )
+          }
           onSend={onAttachFile}
-          onSchedule={contactId ? handleScheduleAttachment : undefined}
+          onSchedule={
+            contactId && pendingAttachments.length === 1
+              ? handleScheduleAttachment
+              : undefined
+          }
         />
       )}
     </>

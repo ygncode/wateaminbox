@@ -17,6 +17,21 @@ export const sendMessageSchema = z.object({
   content: z.string().optional(),
   messageType: messageTypeSchema.default("text"),
   mediaUrl: z.string().url().optional(),
+  mediaAlbum: z
+    .object({
+      id: z.string().regex(/^3EB0[0-9A-F]{18}$/),
+      index: z.number().int().min(0).max(29),
+      count: z.number().int().min(2).max(30),
+      imageCount: z.number().int().min(0).max(30),
+      videoCount: z.number().int().min(0).max(30),
+    })
+    .refine(
+      (album) =>
+        album.imageCount + album.videoCount === album.count &&
+        album.index < album.count,
+      { message: "Album position and media counts must match the total count" },
+    )
+    .optional(),
   replyToMessageId: uuidSchema.optional(),
   mentionedJids: z
     .array(

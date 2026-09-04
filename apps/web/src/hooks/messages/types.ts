@@ -5,6 +5,13 @@ export interface SendMessageInput {
   content: string;
   messageType?: "text" | "image" | "video" | "audio" | "document";
   mediaUrl?: string;
+  mediaAlbum?: {
+    id: string;
+    index: number;
+    count: number;
+    imageCount: number;
+    videoCount: number;
+  };
   replyToMessageId?: string;
   /** WhatsApp member JIDs referenced by numeric @tokens in content. */
   mentionedJids?: string[];

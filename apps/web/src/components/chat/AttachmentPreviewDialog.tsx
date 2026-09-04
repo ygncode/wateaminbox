@@ -1,17 +1,20 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { CalendarClock, FileText, Loader2, Send, X } from "lucide-react";
+import { CalendarClock, FileText, Loader2, Plus, Send, X } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useState } from "react";
 import { ScheduleMessagePopover } from "./ScheduleMessagePopover";
 import { useTranslation } from "react-i18next";
+import type { PendingAttachment } from "./media-gallery";
 
 const MAX_CAPTION_LENGTH = 1024;
 
 interface AttachmentPreviewDialogProps {
-  file: File;
+  attachments: PendingAttachment[];
   attachmentType: "image" | "document";
   onCancel: () => void;
+  onAddFiles?: () => void;
+  onRemoveFile: (index: number) => void;
   onSend: (
-    file: File,
+    files: File[],
     type: "image" | "document",
     caption: string,
   ) => Promise<boolean>;
@@ -32,20 +35,24 @@ function formatFileSize(bytes: number): string {
 }
 
 export function AttachmentPreviewDialog({
-  file,
+  attachments,
   attachmentType,
   onCancel,
+  onAddFiles,
+  onRemoveFile,
   onSend,
   onSchedule,
 }: AttachmentPreviewDialogProps) {
   const { t } = useTranslation();
 
   const [caption, setCaption] = useState("");
-  const [previewUrl, setPreviewUrl] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
   const [showSchedulePopover, setShowSchedulePopover] = useState(false);
   const isBusy = isSending || isScheduling;
+  const file = attachments[activeIndex]?.file ?? attachments[0]?.file;
   const isVideo = file.type.startsWith("video/");
   const isVisualMedia =
     attachmentType === "image" && (file.type.startsWith("image/") || isVideo);
@@ -56,17 +63,26 @@ export function AttachmentPreviewDialog({
       : "FILE";
 
   useEffect(() => {
-    setCaption("");
+    const urls = attachments.map(({ file: attachmentFile, type }) =>
+      type === "image" &&
+      (attachmentFile.type.startsWith("image/") ||
+        attachmentFile.type.startsWith("video/"))
+        ? URL.createObjectURL(attachmentFile)
+        : "",
+    );
+    setPreviewUrls(urls);
+    return () => {
+      for (const url of urls) {
+        if (url) URL.revokeObjectURL(url);
+      }
+    };
+  }, [attachments]);
 
-    if (!isVisualMedia) {
-      setPreviewUrl("");
-      return;
+  useEffect(() => {
+    if (activeIndex >= attachments.length) {
+      setActiveIndex(Math.max(0, attachments.length - 1));
     }
-
-    const objectUrl = URL.createObjectURL(file);
-    setPreviewUrl(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [file, isVisualMedia]);
+  }, [activeIndex, attachments.length]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -74,7 +90,11 @@ export function AttachmentPreviewDialog({
 
     setIsSending(true);
     try {
-      const wasSent = await onSend(file, attachmentType, caption.trim());
+      const wasSent = await onSend(
+        attachments.map((attachment) => attachment.file),
+        attachmentType,
+        caption.trim(),
+      );
       if (wasSent) onCancel();
     } finally {
       setIsSending(false);
@@ -136,7 +156,7 @@ export function AttachmentPreviewDialog({
           >
             {t(
               "chat.previewAttachmentHint",
-              "Review the selected file and add an optional caption before sending.",
+              "Review the selected files and add an optional caption before sending.",
             )}
           </DialogPrimitive.Description>
 
@@ -153,19 +173,24 @@ export function AttachmentPreviewDialog({
             </DialogPrimitive.Close>
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-white/95">
-                {file.name}
+                {attachments.length > 1
+                  ? t("chat.selectedMediaCount", {
+                      count: attachments.length,
+                      defaultValue: "{{count}} selected",
+                    })
+                  : file.name}
               </p>
               <p className="text-xs text-white/55">
-                {formatFileSize(file.size)}
+                {attachments.length > 1 ? file.name : formatFileSize(file.size)}
               </p>
             </div>
           </header>
 
           <div className="flex min-h-56 flex-1 items-center justify-center overflow-auto bg-[#0b141a] p-4 sm:min-h-96 sm:p-8">
-            {isVisualMedia && previewUrl ? (
+            {isVisualMedia && previewUrls[activeIndex] ? (
               isVideo ? (
                 <video
-                  src={previewUrl}
+                  src={previewUrls[activeIndex]}
                   controls
                   playsInline
                   className="max-h-[58vh] max-w-full rounded-lg bg-black object-contain shadow-2xl shadow-black/30"
@@ -173,7 +198,7 @@ export function AttachmentPreviewDialog({
                 />
               ) : (
                 <img
-                  src={previewUrl}
+                  src={previewUrls[activeIndex]}
                   alt={`Preview ${file.name}`}
                   className="max-h-[58vh] max-w-full rounded-lg object-contain shadow-2xl shadow-black/30"
                 />
@@ -195,6 +220,71 @@ export function AttachmentPreviewDialog({
               </div>
             )}
           </div>
+
+          {attachmentType === "image" && (
+            <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-t border-white/10 bg-[#111b21] px-3 py-2 sm:px-4">
+              {attachments.map((attachment, index) => {
+                const url = previewUrls[index];
+                const selected = index === activeIndex;
+                return (
+                  <div
+                    key={`${attachment.file.name}-${attachment.file.lastModified}`}
+                    className="relative shrink-0"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setActiveIndex(index)}
+                      disabled={isBusy}
+                      className={`grid size-16 overflow-hidden rounded-lg bg-[#202c33] ring-2 ring-offset-2 ring-offset-[#111b21] transition ${
+                        selected
+                          ? "ring-[#00a884]"
+                          : "ring-transparent hover:ring-white/25"
+                      }`}
+                      aria-label={`Preview ${attachment.file.name}`}
+                    >
+                      {attachment.file.type.startsWith("video/") ? (
+                        <video
+                          src={url}
+                          muted
+                          playsInline
+                          className="size-full object-cover"
+                        />
+                      ) : (
+                        <img
+                          src={url}
+                          alt=""
+                          className="size-full object-cover"
+                        />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveFile(index)}
+                      disabled={isBusy}
+                      className="absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-[#202c33] text-white shadow-md ring-1 ring-white/20 hover:bg-red-500"
+                      aria-label={`Remove ${attachment.file.name}`}
+                    >
+                      <X className="size-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                );
+              })}
+              {onAddFiles && (
+                <button
+                  type="button"
+                  onClick={onAddFiles}
+                  disabled={isBusy}
+                  className="grid size-16 shrink-0 place-items-center rounded-lg border border-dashed border-white/30 text-white/70 transition hover:border-[#00a884] hover:bg-white/5 hover:text-[#00a884]"
+                  aria-label={t(
+                    "chat.addMoreMedia",
+                    "Add more photos or videos",
+                  )}
+                >
+                  <Plus className="size-6" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          )}
 
           <form
             onSubmit={handleSubmit}
@@ -220,7 +310,7 @@ export function AttachmentPreviewDialog({
                   </p>
                 )}
               </div>
-              {onSchedule && (
+              {onSchedule && attachments.length === 1 && (
                 <div className="relative">
                   <button
                     type="button"
