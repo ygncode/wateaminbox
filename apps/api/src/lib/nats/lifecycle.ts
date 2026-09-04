@@ -31,6 +31,9 @@ const logger = createLogger("NatsLifecycle");
 
 const API_EVENTS_DEAD_LETTER_SUBJECT = "WHATSAPP.dead_letter.api_events";
 
+const HISTORY_MESSAGE_EVENT_SUFFIX = ".history_message";
+const HISTORY_CONTACT_EVENT_SUFFIX = ".history_contact";
+
 const INITIAL_RETRY_MS = 1_000;
 const MAX_RETRY_MS = 15_000;
 const BACKOFF_FACTOR = 2;
@@ -436,6 +439,30 @@ export class NatsLifecycleManager {
         }
         return;
       }
+
+      // Workers that were already running when the history lanes shipped can
+      // still have durable outbox records addressed to the legacy `.message`
+      // and `.contact` subjects. Move those records to the bounded history
+      // consumer before invoking the database handler so an upgrade-time
+      // replay cannot continue blocking receipts and send confirmations.
+      //
+      // Publish-before-ack makes the move lossless. The source stream sequence
+      // is stable across redelivery and therefore gives JetStream a
+      // deterministic de-duplication key if this API dies between the two.
+      const historySubject = this.legacyHistorySubject(name, event);
+      if (historySubject) {
+        const streamSequence = msg.info?.streamSequence;
+        await js.publish(
+          historySubject,
+          msg.data,
+          streamSequence
+            ? { msgID: `legacy-history-${streamSequence}` }
+            : undefined,
+        );
+        msg.ack();
+        return;
+      }
+
       await callback(event);
       msg.ack();
     } catch (error) {
@@ -463,6 +490,25 @@ export class NatsLifecycleManager {
         msg.nak(1_000);
       }
     }
+  }
+
+  private legacyHistorySubject(
+    name: EventLoopName,
+    event: WhatsAppEvent,
+  ): string | null {
+    if (name !== "critical") return null;
+
+    const base = `WHATSAPP.events.${event.companyId}.${event.connectionId}`;
+    if (event.type === "contact") {
+      return `${base}${HISTORY_CONTACT_EVENT_SUFFIX}`;
+    }
+    if (
+      event.type === "message" &&
+      (event.payload as { isHistorySync?: unknown }).isHistorySync === true
+    ) {
+      return `${base}${HISTORY_MESSAGE_EVENT_SUFFIX}`;
+    }
+    return null;
   }
 
   private async publishDeadLetter(

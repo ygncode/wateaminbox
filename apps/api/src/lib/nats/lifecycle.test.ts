@@ -583,6 +583,116 @@ describe("NatsLifecycleManager", () => {
     await pollUntil(() => handled.includes("history"));
   });
 
+  test("legacy history events are moved off the critical lane before handling", async () => {
+    const conn = makeMockConnection();
+    const handled: string[] = [];
+    const published: Array<{
+      subject: string;
+      event: { type: string; payload: Record<string, unknown> };
+      msgID?: string;
+    }> = [];
+    const acked: string[] = [];
+    const baseEnvelope = {
+      contractVersion: 1,
+      companyId: "00000000-0000-0000-0000-000000000000",
+      connectionId: "00000000-0000-0000-0000-000000000001",
+      timestamp: new Date(0).toISOString(),
+    };
+    const messages = [
+      {
+        data: new TextEncoder().encode(
+          JSON.stringify({
+            ...baseEnvelope,
+            type: "message",
+            payload: { messageId: "history", isHistorySync: true },
+          }),
+        ),
+        subject: "WHATSAPP.events.legacy.connection.message",
+        ack: () => acked.push("history"),
+        nak: () => {},
+        term: () => {},
+        info: { redeliveryCount: 1, streamSequence: 41 },
+      },
+      {
+        data: new TextEncoder().encode(
+          JSON.stringify({
+            ...baseEnvelope,
+            type: "contact",
+            payload: { jid: "15550000000@s.whatsapp.net" },
+          }),
+        ),
+        subject: "WHATSAPP.events.legacy.connection.contact",
+        ack: () => acked.push("contact"),
+        nak: () => {},
+        term: () => {},
+        info: { redeliveryCount: 1, streamSequence: 42 },
+      },
+      {
+        data: new TextEncoder().encode(
+          JSON.stringify({
+            ...baseEnvelope,
+            type: "message",
+            payload: { messageId: "live", isHistorySync: false },
+          }),
+        ),
+        subject: "WHATSAPP.events.legacy.connection.message",
+        ack: () => acked.push("live"),
+        nak: () => {},
+        term: () => {},
+        info: { redeliveryCount: 1, streamSequence: 43 },
+      },
+    ];
+
+    conn._js.publish = async (...args: unknown[]) => {
+      const [subject, data, options] = args as [
+        string,
+        Uint8Array,
+        { msgID?: string } | undefined,
+      ];
+      published.push({
+        subject,
+        event: JSON.parse(new TextDecoder().decode(data)),
+        msgID: options?.msgID,
+      });
+      return { seq: 1, stream: "test", duplicate: false };
+    };
+    conn._js.subscribe = async (...args: unknown[]) => {
+      const durable = subscribeDurable(args[1]);
+      if (durable === API_CRITICAL_EVENTS_CONSUMER) {
+        return makeMockSubscription(messages);
+      }
+      return makeIdleSubscription();
+    };
+
+    const mgr = tracked(new NatsLifecycleManager(makeConnectFn(() => conn)));
+    await mgr.connect();
+    mgr.startEventSupervisor(async (event) => {
+      handled.push(
+        (event.payload as { messageId?: string }).messageId ?? event.type,
+      );
+    });
+
+    await pollUntil(() => acked.length === 3);
+    expect(handled).toEqual(["live"]);
+    expect(published).toEqual([
+      {
+        subject:
+          "WHATSAPP.events.00000000-0000-0000-0000-000000000000.00000000-0000-0000-0000-000000000001.history_message",
+        event: expect.objectContaining({
+          type: "message",
+          payload: expect.objectContaining({ isHistorySync: true }),
+        }),
+        msgID: "legacy-history-41",
+      },
+      {
+        subject:
+          "WHATSAPP.events.00000000-0000-0000-0000-000000000000.00000000-0000-0000-0000-000000000001.history_contact",
+        event: expect.objectContaining({ type: "contact" }),
+        msgID: "legacy-history-42",
+      },
+    ]);
+  });
+
   test("dead-letter threshold uses each loop's own tuning.maxDeliver rather than a shared hardcoded value", async () => {
     const conn = makeMockConnection();
     const deadLetterSubjects: string[] = [];
