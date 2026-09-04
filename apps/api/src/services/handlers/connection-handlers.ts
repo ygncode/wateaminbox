@@ -292,6 +292,9 @@ export async function handleDisconnectedEvent(
  */
 export async function handleWorkerConnectionStatusEvent(
   event: WorkerConnectionStatusEvent,
+  // Injectable for lifecycle-ordering tests. Keeping the default here avoids
+  // a process-wide tenant.service mock, which would leak into unrelated suites.
+  tenantDb: Kysely<TenantDatabase> = getTenantConnection(event.companyId),
 ): Promise<void> {
   const { companyId, connectionId, sessionId, payload } = event;
 
@@ -301,10 +304,12 @@ export async function handleWorkerConnectionStatusEvent(
   );
 
   try {
-    const tenantDb = getTenantConnection(companyId);
-
     // Worker lifecycle names are broader than the persisted connection enum.
-    // Never write transient control-plane states (stopped/connecting) directly.
+    // Persist `connecting` as the product's existing `pending` state, but only
+    // while the stable account has not already reached `connected`. Orchestrator
+    // and worker events use separate queue consumers, so a delayed worker-start
+    // announcement can otherwise arrive after the worker's real Connected event
+    // and regress a healthy account back to pending indefinitely.
     const dbStatus =
       payload.status === "connected"
         ? "connected"
@@ -312,7 +317,15 @@ export async function handleWorkerConnectionStatusEvent(
           ? "pending"
           : "disconnected";
 
-    if (sessionId) {
+    if (sessionId && payload.status === "connecting") {
+      await tenantDb
+        .updateTable("whatsapp_connection_sessions")
+        .set({ status: "connecting", updated_at: toDbDate() })
+        .where("id", "=", sessionId)
+        .where("ended_at", "is", null)
+        .where("status", "!=", "connected")
+        .execute();
+    } else if (sessionId) {
       await updateSessionStatus(
         tenantDb,
         sessionId,
@@ -324,7 +337,7 @@ export async function handleWorkerConnectionStatusEvent(
       );
     }
 
-    await tenantDb
+    let connectionUpdate = tenantDb
       .updateTable("whatsapp_connections")
       .set({
         status: dbStatus,
@@ -333,8 +346,22 @@ export async function handleWorkerConnectionStatusEvent(
           : {}),
         updated_at: toDbDate(),
       })
-      .where("id", "=", connectionId)
-      .execute();
+      .where("id", "=", connectionId);
+    if (payload.status === "connecting") {
+      connectionUpdate = connectionUpdate.where("status", "!=", "connected");
+    }
+    const updated = await connectionUpdate.returning("id").executeTakeFirst();
+
+    // The conditional update is the cross-replica ordering fence. If it did
+    // not apply, Connected already won and clients must not receive a stale
+    // connecting broadcast that would disable message input anyway.
+    if (payload.status === "connecting" && !updated) {
+      logger.info(
+        { companyId, connectionId },
+        "Ignored stale worker connecting status after connection became connected",
+      );
+      return;
+    }
 
     // Broadcast connection:status event to clients
     // Frontend will show toast and disable message input
