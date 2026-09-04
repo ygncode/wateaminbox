@@ -106,6 +106,8 @@ func TestAPIEventsFilterCoversPublishedEventSubjects(t *testing.T) {
 		"qr":                SubjectQR,
 		"status":            SubjectStatus,
 		"message":           SubjectMessage,
+		"history_message":   SubjectHistoryMessage,
+		"history_contact":   SubjectHistoryContact,
 		"receipt":           SubjectReceipt,
 		"presence":          SubjectPresence,
 		"contact":           SubjectContact,
@@ -236,18 +238,19 @@ func TestEnsureAPIEventsConsumerKeepsExistingConsumer(t *testing.T) {
 	}
 }
 
-// --- Critical/transient consumer split --------------------------------
+// --- Critical/history/transient consumer split -------------------------
 
 // allEventSubjectPatterns is every Subject* pattern defined in subjects.go
 // that lives under WHATSAPP.events.>. Extend this map (and
-// apiCriticalEventSubjectPatterns or apiTransientEventSubjectPatterns) when
-// a new one is added; TestAPICriticalAndTransientFilterSubjectsCoverAllEventSubjects
+// the appropriate event-lane list) when a new one is added; the coverage test
 // fails otherwise instead of silently leaking an uncovered subject.
 func allEventSubjectPatterns() map[string]string {
 	return map[string]string{
 		"qr":                SubjectQR,
 		"status":            SubjectStatus,
 		"message":           SubjectMessage,
+		"history_message":   SubjectHistoryMessage,
+		"history_contact":   SubjectHistoryContact,
 		"receipt":           SubjectReceipt,
 		"presence":          SubjectPresence,
 		"contact":           SubjectContact,
@@ -268,22 +271,28 @@ func allEventSubjectPatterns() map[string]string {
 	}
 }
 
-func TestAPICriticalAndTransientFilterSubjectsAreDisjoint(t *testing.T) {
+func TestAPIEventLaneFilterSubjectsAreDisjoint(t *testing.T) {
 	seen := map[string]bool{}
 	for _, s := range apiCriticalEventSubjectPatterns {
 		seen[s] = true
 	}
+	for _, s := range apiHistoryEventSubjectPatterns {
+		if seen[s] {
+			t.Errorf("subject pattern %q is in more than one event lane", s)
+		}
+		seen[s] = true
+	}
 	for _, s := range apiTransientEventSubjectPatterns {
 		if seen[s] {
-			t.Errorf("subject pattern %q is in both the critical and transient filter lists; a consumer split must not double-deliver", s)
+			t.Errorf("subject pattern %q is in more than one event lane", s)
 		}
 	}
 }
 
 // Every subject the current single-consumer filter covers must land in
-// exactly one of the two new consumers, or the split silently drops
+// exactly one of the three event-lane consumers, or the split silently drops
 // (uncovered) or double-processes (covered twice) events.
-func TestAPICriticalAndTransientFilterSubjectsCoverAllEventSubjects(t *testing.T) {
+func TestAPIEventLaneFilterSubjectsCoverAllEventSubjects(t *testing.T) {
 	critical := map[string]bool{}
 	for _, s := range apiCriticalEventSubjectPatterns {
 		critical[s] = true
@@ -292,20 +301,33 @@ func TestAPICriticalAndTransientFilterSubjectsCoverAllEventSubjects(t *testing.T
 	for _, s := range apiTransientEventSubjectPatterns {
 		transient[s] = true
 	}
+	history := map[string]bool{}
+	for _, s := range apiHistoryEventSubjectPatterns {
+		history[s] = true
+	}
 
 	for name, pattern := range allEventSubjectPatterns() {
 		t.Run(name, func(t *testing.T) {
 			inCritical := critical[pattern]
 			inTransient := transient[pattern]
-			if inCritical == inTransient {
-				t.Fatalf("subject pattern %q (%s) must be covered by exactly one of apiCriticalEventSubjectPatterns/apiTransientEventSubjectPatterns; critical=%v transient=%v",
-					pattern, name, inCritical, inTransient)
+			inHistory := history[pattern]
+			covered := 0
+			for _, present := range []bool{inCritical, inHistory, inTransient} {
+				if present {
+					covered++
+				}
+			}
+			if covered != 1 {
+				t.Fatalf("subject pattern %q (%s) must be covered by exactly one event lane; critical=%v history=%v transient=%v",
+					pattern, name, inCritical, inHistory, inTransient)
 			}
 
 			subject := fmt.Sprintf(pattern, "company-1", "connection-1")
 			wantFilters := APICriticalEventsConsumerConfig().FilterSubjects
 			if inTransient {
 				wantFilters = APITransientEventsConsumerConfig().FilterSubjects
+			} else if inHistory {
+				wantFilters = APIHistoryEventsConsumerConfig().FilterSubjects
 			}
 			matched := false
 			for _, filter := range wantFilters {
@@ -318,6 +340,35 @@ func TestAPICriticalAndTransientFilterSubjectsCoverAllEventSubjects(t *testing.T
 				t.Fatalf("%q is not matched by the expected consumer's FilterSubjects %v", subject, wantFilters)
 			}
 		})
+	}
+}
+
+func TestAPIHistoryEventsConsumerConfigMatchesAPIClient(t *testing.T) {
+	cfg := APIHistoryEventsConsumerConfig()
+	if cfg.Durable != "whatsapp-api-history-events-v1" {
+		t.Errorf("Durable = %q", cfg.Durable)
+	}
+	if cfg.DeliverSubject != "WHATSAPP.api.history-events.delivery" {
+		t.Errorf("DeliverSubject = %q", cfg.DeliverSubject)
+	}
+	if cfg.DeliverGroup != "whatsapp-api-history-events" {
+		t.Errorf("DeliverGroup = %q", cfg.DeliverGroup)
+	}
+	if cfg.AckWait != 120*time.Second {
+		t.Errorf("AckWait = %v, want 120s", cfg.AckWait)
+	}
+	if cfg.MaxDeliver != 10 {
+		t.Errorf("MaxDeliver = %d, want 10", cfg.MaxDeliver)
+	}
+	if cfg.MaxAckPending != 64 {
+		t.Errorf("MaxAckPending = %d, want 64", cfg.MaxAckPending)
+	}
+	want := []string{
+		fmt.Sprintf(SubjectHistoryMessage, "*", "*"),
+		fmt.Sprintf(SubjectHistoryContact, "*", "*"),
+	}
+	if cfg.FilterSubject != "" || !stringSlicesEqualUnordered(cfg.FilterSubjects, want) {
+		t.Errorf("FilterSubject = %q, FilterSubjects = %v, want %v", cfg.FilterSubject, cfg.FilterSubjects, want)
 	}
 }
 
@@ -391,23 +442,23 @@ func TestAPITransientEventsConsumerConfigMatchesAPIClient(t *testing.T) {
 	}
 }
 
-// A fresh install (no pre-existing consumers) must get exactly the two new
+// A fresh install (no pre-existing consumers) must get exactly the three
 // durables and nothing else - the legacy consumer only ever exists on a
 // deployment that already had it before this split shipped.
-func TestEnsureEventsStreamCreatesOnlyCriticalAndTransientConsumers(t *testing.T) {
+func TestEnsureEventsStreamCreatesOnlyEventLaneConsumers(t *testing.T) {
 	fake := &fakeJetStream{}
 
 	if err := EnsureEventsStream(fake); err != nil {
 		t.Fatalf("EnsureEventsStream: %v", err)
 	}
 
-	for _, durable := range []string{APICriticalEventsConsumer, APITransientEventsConsumer} {
+	for _, durable := range []string{APICriticalEventsConsumer, APIHistoryEventsConsumer, APITransientEventsConsumer} {
 		if _, ok := fake.addedConsumers[durable]; !ok {
 			t.Errorf("EnsureEventsStream did not create durable consumer %q", durable)
 		}
 	}
-	if len(fake.addedConsumers) != 2 {
-		t.Errorf("addedConsumers = %v, want exactly 2 durables (fresh installs need only the critical/transient split)", fake.addedConsumers)
+	if len(fake.addedConsumers) != 3 {
+		t.Errorf("addedConsumers = %v, want exactly 3 event-lane durables", fake.addedConsumers)
 	}
 }
 
@@ -436,9 +487,11 @@ func TestEnsureEventsStreamDoesNotCreateLegacyConsumerOnFreshInstall(t *testing.
 // API readiness healthy while critical events are silently discarded.
 func TestEnsureSplitEventsConsumersKeepMatchingExistingConsumers(t *testing.T) {
 	critical := *APICriticalEventsConsumerConfig()
+	history := *APIHistoryEventsConsumerConfig()
 	transient := *APITransientEventsConsumerConfig()
 	fake := &fakeJetStream{existingConsumers: map[string]*nats.ConsumerInfo{
 		APICriticalEventsConsumer:  {Stream: StreamEvents, Name: APICriticalEventsConsumer, Config: critical},
+		APIHistoryEventsConsumer:   {Stream: StreamEvents, Name: APIHistoryEventsConsumer, Config: history},
 		APITransientEventsConsumer: {Stream: StreamEvents, Name: APITransientEventsConsumer, Config: transient},
 	}}
 

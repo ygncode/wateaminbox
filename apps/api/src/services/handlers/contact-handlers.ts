@@ -139,7 +139,7 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
           // inbox conversation until WhatsApp supplies conversation history.
           contactId = crypto.randomUUID();
           const phoneNumber = extractPhoneFromJid(contactJid);
-          await trx
+          const inserted = await trx
             .insertInto("contacts")
             .values({
               id: contactId,
@@ -153,7 +153,44 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
               created_at: toDbDate(),
               updated_at: toDbDate(),
             })
-            .execute();
+            .onConflict((oc) =>
+              oc
+                .columns(["whatsapp_connection_id", "jid"])
+                .where("whatsapp_connection_id", "is not", null)
+                .where("jid", "is not", null)
+                .doNothing(),
+            )
+            .returning("id")
+            .executeTakeFirst();
+
+          if (inserted) {
+            contactId = inserted.id;
+          } else {
+            // A message or another history event created this contact after
+            // our lookup. Reuse it and apply the sync metadata below.
+            const racedContact = await trx
+              .selectFrom("contacts")
+              .select("id")
+              .where("jid", "=", contactJid)
+              .where("whatsapp_connection_id", "=", connection.id)
+              .executeTakeFirstOrThrow();
+            contactId = racedContact.id;
+            await trx
+              .updateTable("contacts")
+              .set({
+                ...(syncedName ? { push_name: syncedName } : {}),
+                ...(username !== undefined ? { username } : {}),
+                ...(payload.isGroup !== undefined
+                  ? { is_group: payload.isGroup }
+                  : {}),
+                ...(payload.profilePictureUrl !== undefined
+                  ? { profile_picture_url: payload.profilePictureUrl || null }
+                  : {}),
+                updated_at: toDbDate(),
+              })
+              .where("id", "=", contactId)
+              .execute();
+          }
 
           contactChanged = true;
           logger.debug({ jid: contactJid, companyId }, "Created contact");

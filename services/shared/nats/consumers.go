@@ -132,6 +132,10 @@ const (
 	APICriticalEventsDeliverSubject = "WHATSAPP.api.critical-events.delivery"
 	APICriticalEventsQueue          = "whatsapp-api-critical-events"
 
+	APIHistoryEventsConsumer       = "whatsapp-api-history-events-v1"
+	APIHistoryEventsDeliverSubject = "WHATSAPP.api.history-events.delivery"
+	APIHistoryEventsQueue          = "whatsapp-api-history-events"
+
 	APITransientEventsConsumer       = "whatsapp-api-transient-events-v1"
 	APITransientEventsDeliverSubject = "WHATSAPP.api.transient-events.delivery"
 	APITransientEventsQueue          = "whatsapp-api-transient-events"
@@ -139,6 +143,12 @@ const (
 	apiCriticalEventsAckWait       = 60 * time.Second
 	apiCriticalEventsMaxDeliver    = 10
 	apiCriticalEventsMaxAckPending = 128
+
+	// History imports are durable but deliberately bounded and isolated from
+	// the live path. A small window limits database pressure during reconnects.
+	apiHistoryEventsAckWait       = 120 * time.Second
+	apiHistoryEventsMaxDeliver    = 10
+	apiHistoryEventsMaxAckPending = 64
 
 	// Presence/typing are high-volume and tolerate loss, so this consumer
 	// can carry a much larger in-flight window than the critical path
@@ -157,11 +167,14 @@ var apiTransientEventSubjectPatterns = []string{
 	SubjectTyping,
 }
 
-// apiCriticalEventSubjectPatterns is every other WHATSAPP.events.* subject
-// pattern from subjects.go. This list, together with
-// apiTransientEventSubjectPatterns, must cover every Subject* constant in
-// subjects.go - TestAPICriticalAndTransientFilterSubjectsCoverAllEventSubjects
-// fails if a new one is added to subjects.go without being added here too.
+var apiHistoryEventSubjectPatterns = []string{
+	SubjectHistoryMessage,
+	SubjectHistoryContact,
+}
+
+// apiCriticalEventSubjectPatterns is every live/durable WHATSAPP.events.*
+// subject pattern from subjects.go. This list, together with the history and
+// transient lists, must cover every event Subject* constant in subjects.go.
 //
 // send_failed has no entry of its own: the worker publishes it on
 // SubjectSendConfirm (see whatsapp/internal/nats/publisher.go
@@ -220,6 +233,24 @@ func APICriticalEventsConsumerConfig() *nats.ConsumerConfig {
 	}
 }
 
+// APIHistoryEventsConsumerConfig describes the durable history-import lane.
+// Keeping it separate prevents a reconnect import from delaying live events.
+func APIHistoryEventsConsumerConfig() *nats.ConsumerConfig {
+	return &nats.ConsumerConfig{
+		Durable:        APIHistoryEventsConsumer,
+		Description:    "API consumer for reconnect history messages/contact sync; isolated from live critical events",
+		DeliverSubject: APIHistoryEventsDeliverSubject,
+		DeliverGroup:   APIHistoryEventsQueue,
+		FilterSubjects: wildcardSubjects(apiHistoryEventSubjectPatterns),
+		DeliverPolicy:  nats.DeliverNewPolicy,
+		AckPolicy:      nats.AckExplicitPolicy,
+		AckWait:        apiHistoryEventsAckWait,
+		MaxDeliver:     apiHistoryEventsMaxDeliver,
+		MaxAckPending:  apiHistoryEventsMaxAckPending,
+		ReplayPolicy:   nats.ReplayInstantPolicy,
+	}
+}
+
 // APITransientEventsConsumerConfig describes the durable consumer for
 // ephemeral WhatsApp events (presence, typing), isolated from
 // APICriticalEventsConsumer so bursts here cannot delay message/receipt/
@@ -241,14 +272,15 @@ func APITransientEventsConsumerConfig() *nats.ConsumerConfig {
 }
 
 // ensureAPIEventsConsumerVariant is the shared idempotent create-if-missing
-// body for the two split consumers. It intentionally does not replace
+// body for the three split consumers. It intentionally does not replace
 // EnsureAPIEventsConsumer's own body above, so the legacy consumer's
 // long-lived production behavior stays byte-for-byte unchanged by this
 // change.
 func ensureAPIEventsConsumerVariant(js nats.JetStreamContext, name string, cfg *nats.ConsumerConfig) error {
 	info, err := js.ConsumerInfo(StreamEvents, name)
 	if err == nil {
-		if !stringSlicesEqualUnordered(info.Config.FilterSubjects, cfg.FilterSubjects) ||
+		if info.Config.FilterSubject != cfg.FilterSubject ||
+			!stringSlicesEqualUnordered(info.Config.FilterSubjects, cfg.FilterSubjects) ||
 			info.Config.DeliverSubject != cfg.DeliverSubject ||
 			info.Config.DeliverGroup != cfg.DeliverGroup ||
 			info.Config.DeliverPolicy != cfg.DeliverPolicy ||
@@ -301,6 +333,11 @@ func EnsureAPICriticalEventsConsumer(js nats.JetStreamContext) error {
 	return ensureAPIEventsConsumerVariant(js, APICriticalEventsConsumer, APICriticalEventsConsumerConfig())
 }
 
+// EnsureAPIHistoryEventsConsumer registers the bounded history-import lane.
+func EnsureAPIHistoryEventsConsumer(js nats.JetStreamContext) error {
+	return ensureAPIEventsConsumerVariant(js, APIHistoryEventsConsumer, APIHistoryEventsConsumerConfig())
+}
+
 // EnsureAPITransientEventsConsumer registers the transient-event consumer if
 // missing. Same leave-untouched-if-existing rationale as
 // EnsureAPICriticalEventsConsumer.
@@ -320,9 +357,9 @@ func EnsureAPITransientEventsConsumer(js nats.JetStreamContext) error {
 // messages instead of redelivering them into a subject nobody listens on.
 // EnsureEventsStream deliberately does NOT call EnsureAPIEventsConsumer.
 // A fresh install has no legacy consumer and needs none: the critical and
-// transient consumers below already have disjoint FilterSubjects that
+// critical, history, and transient consumers below have disjoint filters that
 // together cover every WHATSAPP.events.* subject (see
-// TestAPICriticalAndTransientFilterSubjectsCoverAllEventSubjects), so
+// TestAPIEventLaneFilterSubjectsCoverAllEventSubjects), so
 // interest retention is fully satisfied without it.
 //
 // A production deployment that already has APIEventsConsumer registered
@@ -338,6 +375,9 @@ func EnsureEventsStream(js nats.JetStreamContext) error {
 		return err
 	}
 	if err := EnsureAPICriticalEventsConsumer(js); err != nil {
+		return err
+	}
+	if err := EnsureAPIHistoryEventsConsumer(js); err != nil {
 		return err
 	}
 	return EnsureAPITransientEventsConsumer(js)

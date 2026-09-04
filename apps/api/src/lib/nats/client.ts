@@ -436,7 +436,7 @@ const DEFAULT_EVENT_CONSUMER_TUNING: EventConsumerTuning = {
 };
 
 /**
- * Critical/transient event consumer split.
+ * Critical/history/transient event consumer split.
  *
  * See services/shared/nats/consumers.go (APICriticalEventsConsumer /
  * APITransientEventsConsumer) for the full rationale and the required
@@ -446,15 +446,19 @@ const DEFAULT_EVENT_CONSUMER_TUNING: EventConsumerTuning = {
  * match, so a silent edit on either side would leave the API unable to
  * subscribe (or silently attach to the wrong consumer).
  *
- * Presence/typing are ephemeral, high-volume, and safe to process on a fully
- * independent consumer/loop so a post-reconnect presence storm cannot queue
- * ahead of a send_confirmation on the shared, ack-gated, serially-processed
- * critical path.
+ * Presence/typing are ephemeral and history imports are durable but bulky.
+ * Both use independent consumers/loops so neither can queue ahead of a live
+ * send_confirmation on the ack-gated, serially-processed critical path.
  */
 export const API_CRITICAL_EVENTS_CONSUMER = "whatsapp-api-critical-events-v1";
 export const API_CRITICAL_EVENTS_DELIVER_SUBJECT =
   "WHATSAPP.api.critical-events.delivery";
 export const API_CRITICAL_EVENTS_QUEUE = "whatsapp-api-critical-events";
+
+export const API_HISTORY_EVENTS_CONSUMER = "whatsapp-api-history-events-v1";
+export const API_HISTORY_EVENTS_DELIVER_SUBJECT =
+  "WHATSAPP.api.history-events.delivery";
+export const API_HISTORY_EVENTS_QUEUE = "whatsapp-api-history-events";
 
 export const API_TRANSIENT_EVENTS_CONSUMER = "whatsapp-api-transient-events-v1";
 export const API_TRANSIENT_EVENTS_DELIVER_SUBJECT =
@@ -473,10 +477,23 @@ export const API_TRANSIENT_EVENTS_IDENTITY: EventConsumerIdentity = {
   queue: API_TRANSIENT_EVENTS_QUEUE,
 };
 
+export const API_HISTORY_EVENTS_IDENTITY: EventConsumerIdentity = {
+  durable: API_HISTORY_EVENTS_CONSUMER,
+  deliverSubject: API_HISTORY_EVENTS_DELIVER_SUBJECT,
+  queue: API_HISTORY_EVENTS_QUEUE,
+};
+
 // Mirrors apiCriticalEventsAckWait/MaxDeliver/MaxAckPending in consumers.go
 // (unchanged from the legacy consumer's tuning).
 export const API_CRITICAL_EVENTS_TUNING: EventConsumerTuning = {
   ...DEFAULT_EVENT_CONSUMER_TUNING,
+  deliverPolicy: "new",
+};
+
+export const API_HISTORY_EVENTS_TUNING: EventConsumerTuning = {
+  ackWaitMs: 120_000,
+  maxDeliver: 10,
+  maxAckPending: 64,
   deliverPolicy: "new",
 };
 
@@ -515,6 +532,11 @@ export const API_CRITICAL_EVENT_FILTER_SUBJECTS: string[] = [
 export const API_TRANSIENT_EVENT_FILTER_SUBJECTS: string[] = [
   "WHATSAPP.events.*.*.presence",
   "WHATSAPP.events.*.*.typing",
+];
+
+export const API_HISTORY_EVENT_FILTER_SUBJECTS: string[] = [
+  "WHATSAPP.events.*.*.history_message",
+  "WHATSAPP.events.*.*.history_contact",
 ];
 
 export function buildEventConsumerOptions(

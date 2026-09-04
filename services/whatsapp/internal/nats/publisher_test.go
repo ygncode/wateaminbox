@@ -18,6 +18,7 @@ type flakyJetStreamPublisher struct {
 	calls      int
 	failBefore int
 	order      *[]string
+	subjects   []string
 }
 
 type capturedCorePublisher struct {
@@ -79,11 +80,12 @@ func (publisher *countingCorePublisher) lastStatus() string {
 func (*countingCorePublisher) FlushTimeout(time.Duration) error { return nil }
 
 func (publisher *flakyJetStreamPublisher) Publish(
-	_ string,
+	subject string,
 	_ []byte,
 	_ ...natsgo.PubOpt,
 ) (*natsgo.PubAck, error) {
 	publisher.calls++
+	publisher.subjects = append(publisher.subjects, subject)
 	if publisher.order != nil {
 		*publisher.order = append(*publisher.order, "publish")
 	}
@@ -202,6 +204,47 @@ func TestPublisherDoesNotReplayEphemeralEvents(t *testing.T) {
 	assert.False(t, shouldPersistEventSubject("WHATSAPP.events.company.connection.presence"))
 	assert.False(t, shouldPersistEventSubject("WHATSAPP.events.company.connection.typing"))
 	assert.True(t, shouldPersistEventSubject("WHATSAPP.events.company.connection.message"))
+}
+
+func TestPublishMessageRoutesHistoryToDedicatedSubject(t *testing.T) {
+	js := &flakyJetStreamPublisher{}
+	publisher := &Publisher{
+		js:           js,
+		companyID:    "company-1",
+		connectionID: "connection-1",
+	}
+
+	assert.NoError(t, publisher.PublishMessage(MessageEvent{MessageID: "live"}))
+	assert.NoError(t, publisher.PublishMessage(MessageEvent{MessageID: "history", IsHistorySync: true}))
+
+	assert.Equal(t, []string{
+		"WHATSAPP.events.company-1.connection-1.message",
+		"WHATSAPP.events.company-1.connection-1.history_message",
+	}, js.subjects)
+}
+
+func TestPublishContactRoutesHistorySnapshotToDedicatedSubject(t *testing.T) {
+	js := &flakyJetStreamPublisher{}
+	publisher := &Publisher{
+		js:           js,
+		companyID:    "company-1",
+		connectionID: "connection-1",
+	}
+
+	assert.NoError(t, publisher.PublishContact(
+		"15551234567@s.whatsapp.net", "", "", "", nil, false, 0, nil, "",
+	))
+	assert.NoError(t, publisher.PublishContactUsername(
+		"15551234567@s.whatsapp.net", nil,
+	))
+	assert.NoError(t, publisher.PublishContactName(
+		"15551234567@s.whatsapp.net", "", "", "", "",
+	))
+	assert.Equal(t, []string{
+		"WHATSAPP.events.company-1.connection-1.history_contact",
+		"WHATSAPP.events.company-1.connection-1.history_contact",
+		"WHATSAPP.events.company-1.connection-1.history_contact",
+	}, js.subjects)
 }
 
 func TestPublishWorkerRuntimeStatusIsGenerationScopedAndTransient(t *testing.T) {

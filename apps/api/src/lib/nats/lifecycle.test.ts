@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   API_CRITICAL_EVENTS_CONSUMER,
+  API_HISTORY_EVENTS_CONSUMER,
   API_TRANSIENT_EVENTS_CONSUMER,
 } from "./client.js";
 import {
@@ -492,6 +493,9 @@ describe("NatsLifecycleManager", () => {
       if (subscribeDurable(args[1]) === API_TRANSIENT_EVENTS_CONSUMER) {
         return makeMockSubscription([transientMsg]);
       }
+      if (subscribeDurable(args[1]) === API_HISTORY_EVENTS_CONSUMER) {
+        return makeIdleSubscription();
+      }
       return makeMockSubscription([criticalMsg]);
     };
 
@@ -512,6 +516,71 @@ describe("NatsLifecycleManager", () => {
 
     releaseTransient();
     await pollUntil(() => handled.includes("presence"));
+  });
+
+  test("a slow history handler does not delay live critical event processing", async () => {
+    const conn = makeMockConnection();
+    const handled: string[] = [];
+    const baseEnvelope = {
+      contractVersion: 1,
+      companyId: "00000000-0000-0000-0000-000000000000",
+      connectionId: "00000000-0000-0000-0000-000000000001",
+      timestamp: new Date(0).toISOString(),
+    };
+    const criticalMsg = {
+      data: new TextEncoder().encode(
+        JSON.stringify({
+          ...baseEnvelope,
+          type: "send_confirmation",
+          payload: { messageId: "live" },
+        }),
+      ),
+      subject: "WHATSAPP.events.c.k.send_confirmation",
+      ack: () => {},
+      nak: () => {},
+      term: () => {},
+    };
+    const historyMsg = {
+      data: new TextEncoder().encode(
+        JSON.stringify({
+          ...baseEnvelope,
+          type: "message",
+          payload: { messageId: "history", isHistorySync: true },
+        }),
+      ),
+      subject: "WHATSAPP.events.c.k.history_message",
+      ack: () => {},
+      nak: () => {},
+      term: () => {},
+    };
+    let releaseHistory: () => void = () => {};
+    const historyGate = new Promise<void>((resolve) => {
+      releaseHistory = resolve;
+    });
+
+    conn._js.subscribe = async (...args: unknown[]) => {
+      const durable = subscribeDurable(args[1]);
+      if (durable === API_HISTORY_EVENTS_CONSUMER) {
+        return makeMockSubscription([historyMsg]);
+      }
+      if (durable === API_TRANSIENT_EVENTS_CONSUMER) {
+        return makeIdleSubscription();
+      }
+      return makeMockSubscription([criticalMsg]);
+    };
+
+    const mgr = tracked(new NatsLifecycleManager(makeConnectFn(() => conn)));
+    await mgr.connect();
+    mgr.startEventSupervisor(async (event) => {
+      const messageId = (event.payload as { messageId?: string }).messageId;
+      if (messageId === "history") await historyGate;
+      handled.push(messageId ?? event.type);
+    });
+
+    await pollUntil(() => handled.includes("live"));
+    expect(handled).not.toContain("history");
+    releaseHistory();
+    await pollUntil(() => handled.includes("history"));
   });
 
   test("dead-letter threshold uses each loop's own tuning.maxDeliver rather than a shared hardcoded value", async () => {
@@ -569,6 +638,9 @@ describe("NatsLifecycleManager", () => {
     conn._js.subscribe = async (...args: unknown[]) => {
       if (subscribeDurable(args[1]) === API_TRANSIENT_EVENTS_CONSUMER) {
         return makeMockSubscription([transientMsg]);
+      }
+      if (subscribeDurable(args[1]) === API_HISTORY_EVENTS_CONSUMER) {
+        return makeIdleSubscription();
       }
       return makeMockSubscription([criticalMsg]);
     };

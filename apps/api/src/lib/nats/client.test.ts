@@ -9,6 +9,11 @@ import {
   API_EVENTS_CONSUMER,
   API_EVENTS_DELIVER_SUBJECT,
   API_EVENTS_QUEUE,
+  API_HISTORY_EVENT_FILTER_SUBJECTS,
+  API_HISTORY_EVENTS_CONSUMER,
+  API_HISTORY_EVENTS_DELIVER_SUBJECT,
+  API_HISTORY_EVENTS_QUEUE,
+  API_HISTORY_EVENTS_TUNING,
   API_TRANSIENT_EVENT_FILTER_SUBJECTS,
   API_TRANSIENT_EVENTS_CONSUMER,
   API_TRANSIENT_EVENTS_DELIVER_SUBJECT,
@@ -189,7 +194,7 @@ describe("durable API event consumer", () => {
 });
 
 /**
- * Pins the critical/transient consumer identities, filter subjects, and
+ * Pins the critical/history/transient consumer identities, filters, and
  * tuning against the values in services/shared/nats/consumers.go
  * (APICriticalEventsConsumerConfig / APITransientEventsConsumerConfig).
  * nats.js only binds to an existing durable when the filter subjects and
@@ -197,11 +202,12 @@ describe("durable API event consumer", () => {
  * unable to subscribe (or attach to the wrong consumer) - same rationale as
  * the legacy TestAPIEventsConsumerConfigMatchesAPIClient pin on the Go side.
  */
-describe("critical/transient event consumer split", () => {
-  test("critical and transient identities are disjoint from each other and from the legacy consumer", () => {
+describe("critical/history/transient event consumer split", () => {
+  test("event lane identities are disjoint from each other and from the legacy consumer", () => {
     const durables = [
       API_EVENTS_CONSUMER,
       API_CRITICAL_EVENTS_CONSUMER,
+      API_HISTORY_EVENTS_CONSUMER,
       API_TRANSIENT_EVENTS_CONSUMER,
     ];
     expect(new Set(durables).size).toBe(durables.length);
@@ -209,6 +215,7 @@ describe("critical/transient event consumer split", () => {
     const deliverSubjects = [
       API_EVENTS_DELIVER_SUBJECT,
       API_CRITICAL_EVENTS_DELIVER_SUBJECT,
+      API_HISTORY_EVENTS_DELIVER_SUBJECT,
       API_TRANSIENT_EVENTS_DELIVER_SUBJECT,
     ];
     expect(new Set(deliverSubjects).size).toBe(deliverSubjects.length);
@@ -216,12 +223,67 @@ describe("critical/transient event consumer split", () => {
 
   test("filter subject lists are non-overlapping and every type appears in exactly one list", () => {
     const critical = new Set(API_CRITICAL_EVENT_FILTER_SUBJECTS);
+    const history = new Set(API_HISTORY_EVENT_FILTER_SUBJECTS);
     const transient = new Set(API_TRANSIENT_EVENT_FILTER_SUBJECTS);
 
     expect(critical.size).toBe(API_CRITICAL_EVENT_FILTER_SUBJECTS.length);
+    expect(history.size).toBe(API_HISTORY_EVENT_FILTER_SUBJECTS.length);
     expect(transient.size).toBe(API_TRANSIENT_EVENT_FILTER_SUBJECTS.length);
-    for (const s of transient) {
-      expect(critical.has(s)).toBe(false);
+    const allSubjects = [...critical, ...history, ...transient];
+    expect(new Set(allSubjects).size).toBe(allSubjects.length);
+  });
+
+  test("history filter contains reconnect messages and contact-sync events", () => {
+    expect(API_HISTORY_EVENT_FILTER_SUBJECTS).toEqual([
+      "WHATSAPP.events.*.*.history_message",
+      "WHATSAPP.events.*.*.history_contact",
+    ]);
+  });
+
+  test("history consumer identity matches consumers.go APIHistoryEventsConsumerConfig", () => {
+    expect(API_HISTORY_EVENTS_CONSUMER).toBe("whatsapp-api-history-events-v1");
+    expect(API_HISTORY_EVENTS_DELIVER_SUBJECT).toBe(
+      "WHATSAPP.api.history-events.delivery",
+    );
+    expect(API_HISTORY_EVENTS_QUEUE).toBe("whatsapp-api-history-events");
+    expect(API_HISTORY_EVENTS_TUNING).toEqual({
+      ackWaitMs: 120_000,
+      maxDeliver: 10,
+      maxAckPending: 64,
+      deliverPolicy: "new",
+    });
+  });
+
+  test("history consumer options bind the dedicated durable", () => {
+    const builder = buildEventConsumerOptions(
+      API_HISTORY_EVENT_FILTER_SUBJECTS,
+      {
+        durable: API_HISTORY_EVENTS_CONSUMER,
+        deliverSubject: API_HISTORY_EVENTS_DELIVER_SUBJECT,
+        queue: API_HISTORY_EVENTS_QUEUE,
+      },
+      API_HISTORY_EVENTS_TUNING,
+    ) as unknown as InspectableConsumerOpts;
+    const options = builder.getOpts();
+    expect(options.config.durable_name).toBe(API_HISTORY_EVENTS_CONSUMER);
+    expect(options.config.filter_subject).toBeUndefined();
+    expect(options.config.filter_subjects).toEqual([
+      "WHATSAPP.events.*.*.history_message",
+      "WHATSAPP.events.*.*.history_contact",
+    ]);
+    expect(options.config.max_ack_pending).toBe(64);
+    expect(options.config.ack_wait).toBe(120_000 * 1_000_000);
+  });
+
+  test("all lane subject lists are non-overlapping", () => {
+    const seen = new Set<string>();
+    for (const subject of [
+      ...API_CRITICAL_EVENT_FILTER_SUBJECTS,
+      ...API_HISTORY_EVENT_FILTER_SUBJECTS,
+      ...API_TRANSIENT_EVENT_FILTER_SUBJECTS,
+    ]) {
+      expect(seen.has(subject)).toBe(false);
+      seen.add(subject);
     }
   });
 
@@ -283,6 +345,7 @@ describe("critical/transient event consumer split", () => {
 
     for (const subject of [
       ...API_CRITICAL_EVENT_FILTER_SUBJECTS,
+      ...API_HISTORY_EVENT_FILTER_SUBJECTS,
       ...API_TRANSIENT_EVENT_FILTER_SUBJECTS,
     ]) {
       expect(

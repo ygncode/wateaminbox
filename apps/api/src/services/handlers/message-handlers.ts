@@ -42,8 +42,7 @@ import {
 } from "../message-broadcast.service.js";
 import { sendPushToUsers } from "../notification-delivery.service.js";
 import { resolveIncomingMessageRecipients } from "../notification-recipient.service.js";
-import { updateMessageSearchVector } from "../search.service.js";
-import { getTenantConnection } from "../tenant.service.js";
+import { getSchemaName, getTenantConnection } from "../tenant.service.js";
 import { lockActiveConnectionForEvent } from "./connection-event-guard.js";
 import { buildIncomingMessageMetadata } from "./message-metadata.js";
 import { getProfilePictureRequestJid } from "./profile-picture-request.js";
@@ -152,13 +151,13 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       const contactId = crypto.randomUUID();
       // Extract phone number from JID (removes device suffix like ":3")
       const phoneNumber = extractPhoneFromJid(contactJid);
-      await tenantDb.transaction().execute(async (trx) => {
+      contact = await tenantDb.transaction().execute(async (trx) => {
         if (!(await lockActiveConnectionForEvent(trx, connection.id))) {
           throw new PermanentEventError(
             `Message event references inactive connection ${connection.id}`,
           );
         }
-        await trx
+        const inserted = await trx
           .insertInto("contacts")
           .values({
             id: contactId,
@@ -169,9 +168,26 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
             created_at: toDbDate(),
             updated_at: toDbDate(),
           })
-          .execute();
+          .onConflict((oc) =>
+            oc
+              .columns(["whatsapp_connection_id", "jid"])
+              .where("whatsapp_connection_id", "is not", null)
+              .where("jid", "is not", null)
+              .doNothing(),
+          )
+          .returning(["id", "profile_picture_url"])
+          .executeTakeFirst();
+        if (inserted) return inserted;
+
+        // Another API replica may have created the contact after our initial
+        // lookup. Read the winner instead of redelivering the whole event.
+        return trx
+          .selectFrom("contacts")
+          .select(["id", "profile_picture_url"])
+          .where("jid", "=", contactJid)
+          .where("whatsapp_connection_id", "=", connection.id)
+          .executeTakeFirstOrThrow();
       });
-      contact = { id: contactId, profile_picture_url: null };
     }
 
     // Preserve the participant separately from the group conversation. Push
@@ -307,6 +323,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           sender_avatar_url: null,
           message_type: payload.messageType as MessageType,
           content: payload.content,
+          search_vector: sql`to_tsvector('english', ${payload.content ?? ""})`,
           metadata: incomingMetadata,
           media_url: payload.mediaUrl || null,
           media_mime_type: payload.mediaType || null,
@@ -524,11 +541,6 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     const contactName = contactForSearch
       ? getContactDisplayName(contactForSearch, "Unknown")
       : null;
-
-    // Update PostgreSQL full-text search vector
-    updateMessageSearchVector(companyId, storedMessageId).catch((err) => {
-      logger.error(formatError(err), "Failed to update search vector");
-    });
 
     // Index in Meilisearch for better search experience
     const messageDoc: MessageDocument = {
@@ -781,7 +793,7 @@ function mapReceiptStatus(
  * Handles message receipt/status updates
  */
 export async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
-  const { companyId, connectionId, payload } = event;
+  const { companyId, connectionId, sessionId, payload } = event;
 
   logger.debug(
     { status: payload.status, messageId: payload.messageId, connectionId },
@@ -809,33 +821,61 @@ export async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
           ? ["pending", "sent", "failed"]
           : ["pending", "sent", "delivered", "failed"];
 
-    // Note: We store the WhatsApp message ID in message_id column.
-    const updatedMessage = await tenantDb
-      .updateTable("messages")
-      .set({
-        status: dbStatus,
-        // A delayed receipt can prove that a cleanup timeout was a false
-        // failure. Preserve unrelated metadata (document names, protocol
-        // sender identity, etc.) while removing only the stale timeout marker.
-        metadata: sql<Record<string, unknown> | null>`CASE
+    const applyReceipt = (candidateMessageIds: string[]) =>
+      tenantDb
+        .updateTable("messages")
+        .set({
+          status: dbStatus,
+          // A delayed receipt can prove that a cleanup timeout was a false
+          // failure. Preserve unrelated metadata (document names, protocol
+          // sender identity, etc.) while removing only the stale timeout marker.
+          metadata: sql<Record<string, unknown> | null>`CASE
           WHEN metadata->>'error' = 'delivery_timeout' THEN NULLIF(
             metadata - ARRAY['error', 'error_message', 'failed_at'],
             '{}'::jsonb
           )
           ELSE metadata
         END`,
-      })
-      .where("message_id", "=", payload.messageId)
-      .where("whatsapp_connection_id", "=", connectionId)
-      .where("from_me", "=", true)
-      .where((eb) =>
-        eb.or([
-          eb("status", "in", eligibleCurrentStatuses),
-          eb("status", "is", null),
-        ]),
-      )
-      .returning(["id", "contact_id", "status"])
-      .executeTakeFirst();
+        })
+        .where("message_id", "in", candidateMessageIds)
+        .where("whatsapp_connection_id", "=", connectionId)
+        .where("from_me", "=", true)
+        .where((eb) =>
+          eb.or([
+            eb("status", "in", eligibleCurrentStatuses),
+            eb("status", "is", null),
+          ]),
+        )
+        .returning(["id", "contact_id", "status"])
+        .executeTakeFirst();
+
+    // Usually the send confirmation has already replaced the temporary ID.
+    // If a fast receipt wins that race, the worker command ledger maps the
+    // final WhatsApp ID back to the pending row so the status is not lost.
+    let updatedMessage = await applyReceipt([payload.messageId]);
+    if (!updatedMessage && sessionId) {
+      const outbox = sql.table(`${getSchemaName(companyId)}.nats_outbox`);
+      const mapped = await sql<{ pending_message_id: string }>`
+        SELECT pc.result->>'pending_message_id' AS pending_message_id
+        FROM ${outbox} AS command
+        INNER JOIN whatsapp_sessions.processed_commands AS pc
+          ON pc.connection_id::text = split_part(command.subject, '.', 4)
+         AND pc.command_id::text = command.payload->>'command_id'
+        WHERE split_part(command.subject, '.', 3) = ${companyId}
+          AND split_part(command.subject, '.', 4) = ${sessionId}
+          AND pc.result->'response'->>'ID' = ${payload.messageId}
+        ORDER BY pc.processed_at DESC
+        LIMIT 1
+      `.execute(tenantDb);
+      const pendingMessageId = mapped.rows[0]?.pending_message_id;
+      // Include the final ID again: a concurrent confirmation may have
+      // committed while the ledger lookup was running.
+      updatedMessage = await applyReceipt(
+        pendingMessageId
+          ? [payload.messageId, pendingMessageId]
+          : [payload.messageId],
+      );
+    }
 
     logger.debug(
       {

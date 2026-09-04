@@ -26,6 +26,7 @@ describe("login to send confirmation happy path", () => {
       const email = `e2e-${userId}@example.com`;
       const password = "Correct-Horse-123!";
       let companyId: string | undefined;
+      let sessionId: string | undefined;
       try {
         await db
           .insertInto("users")
@@ -55,9 +56,11 @@ describe("login to send confirmation happy path", () => {
         // connection's ACTIVE session (see getActiveSessionId) - a
         // connection alone is not enough; this pre-existing gap left this
         // e2e test unable to reach the send handler at all.
+        sessionId = crypto.randomUUID();
         await tenantDb
           .insertInto("whatsapp_connection_sessions")
           .values({
+            id: sessionId,
             whatsapp_connection_id: connectionId,
             status: "connected",
             started_at: new Date(),
@@ -125,6 +128,56 @@ describe("login to send confirmation happy path", () => {
           message: { id: string; messageId: string; status: string };
         };
         expect(sent.message.status).toBe("pending");
+
+        // Model WhatsApp's fastest ordering: the worker has durably recorded
+        // the result, then a delivery receipt reaches a second API replica
+        // before send_confirmation replaces the temporary message ID.
+        const command = await tenantDb
+          .selectFrom("nats_outbox")
+          .select("id")
+          .where(
+            sql<boolean>`payload->>'message_id' = ${sent.message.messageId}`,
+          )
+          .executeTakeFirstOrThrow();
+        await sql`
+          INSERT INTO whatsapp_sessions.processed_commands (
+            connection_id, command_id, command_type, result, event_published
+          ) VALUES (
+            ${sessionId}::uuid,
+            ${command.id}::uuid,
+            'send',
+            ${JSON.stringify({
+              pending_message_id: sent.message.messageId,
+              response: {
+                ID: "whatsapp-confirmed-id",
+                Timestamp: new Date().toISOString(),
+              },
+            })}::jsonb,
+            false
+          )
+        `.execute(db);
+        await handleReceiptEvent({
+          contractVersion: 1,
+          type: "receipt",
+          companyId,
+          connectionId,
+          sessionId,
+          payload: {
+            messageId: "whatsapp-confirmed-id",
+            status: "delivered",
+            timestamp: new Date().toISOString(),
+          },
+          timestamp: new Date().toISOString(),
+        } satisfies ReceiptEvent);
+        const receiptBeforeConfirmation = await tenantDb
+          .selectFrom("messages")
+          .select(["message_id", "status"])
+          .where("id", "=", sent.message.id)
+          .executeTakeFirstOrThrow();
+        expect(receiptBeforeConfirmation).toEqual({
+          message_id: sent.message.messageId,
+          status: "delivered",
+        });
 
         // Simulate the cleanup race from production: WhatsApp accepted the
         // send, but its confirmation was delayed behind other events long
@@ -205,6 +258,12 @@ describe("login to send confirmation happy path", () => {
           metadata: { preserved: "message metadata" },
         });
       } finally {
+        if (sessionId) {
+          await sql`
+            DELETE FROM whatsapp_sessions.processed_commands
+            WHERE connection_id = ${sessionId}::uuid
+          `.execute(db);
+        }
         if (companyId) {
           await clearTenantConnection(companyId);
           await sql

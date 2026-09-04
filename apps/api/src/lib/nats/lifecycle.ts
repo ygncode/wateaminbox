@@ -13,6 +13,9 @@ import {
   API_CRITICAL_EVENT_FILTER_SUBJECTS,
   API_CRITICAL_EVENTS_IDENTITY,
   API_CRITICAL_EVENTS_TUNING,
+  API_HISTORY_EVENT_FILTER_SUBJECTS,
+  API_HISTORY_EVENTS_IDENTITY,
+  API_HISTORY_EVENTS_TUNING,
   API_TRANSIENT_EVENT_FILTER_SUBJECTS,
   API_TRANSIENT_EVENTS_IDENTITY,
   API_TRANSIENT_EVENTS_TUNING,
@@ -41,14 +44,14 @@ type ConnectionState =
   | "shutting_down";
 
 /**
- * Two independent event consumer loops - see APICriticalEventsConsumer /
+ * Three independent event consumer loops - see APICriticalEventsConsumer /
  * APITransientEventsConsumer in services/shared/nats/consumers.go for the
  * full rationale. "critical" carries message/receipt/send_confirmation/...;
- * "transient" carries presence/typing. Splitting them means a presence
- * storm on the transient loop cannot delay processing on the critical loop.
+ * "history" carries reconnect imports; "transient" carries presence/typing.
+ * Splitting them means either burst cannot delay the critical live loop.
  */
-type EventLoopName = "critical" | "transient";
-const EVENT_LOOP_NAMES: EventLoopName[] = ["critical", "transient"];
+type EventLoopName = "critical" | "history" | "transient";
+const EVENT_LOOP_NAMES: EventLoopName[] = ["critical", "history", "transient"];
 
 interface EventLoopReadiness {
   active: boolean;
@@ -152,6 +155,12 @@ function eventLoopConfig(name: EventLoopName): EventLoopConfig {
         filterSubjects: API_CRITICAL_EVENT_FILTER_SUBJECTS,
         tuning: API_CRITICAL_EVENTS_TUNING,
       };
+    case "history":
+      return {
+        identity: API_HISTORY_EVENTS_IDENTITY,
+        filterSubjects: API_HISTORY_EVENT_FILTER_SUBJECTS,
+        tuning: API_HISTORY_EVENTS_TUNING,
+      };
     case "transient":
       return {
         identity: API_TRANSIENT_EVENTS_IDENTITY,
@@ -170,6 +179,7 @@ export class NatsLifecycleManager {
 
   private loops: Record<EventLoopName, EventLoopState> = {
     critical: newEventLoopState(),
+    history: newEventLoopState(),
     transient: newEventLoopState(),
   };
 
@@ -308,7 +318,7 @@ export class NatsLifecycleManager {
   }
 
   /**
-   * Starts both event consumer loops. Idempotent per loop: calling this
+   * Starts all event consumer loops. Idempotent per loop: calling this
    * again while a loop's supervisor is already running does not start a
    * second one for that loop.
    */
@@ -539,7 +549,7 @@ export class NatsLifecycleManager {
    * must not take a healthy-for-critical-work API replica out of rotation
    * (Kubernetes/Docker would otherwise kill or stop routing to a replica
    * that is still correctly processing every message). See
-   * eventConsumers.transient on getReadinessState() for its own detail.
+   * eventConsumers.history/transient on getReadinessState() for their detail.
    */
   isConsumerActive(): boolean {
     return this.loops.critical.active;
@@ -567,6 +577,7 @@ export class NatsLifecycleManager {
 
   getReadinessState(): NatsReadinessState {
     const critical = this.loopReadiness("critical");
+    const history = this.loopReadiness("history");
     const transient = this.loopReadiness("transient");
     return {
       nats: {
@@ -575,11 +586,10 @@ export class NatsLifecycleManager {
         generation: this.generation,
       },
       // Deliberately just the critical loop's own readiness, not merged with
-      // transient - see isConsumerActive's comment. eventConsumers.transient
-      // below carries the transient loop's detail for observability/alerting
-      // without it gating readiness.
+      // the non-live lanes - see isConsumerActive's comment. eventConsumers
+      // carries their detail for observability without them gating readiness.
       eventConsumer: critical,
-      eventConsumers: { critical, transient },
+      eventConsumers: { critical, history, transient },
     };
   }
 

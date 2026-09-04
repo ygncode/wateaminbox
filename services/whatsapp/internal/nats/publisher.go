@@ -56,6 +56,8 @@ const (
 	SubjectQR               = sharednats.SubjectQR
 	SubjectStatus           = sharednats.SubjectStatus
 	SubjectMessage          = sharednats.SubjectMessage
+	SubjectHistoryMessage   = sharednats.SubjectHistoryMessage
+	SubjectHistoryContact   = sharednats.SubjectHistoryContact
 	SubjectReceipt          = sharednats.SubjectReceipt
 	SubjectPresence         = sharednats.SubjectPresence
 	SubjectContact          = sharednats.SubjectContact
@@ -422,7 +424,11 @@ func (p *Publisher) PublishMessage(msg MessageEvent) error {
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	subject := fmt.Sprintf(SubjectMessage, p.companyID, p.connectionID)
+	subjectPattern := SubjectMessage
+	if msg.IsHistorySync {
+		subjectPattern = SubjectHistoryMessage
+	}
+	subject := fmt.Sprintf(subjectPattern, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 
@@ -531,7 +537,7 @@ func (p *Publisher) PublishContact(jid, name, displayName, description string, u
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	subject := fmt.Sprintf(SubjectContact, p.companyID, p.connectionID)
+	subject := fmt.Sprintf(SubjectHistoryContact, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 
@@ -551,7 +557,7 @@ func (p *Publisher) PublishContactUsername(jid string, username *string) error {
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	subject := fmt.Sprintf(SubjectContact, p.companyID, p.connectionID)
+	subject := fmt.Sprintf(SubjectHistoryContact, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 
@@ -668,7 +674,7 @@ func (p *Publisher) PublishContactName(jid, firstName, fullName, pushName, busin
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
-	subject := fmt.Sprintf(SubjectContact, p.companyID, p.connectionID)
+	subject := fmt.Sprintf(SubjectHistoryContact, p.companyID, p.connectionID)
 	return p.publish(subject, event)
 }
 

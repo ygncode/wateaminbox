@@ -7,9 +7,13 @@ const (
 	SubjectCommands = "WHATSAPP.commands"
 
 	// Event subject patterns - Format: WHATSAPP.events.{companyId}.{connectionId}.{type}
-	SubjectQR              = "WHATSAPP.events.%s.%s.qr"
-	SubjectStatus          = "WHATSAPP.events.%s.%s.status"
-	SubjectMessage         = "WHATSAPP.events.%s.%s.message"
+	SubjectQR      = "WHATSAPP.events.%s.%s.qr"
+	SubjectStatus  = "WHATSAPP.events.%s.%s.status"
+	SubjectMessage = "WHATSAPP.events.%s.%s.message"
+	// History messages use their own subject so a reconnect import cannot
+	// queue ahead of live messages, receipts, or send confirmations.
+	SubjectHistoryMessage  = "WHATSAPP.events.%s.%s.history_message"
+	SubjectHistoryContact  = "WHATSAPP.events.%s.%s.history_contact"
 	SubjectReceipt         = "WHATSAPP.events.%s.%s.receipt"
 	SubjectPresence        = "WHATSAPP.events.%s.%s.presence"
 	SubjectContact         = "WHATSAPP.events.%s.%s.contact"
