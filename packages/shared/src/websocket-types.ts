@@ -175,6 +175,7 @@ export interface WhatsAppConnectedPayload {
 
 export interface WhatsAppDisconnectedPayload {
   reason?: string;
+  code?: string;
   connectionId?: string;
 }
 

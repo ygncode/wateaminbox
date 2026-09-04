@@ -97,6 +97,10 @@ export const env = {
     "CORS_ORIGINS",
     "http://localhost:4444,http://localhost:3000",
   ),
+  // Optional private-deployment hook. OSS itself has no trial or billing
+  // policy; when configured, it asks the private control plane to admit the
+  // authenticated WhatsApp identity before exposing the connected session.
+  CONNECTION_ADMISSION_URL: getEnv("CONNECTION_ADMISSION_URL", ""),
 
   // Centrifugo realtime transport
   CENTRIFUGO_API_URL: getEnv(

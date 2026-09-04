@@ -11,6 +11,7 @@ import type {
   WhatsAppConnectedPayload,
   WhatsAppDisconnectedPayload,
 } from "@wateaminbox/shared";
+import { redirectToBillingForCurrentWorkspace } from "../lib/api/client";
 import { queryKeys } from "./query-keys";
 
 export type WhatsAppConnectionState =
@@ -142,6 +143,9 @@ export function useWhatsAppConnection(): WhatsAppConnection {
     const unsubDisconnected = subscribe<WhatsAppDisconnectedPayload>(
       "disconnected",
       (payload) => {
+        if (payload.code === "payment_required") {
+          redirectToBillingForCurrentWorkspace();
+        }
         setQrCode(null);
         setQrExpiresAt(null);
         setPhoneNumber(null);

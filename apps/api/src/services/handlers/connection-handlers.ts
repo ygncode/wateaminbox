@@ -16,6 +16,7 @@ import type {
 } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/realtime.js";
 import { enqueueSessionCommand } from "../command-outbox.service.js";
+import { admitConnectedPhone } from "../connection-admission.service.js";
 import { getTenantConnection, type TenantDatabase } from "../tenant.service.js";
 import {
   claimConnectedSession,
@@ -23,6 +24,51 @@ import {
   updateSessionStatus,
 } from "../whatsapp.service.js";
 import { handlerLogger as logger } from "./types.js";
+
+async function rejectPairedSession(input: {
+  companyId: string;
+  connectionId: string;
+  sessionId: string;
+  reason: string;
+  code: string;
+  title: string;
+  commandReason: string;
+  archive: boolean;
+}): Promise<void> {
+  const tenantDb = getTenantConnection(input.companyId);
+  await tenantDb.transaction().execute(async (trx) => {
+    await enqueueSessionCommand(
+      trx,
+      input.companyId,
+      input.sessionId,
+      (publisher) => publisher.kill(input.commandReason, true),
+    );
+    await updateSessionStatus(trx, input.sessionId, "ended", input.commandReason);
+    await trx
+      .updateTable("whatsapp_connections")
+      .set({
+        status: "disconnected",
+        qr_code: null,
+        qr_expires_at: null,
+        ...(input.archive ? { archived_at: toDbDate() } : {}),
+        updated_at: toDbDate(),
+      })
+      .where("id", "=", input.connectionId)
+      .execute();
+  });
+  await broadcastToCompany(
+    input.companyId,
+    "disconnected",
+    { reason: input.reason, code: input.code },
+    input.connectionId,
+  );
+  await broadcastToCompany(
+    input.companyId,
+    "notification:toast",
+    { type: "error", title: input.title, message: input.reason },
+    input.connectionId,
+  );
+}
 
 /**
  * Handles QR code events
@@ -60,16 +106,55 @@ export async function handleConnectedEvent(
 ): Promise<void> {
   const { companyId, connectionId, sessionId, payload } = event;
 
-  logger.info(
-    { companyId, connectionId, phoneNumber: payload.phoneNumber },
-    "WhatsApp connected",
-  );
+  logger.info({ companyId, connectionId }, "WhatsApp connected");
 
   try {
     const tenantDb = getTenantConnection(companyId);
 
     let effectiveConnectionId = connectionId;
     if (sessionId && payload.phoneNumber) {
+      let admission;
+      try {
+        admission = await admitConnectedPhone({
+          companyId,
+          phoneNumber: payload.phoneNumber,
+        });
+      } catch (error) {
+        const reason =
+          "We could not verify connection eligibility. The linked device was removed; please try again.";
+        await rejectPairedSession({
+          companyId,
+          connectionId,
+          sessionId,
+          reason,
+          code: "admission_unavailable",
+          title: "Connection check unavailable",
+          commandReason: "connection admission unavailable",
+          archive: false,
+        });
+        logger.error(
+          { companyId, connectionId, error: formatError(error) },
+          "Connection admission failed closed",
+        );
+        return;
+      }
+      if (!admission.allowed) {
+        await rejectPairedSession({
+          companyId,
+          connectionId,
+          sessionId,
+          reason: admission.message,
+          code: admission.paymentRequired ? "payment_required" : admission.code,
+          title: admission.paymentRequired ? "Upgrade required" : "Connection denied",
+          commandReason: "connection admission rejected",
+          archive: false,
+        });
+        logger.warn(
+          { companyId, connectionId, code: admission.code },
+          "Rejected WhatsApp connection by admission policy",
+        );
+        return;
+      }
       const claimed = await claimConnectedSession(
         tenantDb,
         sessionId,
@@ -106,50 +191,18 @@ export async function handleConnectedEvent(
       const reason = isMismatch
         ? "The scanned WhatsApp number does not match this archived account."
         : "This WhatsApp number is already linked to another connection in this workspace.";
-      const tenantDb = getTenantConnection(companyId);
       if (sessionId) {
-        await tenantDb.transaction().execute(async (trx) => {
-          await enqueueSessionCommand(trx, companyId, sessionId, (publisher) =>
-            publisher.kill("duplicate phone pairing rejected", true),
-          );
-          await updateSessionStatus(
-            trx,
-            sessionId,
-            "ended",
-            "duplicate phone pairing rejected",
-          );
-          await trx
-            .updateTable("whatsapp_connections")
-            .set({
-              status: "disconnected",
-              qr_code: null,
-              qr_expires_at: null,
-              archived_at: toDbDate(),
-              updated_at: toDbDate(),
-            })
-            .where("id", "=", connectionId)
-            .execute();
-        });
-      }
-      await broadcastToCompany(
-        companyId,
-        "disconnected",
-        {
+        await rejectPairedSession({
+          companyId,
+          connectionId,
+          sessionId,
           reason,
           code: isMismatch ? "identity_mismatch" : "duplicate_phone",
-        },
-        connectionId,
-      );
-      await broadcastToCompany(
-        companyId,
-        "notification:toast",
-        {
-          type: "error",
           title: isMismatch ? "Wrong WhatsApp number" : "Number already linked",
-          message: reason,
-        },
-        connectionId,
-      );
+          commandReason: "duplicate phone pairing rejected",
+          archive: true,
+        });
+      }
       logger.warn(
         {
           companyId,

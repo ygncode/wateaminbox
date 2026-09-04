@@ -35,6 +35,10 @@ function redirectToBillingOnPaymentRequired(status: number): void {
   window.location.replace(billingUrl);
 }
 
+export function redirectToBillingForCurrentWorkspace(): void {
+  redirectToBillingOnPaymentRequired(402);
+}
+
 // Custom error class
 export class ApiRequestError extends Error {
   constructor(

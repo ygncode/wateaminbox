@@ -9,6 +9,7 @@ import type {
 } from "@wateaminbox/shared";
 import { useRealtimeContext } from "@/contexts";
 import { productAnalytics } from "@/lib/product-analytics";
+import { redirectToBillingForCurrentWorkspace } from "@/lib/api/client";
 import { queryKeys } from "../query-keys";
 import {
   clearConnectionTransition,
@@ -155,6 +156,9 @@ export function useWhatsAppConnectionRealtime({
     const unsubDisconnected = subscribeRef.current<WhatsAppDisconnectedPayload>(
       "disconnected",
       (payload) => {
+        if (payload.code === "payment_required") {
+          redirectToBillingForCurrentWorkspace();
+        }
         const connectionId = payload.connectionId;
         if (connectionId) {
           updateConnectionStateRef.current(connectionId, {
