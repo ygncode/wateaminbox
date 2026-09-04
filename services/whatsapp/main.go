@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	waStore "go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 
 	"github.com/ygncode-lab/whatsapp-web/services/shared/config"
@@ -19,6 +20,16 @@ import (
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/storage"
 )
 
+const linkedDeviceDisplayName = "WATeamInbox"
+
+// configureLinkedDeviceDisplayName changes the name embedded in new pairing
+// registrations. Existing sessions use the login payload, which does not
+// include DeviceProps, so this does not rename or re-pair linked devices.
+func configureLinkedDeviceDisplayName() {
+	displayName := linkedDeviceDisplayName
+	waStore.DeviceProps.Os = &displayName
+}
+
 func main() {
 	if err := run(); err != nil {
 		log.Printf("WhatsApp worker failed: %v", err)
@@ -27,6 +38,8 @@ func main() {
 }
 
 func run() error {
+	configureLinkedDeviceDisplayName()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
