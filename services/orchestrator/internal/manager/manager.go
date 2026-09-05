@@ -80,9 +80,12 @@ type Manager struct {
 	startedAt     time.Time
 	shuttingDown  bool            // prevents NATS publishes during shutdown
 	registry      *WorkerRegistry // persistent storage for worker state
-	registryReady atomic.Bool     // enables promoted-artifact reads after recovery
-	lifecycle     [256]sync.Mutex // serializes operations for each connection
-	rolloutMu     sync.RWMutex    // rollout excludes every normal lifecycle mutation
+	// workerDatabaseRole is captured from the already-validated restricted URL
+	// during Start and passed to child workers for their current_user check.
+	workerDatabaseRole string
+	registryReady      atomic.Bool     // enables promoted-artifact reads after recovery
+	lifecycle          [256]sync.Mutex // serializes operations for each connection
+	rolloutMu          sync.RWMutex    // rollout excludes every normal lifecycle mutation
 	// takeoverMu makes shutdown and failed-node ownership transfer mutually
 	// exclusive. Once shutdown sets shuttingDown while holding the write lock,
 	// no takeover may CAS a connection onto a node that will not restart it.
@@ -256,6 +259,7 @@ func (m *Manager) Start(ctx context.Context) error {
 		if err := validateRestrictedCredentialURL("WORKER_DATABASE_URL", m.config.WorkerDatabaseURL, "postgresql", "wateaminbox_worker"); err != nil {
 			return err
 		}
+		_, m.workerDatabaseRole, _ = credentialUsername(m.config.WorkerDatabaseURL)
 		if err := validateRestrictedCredentialURL("WORKER_NATS_URL", m.config.WorkerNATSURL, "nats", "worker"); err != nil {
 			return err
 		}
@@ -349,14 +353,53 @@ func (m *Manager) Start(ctx context.Context) error {
 }
 
 func validateRestrictedCredentialURL(name, raw, scheme, username string) error {
-	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Scheme != scheme || parsed.Hostname() == "" || parsed.User == nil || parsed.User.Username() != username {
+	parsed, actualUsername, err := credentialUsername(raw)
+	if err != nil || parsed.Scheme != scheme || parsed.Hostname() == "" ||
+		!allowedRestrictedUsername(actualUsername, username) {
 		return fmt.Errorf("%s must use the dedicated %q user", name, username)
 	}
 	if password, present := parsed.User.Password(); !present || password == "" {
 		return fmt.Errorf("%s must include a non-empty credential", name)
 	}
 	return nil
+}
+
+func credentialUsername(raw string) (*url.URL, string, error) {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.User == nil || parsed.User.Username() == "" {
+		return parsed, "", errors.New("credential URL has no username")
+	}
+	return parsed, parsed.User.Username(), nil
+}
+
+func allowedRestrictedUsername(actual, singleHost string) bool {
+	if actual == singleHost {
+		return true
+	}
+	var suffix string
+	switch singleHost {
+	case "wateaminbox_worker":
+		suffix = strings.TrimPrefix(actual, "wti_w_")
+		if suffix == actual {
+			return false
+		}
+	case "worker":
+		suffix = strings.TrimPrefix(actual, "wti-w-")
+		if suffix == actual {
+			return false
+		}
+	default:
+		return false
+	}
+	if len(suffix) != 20 {
+		return false
+	}
+	for _, char := range suffix {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // Stop gracefully shuts down all managed workers.
@@ -669,7 +712,13 @@ func (m *Manager) spawnWorkerArtifactWithLaunch(
 		fmt.Sprintf("WORKER_READINESS_TOKEN=%s", readinessToken),
 	)
 	if m.registry != nil {
-		cmd.Env = append(cmd.Env, "WORKER_REQUIRED_DATABASE_ROLE=wateaminbox_worker")
+		requiredDatabaseRole := m.workerDatabaseRole
+		if requiredDatabaseRole == "" {
+			// Some focused manager tests attach a registry directly without Start;
+			// retain the supported single-host identity for that internal harness.
+			requiredDatabaseRole = "wateaminbox_worker"
+		}
+		cmd.Env = append(cmd.Env, fmt.Sprintf("WORKER_REQUIRED_DATABASE_ROLE=%s", requiredDatabaseRole))
 	}
 	cmd.Stdout = &workerLogWriter{connectionID: connectionID, stream: "stdout"}
 	cmd.Stderr = &workerLogWriter{connectionID: connectionID, stream: "stderr"}

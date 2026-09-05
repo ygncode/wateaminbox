@@ -443,6 +443,39 @@ func TestDurableManagerRequiresDistinctRestrictedWorkerCredentials(t *testing.T)
 	}
 }
 
+func TestRestrictedWorkerCredentialsAllowSingleHostAndPerNodeIdentities(t *testing.T) {
+	for _, testCase := range []struct {
+		name       string
+		url        string
+		scheme     string
+		singleHost string
+		wantError  bool
+	}{
+		{name: "single-host database", url: "postgresql://wateaminbox_worker:secret@db/app", scheme: "postgresql", singleHost: "wateaminbox_worker"},
+		{name: "per-node database", url: "postgresql://wti_w_0123456789abcdefabcd:secret@db/app", scheme: "postgresql", singleHost: "wateaminbox_worker"},
+		{name: "single-host nats", url: "nats://worker:secret@nats", scheme: "nats", singleHost: "worker"},
+		{name: "per-node nats", url: "nats://wti-w-0123456789abcdefabcd:secret@nats", scheme: "nats", singleHost: "worker"},
+		{name: "uppercase suffix", url: "postgresql://wti_w_0123456789abcdefabcD:secret@db/app", scheme: "postgresql", singleHost: "wateaminbox_worker", wantError: true},
+		{name: "short suffix", url: "nats://wti-w-0123456789abcdefabc:secret@nats", scheme: "nats", singleHost: "worker", wantError: true},
+		{name: "wrong prefix", url: "postgresql://wti_m_0123456789abcdefabcd:secret@db/app", scheme: "postgresql", singleHost: "wateaminbox_worker", wantError: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			err := validateRestrictedCredentialURL("credential", testCase.url, testCase.scheme, testCase.singleHost)
+			if testCase.wantError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestCredentialUsernamePreservesPerNodeDatabaseIdentity(t *testing.T) {
+	_, username, err := credentialUsername("postgresql://wti_w_0123456789abcdefabcd:secret@db/app")
+	require.NoError(t, err)
+	require.Equal(t, "wti_w_0123456789abcdefabcd", username)
+}
+
 func TestWorkerEnvironmentIsStrictDataPlaneAllowlist(t *testing.T) {
 	for name, value := range map[string]string{
 		"HTTP_BEARER_TOKEN":        "rollout-authority",
