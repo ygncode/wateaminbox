@@ -60,12 +60,14 @@ func NewHandlers(mgr *Manager, nc *natsclient.Client) *Handlers {
 func (h *Handlers) StartSubscription(ctx context.Context) error {
 	log.Println("Starting NATS command subscription...")
 
-	sub, err := h.nats.SubscribeToCommands(nil)
-	if err != nil {
-		return err
+	if h.manager.config.ConnectionScope == nil {
+		sub, err := h.nats.SubscribeToCommands(nil)
+		if err != nil {
+			return err
+		}
+		h.sub = sub
+		go h.processCommands(ctx, sub, "WHATSAPP.commands", true)
 	}
-	h.sub = sub
-	go h.processCommands(ctx, sub, "WHATSAPP.commands", true)
 
 	if nodeID := h.manager.config.NodeID; nodeID != "" {
 		nodeSub, err := h.nats.SubscribeToNodeCommands(nodeID)
@@ -216,6 +218,9 @@ func (h *Handlers) handleMessage(ctx context.Context, msg *nats.Msg, sharedConsu
 // a different node owns the connection. Without a registry every command is
 // local: a persistence-free orchestrator is single-instance by definition.
 func (h *Handlers) resolveOwnership(ctx context.Context, companyID, connectionID string) (*WorkerRecord, bool, error) {
+	if !h.manager.connectionInScope(companyID, connectionID) {
+		return nil, false, ErrConnectionOutsideScope
+	}
 	if h.manager.registry == nil || h.manager.config.NodeID == "" {
 		return nil, false, nil
 	}
@@ -263,6 +268,9 @@ func (h *Handlers) handleSpawnCommand(ctx context.Context, data []byte, hops int
 	}
 
 	log.Printf("Received spawn command for company %s, connection %s", cmd.CompanyID, cmd.ConnectionID)
+	if !h.manager.connectionInScope(cmd.CompanyID, cmd.ConnectionID) {
+		return ErrConnectionOutsideScope
+	}
 
 	// A connection owned by another node must be (re)spawned there: its session
 	// affinity, durable launch generation, and any live process are that node's.

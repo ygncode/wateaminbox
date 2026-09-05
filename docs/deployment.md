@@ -8,6 +8,16 @@ local development stack and is intentionally not an input to production.
 
 ## Architecture and trust boundaries
 
+An optional `ORCHESTRATOR_CONNECTION_SCOPE` environment variable restricts a
+runtime to comma-separated `companyUUID/connectionUUID` pairs. Omit it for the
+normal single-host deployment. Explicitly setting it to an empty string denies
+every connection; malformed values prevent startup. Scoped runtimes consume only
+their node-addressed commands, advertise negative placement capacity (excluded
+by existing peer placement queries), and never adopt unassigned records. Starts,
+recovery, failover acquisition, stop, and unlink must respect the scope. Changing
+the scope requires a controlled restart of that runtime. It is an operational
+guard, not a substitute for restricted database/NATS credentials.
+
 Only Caddy publishes host ports (`80` and `443`, including HTTP/3 UDP). Caddy
 terminates TLS and routes:
 

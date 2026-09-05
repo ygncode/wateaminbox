@@ -88,6 +88,11 @@ func main() {
 	autoRestartMaxRetries := config.GetIntEnv("AUTO_RESTART_MAX_RETRIES", 5)
 	autoRestartBackoff := config.GetDurationEnv("AUTO_RESTART_BACKOFF", 5*time.Second)
 	maxWorkers := config.GetIntEnv("ORCHESTRATOR_MAX_WORKERS", 15)
+	scopeValue, scopeConfigured := os.LookupEnv("ORCHESTRATOR_CONNECTION_SCOPE")
+	connectionScope, err := manager.ParseConnectionScope(scopeValue, scopeConfigured)
+	if err != nil {
+		log.Fatalf("Invalid runtime connection scope: %v", err)
+	}
 	artifactRoot := config.GetEnv("WORKER_ARTIFACT_ROOT", "/var/lib/wateaminbox/worker-artifacts")
 	defaultArtifactVersion := config.GetEnv("WORKER_DEFAULT_ARTIFACT_VERSION", "embedded")
 	defaultArtifactSHA256 := config.GetEnv("WORKER_DEFAULT_ARTIFACT_SHA256", "")
@@ -135,6 +140,7 @@ func main() {
 
 	// Initialize process manager
 	mgr := manager.New(manager.Config{
+		ConnectionScope:        connectionScope,
 		NATSClient:             natsClient,
 		WhatsAppBinaryPath:     whatsappBinaryPath,
 		DefaultNATSURL:         natsURL,

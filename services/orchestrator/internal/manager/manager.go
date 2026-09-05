@@ -25,6 +25,7 @@ import (
 
 // Config holds the configuration for the process manager.
 type Config struct {
+	ConnectionScope       map[string]bool // nil: unrestricted; empty: deny all starts and ownership acquisition.
 	NATSClient            *nats.Client
 	WhatsAppBinaryPath    string
 	DefaultNATSURL        string
@@ -297,7 +298,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			// A live lease for this node means another instance is (or very
 			// recently was) running as it; recovering here would produce two
 			// orchestrators respawning one node's connections.
-			if err := registry.RegisterNodeLease(m.ctx, m.config.NodeLeaseDuration, m.config.MaxWorkers); err != nil {
+			if err := registry.RegisterNodeLease(m.ctx, m.config.NodeLeaseDuration, m.advertisedCapacity()); err != nil {
 				_ = registry.Close()
 				return fmt.Errorf("failed to register orchestrator node lease: %w", err)
 			}
@@ -597,6 +598,9 @@ func (m *Manager) spawnWorker(
 	unlinkOnStart bool,
 	restartCount int,
 ) error {
+	if !m.connectionInScope(companyID, connectionID) {
+		return ErrConnectionOutsideScope
+	}
 	artifact, err := m.defaultArtifact(ctx, companyID)
 	if err != nil {
 		return fmt.Errorf("resolve default worker artifact: %w", err)
@@ -647,6 +651,9 @@ func (m *Manager) spawnWorkerArtifactWithLaunch(
 	plannedLaunchID string,
 ) error {
 	launchID := plannedLaunchID
+	if !m.connectionInScope(companyID, connectionID) {
+		return ErrConnectionOutsideScope
+	}
 	var err error
 	if launchID == "" {
 		launchID, err = newLaunchID()
@@ -1035,6 +1042,9 @@ func (m *Manager) UnlinkWorker(
 func (m *Manager) reconcileDurableLifecycleWorker(
 	ctx context.Context, companyID, connectionID, tenantHint string,
 ) (*WorkerRecord, error) {
+	if !m.connectionInScope(companyID, connectionID) {
+		return nil, ErrConnectionOutsideScope
+	}
 	if m.registry == nil {
 		return nil, nil
 	}
@@ -2110,12 +2120,14 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 
 	// Claim pre-migration rows first. NULL node_id is the CAS predicate, so a
 	// concurrently starting node can never adopt the same row.
-	adopted, err := m.registry.AdoptUnassignedWorkers(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to adopt unassigned workers: %w", err)
-	}
-	if adopted > 0 {
-		log.Printf("Adopted %d worker record(s) with no node owner as node %s", adopted, m.config.NodeID)
+	if m.config.ConnectionScope == nil {
+		adopted, err := m.registry.AdoptUnassignedWorkers(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to adopt unassigned workers: %w", err)
+		}
+		if adopted > 0 {
+			log.Printf("Adopted %d worker record(s) with no node owner as node %s", adopted, m.config.NodeID)
+		}
 	}
 
 	workers, err := m.registry.GetNodeWorkers(ctx)
@@ -2146,6 +2158,9 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 	}
 
 	for _, w := range workers {
+		if !m.connectionInScope(w.CompanyID, w.ConnectionID) {
+			return ErrConnectionOutsideScope
+		}
 		if w.ArtifactSHA256 == "" {
 			if err := m.normalizeLegacyWorker(ctx, w); err != nil {
 				return fmt.Errorf("normalize legacy worker %s: %w", w.ConnectionID, err)
@@ -2554,6 +2569,9 @@ func (m *Manager) runNodeTakeover(ctx context.Context) {
 }
 
 func (m *Manager) takeOverFailedNodes(ctx context.Context) {
+	if m.config.ConnectionScope != nil && len(m.config.ConnectionScope) == 0 {
+		return
+	}
 	m.mu.RLock()
 	shuttingDown := m.shuttingDown
 	m.mu.RUnlock()
@@ -2585,6 +2603,9 @@ func (m *Manager) takeOverFailedNodes(ctx context.Context) {
 	}
 
 	for _, record := range candidates {
+		if !m.connectionInScope(record.CompanyID, record.ConnectionID) {
+			continue
+		}
 		if _, owned := upgradeOwned[record.ConnectionID]; owned {
 			log.Printf("Leaving failed-node connection %s to the active rollout state machine", record.ConnectionID)
 			continue
