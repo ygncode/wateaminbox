@@ -19,6 +19,7 @@ import {
   getInvitationTokenFromRedirect,
   getSafeAuthRedirect,
 } from "../lib/auth-redirect";
+import { API_BASE_URL } from "../lib/api/client";
 import { productAnalytics } from "../lib/product-analytics";
 import { type RegisterFormData, registerSchema } from "../lib/schemas";
 
@@ -38,6 +39,50 @@ export function RegisterPage() {
     clearError,
     isAuthenticated,
   } = useAuth();
+  const [discoverySources, setDiscoverySources] = React.useState<
+    Array<{ value: string; label: string }>
+  >([]);
+  const [discoverySource, setDiscoverySource] = React.useState("");
+  const [discoveryOther, setDiscoveryOther] = React.useState("");
+  React.useEffect(() => {
+    if (isInvitationRegistration) return;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    // Optional host capability: self-hosted servers need not provide this route.
+    void fetch(`${API_BASE_URL}/auth/registration-options`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => (response.ok ? response.json() : null))
+      .then((payload: unknown) => {
+        if (
+          controller.signal.aborted ||
+          !payload ||
+          typeof payload !== "object"
+        )
+          return;
+        const options = (payload as { discoverySources?: unknown })
+          .discoverySources;
+        if (
+          Array.isArray(options) &&
+          options.length <= 20 &&
+          options.every(
+            (option) =>
+              option &&
+              typeof option.value === "string" &&
+              typeof option.label === "string" &&
+              option.value.length <= 50 &&
+              option.label.length <= 100,
+          )
+        )
+          setDiscoverySources(options);
+      })
+      .catch(() => {})
+      .finally(() => clearTimeout(timeout));
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [isInvitationRegistration]);
   const [registrationSuccess, setRegistrationSuccess] = React.useState(false);
   const [registeredEmail, setRegisteredEmail] = React.useState("");
   const [verificationEmailSent, setVerificationEmailSent] =
@@ -71,6 +116,16 @@ export function RegisterPage() {
         email: data.email,
         password: data.password,
         invitationToken,
+        discoverySource:
+          !isInvitationRegistration &&
+          discoverySources.some((option) => option.value === discoverySource)
+            ? {
+                source: discoverySource,
+                ...(discoverySource === "other" && discoveryOther.trim()
+                  ? { other: discoveryOther.trim() }
+                  : {}),
+              }
+            : undefined,
       });
       productAnalytics.track("sign_up", { method: "email" });
       setRegisteredEmail(data.email);
@@ -291,6 +346,64 @@ export function RegisterPage() {
               showPasswordToggle
             />
           </div>
+
+          {!isInvitationRegistration && discoverySources.length > 0 && (
+            <div className="space-y-3">
+              <div>
+                <label
+                  htmlFor="discovery-source"
+                  className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-dark-text-secondary"
+                >
+                  {t("auth.discoverySource", "How did you hear about us?")}{" "}
+                  <span className="font-normal text-slate-500 dark:text-dark-text-secondary">
+                    {t("auth.optional", "(optional)")}
+                  </span>
+                </label>
+                <select
+                  id="discovery-source"
+                  value={discoverySource}
+                  onChange={(event) => {
+                    setDiscoverySource(event.target.value);
+                    setDiscoveryOther("");
+                  }}
+                  disabled={isLoading}
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] disabled:opacity-50 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary"
+                >
+                  <option value="">
+                    {t("auth.discoverySourcePlaceholder", "Select an option")}
+                  </option>
+                  {discoverySources.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {discoverySource === "other" && (
+                <div>
+                  <label
+                    htmlFor="discovery-other"
+                    className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-dark-text-secondary"
+                  >
+                    {t(
+                      "auth.discoveryOther",
+                      "Where did you hear about us? (optional)",
+                    )}
+                  </label>
+                  <input
+                    id="discovery-other"
+                    type="text"
+                    value={discoveryOther}
+                    onChange={(event) => setDiscoveryOther(event.target.value)}
+                    maxLength={200}
+                    disabled={isLoading}
+                    autoComplete="off"
+                    className="w-full border text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] dark:text-dark-text-primary"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           <Button
             type="submit"
