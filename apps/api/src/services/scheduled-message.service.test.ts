@@ -132,6 +132,8 @@ describe("formatScheduledMessage", () => {
       updated_at: now,
       bulk_job_id: null,
       skip_reason: null,
+      auto_reply_trigger_message_id: null,
+      auto_reply_quick_reply_id: null,
     };
 
     expect(formatScheduledMessage(row, "Aye Chan")).toEqual({

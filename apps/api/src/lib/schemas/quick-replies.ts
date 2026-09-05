@@ -58,7 +58,27 @@ export const listQuickRepliesQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).optional().default(0),
 });
 
+export const updateAutoReplySettingsSchema = z
+  .object({
+    enabled: z.boolean(),
+    quickReplyId: z.string().uuid().nullable(),
+    delayMinutes: z.number().int().min(1).max(1440),
+    sendMode: z.enum(["always", "outside_business_hours"]),
+  })
+  .superRefine((value, ctx) => {
+    if (value.enabled && !value.quickReplyId) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["quickReplyId"],
+        message: "Choose a quick reply before enabling automatic replies",
+      });
+    }
+  });
+
 // Type exports
 export type CreateQuickReplyInput = z.infer<typeof createQuickReplySchema>;
 export type UpdateQuickReplyInput = z.infer<typeof updateQuickReplySchema>;
 export type ListQuickRepliesQuery = z.infer<typeof listQuickRepliesQuerySchema>;
+export type UpdateAutoReplySettingsInput = z.infer<
+  typeof updateAutoReplySettingsSchema
+>;

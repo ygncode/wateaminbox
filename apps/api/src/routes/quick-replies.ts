@@ -1,22 +1,24 @@
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
-import { getRouteContext } from "../middleware/context.js";
-import * as quickRepliesService from "../services/quick-replies.service.js";
+import { Hono } from "hono";
 import { conflict, isTableNotFoundError, notFound } from "../lib/errors.js";
 import {
   created,
+  type PaginationMeta,
   successData,
   successMessage,
   successPaginated,
-  type PaginationMeta,
 } from "../lib/response.js";
 import {
   createQuickReplySchema,
-  updateQuickReplySchema,
   listQuickRepliesQuerySchema,
+  updateAutoReplySettingsSchema,
+  updateQuickReplySchema,
 } from "../lib/schemas/index.js";
+import { authMiddleware } from "../middleware/auth.js";
+import { getRouteContext } from "../middleware/context.js";
+import { tenantMiddleware } from "../middleware/tenant.js";
+import * as autoReplyService from "../services/auto-reply.service.js";
+import * as quickRepliesService from "../services/quick-replies.service.js";
 
 export const quickReplyRoutes = new Hono();
 
@@ -62,6 +64,28 @@ quickReplyRoutes.get(
       }
       throw error;
     }
+  },
+);
+
+/** Workspace first-contact auto-reply rule. These routes must precede /:id. */
+quickReplyRoutes.get("/auto-reply", async (c) => {
+  const { companyId } = getRouteContext(c);
+  return successData(c, await autoReplyService.getAutoReplySettings(companyId));
+});
+
+quickReplyRoutes.put(
+  "/auto-reply",
+  zValidator("json", updateAutoReplySettingsSchema),
+  async (c) => {
+    const { companyId, user } = getRouteContext(c);
+    return successData(
+      c,
+      await autoReplyService.updateAutoReplySettings(
+        companyId,
+        user.id,
+        c.req.valid("json"),
+      ),
+    );
   },
 );
 

@@ -485,6 +485,24 @@ export interface UpdateQuickReplyInput {
   content?: string;
 }
 
+export type AutoReplySendMode = "always" | "outside_business_hours";
+
+export interface AutoReplySettings {
+  enabled: boolean;
+  quickReplyId: string | null;
+  quickReplyTitle: string | null;
+  delayMinutes: number;
+  sendMode: AutoReplySendMode;
+  businessHoursTimezone: string;
+}
+
+export interface UpdateAutoReplySettingsInput {
+  enabled: boolean;
+  quickReplyId: string | null;
+  delayMinutes: number;
+  sendMode: AutoReplySendMode;
+}
+
 export interface QuickReplyListResponse {
   data: QuickReply[];
   pagination: {

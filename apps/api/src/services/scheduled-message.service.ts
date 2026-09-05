@@ -34,12 +34,12 @@ import {
   finalizeBulkJobIfComplete,
   markBulkJobRunning,
 } from "./bulk-job.service.js";
+import { enqueueCommand } from "./command-outbox.service.js";
+import { resolveActiveCaseIdForContact } from "./conversation-case.service.js";
 import {
   broadcastNewMessageToViewers,
   broadcastToContactViewers,
 } from "./message-broadcast.service.js";
-import { enqueueCommand } from "./command-outbox.service.js";
-import { resolveActiveCaseIdForContact } from "./conversation-case.service.js";
 import {
   ContactAssignedToOtherError,
   ContactBlockedError,
@@ -201,7 +201,7 @@ async function sendScheduledMessage(
   companyId: string,
   row: ScheduledMessageRow,
   claimToken: Date,
-): Promise<DispatchSuccess> {
+): Promise<DispatchSuccess | null> {
   const contact = await tenantDb
     .selectFrom("contacts")
     .select(["id", "jid", "whatsapp_connection_id", "is_blocked"])
@@ -301,7 +301,7 @@ async function sendScheduledMessage(
     quotedSenderJid,
   );
 
-  await tenantDb.transaction().execute(async (trx) => {
+  const shouldBroadcast = await tenantDb.transaction().execute(async (trx) => {
     // Bulk/broadcast rows intentionally bypass both checks: a bulk job has
     // no single "assignee" concept (it's a company-wide broadcast, not one
     // agent's conversation) and its recipients' lifecycle state is
@@ -325,6 +325,70 @@ async function sendScheduledMessage(
     let caseId: string | null;
     if (row.bulk_job_id) {
       caseId = await resolveActiveCaseIdForContact(trx, row.contact_id);
+    } else if (row.auto_reply_trigger_message_id) {
+      // Serialize with interactive sends on the contact row, then re-check the
+      // "still unanswered" promise at the last possible moment.
+      const lockedContact = await trx
+        .selectFrom("contacts")
+        .select(["id", "is_blocked"])
+        .where("id", "=", row.contact_id)
+        .forUpdate()
+        .executeTakeFirst();
+      const [setting, trigger] = await Promise.all([
+        trx
+          .selectFrom("auto_reply_settings")
+          .select(["enabled", "quick_reply_id"])
+          .where("id", "=", 1)
+          .executeTakeFirst(),
+        trx
+          .selectFrom("messages")
+          .select(["created_at", "timestamp"])
+          .where("id", "=", row.auto_reply_trigger_message_id)
+          .executeTakeFirst(),
+      ]);
+      const answered = trigger
+        ? await trx
+            .selectFrom("messages")
+            .select("id")
+            .where("contact_id", "=", row.contact_id)
+            .where("from_me", "=", true)
+            .where("created_at", ">=", trigger.created_at)
+            .limit(1)
+            .executeTakeFirst()
+        : true;
+      const priorContactHistory = trigger
+        ? await trx
+            .selectFrom("messages")
+            .select("id")
+            .where("contact_id", "=", row.contact_id)
+            .where("id", "!=", row.auto_reply_trigger_message_id)
+            .where("timestamp", "<=", trigger.timestamp)
+            .limit(1)
+            .executeTakeFirst()
+        : true;
+      caseId = await resolveActiveCaseIdForContact(trx, row.contact_id);
+      const eligible =
+        lockedContact &&
+        !lockedContact.is_blocked &&
+        caseId &&
+        setting?.enabled &&
+        setting.quick_reply_id === row.auto_reply_quick_reply_id &&
+        !answered &&
+        !priorContactHistory;
+      if (!eligible) {
+        await trx
+          .updateTable("scheduled_messages")
+          .set({
+            status: "canceled",
+            canceled_at: toDbDate(),
+            updated_at: toDbDate(),
+          })
+          .where("id", "=", row.id)
+          .where("status", "=", "processing")
+          .where("next_attempt_at", "=", claimToken)
+          .execute();
+        return false;
+      }
     } else {
       try {
         const access = await requireSendAccess(
@@ -388,7 +452,10 @@ async function sendScheduledMessage(
         "Scheduled message is no longer claimed",
       );
     }
+    return true;
   });
+
+  if (!shouldBroadcast) return null;
 
   const [names, avatars] = await Promise.all([
     getUserNames([row.created_by]),
@@ -609,6 +676,15 @@ export async function dispatchCompanyScheduledMessages(
         row,
         claimUntil,
       );
+      if (!result) {
+        await broadcastScheduledUpdate(
+          companyId,
+          row.id,
+          row.contact_id,
+          "canceled",
+        );
+        continue;
+      }
       dispatched++;
       dispatchedTotal++;
       await Promise.all([
@@ -898,6 +974,11 @@ export async function dispatchCompanyBulkMessages(
         leaf,
         claimUntil,
       );
+      if (!result) {
+        throw new PermanentDispatchError(
+          "Bulk message unexpectedly entered auto-reply cancellation",
+        );
+      }
       dispatched++;
       bulkDispatchedTotal++;
       await Promise.all([

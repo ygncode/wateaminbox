@@ -173,6 +173,29 @@ function resolveDayIntervals(
 }
 
 /** Converts a local "HH:mm" wall-clock time on a given local date to its exact UTC instant. */
+/** True when an instant falls inside the configured business calendar. */
+export function isWithinBusinessHours(
+  calendar: SlaCalendar,
+  instant: Date,
+): boolean {
+  assertValidCalendarShape(calendar);
+  const { dateStr, weekday } = localDateParts(instant, calendar.timezone);
+  const time = instant.getTime();
+  return resolveDayIntervals(calendar, dateStr, weekday).some((interval) => {
+    const start = zonedIntervalBoundToUtc(
+      dateStr,
+      interval.start,
+      calendar.timezone,
+    ).getTime();
+    const end = zonedIntervalBoundToUtc(
+      dateStr,
+      interval.end,
+      calendar.timezone,
+    ).getTime();
+    return time >= start && time < end;
+  });
+}
+
 /** Advances a plain YYYY-MM-DD calendar date string by one day (timezone-independent). */
 function nextCalendarDateString(dateStr: string): string {
   return dayjs.utc(dateStr).add(1, "day").format("YYYY-MM-DD");

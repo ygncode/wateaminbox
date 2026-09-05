@@ -162,9 +162,11 @@ export {
 export {
   createQuickReply,
   deleteQuickReply,
+  getAutoReplySettings,
   getQuickReplies,
   getQuickReplyById,
   getQuickReplyByShortcut,
+  updateAutoReplySettings,
   updateQuickReply,
 } from "./quick-replies.js";
 // Re-export types

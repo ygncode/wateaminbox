@@ -32,6 +32,10 @@ import { broadcastToCompany } from "../../lib/realtime.js";
 import { broadcastAutoUnassignment } from "../assignment-broadcast.service.js";
 import { createAuditLog } from "../audit.service.js";
 import {
+  getAutoReplyCandidate,
+  scheduleFirstContactAutoReply,
+} from "../auto-reply.service.js";
+import {
   openOrReopenCaseForInboundMessage,
   resolveActiveCaseIdForContact,
 } from "../conversation-case.service.js";
@@ -297,6 +301,11 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         : null;
 
     const messageId = crypto.randomUUID();
+    const messageReceivedAt = toDbDate(payload.timestamp);
+    const autoReplyCandidate =
+      !payload.fromMe && !payload.isHistorySync && !isGroupMessage
+        ? await getAutoReplyCandidate(companyId, toDbDate())
+        : null;
 
     // The message insert, unread-count/last-message projection update, and
     // conversation-case open/reopen must succeed or fail together: a case
@@ -311,6 +320,17 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           throw new PermanentEventError(
             `Message event references inactive connection ${connection.id}`,
           );
+        }
+        // Linked-device outbound messages use the same contact lock as API and
+        // automatic sends, so an auto reply cannot pass its unanswered check
+        // while a human reply is concurrently being persisted.
+        if (payload.fromMe && !payload.isHistorySync) {
+          await trx
+            .selectFrom("contacts")
+            .select("id")
+            .where("id", "=", contact.id)
+            .forUpdate()
+            .executeTakeFirstOrThrow();
         }
         const insertQuery = trx.insertInto("messages").values({
           id: messageId,
@@ -345,7 +365,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           is_starred: false,
           deleted_by_sender: false,
           status: messageStatus,
-          timestamp: toDbDate(payload.timestamp),
+          timestamp: messageReceivedAt,
           created_at: toDbDate(),
         });
 
@@ -470,6 +490,15 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
                   payload.content?.substring(0, 100) || null,
               })
               .execute();
+          }
+
+          if (autoReplyCandidate) {
+            await scheduleFirstContactAutoReply(
+              trx,
+              contact.id,
+              messageId,
+              autoReplyCandidate,
+            );
           }
 
           // Note: We don't create notification_history entries for regular

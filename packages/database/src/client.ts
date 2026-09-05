@@ -273,6 +273,7 @@ export interface TenantDatabase {
   notification_history: NotificationHistoryTable;
   push_subscriptions: PushSubscriptionsTable;
   quick_replies: QuickRepliesTable;
+  auto_reply_settings: AutoReplySettingsTable;
   conversation_states: ConversationStatesTable;
   conversation_cases: ConversationCasesTable;
   nats_outbox: NatsOutboxTable;
@@ -642,6 +643,17 @@ export interface QuickRepliesTable {
   updated_at: Generated<Date>;
 }
 
+export interface AutoReplySettingsTable {
+  id: Generated<number>;
+  enabled: Generated<boolean>;
+  quick_reply_id: string | null;
+  delay_minutes: Generated<number>;
+  send_mode: Generated<"always" | "outside_business_hours">;
+  updated_by: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
 export interface ConversationStatesTable {
   id: Generated<string>;
   contact_id: string;
@@ -726,6 +738,9 @@ export interface ScheduledMessagesTable {
   updated_at: Generated<Date>;
   bulk_job_id: string | null;
   skip_reason: string | null;
+  /** Present only for an automatically queued first-contact reply. */
+  auto_reply_trigger_message_id: string | null;
+  auto_reply_quick_reply_id: string | null;
 }
 
 export interface BulkJobsTable {

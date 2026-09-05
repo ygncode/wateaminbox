@@ -256,6 +256,7 @@ export const queryKeys = {
     list: <T extends object>(params?: T) =>
       ["quick-replies", getCompanyId(), "list", params] as const,
     library: () => ["quick-replies", getCompanyId(), "library"] as const,
+    autoReply: () => ["quick-replies", getCompanyId(), "auto-reply"] as const,
     search: (shortcut: string) =>
       ["quick-replies", getCompanyId(), "search", shortcut] as const,
   },

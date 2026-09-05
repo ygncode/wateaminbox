@@ -2,14 +2,17 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createQuickReply,
   deleteQuickReply,
-  getQuickReplyLibrary,
+  getAutoReplySettings,
   getQuickReplies,
   getQuickReplyByShortcut,
+  getQuickReplyLibrary,
+  updateAutoReplySettings,
   updateQuickReply,
 } from "@/lib/api/quick-replies";
 import type {
   CreateQuickReplyInput,
   QuickReplyListParams,
+  UpdateAutoReplySettingsInput,
   UpdateQuickReplyInput,
 } from "@/lib/api/types";
 import { useQueryInvalidation } from "./query";
@@ -90,6 +93,28 @@ export function useQuickReplies(params: QuickReplyListParams = {}) {
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+  };
+}
+
+export function useAutoReplySettings() {
+  const { invalidate } = useQueryInvalidation();
+  const query = useQuery({
+    queryKey: queryKeys.quickReplies.autoReply(),
+    queryFn: getAutoReplySettings,
+  });
+  const mutation = useMutation({
+    mutationFn: (input: UpdateAutoReplySettingsInput) =>
+      updateAutoReplySettings(input),
+    onSuccess: () => {
+      invalidate(queryKeys.quickReplies.all);
+    },
+  });
+  return {
+    settings: query.data,
+    isLoading: query.isLoading,
+    error: query.error,
+    save: mutation.mutateAsync,
+    isSaving: mutation.isPending,
   };
 }
 
