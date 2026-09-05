@@ -23,6 +23,7 @@ export function getMeilisearchClient(): Meilisearch {
     client = new Meilisearch({
       host: MEILISEARCH_URL,
       apiKey: MEILISEARCH_API_KEY,
+      timeout: 5_000,
     });
   }
   return client;
