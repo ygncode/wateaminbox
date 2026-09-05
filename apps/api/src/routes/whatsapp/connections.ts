@@ -19,7 +19,7 @@ import {
   tenantFromHeader,
 } from "../../middleware/tenant.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
-import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
+import { enqueueSessionCommand } from "../../services/command-outbox.service.js";
 import { processConnectionPurgeCleanup } from "../../services/connection-purge-cleanup.service.js";
 import { PERMISSIONS } from "../../services/permission.service.js";
 import { archiveConnectionWithUnlink } from "../../services/whatsapp/connection.js";
@@ -420,19 +420,29 @@ connectionRoutes.post(
         });
       }
 
-      // Always fence the previous worker before spawning a pairing attempt.
-      // WhatsApp can revoke and delete a worker's credentials while its OS
-      // process remains alive, even though the API has already recorded the
-      // stable account as disconnected.
-      await whatsappService.killConnection(tenantDb, companyId, connectionId);
+      const activeSession = await tenantDb
+        .selectFrom("whatsapp_connection_sessions")
+        .select("id")
+        .where("whatsapp_connection_id", "=", connectionId)
+        .where("ended_at", "is", null)
+        .orderBy("created_at", "desc")
+        .executeTakeFirst();
+
+      // Fence a surviving previous worker before spawning another attempt.
+      // An admission rejection deliberately ends and purges its session, so
+      // recovery must also support creating a fresh pairing session.
+      if (activeSession) {
+        await whatsappService.killConnection(tenantDb, companyId, connectionId);
+      }
 
       await tenantDb.transaction().execute(async (trx) => {
-        const session = await trx
-          .selectFrom("whatsapp_connection_sessions")
-          .select("id")
-          .where("whatsapp_connection_id", "=", connectionId)
-          .where("ended_at", "is", null)
-          .executeTakeFirstOrThrow();
+        const sessionId = activeSession?.id ??
+          (await whatsappService.createConnectionSession(
+            trx,
+            connectionId,
+            c.get("user").id,
+            connection.phoneNumber,
+          ));
         await trx
           .updateTable("whatsapp_connections")
           .set({
@@ -443,11 +453,11 @@ connectionRoutes.post(
           })
           .where("id", "=", connectionId)
           .execute();
-        await updateSessionStatus(trx, session.id, "connecting");
-        await enqueueConnectionCommand(
+        await updateSessionStatus(trx, sessionId, "connecting");
+        await enqueueSessionCommand(
           trx,
           companyId,
-          connectionId,
+          sessionId,
           (publisher) => publisher.spawn(),
         );
       });

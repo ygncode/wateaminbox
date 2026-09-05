@@ -38,6 +38,7 @@ export {
 export {
   type ConnectionStatus,
   getConnectionStatus,
+  normalizeWhatsAppPhone,
   updateConnectionStatus,
   updateLastSync,
 } from "./status.js";

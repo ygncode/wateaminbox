@@ -33,6 +33,18 @@ describe("WhatsApp connection identity policy", () => {
     expect(handler).toContain('commandReason: "connection admission rejected"');
   });
 
+  test("an established session reconnect never depends on admission availability", async () => {
+    const handler = await Bun.file(
+      new URL("../handlers/connection-handlers.ts", import.meta.url),
+    ).text();
+    const establishedBranch = handler.indexOf("if (establishedReconnect)");
+    const admissionCall = handler.indexOf("admission = await admitConnectedPhone");
+    expect(establishedBranch).toBeGreaterThan(0);
+    expect(admissionCall).toBeGreaterThan(establishedBranch);
+    expect(handler).toContain('prior?.session_status === "connected"');
+    expect(handler).toContain("transient control-plane");
+  });
+
   test("the database migration enforces one non-null phone per workspace", async () => {
     const migration = await Bun.file(
       new URL(

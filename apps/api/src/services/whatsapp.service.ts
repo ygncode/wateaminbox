@@ -31,6 +31,7 @@ export {
   listArchivedConnections,
   listConnections,
   MaxConnectionsExceededError,
+  normalizeWhatsAppPhone,
   purgeArchivedConnection,
   relinkArchivedConnection,
   resolveWhatsAppSession,

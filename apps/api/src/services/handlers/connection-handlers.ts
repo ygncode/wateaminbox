@@ -20,6 +20,7 @@ import { admitConnectedPhone } from "../connection-admission.service.js";
 import { getTenantConnection, type TenantDatabase } from "../tenant.service.js";
 import {
   claimConnectedSession,
+  normalizeWhatsAppPhone,
   updateConnectionStatus,
   updateSessionStatus,
 } from "../whatsapp.service.js";
@@ -113,55 +114,95 @@ export async function handleConnectedEvent(
 
     let effectiveConnectionId = connectionId;
     if (sessionId && payload.phoneNumber) {
-      let admission;
-      try {
-        admission = await admitConnectedPhone({
-          companyId,
-          phoneNumber: payload.phoneNumber,
-        });
-      } catch (error) {
-        const reason =
-          "We could not verify connection eligibility. The linked device was removed; please try again.";
-        await rejectPairedSession({
-          companyId,
+      const prior = await tenantDb
+        .selectFrom("whatsapp_connection_sessions as session")
+        .innerJoin(
+          "whatsapp_connections as connection",
+          "connection.id",
+          "session.whatsapp_connection_id",
+        )
+        .select([
+          "session.status as session_status",
+          "session.ended_at as session_ended_at",
+          "session.whatsapp_connection_id as stable_connection_id",
+          "connection.phone_number as established_phone_number",
+          "connection.archived_at as connection_archived_at",
+        ])
+        .where("session.id", "=", sessionId)
+        .executeTakeFirst();
+      const establishedReconnect =
+        prior?.session_status === "connected" &&
+        prior.session_ended_at === null &&
+        prior.connection_archived_at === null &&
+        prior.stable_connection_id === connectionId &&
+        prior.established_phone_number !== null &&
+        normalizeWhatsAppPhone(prior.established_phone_number) ===
+          normalizeWhatsAppPhone(payload.phoneNumber);
+
+      if (establishedReconnect) {
+        // A process restart of an already-established session consumes no new
+        // entitlement and must not depend on the commercial admission service.
+        // Treating it like a fresh pairing caused a transient control-plane
+        // outage to send an unlink command and permanently revoke live devices.
+        await updateSessionStatus(tenantDb, sessionId, "connected");
+        await updateConnectionStatus(
+          tenantDb,
+          "connected",
           connectionId,
-          sessionId,
-          reason,
-          code: "admission_unavailable",
-          title: "Connection check unavailable",
-          commandReason: "connection admission unavailable",
-          archive: false,
-        });
-        logger.error(
-          { companyId, connectionId, error: formatError(error) },
-          "Connection admission failed closed",
+          payload.phoneNumber,
+          payload.jid,
         );
-        return;
-      }
-      if (!admission.allowed) {
-        await rejectPairedSession({
-          companyId,
-          connectionId,
+      } else {
+        let admission;
+        try {
+          admission = await admitConnectedPhone({
+            companyId,
+            phoneNumber: payload.phoneNumber,
+          });
+        } catch (error) {
+          const reason =
+            "We could not verify connection eligibility. The linked device was removed; please try again.";
+          await rejectPairedSession({
+            companyId,
+            connectionId,
+            sessionId,
+            reason,
+            code: "admission_unavailable",
+            title: "Connection check unavailable",
+            commandReason: "connection admission unavailable",
+            archive: false,
+          });
+          logger.error(
+            { companyId, connectionId, error: formatError(error) },
+            "Connection admission failed closed",
+          );
+          return;
+        }
+        if (!admission.allowed) {
+          await rejectPairedSession({
+            companyId,
+            connectionId,
+            sessionId,
+            reason: admission.message,
+            code: admission.paymentRequired ? "payment_required" : admission.code,
+            title: admission.paymentRequired ? "Upgrade required" : "Connection denied",
+            commandReason: "connection admission rejected",
+            archive: false,
+          });
+          logger.warn(
+            { companyId, connectionId, code: admission.code },
+            "Rejected WhatsApp connection by admission policy",
+          );
+          return;
+        }
+        const claimed = await claimConnectedSession(
+          tenantDb,
           sessionId,
-          reason: admission.message,
-          code: admission.paymentRequired ? "payment_required" : admission.code,
-          title: admission.paymentRequired ? "Upgrade required" : "Connection denied",
-          commandReason: "connection admission rejected",
-          archive: false,
-        });
-        logger.warn(
-          { companyId, connectionId, code: admission.code },
-          "Rejected WhatsApp connection by admission policy",
+          payload.phoneNumber,
+          payload.jid,
         );
-        return;
+        effectiveConnectionId = claimed.connectionId;
       }
-      const claimed = await claimConnectedSession(
-        tenantDb,
-        sessionId,
-        payload.phoneNumber,
-        payload.jid,
-      );
-      effectiveConnectionId = claimed.connectionId;
     } else {
       await updateConnectionStatus(
         tenantDb,
