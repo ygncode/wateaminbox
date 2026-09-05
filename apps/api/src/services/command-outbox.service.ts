@@ -12,6 +12,12 @@ import {
   publishOutboxCommand,
 } from "../lib/nats/index.js";
 import { broadcastToCompany } from "../lib/realtime.js";
+import {
+  claimReadyWorkspace,
+  finishWorkspaceDispatch,
+  recoverOutboxDispatch,
+  releaseWorkspaceDispatch,
+} from "./outbox-dispatch.service.js";
 import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 import { getActiveSessionId } from "./whatsapp/session.js";
 
@@ -59,11 +65,12 @@ let backlogCache: { value: CommandOutboxBacklog; expiresAt: number } | null =
 let backlogInFlight: Promise<CommandOutboxBacklog> | null = null;
 
 async function computeCommandOutboxBacklog(): Promise<CommandOutboxBacklog> {
-  const companies = await db
-    .selectFrom("companies")
-    .select("id")
-    .where("status", "=", "active")
-    .execute();
+  // Only ready workspaces can contain backlog. Idle tenants cost no queries.
+  const companies = (
+    await sql<{ id: string }>`SELECT r.company_id AS id
+    FROM public.outbox_dispatch_ready r JOIN public.companies c ON c.id = r.company_id
+    WHERE r.due_at IS NOT NULL AND c.status = 'active'`.execute(db)
+  ).rows;
   let pending = 0;
   let oldestPendingAt: Date | null = null;
 
@@ -366,21 +373,23 @@ export async function dispatchCompany(
 }
 
 export async function dispatchPendingCommands(): Promise<number> {
-  const companies = await db
-    .selectFrom("companies")
-    .select("id")
-    .where("status", "=", "active")
-    .execute();
-
+  try {
+    await recoverOutboxDispatch();
+  } catch (error) {
+    logger.warn({ err: formatError(error) }, "Outbox recovery scan will retry");
+  }
   let processed = 0;
-  for (const company of companies) {
+  // Bound each turn; replicas share the durable ready list. A busy workspace
+  // rejoins behind older due work instead of monopolizing a full scan.
+  for (let turn = 0; turn < 4; turn++) {
+    const claim = await claimReadyWorkspace();
+    if (!claim) break;
     try {
-      processed += await dispatchCompany(company.id);
+      processed += await dispatchCompany(claim.company_id);
+      await finishWorkspaceDispatch(claim);
     } catch (error) {
-      logger.error(
-        { companyId: company.id, err: formatError(error) },
-        "Failed to dispatch company outbox",
-      );
+      await releaseWorkspaceDispatch(claim);
+      logger.error({ err: formatError(error) }, "Workspace dispatch failed");
     }
   }
   return processed;
@@ -390,13 +399,15 @@ async function poll(): Promise<void> {
   if (running || stopping) return;
   running = true;
   lastPollAt = new Date();
+  let processed = 0;
   try {
-    await dispatchPendingCommands();
+    processed = await dispatchPendingCommands();
   } catch (error) {
     logger.error({ err: formatError(error) }, "Outbox polling failed");
   } finally {
     running = false;
-    if (!stopping) timer = setTimeout(poll, POLL_INTERVAL_MS);
+    if (!stopping)
+      timer = setTimeout(poll, processed > 0 ? 25 : POLL_INTERVAL_MS);
   }
 }
 
