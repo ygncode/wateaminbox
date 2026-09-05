@@ -1,4 +1,14 @@
 import { describe, expect, test } from "bun:test";
+import { NatsCommandPublisher } from "../../lib/nats/command-builder.js";
+import type { NatsCommand } from "../../lib/nats/types/index.js";
+import type { enqueueSessionCommand } from "../command-outbox.service.js";
+import {
+  enqueuePairedSessionStop,
+  handleConnectedEvent,
+  isEstablishedReconnect,
+  PAIRED_SESSION_STOP_POLICIES,
+  type PairedSessionStopInput,
+} from "../handlers/connection-handlers.js";
 import { normalizeWhatsAppPhone } from "./status.js";
 
 describe("WhatsApp connection identity policy", () => {
@@ -12,37 +22,127 @@ describe("WhatsApp connection identity policy", () => {
     expect(normalizeWhatsAppPhone(" Business-Line ")).toBe("business-line");
   });
 
-  test("duplicate pairings are stopped and surfaced to the workspace", async () => {
-    const handler = await Bun.file(
-      new URL("../handlers/connection-handlers.ts", import.meta.url),
-    ).text();
-    expect(handler).toContain("DuplicateWhatsAppPhoneError");
-    expect(handler).toContain("enqueueSessionCommand");
-    expect(handler).toContain("publisher.kill(input.commandReason, true)");
-    expect(handler).toContain('commandReason: "duplicate phone pairing rejected"');
-    expect(handler).toContain('"duplicate_phone"');
-    expect(handler).toContain('"identity_mismatch"');
+  test("established accounts bypass admission regardless of transient session status", () => {
+    const prior = {
+      session_ended_at: null,
+      stable_connection_id: "connection-1",
+      established_phone_number: "+65 8404 2683",
+      connection_archived_at: null,
+    };
+    expect(isEstablishedReconnect(prior, "connection-1", "6584042683")).toBe(
+      true,
+    );
+    expect(isEstablishedReconnect(prior, "connection-2", "6584042683")).toBe(
+      false,
+    );
+    expect(
+      isEstablishedReconnect(
+        { ...prior, session_ended_at: new Date() },
+        "connection-1",
+        "6584042683",
+      ),
+    ).toBe(false);
+    expect(isEstablishedReconnect(prior, "connection-1", "6584000000")).toBe(
+      false,
+    );
   });
 
-  test("commercial deployments can fail closed through the generic admission hook", async () => {
-    const handler = await Bun.file(
-      new URL("../handlers/connection-handlers.ts", import.meta.url),
-    ).text();
-    expect(handler).toContain("admitConnectedPhone");
-    expect(handler).toContain('"payment_required"');
-    expect(handler).toContain('commandReason: "connection admission rejected"');
+  test("admission outages queue a non-unlinking stop while explicit denials unlink", async () => {
+    const commands: NatsCommand[] = [];
+    const fakeEnqueue = (async (
+      _executor: unknown,
+      companyId: string,
+      sessionId: string,
+      build: (publisher: NatsCommandPublisher) => Promise<void>,
+    ) => {
+      await build(
+        new NatsCommandPublisher(
+          companyId,
+          sessionId,
+          async (_subject, command) => {
+            commands.push(command);
+          },
+          () => "TEST.commands",
+        ),
+      );
+    }) as typeof enqueueSessionCommand;
+
+    await enqueuePairedSessionStop(
+      {} as never,
+      "company-1",
+      "session-1",
+      "admission unavailable",
+      PAIRED_SESSION_STOP_POLICIES.admissionUnavailable,
+      fakeEnqueue,
+    );
+    await enqueuePairedSessionStop(
+      {} as never,
+      "company-1",
+      "session-2",
+      "admission rejected",
+      PAIRED_SESSION_STOP_POLICIES.admissionRejected,
+      fakeEnqueue,
+    );
+
+    expect(commands).toEqual([
+      expect.objectContaining({
+        type: "kill",
+        connection_id: "session-1",
+        unlink: false,
+      }),
+      expect.objectContaining({
+        type: "kill",
+        connection_id: "session-2",
+        unlink: true,
+      }),
+    ]);
+    expect(PAIRED_SESSION_STOP_POLICIES.admissionUnavailable.endSession).toBe(
+      false,
+    );
+    expect(PAIRED_SESSION_STOP_POLICIES.admissionRejected.endSession).toBe(
+      true,
+    );
   });
 
-  test("an established session reconnect never depends on admission availability", async () => {
-    const handler = await Bun.file(
-      new URL("../handlers/connection-handlers.ts", import.meta.url),
-    ).text();
-    const establishedBranch = handler.indexOf("if (establishedReconnect)");
-    const admissionCall = handler.indexOf("admission = await admitConnectedPhone");
-    expect(establishedBranch).toBeGreaterThan(0);
-    expect(admissionCall).toBeGreaterThan(establishedBranch);
-    expect(handler).toContain('prior?.session_status === "connected"');
-    expect(handler).toContain("transient control-plane");
+  test("the connected-event failure path selects the recoverable non-unlink policy", async () => {
+    const event = {
+      contractVersion: 1,
+      type: "connected",
+      companyId: "company-1",
+      connectionId: "connection-1",
+      sessionId: "session-1",
+      timestamp: new Date().toISOString(),
+      payload: { phoneNumber: "6584042683", jid: "6584042683@s.whatsapp.net" },
+    } as const;
+    const select = {
+      innerJoin: () => select,
+      select: () => select,
+      where: () => select,
+      executeTakeFirst: async () => ({
+        session_ended_at: null,
+        stable_connection_id: "connection-1",
+        established_phone_number: null,
+        connection_archived_at: null,
+      }),
+    };
+    const stops: Array<{ policy: { unlink: boolean; endSession: boolean } }> =
+      [];
+
+    await handleConnectedEvent(event as never, {
+      getTenantConnection: (() => ({ selectFrom: () => select })) as never,
+      admitConnectedPhone: async () => {
+        throw new Error("simulated control-plane timeout");
+      },
+      stopPairedSession: (async (input: PairedSessionStopInput) => {
+        stops.push(input);
+      }) as never,
+    });
+
+    expect(stops).toHaveLength(1);
+    expect(stops[0]?.policy).toMatchObject({
+      unlink: false,
+      endSession: false,
+    });
   });
 
   test("the database migration enforces one non-null phone per workspace", async () => {

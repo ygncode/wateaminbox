@@ -26,7 +26,52 @@ import {
 } from "../whatsapp.service.js";
 import { handlerLogger as logger } from "./types.js";
 
-async function rejectPairedSession(input: {
+type ConnectedSessionSnapshot = {
+  session_ended_at: Date | null;
+  stable_connection_id: string;
+  established_phone_number: string | null;
+  connection_archived_at: Date | null;
+};
+
+export function isEstablishedReconnect(
+  prior: ConnectedSessionSnapshot | undefined,
+  connectionId: string,
+  phoneNumber: string,
+): boolean {
+  return Boolean(
+    prior &&
+      prior.session_ended_at === null &&
+      prior.connection_archived_at === null &&
+      prior.stable_connection_id === connectionId &&
+      prior.established_phone_number !== null &&
+      normalizeWhatsAppPhone(prior.established_phone_number) ===
+        normalizeWhatsAppPhone(phoneNumber),
+  );
+}
+
+export const PAIRED_SESSION_STOP_POLICIES = {
+  admissionUnavailable: { unlink: false, endSession: false, archive: false },
+  admissionRejected: { unlink: true, endSession: true, archive: false },
+  identityRejected: { unlink: true, endSession: true, archive: true },
+} as const;
+
+type PairedSessionStopPolicy =
+  (typeof PAIRED_SESSION_STOP_POLICIES)[keyof typeof PAIRED_SESSION_STOP_POLICIES];
+
+export async function enqueuePairedSessionStop(
+  executor: Parameters<typeof enqueueSessionCommand>[0],
+  companyId: string,
+  sessionId: string,
+  commandReason: string,
+  policy: PairedSessionStopPolicy,
+  enqueue: typeof enqueueSessionCommand = enqueueSessionCommand,
+): Promise<void> {
+  await enqueue(executor, companyId, sessionId, (publisher) =>
+    publisher.kill(commandReason, policy.unlink),
+  );
+}
+
+export type PairedSessionStopInput = {
   companyId: string;
   connectionId: string;
   sessionId: string;
@@ -34,24 +79,32 @@ async function rejectPairedSession(input: {
   code: string;
   title: string;
   commandReason: string;
-  archive: boolean;
-}): Promise<void> {
+  policy: PairedSessionStopPolicy;
+};
+
+async function stopPairedSession(input: PairedSessionStopInput): Promise<void> {
   const tenantDb = getTenantConnection(input.companyId);
   await tenantDb.transaction().execute(async (trx) => {
-    await enqueueSessionCommand(
+    await enqueuePairedSessionStop(
       trx,
       input.companyId,
       input.sessionId,
-      (publisher) => publisher.kill(input.commandReason, true),
+      input.commandReason,
+      input.policy,
     );
-    await updateSessionStatus(trx, input.sessionId, "ended", input.commandReason);
+    await updateSessionStatus(
+      trx,
+      input.sessionId,
+      input.policy.endSession ? "ended" : "disconnected",
+      input.commandReason,
+    );
     await trx
       .updateTable("whatsapp_connections")
       .set({
         status: "disconnected",
         qr_code: null,
         qr_expires_at: null,
-        ...(input.archive ? { archived_at: toDbDate() } : {}),
+        ...(input.policy.archive ? { archived_at: toDbDate() } : {}),
         updated_at: toDbDate(),
       })
       .where("id", "=", input.connectionId)
@@ -70,6 +123,12 @@ async function rejectPairedSession(input: {
     input.connectionId,
   );
 }
+
+type ConnectedEventDependencies = {
+  getTenantConnection?: typeof getTenantConnection;
+  admitConnectedPhone?: typeof admitConnectedPhone;
+  stopPairedSession?: typeof stopPairedSession;
+};
 
 /**
  * Handles QR code events
@@ -104,13 +163,16 @@ export async function handleQREvent(event: QREvent): Promise<void> {
  */
 export async function handleConnectedEvent(
   event: ConnectionEvent,
+  dependencies: ConnectedEventDependencies = {},
 ): Promise<void> {
   const { companyId, connectionId, sessionId, payload } = event;
 
   logger.info({ companyId, connectionId }, "WhatsApp connected");
 
   try {
-    const tenantDb = getTenantConnection(companyId);
+    const tenantDb = (dependencies.getTenantConnection ?? getTenantConnection)(
+      companyId,
+    );
 
     let effectiveConnectionId = connectionId;
     if (sessionId && payload.phoneNumber) {
@@ -122,7 +184,6 @@ export async function handleConnectedEvent(
           "session.whatsapp_connection_id",
         )
         .select([
-          "session.status as session_status",
           "session.ended_at as session_ended_at",
           "session.whatsapp_connection_id as stable_connection_id",
           "connection.phone_number as established_phone_number",
@@ -130,14 +191,11 @@ export async function handleConnectedEvent(
         ])
         .where("session.id", "=", sessionId)
         .executeTakeFirst();
-      const establishedReconnect =
-        prior?.session_status === "connected" &&
-        prior.session_ended_at === null &&
-        prior.connection_archived_at === null &&
-        prior.stable_connection_id === connectionId &&
-        prior.established_phone_number !== null &&
-        normalizeWhatsAppPhone(prior.established_phone_number) ===
-          normalizeWhatsAppPhone(payload.phoneNumber);
+      const establishedReconnect = isEstablishedReconnect(
+        prior,
+        connectionId,
+        payload.phoneNumber,
+      );
 
       if (establishedReconnect) {
         // A process restart of an already-established session consumes no new
@@ -155,14 +213,16 @@ export async function handleConnectedEvent(
       } else {
         let admission;
         try {
-          admission = await admitConnectedPhone({
+          admission = await (
+            dependencies.admitConnectedPhone ?? admitConnectedPhone
+          )({
             companyId,
             phoneNumber: payload.phoneNumber,
           });
         } catch (error) {
           const reason =
-            "We could not verify connection eligibility. The linked device was removed; please try again.";
-          await rejectPairedSession({
+            "We could not verify connection eligibility. The connection was paused without unlinking; retry when the service is available.";
+          await (dependencies.stopPairedSession ?? stopPairedSession)({
             companyId,
             connectionId,
             sessionId,
@@ -170,24 +230,28 @@ export async function handleConnectedEvent(
             code: "admission_unavailable",
             title: "Connection check unavailable",
             commandReason: "connection admission unavailable",
-            archive: false,
+            policy: PAIRED_SESSION_STOP_POLICIES.admissionUnavailable,
           });
           logger.error(
             { companyId, connectionId, error: formatError(error) },
-            "Connection admission failed closed",
+            "Connection admission unavailable; worker stopped without unlinking",
           );
           return;
         }
         if (!admission.allowed) {
-          await rejectPairedSession({
+          await (dependencies.stopPairedSession ?? stopPairedSession)({
             companyId,
             connectionId,
             sessionId,
             reason: admission.message,
-            code: admission.paymentRequired ? "payment_required" : admission.code,
-            title: admission.paymentRequired ? "Upgrade required" : "Connection denied",
+            code: admission.paymentRequired
+              ? "payment_required"
+              : admission.code,
+            title: admission.paymentRequired
+              ? "Upgrade required"
+              : "Connection denied",
             commandReason: "connection admission rejected",
-            archive: false,
+            policy: PAIRED_SESSION_STOP_POLICIES.admissionRejected,
           });
           logger.warn(
             { companyId, connectionId, code: admission.code },
@@ -233,7 +297,7 @@ export async function handleConnectedEvent(
         ? "The scanned WhatsApp number does not match this archived account."
         : "This WhatsApp number is already linked to another connection in this workspace.";
       if (sessionId) {
-        await rejectPairedSession({
+        await stopPairedSession({
           companyId,
           connectionId,
           sessionId,
@@ -241,7 +305,7 @@ export async function handleConnectedEvent(
           code: isMismatch ? "identity_mismatch" : "duplicate_phone",
           title: isMismatch ? "Wrong WhatsApp number" : "Number already linked",
           commandReason: "duplicate phone pairing rejected",
-          archive: true,
+          policy: PAIRED_SESSION_STOP_POLICIES.identityRejected,
         });
       }
       logger.warn(
