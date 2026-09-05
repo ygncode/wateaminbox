@@ -8,6 +8,21 @@ import (
 
 var ErrConnectionOutsideScope = errors.New("connection outside configured runtime scope")
 
+// RuntimeAdmission describes local enforcement, not external policy intent.
+type RuntimeAdmission struct {
+	Version         int  `json:"version"`
+	Enforced        bool `json:"enforced"`
+	ScopeRestricted bool `json:"scope_restricted"`
+	FleetLimit      int  `json:"fleet_limit"`
+	MaxWorkers      int  `json:"max_workers"`
+}
+
+func (m *Manager) RuntimeAdmission() RuntimeAdmission {
+	return RuntimeAdmission{Version: 1, Enforced: m.config.NewConnectionAdmission,
+		ScopeRestricted: m.config.ConnectionScope != nil, FleetLimit: m.config.FleetMaxConnections,
+		MaxWorkers: m.config.MaxWorkers}
+}
+
 // ParseConnectionScope accepts comma-separated companyID/connectionID pairs.
 // nil means unrestricted; an explicitly configured empty scope denies all.
 // Scope is local runtime authority, independent of commercial admission.

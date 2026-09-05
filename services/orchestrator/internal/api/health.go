@@ -88,8 +88,9 @@ type NodesListResponse struct {
 
 // WorkersListResponse represents the workers list response.
 type WorkersListResponse struct {
-	Workers []WorkerResponse `json:"workers"`
-	Count   int              `json:"count"`
+	Admission manager.RuntimeAdmission `json:"admission"`
+	Workers   []WorkerResponse         `json:"workers"`
+	Count     int                      `json:"count"`
 }
 
 // ErrorResponse represents an error response.
@@ -316,8 +317,9 @@ func (s *Server) handleWorkers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := WorkersListResponse{
-		Workers: workerResponses,
-		Count:   len(workerResponses),
+		Admission: s.manager.RuntimeAdmission(),
+		Workers:   workerResponses,
+		Count:     len(workerResponses),
 	}
 
 	s.writeJSON(w, http.StatusOK, response)

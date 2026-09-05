@@ -716,6 +716,13 @@ func (r *WorkerRegistry) SelectSpawnNode(ctx context.Context) (string, bool, err
 // expired past the margin at the moment of transfer, so a node that came back
 // and re-registered keeps its workers.
 func (r *WorkerRegistry) TakeOverFailedNodeWorker(ctx context.Context, connectionID, previousNodeID string, takeoverMargin time.Duration) (bool, error) {
+	// An incoming takeover acquires authority on this host. Unlike recovery of
+	// an already-owned launch, it requires a live admission grant when enabled.
+	admissionFilter := ""
+	if r.newConnectionAdmission {
+		admissionFilter = ` AND EXISTS (SELECT 1 FROM public.runtime_node_admission a
+			WHERE a.node_id=$1 AND a.accepting_new AND a.expires_at>clock_timestamp()) `
+	}
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE worker_registry w SET node_id = $1
 		WHERE w.connection_id = $2 AND w.node_id = $3
@@ -724,7 +731,7 @@ func (r *WorkerRegistry) TakeOverFailedNodeWorker(ctx context.Context, connectio
 				SELECT 1 FROM orchestrator_nodes n
 				WHERE n.node_id = $3 AND n.lease_expires_at + make_interval(secs => $4) <= now()
 			)
-	`, r.nodeID, connectionID, previousNodeID, takeoverMargin.Seconds())
+	`+admissionFilter, r.nodeID, connectionID, previousNodeID, takeoverMargin.Seconds())
 	if err != nil {
 		return false, fmt.Errorf("take over failed-node worker: %w", err)
 	}
