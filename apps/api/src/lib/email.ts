@@ -4,6 +4,12 @@ import {
   type EmailOptions,
   type EmailResult,
 } from "./mail/index.js";
+import {
+  emailHeaderText,
+  renderBrandedEmail,
+  renderPlainTextEmail,
+  type BrandedEmailContent,
+} from "./email-template.js";
 
 export type { EmailOptions, EmailResult } from "./mail/index.js";
 
@@ -26,27 +32,26 @@ export async function sendVerificationEmail(
     verificationUrl.searchParams.set("invitation", invitationToken);
   }
   const verificationUrlString = verificationUrl.toString();
+  const content: BrandedEmailContent = {
+    preheader: invitationToken
+      ? "Confirm your email address to continue to your workspace invitation."
+      : "Confirm your email address to finish setting up WATeamInbox.",
+    eyebrow: "Account security",
+    title: "Verify your email address",
+    paragraphs: [
+      invitationToken
+        ? "Confirm your email address to finish creating your account and continue to the workspace invitation."
+        : "Thanks for signing up. Confirm your email address to finish setting up your WATeamInbox account.",
+    ],
+    action: { label: "Verify email", url: verificationUrlString },
+    note: "This link expires in 24 hours. If you did not create this account, you can safely ignore this email.",
+  };
 
   return sendEmail({
     to: email,
     subject: "Verify your email address",
-    html: `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #333;">Verify your email address</h1>
-        <p>Thank you for signing up! Please click the button below to verify your email address.</p>
-        <a href="${verificationUrlString}" style="display: inline-block; background-color: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">
-          Verify Email
-        </a>
-        <p style="color: #666; font-size: 14px;">
-          Or copy and paste this link into your browser:<br/>
-          <a href="${verificationUrlString}">${verificationUrlString}</a>
-        </p>
-        <p style="color: #666; font-size: 14px;">
-          This link will expire in 24 hours.
-        </p>
-      </div>
-    `,
-    text: `Verify your email address by clicking this link: ${verificationUrlString}. This link will expire in 24 hours.`,
+    html: renderBrandedEmail(content),
+    text: renderPlainTextEmail(content),
   });
 }
 
@@ -58,27 +63,23 @@ export async function sendPasswordResetEmail(
   token: string,
 ): Promise<EmailResult> {
   const resetUrl = `${env.APP_URL}/reset-password?token=${token}`;
+  const content: BrandedEmailContent = {
+    preheader: "Use this secure link to choose a new WATeamInbox password.",
+    eyebrow: "Account security",
+    title: "Reset your password",
+    paragraphs: [
+      "We received a request to reset the password for your WATeamInbox account.",
+      "Use the secure link below to choose a new password.",
+    ],
+    action: { label: "Reset password", url: resetUrl },
+    note: "This link expires in 1 hour. If you did not request a password reset, you can safely ignore this email; your password will not change.",
+  };
 
   return sendEmail({
     to: email,
     subject: "Reset your password",
-    html: `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #333;">Reset your password</h1>
-        <p>We received a request to reset your password. Click the button below to set a new password.</p>
-        <a href="${resetUrl}" style="display: inline-block; background-color: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">
-          Reset Password
-        </a>
-        <p style="color: #666; font-size: 14px;">
-          Or copy and paste this link into your browser:<br/>
-          <a href="${resetUrl}">${resetUrl}</a>
-        </p>
-        <p style="color: #666; font-size: 14px;">
-          This link will expire in 1 hour. If you didn't request a password reset, you can ignore this email.
-        </p>
-      </div>
-    `,
-    text: `Reset your password by clicking this link: ${resetUrl}. This link will expire in 1 hour. If you didn't request a password reset, you can ignore this email.`,
+    html: renderBrandedEmail(content),
+    text: renderPlainTextEmail(content),
   });
 }
 
@@ -92,27 +93,27 @@ export async function sendInvitationEmail(
   inviterEmail: string,
 ): Promise<EmailResult> {
   const inviteUrl = `${env.APP_URL}/invite/${token}`;
+  const safeCompanyName = emailHeaderText(companyName);
+  const content: BrandedEmailContent = {
+    preheader: `${inviterEmail} invited you to join ${safeCompanyName} on WATeamInbox.`,
+    eyebrow: "Team invitation",
+    title: `Join ${safeCompanyName}`,
+    paragraphs: [
+      "You have been invited to collaborate with the team on WATeamInbox.",
+      "Accept the invitation to open the shared inbox and get started.",
+    ],
+    details: [
+      { label: "Workspace", value: companyName },
+      { label: "Invited by", value: inviterEmail },
+    ],
+    action: { label: "Accept invitation", url: inviteUrl },
+    note: "This invitation expires in 7 days. If you were not expecting it, you can safely ignore this email.",
+  };
 
   return sendEmail({
     to: email,
-    subject: `You've been invited to join ${companyName}`,
-    html: `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #333;">You're invited to join ${companyName}</h1>
-        <p>${inviterEmail} has invited you to join their team on WATeamInbox.</p>
-        <p>Click the button below to accept the invitation and get started.</p>
-        <a href="${inviteUrl}" style="display: inline-block; background-color: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">
-          Accept Invitation
-        </a>
-        <p style="color: #666; font-size: 14px;">
-          Or copy and paste this link into your browser:<br/>
-          <a href="${inviteUrl}">${inviteUrl}</a>
-        </p>
-        <p style="color: #666; font-size: 14px;">
-          This invitation will expire in 7 days.
-        </p>
-      </div>
-    `,
-    text: `You've been invited to join ${companyName} by ${inviterEmail}. Accept the invitation by clicking this link: ${inviteUrl}. This invitation will expire in 7 days.`,
+    subject: `You've been invited to join ${safeCompanyName}`,
+    html: renderBrandedEmail(content),
+    text: renderPlainTextEmail(content),
   });
 }
