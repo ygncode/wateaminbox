@@ -141,6 +141,7 @@ func main() {
 	// Initialize process manager
 	mgr := manager.New(manager.Config{
 		ConnectionScope:        connectionScope,
+		NewConnectionAdmission: config.GetBoolEnv("ORCHESTRATOR_NEW_CONNECTION_ADMISSION", false),
 		NATSClient:             natsClient,
 		WhatsAppBinaryPath:     whatsappBinaryPath,
 		DefaultNATSURL:         natsURL,

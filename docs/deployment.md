@@ -605,3 +605,19 @@ rotation. Reduce capacity only after checking traffic and allowing SIGTERM to
 drain the removed replica. Two replicas on one host improve process resilience
 but do not provide host HA or justify an SLA. The orchestrator must remain one
 replica.
+
+### Optional external new-connection admission
+
+`ORCHESTRATOR_NEW_CONNECTION_ADMISSION` defaults to false; ordinary single-host
+Compose deployments need no external admission service or table. When enabled,
+the runtime requires a readable `public.runtime_node_admission` table with
+`node_id TEXT PRIMARY KEY`, `accepting_new BOOLEAN`, and
+`expires_at TIMESTAMPTZ`. An external operator owns grant issuance and expiry;
+runtime credentials should have SELECT only.
+
+Missing, expired, or denied grants block new durable connection claims and
+exclude peers from new-connection selection. An unavailable table also blocks
+new claims. Existing durable connections bypass this check for recovery;
+scope, tenant, ownership, and generation checks still apply. Revoking admission
+does not stop workers or unlink sessions. The claim holds a shared grant-row
+lock until its transaction finishes, serializing against revocation updates.

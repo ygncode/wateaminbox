@@ -19,7 +19,8 @@ type WorkerRegistry struct {
 	nodeID string
 	// fleetMaxConnections caps the number of distinct connections across every
 	// node, enforced atomically inside the launch claim. 0 disables the cap.
-	fleetMaxConnections int
+	fleetMaxConnections    int
+	newConnectionAdmission bool
 }
 
 var (
@@ -363,7 +364,7 @@ func (r *WorkerRegistry) ClaimWorkerLaunch(ctx context.Context, w *WorkerProcess
 	}
 
 	var err error
-	if r.fleetMaxConnections > 0 {
+	if r.fleetMaxConnections > 0 || r.newConnectionAdmission {
 		err = r.claimWithFleetLimit(ctx, w, claimArgs)
 	} else {
 		err = r.db.QueryRowContext(ctx, claimWorkerLaunchSQL, claimArgs...).Scan(&w.WorkerUID, &w.WorkerGID)
@@ -409,7 +410,17 @@ func (r *WorkerRegistry) claimWithFleetLimit(ctx context.Context, w *WorkerProce
 	// must remain possible even if an operator lowered the ceiling below the
 	// current count. The launch CAS below still enforces tenant and generation
 	// ownership for that existing row.
-	if !connectionExists && occupied >= r.fleetMaxConnections {
+	if !connectionExists && r.newConnectionAdmission {
+		var allowed bool
+		if err := tx.QueryRowContext(ctx, `SELECT accepting_new AND expires_at>clock_timestamp()
+			FROM public.runtime_node_admission WHERE node_id=$1 FOR SHARE`, r.nodeID).Scan(&allowed); err != nil && err != sql.ErrNoRows {
+			return fmt.Errorf("new connection admission unavailable: %w", err)
+		}
+		if !allowed {
+			return errors.New("new connection admission denied")
+		}
+	}
+	if !connectionExists && r.fleetMaxConnections > 0 && occupied >= r.fleetMaxConnections {
 		return fmt.Errorf("%w (%d/%d)", ErrFleetConnectionLimit, occupied, r.fleetMaxConnections)
 	}
 	if err := tx.QueryRowContext(ctx, claimWorkerLaunchSQL, claimArgs...).Scan(&w.WorkerUID, &w.WorkerGID); err != nil {
@@ -674,6 +685,11 @@ func (r *WorkerRegistry) ListFailedNodeWorkers(ctx context.Context, takeoverMarg
 // default because a worker's outbound IP is part of its WhatsApp identity.
 func (r *WorkerRegistry) SelectSpawnNode(ctx context.Context) (string, bool, error) {
 	var target string
+	admissionFilter := ""
+	if r.newConnectionAdmission {
+		admissionFilter = ` AND EXISTS (SELECT 1 FROM public.runtime_node_admission a
+			WHERE a.node_id=n.node_id AND a.accepting_new AND a.expires_at>now()) `
+	}
 	err := r.db.QueryRowContext(ctx, `
 		SELECT n.node_id
 		FROM orchestrator_nodes n
@@ -682,7 +698,7 @@ func (r *WorkerRegistry) SelectSpawnNode(ctx context.Context) (string, bool, err
 		) w ON w.node_id = n.node_id
 		WHERE n.node_id <> $1 AND n.lease_expires_at > now()
 			AND (n.max_workers = 0 OR COALESCE(w.owned, 0) < n.max_workers)
-		ORDER BY CASE WHEN n.max_workers = 0 THEN 2147483647
+		`+admissionFilter+` ORDER BY CASE WHEN n.max_workers = 0 THEN 2147483647
 			ELSE n.max_workers - COALESCE(w.owned, 0) END DESC, n.node_id
 		LIMIT 1
 	`, r.nodeID).Scan(&target)
@@ -751,6 +767,16 @@ func (r *WorkerRegistry) MarkWorkersRecovering(ctx context.Context, connectionID
 		return fmt.Errorf("failed to mark workers for recovery: %w", err)
 	}
 	return nil
+}
+
+// Called only for exact launches observed fully ready at planned shutdown.
+func (r *WorkerRegistry) ResetHealthyLaunchBudgets(ctx context.Context, launches []string) error {
+	if len(launches) == 0 {
+		return nil
+	}
+	_, err := r.db.ExecContext(ctx, `UPDATE worker_registry SET restart_count=0
+		WHERE node_id=$1 AND launch_id=ANY($2::uuid[]) AND desired_state='running'`, r.nodeID, pq.Array(launches))
+	return err
 }
 
 func (r *WorkerRegistry) UpdateHeartbeatLaunch(

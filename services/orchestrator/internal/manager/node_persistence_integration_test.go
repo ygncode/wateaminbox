@@ -34,6 +34,30 @@ func cleanupWorkerRow(t *testing.T, registry *WorkerRegistry, connectionID strin
 	})
 }
 
+func TestPlannedRestartBudgetPreservesCrashLimits(t *testing.T) {
+	registry := nodeRegistry(t, "itest-recovery-budget")
+	for _, status := range []string{"connected", "error", "connecting"} {
+		worker := launchWorker(mustLaunchID())
+		worker.Status = status
+		worker.RestartCount = 2
+		require.NoError(t, registry.ClaimWorkerLaunch(context.Background(), worker, ""))
+		cleanupWorkerRow(t, registry, worker.ConnectionID)
+		if status == "connected" {
+			require.NoError(t, registry.ResetHealthyLaunchBudgets(context.Background(), []string{worker.LaunchID}))
+		}
+		require.NoError(t, registry.MarkWorkersRecovering(context.Background(), []string{worker.ConnectionID}))
+		record, err := registry.GetWorker(context.Background(), worker.ConnectionID)
+		require.NoError(t, err)
+		require.Equal(t, WorkerStatusRecovering, record.Status)
+		want := 2
+		if status == "connected" {
+			want = 0
+		}
+		require.Equal(t, want, record.RestartCount)
+		require.Equal(t, worker.LaunchID, record.LaunchID)
+	}
+}
+
 // A claim records the claiming node as the durable owner.
 func TestClaimWorkerLaunch_RecordsOwningNode(t *testing.T) {
 	registry := nodeRegistry(t, "itest-node-a")

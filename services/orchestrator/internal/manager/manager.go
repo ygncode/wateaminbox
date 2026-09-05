@@ -25,18 +25,19 @@ import (
 
 // Config holds the configuration for the process manager.
 type Config struct {
-	ConnectionScope       map[string]bool // nil: unrestricted; empty: deny all starts and ownership acquisition.
-	NATSClient            *nats.Client
-	WhatsAppBinaryPath    string
-	DefaultNATSURL        string
-	HealthCheckInterval   time.Duration
-	DatabaseURL           string        // Privileged manager URL for registry/control persistence.
-	WorkerDatabaseURL     string        // Restricted runtime/session-only worker URL.
-	WorkerNATSURL         string        // Restricted worker NATS user URL.
-	AutoRestartEnabled    bool          // Enable auto-restart on crash
-	AutoRestartMaxRetries int           // Max restart attempts (default: 5)
-	AutoRestartBackoff    time.Duration // Base backoff between restarts (default: 5s)
-	MaxWorkers            int           // 0 = unlimited
+	NewConnectionAdmission bool            // Opt-in expiring external admission; existing claims bypass it.
+	ConnectionScope        map[string]bool // nil: unrestricted; empty: deny all starts and ownership acquisition.
+	NATSClient             *nats.Client
+	WhatsAppBinaryPath     string
+	DefaultNATSURL         string
+	HealthCheckInterval    time.Duration
+	DatabaseURL            string        // Privileged manager URL for registry/control persistence.
+	WorkerDatabaseURL      string        // Restricted runtime/session-only worker URL.
+	WorkerNATSURL          string        // Restricted worker NATS user URL.
+	AutoRestartEnabled     bool          // Enable auto-restart on crash
+	AutoRestartMaxRetries  int           // Max restart attempts (default: 5)
+	AutoRestartBackoff     time.Duration // Base backoff between restarts (default: 5s)
+	MaxWorkers             int           // 0 = unlimited
 	// AllowanceCheckInterval controls how often running workers are checked
 	// against their company's connection allowance (default: 60s).
 	AllowanceCheckInterval time.Duration
@@ -289,6 +290,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize required worker registry: %w", err)
 		} else {
 			m.registry = registry
+			registry.newConnectionAdmission = m.config.NewConnectionAdmission
 			m.markWorkersRecovering = registry.MarkWorkersRecovering
 			m.recordWorkerHeartbeat = registry.UpdateHeartbeatLaunch
 			m.checkConnectionAllowances = registry.CompaniesWithoutConnectionAllowance
@@ -445,8 +447,12 @@ func (m *Manager) Stop(ctx context.Context) error {
 	// monitors can still observe workers while they drain.
 	m.mu.Lock()
 	workerIDs := make([]string, 0, len(m.workers))
-	for id := range m.workers {
+	healthyLaunches := make([]string, 0, len(m.workers))
+	for id, worker := range m.workers {
 		workerIDs = append(workerIDs, id)
+		if worker.ProcessReady && worker.RuntimeConnected && worker.Authenticated && worker.LaunchID != "" {
+			healthyLaunches = append(healthyLaunches, worker.LaunchID)
+		}
 	}
 	m.mu.Unlock()
 
@@ -467,6 +473,11 @@ func (m *Manager) Stop(ctx context.Context) error {
 	// the marking exists to prevent. Give up quickly and go stop the workers.
 	if m.markWorkersRecovering != nil && len(workerIDs) > 0 {
 		markCtx, cancelMark := context.WithTimeout(ctx, markRecoveringTimeout)
+		if m.registry != nil {
+			if err := m.registry.ResetHealthyLaunchBudgets(markCtx, healthyLaunches); err != nil {
+				log.Printf("Warning: planned restart budget reset failed: %v", err)
+			}
+		}
 		err := m.markWorkersRecovering(markCtx, workerIDs)
 		cancelMark()
 		if err != nil {
@@ -2339,17 +2350,16 @@ func (m *Manager) recoverOrphanedWorkers(ctx context.Context) error {
 					reason = "max restart attempts exceeded"
 				}
 				m.publishConnectionStatus(w.CompanyID, w.ConnectionID, "failed", reason)
-				if removed, removeErr := m.registry.RemoveWorkerLaunch(ctx, w.ConnectionID, w.CompanyID, w.LaunchID); removeErr != nil || !removed {
-					log.Printf("Warning: failed to clear terminal recovery row for worker %s: removed=%t error=%v", w.ConnectionID, removed, removeErr)
-					m.mu.Lock()
-					m.workers[w.ConnectionID] = &WorkerProcess{
-						ID: w.ConnectionID, LaunchID: w.LaunchID, DesiredState: w.DesiredState,
-						ConnectionID: w.ConnectionID, CompanyID: w.CompanyID,
-						TenantSchema: w.TenantSchema, DatabaseURL: databaseURL,
-						Status: types.StatusError, RestartCount: w.RestartCount,
-					}
-					m.mu.Unlock()
+				// Exhaustion stops automatic retries, not durable identity. A
+				// manual reconnect must remain an existing-generation claim.
+				m.mu.Lock()
+				m.workers[w.ConnectionID] = &WorkerProcess{
+					ID: w.ConnectionID, LaunchID: w.LaunchID, DesiredState: w.DesiredState,
+					ConnectionID: w.ConnectionID, CompanyID: w.CompanyID,
+					TenantSchema: w.TenantSchema, DatabaseURL: databaseURL,
+					Status: types.StatusError, RestartCount: w.RestartCount,
 				}
+				m.mu.Unlock()
 			}
 			continue
 		}
