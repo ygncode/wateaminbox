@@ -9,9 +9,14 @@ import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
 import { sendEmail } from "../lib/email.js";
+import {
+  emailHeaderText,
+  renderBrandedEmail,
+  renderPlainTextEmail,
+  type BrandedEmailContent,
+} from "../lib/email-template.js";
 import { env } from "../lib/env.js";
 import { serverError } from "../lib/errors.js";
-import { escapeHtml } from "../lib/security.js";
 
 export const feedbackRoutes = new Hono();
 
@@ -31,26 +36,27 @@ const feedbackSchema = z.object({
  */
 feedbackRoutes.post("/", zValidator("json", feedbackSchema), async (c) => {
   const body = c.req.valid("json");
-
-  const safeEmail = body.email ? escapeHtml(body.email) : null;
-  const safeMessage = escapeHtml(body.message);
+  const senderLabel = body.email ?? "Not provided";
+  const subjectSender = body.email
+    ? emailHeaderText(body.email, "anonymous user")
+    : null;
+  const content: BrandedEmailContent = {
+    preheader: body.email
+      ? `New product feedback from ${subjectSender}`
+      : "New anonymous product feedback",
+    eyebrow: "Product feedback",
+    title: "New feedback received",
+    paragraphs: ["A visitor submitted feedback through WATeamInbox."],
+    details: [{ label: "From", value: senderLabel }],
+    callout: { label: "Message", text: body.message },
+    note: "Submitted through the public feedback form.",
+  };
 
   const result = await sendEmail({
     to: env.FEEDBACK_TO_EMAIL,
-    subject: `WATeamInbox Feedback${body.email ? ` from ${body.email}` : ""}`,
-    html: `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #333;">New Feedback Received</h1>
-        ${safeEmail ? `<p><strong>From:</strong> ${safeEmail}</p>` : "<p><em>No email provided</em></p>"}
-        <div style="background-color: #f5f5f5; padding: 16px; border-radius: 6px; margin: 16px 0;">
-          <p style="white-space: pre-wrap; margin: 0;">${safeMessage}</p>
-        </div>
-        <p style="color: #666; font-size: 12px;">
-          Submitted via WATeamInbox feedback form
-        </p>
-      </div>
-    `,
-    text: `New feedback${body.email ? ` from ${body.email}` : ""}:\n\n${body.message}`,
+    subject: `WATeamInbox feedback${subjectSender ? ` from ${subjectSender}` : ""}`,
+    html: renderBrandedEmail(content),
+    text: renderPlainTextEmail(content),
   });
 
   if (!result.success) {
