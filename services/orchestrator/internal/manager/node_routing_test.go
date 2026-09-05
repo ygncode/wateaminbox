@@ -17,6 +17,34 @@ import (
 
 const workerRecordSelect = "SELECT connection_id, company_id, tenant_schema, database_url, pid, status, started_at, last_heartbeat, restart_count, launch_id, desired_state, artifact_version, artifact_sha256, worker_uid, worker_gid, node_id FROM worker_registry WHERE connection_id = $1"
 
+func TestUnadmittedNodeForwardsNewConnectionWithoutSpawning(t *testing.T) {
+	h, mock, forwarded := newRoutingHandlers(t)
+	h.manager.registry.newConnectionAdmission = true
+	mock.ExpectQuery(regexp.QuoteMeta(workerRecordSelect)).WithArgs("connection").WillReturnRows(sqlmock.NewRows(workerRecordColumns))
+	mock.ExpectQuery("SELECT EXISTS").WillReturnRows(sqlmock.NewRows([]string{"allowed"}).AddRow(false))
+	mock.ExpectQuery("SELECT n.node_id").WillReturnRows(sqlmock.NewRows([]string{"node_id"}).AddRow("ready-peer"))
+	payload, err := json.Marshal(types.SpawnWorkerCommand{Type: types.CommandSpawn, CompanyID: "company", ConnectionID: "connection"})
+	require.NoError(t, err)
+	require.NoError(t, h.handleSpawnCommand(context.Background(), payload, 0))
+	require.Equal(t, []string{"ready-peer"}, *forwarded)
+	require.Zero(t, h.manager.WorkerCount())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUnadmittedNodeWithoutPeerReturnsForRedelivery(t *testing.T) {
+	h, mock, forwarded := newRoutingHandlers(t)
+	h.manager.registry.newConnectionAdmission = true
+	mock.ExpectQuery(regexp.QuoteMeta(workerRecordSelect)).WithArgs("connection").WillReturnRows(sqlmock.NewRows(workerRecordColumns))
+	mock.ExpectQuery("SELECT EXISTS").WillReturnRows(sqlmock.NewRows([]string{"allowed"}).AddRow(false))
+	mock.ExpectQuery("SELECT n.node_id").WillReturnRows(sqlmock.NewRows([]string{"node_id"}))
+	payload, err := json.Marshal(types.SpawnWorkerCommand{Type: types.CommandSpawn, CompanyID: "company", ConnectionID: "connection"})
+	require.NoError(t, err)
+	require.ErrorContains(t, h.handleSpawnCommand(context.Background(), payload, 0), "no admitted runtime")
+	require.Empty(t, *forwarded)
+	require.Zero(t, h.manager.WorkerCount())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 var workerRecordColumns = []string{
 	"connection_id", "company_id", "tenant_schema", "database_url", "pid", "status",
 	"started_at", "last_heartbeat", "restart_count", "launch_id", "desired_state",

@@ -683,6 +683,16 @@ func (r *WorkerRegistry) ListFailedNodeWorkers(ctx context.Context, takeoverMarg
 // for placing a brand-new connection when this node is at local capacity.
 // Existing connections are never moved by placement: node affinity is the
 // default because a worker's outbound IP is part of its WhatsApp identity.
+func (r *WorkerRegistry) AcceptsNewConnections(ctx context.Context) (bool, error) {
+	if !r.newConnectionAdmission {
+		return true, nil
+	}
+	var allowed bool
+	err := r.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM public.runtime_node_admission
+		WHERE node_id=$1 AND accepting_new AND expires_at>clock_timestamp())`, r.nodeID).Scan(&allowed)
+	return allowed, err
+}
+
 func (r *WorkerRegistry) SelectSpawnNode(ctx context.Context) (string, bool, error) {
 	var target string
 	admissionFilter := ""

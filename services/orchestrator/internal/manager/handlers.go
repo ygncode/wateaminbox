@@ -289,18 +289,27 @@ func (h *Handlers) handleSpawnCommand(ctx context.Context, data []byte, hops int
 	// peer has free slots. Existing connections are never moved here — node
 	// affinity is the default because a worker's outbound IP is part of its
 	// WhatsApp identity.
-	if record == nil && h.manager.registry != nil && h.manager.config.NodeID != "" &&
-		h.manager.config.MaxWorkers > 0 && h.manager.WorkerCount() >= h.manager.config.MaxWorkers {
-		target, found, placementErr := h.manager.registry.SelectSpawnNode(ctx)
-		if placementErr != nil {
-			return placementErr
+	if record == nil && h.manager.registry != nil && h.manager.config.NodeID != "" {
+		allowed, admissionErr := h.manager.registry.AcceptsNewConnections(ctx)
+		if admissionErr != nil {
+			return fmt.Errorf("inspect local admission: %w", admissionErr)
 		}
-		if found {
-			log.Printf("Node at local capacity; placing new connection %s on node %s", cmd.ConnectionID, target)
-			return h.forwardToNode(target, cmd.CompanyID, cmd.ConnectionID, data, hops)
+		atCapacity := h.manager.config.MaxWorkers > 0 && h.manager.WorkerCount() >= h.manager.config.MaxWorkers
+		if !allowed || atCapacity {
+			target, found, placementErr := h.manager.registry.SelectSpawnNode(ctx)
+			if placementErr != nil {
+				return placementErr
+			}
+			if found {
+				log.Printf("Local node unavailable for new placement; forwarding connection %s to node %s", cmd.ConnectionID, target)
+				return h.forwardToNode(target, cmd.CompanyID, cmd.ConnectionID, data, hops)
+			}
+			// No peer has capacity either: fall through so the local spawn fails
+			// with the ordinary worker-limit error and reports it to the API.
+			if !allowed {
+				return fmt.Errorf("no admitted runtime available for new connection")
+			}
 		}
-		// No peer has capacity either: fall through so the local spawn fails
-		// with the ordinary worker-limit error and reports it to the API.
 	}
 
 	// A reconnect is an explicit request for a fresh pairing attempt. Replace a
