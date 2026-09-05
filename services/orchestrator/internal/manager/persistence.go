@@ -412,8 +412,8 @@ func (r *WorkerRegistry) claimWithFleetLimit(ctx context.Context, w *WorkerProce
 	// ownership for that existing row.
 	if !connectionExists && r.newConnectionAdmission {
 		var allowed bool
-		if err := tx.QueryRowContext(ctx, `SELECT accepting_new AND expires_at>clock_timestamp()
-			FROM public.runtime_node_admission WHERE node_id=$1 FOR SHARE`, r.nodeID).Scan(&allowed); err != nil && err != sql.ErrNoRows {
+		if err := tx.QueryRowContext(ctx, `SELECT `+connectionAdmissionSQL("a", "$2", "$3")+`
+			FROM public.runtime_node_admission a WHERE node_id=$1 FOR SHARE`, r.nodeID, w.CompanyID, w.ConnectionID).Scan(&allowed); err != nil && err != sql.ErrNoRows {
 			return fmt.Errorf("new connection admission unavailable: %w", err)
 		}
 		if !allowed {
@@ -683,22 +683,26 @@ func (r *WorkerRegistry) ListFailedNodeWorkers(ctx context.Context, takeoverMarg
 // for placing a brand-new connection when this node is at local capacity.
 // Existing connections are never moved by placement: node affinity is the
 // default because a worker's outbound IP is part of its WhatsApp identity.
-func (r *WorkerRegistry) AcceptsNewConnections(ctx context.Context) (bool, error) {
+func (r *WorkerRegistry) AcceptsNewConnections(ctx context.Context, identity ...string) (bool, error) {
 	if !r.newConnectionAdmission {
 		return true, nil
 	}
 	var allowed bool
-	err := r.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM public.runtime_node_admission
-		WHERE node_id=$1 AND accepting_new AND expires_at>clock_timestamp())`, r.nodeID).Scan(&allowed)
+	company, connection := admissionIdentity(identity)
+	err := r.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM public.runtime_node_admission a
+		WHERE node_id=$1 AND `+connectionAdmissionSQL("a", "$2", "$3")+`)`, r.nodeID, company, connection).Scan(&allowed)
 	return allowed, err
 }
 
-func (r *WorkerRegistry) SelectSpawnNode(ctx context.Context) (string, bool, error) {
+func (r *WorkerRegistry) SelectSpawnNode(ctx context.Context, identity ...string) (string, bool, error) {
 	var target string
 	admissionFilter := ""
+	args := []any{r.nodeID}
 	if r.newConnectionAdmission {
+		company, connection := admissionIdentity(identity)
+		args = append(args, company, connection)
 		admissionFilter = ` AND EXISTS (SELECT 1 FROM public.runtime_node_admission a
-			WHERE a.node_id=n.node_id AND a.accepting_new AND a.expires_at>now()) `
+			WHERE a.node_id=n.node_id AND ` + connectionAdmissionSQL("a", "$2", "$3") + `) `
 	}
 	err := r.db.QueryRowContext(ctx, `
 		SELECT n.node_id
@@ -711,7 +715,7 @@ func (r *WorkerRegistry) SelectSpawnNode(ctx context.Context) (string, bool, err
 		`+admissionFilter+` ORDER BY CASE WHEN n.max_workers = 0 THEN 2147483647
 			ELSE n.max_workers - COALESCE(w.owned, 0) END DESC, n.node_id
 		LIMIT 1
-	`, r.nodeID).Scan(&target)
+	`, args...).Scan(&target)
 	if err == sql.ErrNoRows {
 		return "", false, nil
 	}
@@ -731,7 +735,7 @@ func (r *WorkerRegistry) TakeOverFailedNodeWorker(ctx context.Context, connectio
 	admissionFilter := ""
 	if r.newConnectionAdmission {
 		admissionFilter = ` AND EXISTS (SELECT 1 FROM public.runtime_node_admission a
-			WHERE a.node_id=$1 AND a.accepting_new AND a.expires_at>clock_timestamp()) `
+			WHERE a.node_id=$1 AND ` + connectionAdmissionSQL("a", "w.company_id::text", "w.connection_id::text") + ` FOR SHARE OF a) `
 	}
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE worker_registry w SET node_id = $1

@@ -26,7 +26,7 @@ func TestNewConnectionAdmission(t *testing.T) {
 			mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(fleetCapacityAdvisoryLockID).WillReturnResult(sqlmock.NewResult(0, 0))
 			mock.ExpectQuery("SELECT EXISTS").WithArgs("connection").WillReturnRows(sqlmock.NewRows([]string{"exists", "count"}).AddRow(tc.existing, 1))
 			if !tc.existing {
-				q := mock.ExpectQuery("SELECT accepting_new").WithArgs("node")
+				q := mock.ExpectQuery("SELECT").WithArgs("node", "", "connection")
 				if tc.unavailable {
 					q.WillReturnError(errors.New("unavailable"))
 				} else {

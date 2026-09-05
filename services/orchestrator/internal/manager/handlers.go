@@ -290,13 +290,13 @@ func (h *Handlers) handleSpawnCommand(ctx context.Context, data []byte, hops int
 	// affinity is the default because a worker's outbound IP is part of its
 	// WhatsApp identity.
 	if record == nil && h.manager.registry != nil && h.manager.config.NodeID != "" {
-		allowed, admissionErr := h.manager.registry.AcceptsNewConnections(ctx)
+		allowed, admissionErr := h.manager.registry.AcceptsNewConnections(ctx, cmd.CompanyID, cmd.ConnectionID)
 		if admissionErr != nil {
 			return fmt.Errorf("inspect local admission: %w", admissionErr)
 		}
 		atCapacity := h.manager.config.MaxWorkers > 0 && h.manager.WorkerCount() >= h.manager.config.MaxWorkers
 		if !allowed || atCapacity {
-			target, found, placementErr := h.manager.registry.SelectSpawnNode(ctx)
+			target, found, placementErr := h.manager.registry.SelectSpawnNode(ctx, cmd.CompanyID, cmd.ConnectionID)
 			if placementErr != nil {
 				return placementErr
 			}
