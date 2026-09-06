@@ -11,4 +11,4 @@
  * should not require importing that module's rate limiter and its database
  * work; a test that did so disturbed an unrelated concurrency test.
  */
-export const MCP_SERVER_VERSION = "1.2.0";
+export const MCP_SERVER_VERSION = "1.3.0";

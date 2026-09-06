@@ -1,3 +1,4 @@
+import { settingsWriteTools } from "./settings.js";
 import { getContactDisplayName, toDbDate } from "@wateaminbox/shared";
 import type { Context } from "hono";
 import { z } from "zod";
@@ -284,6 +285,7 @@ async function queueTextMessage(
 }
 
 export const writeTools: McpToolDefinition[] = [
+  ...settingsWriteTools,
   ...schedulingTools,
   {
     name: "send_message",
