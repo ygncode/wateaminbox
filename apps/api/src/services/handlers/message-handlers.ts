@@ -823,11 +823,12 @@ export async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
         .updateTable("messages")
         .set({
           status: dbStatus,
+          message_id: payload.messageId,
           // A delayed receipt can prove that a cleanup timeout was a false
           // failure. Preserve unrelated metadata (document names, protocol
           // sender identity, etc.) while removing only the stale timeout marker.
           metadata: sql<Record<string, unknown> | null>`CASE
-          WHEN metadata->>'error' = 'delivery_timeout' THEN NULLIF(
+          WHEN metadata->>'error' IN ('delivery_timeout', 'send_outcome_unknown') THEN NULLIF(
             metadata - ARRAY['error', 'error_message', 'failed_at'],
             '{}'::jsonb
           )
@@ -860,7 +861,7 @@ export async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
          AND pc.command_id::text = command.payload->>'command_id'
         WHERE split_part(command.subject, '.', 3) = ${companyId}
           AND split_part(command.subject, '.', 4) = ${sessionId}
-          AND pc.result->'response'->>'ID' = ${payload.messageId}
+          AND COALESCE(NULLIF(pc.result->'response'->>'ID', ''), pc.result->>'whatsapp_message_id') = ${payload.messageId}
         ORDER BY pc.processed_at DESC
         LIMIT 1
       `.execute(tenantDb);
@@ -940,14 +941,14 @@ export async function handleSendConfirmationEvent(
         // Clear a timeout written while its confirmation was waiting behind
         // other events, without discarding unrelated message metadata.
         metadata: sql<Record<string, unknown> | null>`CASE
-          WHEN metadata->>'error' = 'delivery_timeout' THEN NULLIF(
+          WHEN metadata->>'error' IN ('delivery_timeout', 'send_outcome_unknown') THEN NULLIF(
             metadata - ARRAY['error', 'error_message', 'failed_at'],
             '{}'::jsonb
           )
           ELSE metadata
         END`,
       })
-      .where("message_id", "=", payload.pendingMessageId)
+      .where("message_id", "in", [payload.pendingMessageId, payload.messageId])
       .where("whatsapp_connection_id", "=", connectionId)
       .returning(["id", "contact_id", "status"])
       .executeTakeFirst();
@@ -998,11 +999,55 @@ export async function handleSendFailedEvent(
       reason: payload.reason,
       connectionId,
     },
-    "Message send failed after max retries",
+    payload.outcome === "unknown"
+      ? "Message send outcome unconfirmed"
+      : "Message send failed after max retries",
   );
 
   try {
     const tenantDb = getTenantConnection(companyId);
+
+    if (payload.outcome === "unknown") {
+      const metadata = {
+        error: "send_outcome_unknown",
+        error_message: payload.reason,
+      };
+      const message = await tenantDb
+        .updateTable("messages")
+        .set({
+          ...(payload.messageId ? { message_id: payload.messageId } : {}),
+          status: "pending",
+          metadata: sql`COALESCE(metadata, '{}'::jsonb) || ${JSON.stringify(metadata)}::jsonb`,
+        })
+        .where("message_id", "=", payload.pendingMessageId)
+        .where("whatsapp_connection_id", "=", connectionId)
+        .where((eb) =>
+          eb.or([
+            eb("status", "=", "pending"),
+            eb.and([
+              eb("status", "=", "failed"),
+              sql<boolean>`metadata->>'error' = 'delivery_timeout'`,
+            ]),
+          ]),
+        )
+        .returning(["id", "contact_id"])
+        .executeTakeFirst();
+      if (message?.contact_id) {
+        await broadcastToContactViewers(
+          companyId,
+          message.contact_id,
+          "message:status",
+          {
+            conversationId: message.contact_id,
+            messageId: message.id,
+            status: "pending",
+            metadata: { error: metadata.error, errorMessage: payload.reason },
+          },
+          { connectionId },
+        );
+      }
+      return;
+    }
 
     // A late failure must not overwrite a confirmed delivery/read status.
     const updatedMessage = await tenantDb

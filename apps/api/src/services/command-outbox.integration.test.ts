@@ -205,3 +205,62 @@ describe("command outbox PostgreSQL integration", () => {
     30_000,
   );
 });
+
+integrationTest(
+  "a failed publication holds only its recipient across concurrent dispatchers",
+  async () => {
+    const companyId = crypto.randomUUID(),
+      schema = getSchemaName(companyId);
+    const subject = `WHATSAPP.commands.${companyId}.${crypto.randomUUID()}`;
+    try {
+      await createTenantSchema(companyId);
+      const tenant = getTenantConnection(companyId);
+      const first = await enqueueCommand(tenant, subject, {
+        type: "text",
+        to: "a",
+        content: "first",
+      });
+      const second = await enqueueCommand(tenant, subject, {
+        type: "text",
+        to: "a",
+        content: "second",
+      });
+      const unrelated = await enqueueCommand(tenant, subject, {
+        type: "text",
+        to: "b",
+        content: "other contact",
+      });
+      const published: string[] = [];
+      const failFirst = async (
+        _subject: string,
+        _payload: unknown,
+        id: string,
+      ) => {
+        if (id === first) throw new Error("simulated broker publish failure");
+        published.push(id);
+      };
+      await Promise.all([
+        dispatchCompany(companyId, failFirst),
+        dispatchCompany(companyId, failFirst),
+      ]);
+      expect(published).toEqual([unrelated]);
+      await tenant
+        .updateTable("nats_outbox")
+        .set({ next_attempt_at: new Date(0) })
+        .where("id", "=", first)
+        .execute();
+      const send = async (_subject: string, _payload: unknown, id: string) => {
+        published.push(id);
+      };
+      await dispatchCompany(companyId, send);
+      await dispatchCompany(companyId, send);
+      expect(published).toEqual([unrelated, first, second]);
+    } finally {
+      await clearTenantConnection(companyId);
+      await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      await sql`DELETE FROM public.outbox_dispatch_ready WHERE company_id = ${companyId}::uuid`.execute(
+        db,
+      );
+    }
+  },
+);
