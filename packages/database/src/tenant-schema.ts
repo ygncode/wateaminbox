@@ -1219,7 +1219,7 @@ export async function reconcileTenantSchema<Database>(
       `.execute(db),
   );
   await ensureIndex(
-    `${schemaName}_scheduled_messages_auto_reply_contact_uidx`,
+    `${schemaName}_sm_auto_reply_uidx`,
     (indexName) =>
       sql`
         CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}

@@ -35,7 +35,7 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
     await sql`
       CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(
-        `${schemaName}_scheduled_messages_auto_reply_contact_uidx`,
+        `${schemaName}_sm_auto_reply_uidx`,
       )}
       ON ${scheduled} (contact_id)
       WHERE auto_reply_trigger_message_id IS NOT NULL
@@ -47,7 +47,7 @@ export async function down(db: Kysely<unknown>): Promise<void> {
   await executeOnAllTenants(db, async (schemaName) => {
     await sql`
       DROP INDEX IF EXISTS ${sql.ref(
-        `${schemaName}.${schemaName}_scheduled_messages_auto_reply_contact_uidx`,
+        `${schemaName}.${schemaName}_sm_auto_reply_uidx`,
       )}
     `.execute(db);
     await sql`
