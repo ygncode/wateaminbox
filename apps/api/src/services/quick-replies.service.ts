@@ -1,5 +1,5 @@
+import { AppError, ConflictError } from "../lib/errors.js";
 import { getTenantConnection } from "./tenant.service.js";
-import { ConflictError, AppError } from "../lib/errors.js";
 
 /**
  * Quick reply interface
@@ -229,12 +229,26 @@ export async function updateQuickReply(
     updateData.content = input.content;
   }
 
-  const row = await tenantDb
-    .updateTable("quick_replies")
-    .set(updateData)
-    .where("id", "=", quickReplyId)
-    .returningAll()
-    .executeTakeFirst();
+  const row = await tenantDb.transaction().execute(async (trx) => {
+    const updated = await trx
+      .updateTable("quick_replies")
+      .set(updateData)
+      .where("id", "=", quickReplyId)
+      .returningAll()
+      .executeTakeFirst();
+
+    // Pending automatic replies are template snapshots. Keep them in sync so
+    // fixing template copy also fixes replies that have not gone out yet.
+    if (updated && input.content !== undefined) {
+      await trx
+        .updateTable("scheduled_messages")
+        .set({ content: input.content, updated_at: new Date() })
+        .where("auto_reply_quick_reply_id", "=", quickReplyId)
+        .where("status", "=", "scheduled")
+        .execute();
+    }
+    return updated;
+  });
 
   return row ? mapRowToQuickReply(row) : null;
 }
@@ -248,10 +262,34 @@ export async function deleteQuickReply(
 ): Promise<boolean> {
   const tenantDb = getTenantConnection(companyId);
 
-  const result = await tenantDb
-    .deleteFrom("quick_replies")
-    .where("id", "=", quickReplyId)
-    .executeTakeFirst();
+  return tenantDb.transaction().execute(async (trx) => {
+    const setting = await trx
+      .selectFrom("auto_reply_settings")
+      .select("id")
+      .where("quick_reply_id", "=", quickReplyId)
+      .executeTakeFirst();
+    if (setting) {
+      await trx
+        .updateTable("auto_reply_settings")
+        .set({ enabled: false, quick_reply_id: null, updated_at: new Date() })
+        .where("id", "=", setting.id)
+        .execute();
+      await trx
+        .updateTable("scheduled_messages")
+        .set({
+          status: "canceled",
+          canceled_at: new Date(),
+          updated_at: new Date(),
+        })
+        .where("auto_reply_quick_reply_id", "=", quickReplyId)
+        .where("status", "in", ["scheduled", "processing"])
+        .execute();
+    }
 
-  return result.numDeletedRows > 0;
+    const result = await trx
+      .deleteFrom("quick_replies")
+      .where("id", "=", quickReplyId)
+      .executeTakeFirst();
+    return result.numDeletedRows > 0;
+  });
 }

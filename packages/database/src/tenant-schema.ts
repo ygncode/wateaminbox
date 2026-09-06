@@ -289,6 +289,16 @@ export const TENANT_SCHEMA_CONTRACT = {
     "created_at",
     "updated_at",
   ],
+  auto_reply_settings: [
+    "id",
+    "enabled",
+    "quick_reply_id",
+    "delay_minutes",
+    "send_mode",
+    "updated_by",
+    "created_at",
+    "updated_at",
+  ],
   conversation_states: [
     "id",
     "contact_id",
@@ -362,6 +372,8 @@ export const TENANT_SCHEMA_CONTRACT = {
     "updated_at",
     "bulk_job_id",
     "skip_reason",
+    "auto_reply_trigger_message_id",
+    "auto_reply_quick_reply_id",
   ],
   bulk_jobs: [
     "id",
@@ -927,6 +939,22 @@ export async function reconcileTenantSchema<Database>(
     `.execute(db),
   );
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${table("auto_reply_settings")} (
+      id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+      enabled BOOLEAN NOT NULL DEFAULT false,
+      quick_reply_id UUID REFERENCES ${table("quick_replies")}(id) ON DELETE SET NULL,
+      delay_minutes INTEGER NOT NULL DEFAULT 5
+        CHECK (delay_minutes BETWEEN 1 AND 1440),
+      send_mode TEXT NOT NULL DEFAULT 'always'
+        CHECK (send_mode IN ('always', 'outside_business_hours')),
+      updated_by UUID NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CHECK (NOT enabled OR quick_reply_id IS NOT NULL)
+    )
+  `.execute(db);
+
   const stateColumns = await tenantColumns(
     db,
     schemaName,
@@ -1181,6 +1209,27 @@ export async function reconcileTenantSchema<Database>(
         ADD COLUMN IF NOT EXISTS skip_reason TEXT
       `.execute(db),
   );
+  await alterIfNeeded(
+    db,
+    !scheduleColumns.has("auto_reply_trigger_message_id") ||
+      !scheduleColumns.has("auto_reply_quick_reply_id"),
+    () =>
+      sql`
+        ALTER TABLE ${table("scheduled_messages")}
+        ADD COLUMN IF NOT EXISTS auto_reply_trigger_message_id UUID,
+        ADD COLUMN IF NOT EXISTS auto_reply_quick_reply_id UUID
+      `.execute(db),
+  );
+  await ensureIndex(
+    `${schemaName}_sm_auto_reply_uidx`,
+    (indexName) =>
+      sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+        ON ${table("scheduled_messages")} (contact_id)
+        WHERE auto_reply_trigger_message_id IS NOT NULL
+      `.execute(db),
+  );
+
   // 059 WIDENED this CHECK to admit 'skipped', and the CREATE TABLE above
   // still writes the narrow pre-059 form for a brand-new tenant. Existence
   // alone is therefore not a safe guard here - the narrow constraint carries

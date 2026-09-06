@@ -3,12 +3,14 @@
  * Quick reply template management API functions
  */
 
-import { fetchWithAuth, buildQueryString, ApiRequestError } from "./client.js";
+import { ApiRequestError, buildQueryString, fetchWithAuth } from "./client.js";
 import type {
+  AutoReplySettings,
+  CreateQuickReplyInput,
   QuickReply,
   QuickReplyListParams,
   QuickReplyListResponse,
-  CreateQuickReplyInput,
+  UpdateAutoReplySettingsInput,
   UpdateQuickReplyInput,
 } from "./types.js";
 
@@ -74,6 +76,19 @@ export async function updateQuickReply(
 ): Promise<QuickReply> {
   return fetchWithAuth<QuickReply>(`/quick-replies/${quickReplyId}`, {
     method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getAutoReplySettings(): Promise<AutoReplySettings> {
+  return fetchWithAuth<AutoReplySettings>("/quick-replies/auto-reply");
+}
+
+export async function updateAutoReplySettings(
+  input: UpdateAutoReplySettingsInput,
+): Promise<AutoReplySettings> {
+  return fetchWithAuth<AutoReplySettings>("/quick-replies/auto-reply", {
+    method: "PUT",
     body: JSON.stringify(input),
   });
 }

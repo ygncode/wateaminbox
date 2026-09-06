@@ -24,6 +24,7 @@ import { useDebounce } from "@/hooks/ui";
 import { useQuickReplies } from "@/hooks/useQuickReplies";
 import type { QuickReply } from "@/lib/api/types";
 import type { QuickReplyFormData } from "@/lib/schemas/quick-reply";
+import { AutoReplySettingsCard } from "./AutoReplySettingsCard";
 import { QuickRepliesList } from "./QuickRepliesList";
 import { QuickReplyForm } from "./QuickReplyForm";
 
@@ -145,6 +146,8 @@ export function QuickRepliesManager() {
 
   return (
     <div className="space-y-4">
+      <AutoReplySettingsCard />
+
       <div className="relative overflow-hidden rounded-2xl border border-[#cfe4da] bg-[#f3faf7] p-4 dark:border-emerald-400/15 dark:bg-emerald-400/[0.045]">
         <div
           className="absolute -right-6 -top-8 size-24 rounded-full bg-[#25d366]/10 blur-2xl"

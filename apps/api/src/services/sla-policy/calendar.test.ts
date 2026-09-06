@@ -9,6 +9,7 @@ import {
   isValidHHmm,
   isValidIanaTimeZone,
   isValidLocalDateString,
+  isWithinBusinessHours,
   OVERDUE_STRICT_EPSILON_MINUTES,
   type SlaCalendar,
 } from "./calendar.js";
@@ -40,6 +41,30 @@ function calendar(overrides: Partial<SlaCalendar> = {}): SlaCalendar {
     ...overrides,
   };
 }
+
+describe("isWithinBusinessHours", () => {
+  test("uses half-open office intervals", () => {
+    const cal = calendar();
+    expect(isWithinBusinessHours(cal, new Date("2026-03-02T09:00:00Z"))).toBe(
+      true,
+    );
+    expect(isWithinBusinessHours(cal, new Date("2026-03-02T16:59:59Z"))).toBe(
+      true,
+    );
+    expect(isWithinBusinessHours(cal, new Date("2026-03-02T17:00:00Z"))).toBe(
+      false,
+    );
+  });
+
+  test("honors closed-day exceptions", () => {
+    const cal = calendar({
+      exceptions: [{ date: "2026-03-02", closed: true }],
+    });
+    expect(isWithinBusinessHours(cal, new Date("2026-03-02T12:00:00Z"))).toBe(
+      false,
+    );
+  });
+});
 
 describe("businessMinutesBetween - basics", () => {
   test("returns 0 when end is at or before start", () => {

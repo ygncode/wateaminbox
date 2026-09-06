@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   createQuickReplySchema,
+  updateAutoReplySettingsSchema,
   updateQuickReplySchema,
 } from "./quick-replies.js";
 
@@ -30,5 +31,24 @@ describe("quick reply validation", () => {
     expect(updateQuickReplySchema.safeParse({ content: "   " }).success).toBe(
       false,
     );
+  });
+
+  test("requires a template for an enabled first-contact reply", () => {
+    expect(
+      updateAutoReplySettingsSchema.safeParse({
+        enabled: true,
+        quickReplyId: null,
+        delayMinutes: 5,
+        sendMode: "always",
+      }).success,
+    ).toBe(false);
+    expect(
+      updateAutoReplySettingsSchema.safeParse({
+        enabled: true,
+        quickReplyId: "00000000-0000-4000-8000-000000000001",
+        delayMinutes: 5,
+        sendMode: "outside_business_hours",
+      }).success,
+    ).toBe(true);
   });
 });

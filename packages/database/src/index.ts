@@ -13,6 +13,7 @@ export type {
   AuditLogsTable,
   AuthTokensTable,
   AuthTokenType,
+  AutoReplySettingsTable,
   BulkConnectionBudgetsTable,
   BulkJobsTable,
   CatalogProductsTable,

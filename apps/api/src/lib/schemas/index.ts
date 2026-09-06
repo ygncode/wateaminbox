@@ -166,6 +166,8 @@ export {
   createQuickReplySchema,
   type ListQuickRepliesQuery,
   listQuickRepliesQuerySchema,
+  type UpdateAutoReplySettingsInput,
+  updateAutoReplySettingsSchema,
   type UpdateQuickReplyInput,
   updateQuickReplySchema,
 } from "./quick-replies.js";
