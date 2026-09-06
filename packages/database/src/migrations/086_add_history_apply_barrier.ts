@@ -1,11 +1,11 @@
 import { type Kysely, sql } from "kysely";
-import { installOutboxDispatchTrigger } from "../dispatch-schema.js";
+import { installOutboxRecipientIndex } from "../dispatch-schema.js";
 import { getTenantSchemas } from "./migration-helpers.js";
 
 // History outbox entries live until API application, not merely broker delivery.
 export async function up(db: Kysely<unknown>): Promise<void> {
   for (const schema of await getTenantSchemas(db))
-    await installOutboxDispatchTrigger(db, schema);
+    await installOutboxRecipientIndex(db, schema);
   await sql`ALTER TABLE whatsapp_sessions.worker_event_outbox
     ADD COLUMN event_order BIGSERIAL,
     ADD COLUMN published_at TIMESTAMPTZ`.execute(db);
