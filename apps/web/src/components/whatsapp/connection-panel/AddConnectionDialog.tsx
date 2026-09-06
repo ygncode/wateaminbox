@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import {
   ArrowRight,
   CheckCircle2,
@@ -26,12 +27,14 @@ import type { AddConnectionDialogProps } from "./types";
 import { useTranslation } from "react-i18next";
 
 interface ConnectionSetupDialogProps extends AddConnectionDialogProps {
+  errorContent?: ReactNode;
   connection: ConnectionWithState | null;
   onReconnect: () => void;
 }
 
 /** Keeps naming and QR pairing in one resumable dialog. */
 export function AddConnectionDialog({
+  errorContent,
   name,
   onNameChange,
   onSubmit,
@@ -55,7 +58,7 @@ export function AddConnectionDialog({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="mx-4 w-[calc(100vw-2rem)] max-w-lg overflow-hidden rounded-2xl p-0 sm:w-full">
+      <DialogContent className="mx-4 w-[calc(100vw-2rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl p-0 sm:w-full">
         <div className="border-b border-[#dce3de] bg-[#f8faf8] p-5 dark:border-dark-border dark:bg-white/[0.025] sm:p-6">
           <DialogHeader className="text-left">
             <div className="mb-2 grid h-11 w-11 place-items-center rounded-xl bg-[#dcefe7] text-[#087a5c] dark:bg-emerald-400/10 dark:text-emerald-300">
@@ -101,6 +104,7 @@ export function AddConnectionDialog({
             }}
           >
             <div className="space-y-5 p-5 sm:p-6">
+              {errorContent}
               <div>
                 <label
                   htmlFor="connection-name"

@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWhatsAppConnections } from "@/hooks/useWhatsAppConnections";
 import { useArchivedWhatsAppConnections } from "@/hooks/whatsapp/useArchivedWhatsAppConnections";
+import { useWorkspace } from "@/contexts/workspace-context";
+import { getWorkspaceBillingUrl } from "@/lib/billing-url";
 import { cn } from "@/lib/utils";
 import { injectAnimationStyles, removeAnimationStyles } from "../animations";
 import { ConnectionCard } from "../ConnectionCard";
@@ -24,10 +26,17 @@ export function MultiConnectionPanel({
   hideHeader = false,
 }: MultiConnectionPanelProps) {
   const { t } = useTranslation();
+  const { activeWorkspace } = useWorkspace();
+  const billingUrl =
+    activeWorkspace?.role === "owner"
+      ? getWorkspaceBillingUrl(activeWorkspace.id)
+      : null;
 
   const {
     connections,
     globalError,
+    pendingConnection,
+    clearPendingConnection,
     isLoading,
     isCreating,
     create,
@@ -71,10 +80,12 @@ export function MultiConnectionPanel({
     : null;
 
   const openNewConnection = useCallback(() => {
+    clearGlobalError();
+    clearPendingConnection();
     setSetupConnectionId(null);
     setNewConnectionName("");
     setShowAddDialog(true);
-  }, []);
+  }, [clearGlobalError, clearPendingConnection]);
 
   const closeSetup = useCallback(() => {
     setShowAddDialog(false);
@@ -287,13 +298,36 @@ export function MultiConnectionPanel({
       )}
 
       {/* Global Error Banner (e.g., max connections exceeded) */}
-      {globalError && (
-        <GlobalErrorBanner error={globalError} onDismiss={clearGlobalError} />
+      {globalError && !showAddDialog && (
+        <GlobalErrorBanner
+          error={globalError}
+          onDismiss={clearGlobalError}
+          billingUrl={billingUrl}
+        />
       )}
 
       {/* Resumable naming and QR setup dialog. */}
       {showAddDialog && (
         <AddConnectionDialog
+          errorContent={
+            globalError ? (
+              <GlobalErrorBanner
+                error={globalError}
+                billingUrl={billingUrl}
+                onDismiss={() => {
+                  clearGlobalError();
+                  clearPendingConnection();
+                }}
+              />
+            ) : pendingConnection?.error ? (
+              <p
+                role="alert"
+                className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-400/20 dark:bg-red-400/[0.06] dark:text-red-300"
+              >
+                {pendingConnection.error}
+              </p>
+            ) : null
+          }
           name={newConnectionName}
           onNameChange={setNewConnectionName}
           onSubmit={handleAddConnection}

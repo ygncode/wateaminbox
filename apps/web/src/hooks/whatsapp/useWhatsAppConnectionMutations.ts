@@ -82,6 +82,7 @@ export function useWhatsAppConnectionMutations({
   const createMutation = useMutation({
     mutationFn: (name?: string) => createWhatsAppConnection(name),
     onMutate: () => {
+      setGlobalError(null);
       // Set up pending connection state
       setPendingConnection({
         qrCode: null,

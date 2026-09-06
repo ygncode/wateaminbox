@@ -7,12 +7,13 @@ import { useTranslation } from "react-i18next";
  */
 export function GlobalErrorBanner({
   error,
+  billingUrl,
   onDismiss,
 }: GlobalErrorBannerProps) {
   const { t } = useTranslation();
 
   return (
-    <div className="mb-6 animate-slide-down">
+    <div role="alert" className="mb-6 animate-slide-down">
       <div className="relative overflow-hidden rounded-xl border border-amber-300/50 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/30 p-4 shadow-lg">
         {/* Decorative shimmer overlay */}
         <div className="absolute inset-0 animate-shimmer opacity-30 pointer-events-none" />
@@ -34,11 +35,19 @@ export function GlobalErrorBanner({
               {error}
             </p>
             <div className="mt-3 flex items-center gap-3">
-              <button className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-800 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200 bg-amber-200/50 dark:bg-amber-800/50 hover:bg-amber-200 dark:hover:bg-amber-700/50 px-3 py-1.5 rounded-full transition-all duration-200">
-                {t("connections.upgradePlan", "Upgrade Plan")}
-              </button>
-              <span className="text-amber-400">•</span>
+              {billingUrl && (
+                <>
+                  <a
+                    href={billingUrl}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-800 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200 bg-amber-200/50 dark:bg-amber-800/50 hover:bg-amber-200 dark:hover:bg-amber-700/50 px-3 py-1.5 rounded-full transition-all duration-200"
+                  >
+                    {t("connections.upgradePlan", "Upgrade Plan")}
+                  </a>
+                  <span className="text-amber-400">•</span>
+                </>
+              )}
               <button
+                type="button"
                 onClick={onDismiss}
                 className="text-xs text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 transition-colors"
               >
@@ -49,6 +58,8 @@ export function GlobalErrorBanner({
 
           {/* Close button */}
           <button
+            type="button"
+            aria-label={t("common.dismiss", "Dismiss")}
             onClick={onDismiss}
             className="flex-shrink-0 p-1.5 rounded-full hover:bg-amber-200/50 dark:hover:bg-amber-800/50 text-amber-500 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 transition-all duration-200"
           >
