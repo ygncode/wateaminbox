@@ -193,6 +193,7 @@ export interface NewMessagePayload {
 }
 
 export interface MessageStatusPayload {
+  metadata?: { error?: string; errorMessage?: string };
   messageId: string;
   conversationId: string;
   status: MessageStatus;

@@ -51,7 +51,7 @@ interface CommandResultPayload {
   commandId: string;
   commandType: string;
   success: boolean;
-  outcome?: "succeeded" | "failed" | "applied_not_synced";
+  outcome?: "succeeded" | "failed" | "applied_not_synced" | "unknown";
   error?: string;
 }
 
@@ -132,10 +132,16 @@ export function registerRealtimeEventHandlers({
         qc,
         payload.conversationId,
         payload.messageId,
-        (message) => ({
-          ...message,
-          status: advanceMessageStatus(message.status, payload.status),
-        }),
+        (message) => {
+          const status = advanceMessageStatus(message.status, payload.status);
+          return {
+            ...message,
+            status,
+            ...(payload.metadata && status === "pending"
+              ? { metadata: { ...message.metadata, ...payload.metadata } }
+              : {}),
+          };
+        },
       );
     }),
     bindUserEvent<MessageFailedPayload>("message:failed", (data) => {

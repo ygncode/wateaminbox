@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, mock, test } from "bun:test";
 import { QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../../hooks/query-keys";
 import { chatKeys } from "../../hooks/useChats";
+import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
 import { setCompanyId } from "../../lib/api/client";
 import type {
   RealtimeEventData,
@@ -177,4 +178,55 @@ describe("conversation events are bound to the user channel", () => {
       cleanup();
     }
   });
+});
+
+test("unconfirmed status repairs a timeout without regressing a read message", () => {
+  setCompanyId("company-a");
+  const client = new QueryClient();
+  const key = infiniteMessageKeys.list("contact-1");
+  const cleanup = register(client);
+  const get = () =>
+    client.getQueryData<{
+      pages: Array<{
+        messages: Array<{ status: string; metadata?: { error?: string } }>;
+      }>;
+    }>(key)!.pages[0].messages[0];
+  client.setQueryData(key, {
+    pages: [
+      {
+        messages: [
+          {
+            id: "m",
+            status: "failed",
+            metadata: { error: "delivery_timeout" },
+          },
+        ],
+      },
+    ],
+    pageParams: [undefined],
+  });
+  emit("message:status", {
+    conversationId: "contact-1",
+    messageId: "m",
+    status: "pending",
+    metadata: {
+      error: "send_outcome_unknown",
+      errorMessage: "Delivery unconfirmed",
+    },
+  });
+  expect(get().status).toBe("pending");
+  expect(get().metadata?.error).toBe("send_outcome_unknown");
+  emit("message:status", {
+    conversationId: "contact-1",
+    messageId: "m",
+    status: "read",
+  });
+  emit("message:status", {
+    conversationId: "contact-1",
+    messageId: "m",
+    status: "pending",
+    metadata: { error: "send_outcome_unknown" },
+  });
+  expect(get().status).toBe("read");
+  cleanup();
 });

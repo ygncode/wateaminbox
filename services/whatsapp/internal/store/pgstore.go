@@ -206,12 +206,27 @@ func (c *PGContainer) GetProcessedCommand(ctx context.Context, commandID string)
 	return result, true, nil
 }
 
+// BeginSendCommand claims the external side effect once. Unlike finalization,
+// an intent can never overwrite an existing intent or completed result.
+func (c *PGContainer) BeginSendCommand(ctx context.Context, commandID, commandType string, intent []byte) (bool, error) {
+	result, err := c.db.ExecContext(ctx, `INSERT INTO processed_commands (connection_id, command_id, command_type, result)
+ VALUES ($1,$2,$3,$4) ON CONFLICT (connection_id, command_id) DO NOTHING`, c.connectionID, commandID, commandType, intent)
+	if err != nil {
+		return false, fmt.Errorf("claim send intent: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	return rows == 1, err
+}
+
 // SaveProcessedCommand persists the external side-effect result before ACK.
 func (c *PGContainer) SaveProcessedCommand(ctx context.Context, commandID, commandType string, result []byte) error {
 	_, err := c.db.ExecContext(ctx, `
 		INSERT INTO processed_commands (connection_id, command_id, command_type, result)
 		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (connection_id, command_id) DO NOTHING
+		ON CONFLICT (connection_id, command_id) DO UPDATE
+        SET result = EXCLUDED.result, processed_at = now(), event_published = false
+        WHERE processed_commands.result->>'in_flight' = 'true'
+          AND NOT processed_commands.event_published
 	`, c.connectionID, commandID, commandType, result)
 	if err != nil {
 		return fmt.Errorf("save processed command: %w", err)
@@ -330,7 +345,7 @@ func (c *PGContainer) ListPendingEvents(
 	rows, err := c.db.QueryContext(ctx, `
 		SELECT event_id::text, subject, payload
 		FROM worker_event_outbox
-		WHERE connection_id = $1
+		WHERE connection_id = $1 AND published_at IS NULL
 		ORDER BY created_at ASC, event_id ASC
 		LIMIT $2
 	`, c.connectionID, limit)
@@ -353,16 +368,21 @@ func (c *PGContainer) ListPendingEvents(
 	return events, nil
 }
 
-func (c *PGContainer) MarkEventPublished(
-	ctx context.Context,
-	eventID string,
-) error {
+func (c *PGContainer) MarkEventPublished(ctx context.Context, eventID string) error {
 	_, err := c.db.ExecContext(ctx, `
-		DELETE FROM worker_event_outbox
-		WHERE connection_id = $1 AND event_id = $2
-	`, c.connectionID, eventID)
+  WITH retained AS (
+   UPDATE worker_event_outbox SET published_at = now()
+   WHERE connection_id = $1 AND event_id = $2
+    AND convert_from(payload, 'UTF8')::jsonb ? 'eventId'
+    AND split_part(subject, '.', 5) IN ('history_message', 'history_contact', 'sync_status', 'history_sync_page')
+   RETURNING event_id
+  )
+  DELETE FROM worker_event_outbox
+  WHERE connection_id = $1 AND event_id = $2
+   AND NOT EXISTS (SELECT 1 FROM retained)
+ `, c.connectionID, eventID)
 	if err != nil {
-		return fmt.Errorf("delete published worker event: %w", err)
+		return fmt.Errorf("mark published worker event: %w", err)
 	}
 	return nil
 }

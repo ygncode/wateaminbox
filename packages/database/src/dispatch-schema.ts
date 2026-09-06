@@ -11,6 +11,9 @@ export async function installOutboxDispatchTrigger<DB>(
     )
   )
     throw new Error("Invalid tenant schema");
+  await sql`CREATE INDEX IF NOT EXISTS ${sql.id(`${schema}_outbox_to_idx`)}
+    ON ${sql.table(`${schema}.nats_outbox`)} (subject, (payload->>'to'), created_at, id)
+    WHERE status IN ('pending', 'claimed')`.execute(db);
   const existing = await sql<{ present: boolean }>`SELECT EXISTS (
     SELECT 1 FROM pg_trigger WHERE tgrelid = ${`${schema}.nats_outbox`}::regclass
       AND tgname = 'outbox_dispatch_ready' AND NOT tgisinternal

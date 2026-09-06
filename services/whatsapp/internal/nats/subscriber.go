@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -102,6 +103,7 @@ type MediaObjectStore interface {
 }
 
 type CommandLedger interface {
+	BeginSendCommand(ctx context.Context, commandID, commandType string, intent []byte) (bool, error)
 	GetProcessedCommand(ctx context.Context, commandID string) ([]byte, bool, error)
 	SaveProcessedCommand(ctx context.Context, commandID, commandType string, result []byte) error
 	MarkCommandEventPublished(ctx context.Context, commandID string) error
@@ -128,12 +130,16 @@ type GroupCommandLedger interface {
 }
 
 type storedCommandResult struct {
-	PendingMessageID string             `json:"pending_message_id"`
-	CommandType      string             `json:"command_type"`
-	Response         types.SendResponse `json:"response"`
-	CorrelationID    string             `json:"correlation_id"`
-	Failed           bool               `json:"failed,omitempty"`
-	ErrorMessage     string             `json:"error_message,omitempty"`
+	PendingMessageID  string             `json:"pending_message_id"`
+	CommandType       string             `json:"command_type"`
+	Response          types.SendResponse `json:"response"`
+	CorrelationID     string             `json:"correlation_id"`
+	Failed            bool               `json:"failed,omitempty"`
+	ErrorMessage      string             `json:"error_message,omitempty"`
+	InFlight          bool               `json:"in_flight,omitempty"`
+	Unknown           bool               `json:"unknown,omitempty"`
+	WhatsAppMessageID string             `json:"whatsapp_message_id,omitempty"`
+	Attempts          int                `json:"attempts,omitempty"`
 }
 
 type MessageSender interface {
@@ -308,6 +314,9 @@ type Subscriber struct {
 	sub            *nats.Subscription
 	ctx            context.Context
 	cancel         context.CancelFunc
+	prepared       map[*nats.Msg]mediaPreparation
+	workers        sync.WaitGroup
+	scheduled      *scheduledCommand
 }
 
 // SubscriberConfig holds configuration for the subscriber.
@@ -388,6 +397,7 @@ func (s *Subscriber) Start() error {
 				DeliverPolicy: nats.DeliverNewPolicy,
 				MaxDeliver:    commandMaxDeliver,
 				AckWait:       2 * time.Minute,
+				MaxAckPending: commandQueueLimit,
 			})
 			if err != nil {
 				return fmt.Errorf("failed to create consumer: %w", err)
@@ -396,10 +406,11 @@ func (s *Subscriber) Start() error {
 		} else {
 			return fmt.Errorf("failed to get consumer info: %w", err)
 		}
-	} else if info.Config.AckWait < 2*time.Minute || info.Config.MaxDeliver < commandMaxDeliver {
+	} else if info.Config.AckWait < 2*time.Minute || info.Config.MaxDeliver < commandMaxDeliver || info.Config.MaxAckPending != commandQueueLimit {
 		config := info.Config
 		config.AckWait = 2 * time.Minute
 		config.MaxDeliver = commandMaxDeliver
+		config.MaxAckPending = commandQueueLimit
 		if _, err = s.js.UpdateConsumer(CommandsStreamName, &config); err != nil {
 			return fmt.Errorf("failed to update consumer retry policy: %w", err)
 		}
@@ -413,63 +424,14 @@ func (s *Subscriber) Start() error {
 	s.sub = sub
 
 	// Start processing messages in a goroutine
-	go s.processMessages()
-	go s.pruneProcessedCommands()
+	s.workers.Add(2)
+	go func() { defer s.workers.Done(); s.processMessages() }()
+	go func() { defer s.workers.Done(); s.pruneProcessedCommands() }()
 
 	log.Printf("Subscriber started for subject: %s", subject)
 	return nil
 }
 
-// processMessages continuously fetches and processes messages.
-func (s *Subscriber) processMessages() {
-	// Add small delay to ensure consumer is ready
-	time.Sleep(100 * time.Millisecond)
-
-	consecutiveErrors := 0
-	maxConsecutiveErrors := 5
-
-	for {
-		select {
-		case <-s.ctx.Done():
-			log.Println("Subscriber context cancelled, stopping")
-			return
-		default:
-			// Fetch messages with a timeout
-			msgs, err := s.sub.Fetch(10, nats.MaxWait(5*time.Second))
-			if err != nil {
-				if err == nats.ErrTimeout {
-					consecutiveErrors = 0 // Reset on timeout (normal)
-					continue
-				}
-
-				consecutiveErrors++
-				log.Printf("Error fetching messages (%d/%d): %v", consecutiveErrors, maxConsecutiveErrors, err)
-
-				// If we get too many consecutive errors, try to recreate subscription
-				if consecutiveErrors >= maxConsecutiveErrors {
-					log.Println("Too many consecutive errors, attempting to recreate subscription...")
-					if err := s.recreateSubscription(); err != nil {
-						log.Printf("Failed to recreate subscription: %v", err)
-						time.Sleep(5 * time.Second)
-					} else {
-						consecutiveErrors = 0
-						log.Println("Subscription recreated successfully")
-					}
-				} else {
-					time.Sleep(time.Duration(consecutiveErrors) * time.Second)
-				}
-				continue
-			}
-
-			consecutiveErrors = 0 // Reset on success
-			for _, msg := range msgs {
-				s.handleCommand(msg)
-			}
-		}
-	}
-}
-
-// handleCommand routes commands to the appropriate handler based on type.
 func (s *Subscriber) handleCommand(msg *nats.Msg) {
 	// Extract command type first
 	var ct commandType
@@ -582,7 +544,18 @@ func (s *Subscriber) publishStoredCommandResult(result storedCommandResult, comm
 		return fmt.Errorf("publisher is not configured")
 	}
 	var err error
-	if result.Failed && result.CommandType == "reaction" {
+	if result.InFlight || result.Unknown {
+		if result.CommandType == "reaction" {
+			return s.publisher.PublishCommandResult(commandID, result.CommandType, false, sharednats.CommandOutcomeUnknown, "Reaction delivery is unconfirmed. Check WhatsApp before repeating it.")
+		}
+		publisher, ok := s.publisher.(interface {
+			PublishSendUncertain(string, string, string) error
+		})
+		if !ok {
+			return fmt.Errorf("uncertain-send publisher is not configured")
+		}
+		err = publisher.PublishSendUncertain(result.PendingMessageID, result.WhatsAppMessageID, result.CorrelationID)
+	} else if result.Failed && result.CommandType == "reaction" {
 		err = s.publisher.PublishCommandResult(
 			commandID,
 			result.CommandType,
@@ -647,111 +620,158 @@ func (s *Subscriber) finishFailedSend(
 	}
 	if err := s.persistCommandResult(cmd.CommandID, stored); err != nil {
 		log.Printf("[NATS] Failed to persist failed command result: %v", err)
-		msg.Nak()
+		s.deferSend(msg)
 		return
 	}
 	if err := s.publishStoredCommandResult(stored, cmd.CommandID); err != nil {
 		log.Printf("[NATS] Failed to publish failed command result: %v", err)
-		msg.Nak()
+		s.deferSend(msg)
 		return
 	}
-	msg.Ack()
+	s.ackSend(msg)
 }
 
-// handleSendCommand processes a send message command.
+var errSendAlreadyStarted = errors.New("send intent already exists")
+
+// handleSendCommand retains a contact's queue position through retries. NATS
+// delivery count is transport bookkeeping, never the number of send attempts.
 func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 	var cmd SendMessageCommand
 	if err := json.Unmarshal(msg.Data, &cmd); err != nil {
-		log.Printf("Failed to unmarshal send command: %v", err)
-		msg.Nak() // Negative acknowledgment, will be redelivered
+		if s.scheduled != nil {
+			s.scheduled.settled = true
+		}
+		_ = msg.Term()
 		return
 	}
-
-	// Redelivery after a successful external side effect replays the durable
-	// result instead of executing WhatsApp a second time.
-	if cmd.CommandID != "" && s.ledger != nil {
-		resultJSON, found, ledgerErr := s.ledger.GetProcessedCommand(s.ctx, cmd.CommandID)
-		if ledgerErr != nil {
-			log.Printf("[NATS] Failed to read command ledger: %v", ledgerErr)
-			msg.Nak()
-			return
+	if cmd.CommandID == "" || s.ledger == nil {
+		// Without a durable identity, a process restart could turn a retry into a
+		// second customer-visible message. All supported API paths use the outbox.
+		if s.scheduled != nil {
+			s.scheduled.settled = true
 		}
-		if found {
-			var stored storedCommandResult
-			if err := json.Unmarshal(resultJSON, &stored); err != nil {
-				log.Printf("[NATS] Invalid stored command result: %v", err)
-				msg.Term()
-				return
-			}
-			if err := s.publishStoredCommandResult(stored, cmd.CommandID); err != nil {
-				log.Printf("[NATS] Failed to replay stored result: %v", err)
-				msg.Nak()
-				return
-			}
-			msg.Ack()
-			return
-		}
+		_ = msg.Term()
+		return
 	}
-
-	// Check delivery count from message metadata
-	meta, err := msg.Metadata()
+	resultJSON, found, err := s.ledger.GetProcessedCommand(s.ctx, cmd.CommandID)
 	if err != nil {
-		log.Printf("Failed to get message metadata: %v", err)
-	}
-
-	// NumDelivered starts at 1. Deliveries after the side-effect budget are
-	// reserved for durably publishing the terminal outcome, never for sending
-	// to WhatsApp again.
-	deliveryCount := uint64(1)
-	streamSeq := uint64(0)
-	consumerSeq := uint64(0)
-	numPending := uint64(0)
-	if meta != nil {
-		deliveryCount = meta.NumDelivered
-		streamSeq = meta.Sequence.Stream
-		consumerSeq = meta.Sequence.Consumer
-		numPending = meta.NumPending
-	}
-
-	// Enhanced logging with correlation ID and metadata
-	correlationID := cmd.CorrelationID
-	log.Printf("[NATS] Processing command: type=%s to=%s msg_id=%s corr_id=%s delivery=%d/%d stream_seq=%d consumer_seq=%d pending=%d",
-		cmd.Type, cmd.To, cmd.MessageID, correlationID, deliveryCount, commandMaxDeliver, streamSeq, consumerSeq, numPending)
-
-	if deliveryCount > commandSideEffectMaxAttempts {
-		// A prior terminal failure could not persist or publish its outcome.
-		// Keep retrying that outcome without repeating the WhatsApp side effect.
-		finishError := "WhatsApp send failed after retry exhaustion"
-		s.finishFailedSend(msg, cmd, finishError)
+		s.deferSend(msg)
 		return
 	}
+	if found {
+		var stored storedCommandResult
+		if json.Unmarshal(resultJSON, &stored) != nil {
+			if s.scheduled != nil {
+				s.scheduled.settled = true
+			}
+			_ = msg.Term()
+			return
+		}
+		if err := s.publishStoredCommandResult(stored, cmd.CommandID); err != nil {
+			s.deferSend(msg)
+			return
+		}
+		s.ackSend(msg)
+		return
+	}
+	prepared, hasPrepared := s.prepared[msg]
+	delete(s.prepared, msg)
+	var preparation *mediaPreparation
+	if hasPrepared {
+		preparation = &prepared
+	}
+	stableID := types.CommandMessageID(s.companyID, s.connectionID, cmd.CommandID)
+	for attempt := 1; attempt <= commandSideEffectMaxAttempts; attempt++ {
+		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+		began := false
+		intent := storedCommandResult{PendingMessageID: cmd.MessageID, CommandType: cmd.Type,
+			CorrelationID: cmd.CorrelationID, InFlight: true, WhatsAppMessageID: stableID, Attempts: 1}
+		ctx = types.WithSendOperation(ctx, types.SendOperation{ID: stableID, BeforeSend: func(context.Context) error {
+			if began {
+				return nil
+			}
+			encoded, err := json.Marshal(intent)
+			if err != nil {
+				return err
+			}
+			claimed, err := s.ledger.BeginSendCommand(s.ctx, cmd.CommandID, cmd.Type, encoded)
+			if err != nil {
+				return err
+			}
+			if !claimed {
+				return errSendAlreadyStarted
+			}
+			began = true
+			return nil
+		}})
+		response, sendErr := s.executeSend(ctx, cmd, preparation)
+		cancel()
+		if sendErr == nil {
+			result := intent
+			result.InFlight = false
+			result.Response = response
+			if err := s.persistCommandResult(cmd.CommandID, result); err != nil {
+				// The durable intent survives: redelivery reports uncertainty and never
+				// repeats a send whose successful result could not be recorded.
+				s.deferSend(msg)
+				return
+			}
+			if err := s.publishStoredCommandResult(result, cmd.CommandID); err != nil {
+				s.deferSend(msg)
+				return
+			}
+			s.ackSend(msg)
+			return
+		}
+		if errors.Is(sendErr, errSendAlreadyStarted) {
+			s.deferSend(msg)
+			return
+		}
+		var unknown *types.UnknownSendOutcome
+		if began || errors.As(sendErr, &unknown) {
+			intent.InFlight = false
+			intent.Unknown = true
+			intent.ErrorMessage = "WhatsApp acceptance could not be confirmed"
+			if err := s.persistCommandResult(cmd.CommandID, intent); err != nil {
+				s.deferSend(msg)
+				return
+			}
+			if err := s.publishStoredCommandResult(intent, cmd.CommandID); err != nil {
+				s.deferSend(msg)
+				return
+			}
+			s.ackSend(msg)
+			return
+		}
+		// Preparation already retried in its bounded pool. Only failures strictly
+		// before the transport boundary may be retried here.
+		if preparation != nil || attempt == commandSideEffectMaxAttempts {
+			s.finishFailedSend(msg, cmd, sendErr.Error())
+			return
+		}
+		select {
+		case <-s.ctx.Done():
+			s.deferSend(msg)
+			return
+		case <-time.After(time.Duration(attempt) * time.Second):
+		}
+	}
+}
 
+func (s *Subscriber) executeSend(ctx context.Context, cmd SendMessageCommand, prepared *mediaPreparation) (types.SendResponse, error) {
 	var resp types.SendResponse
-	ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
-	defer cancel()
-
+	var err error
 	switch cmd.Type {
 	case "text":
 		resp, err = s.sender.SendMessage(ctx, cmd.To, cmd.Content, cmd.ReplyTo, cmd.ReplyToSender, cmd.MentionedJIDs)
 	case "image", "video", "audio", "document", "sticker":
-		if s.storage == nil {
-			err = fmt.Errorf("object storage is not configured")
-			break
-		}
-		tenantPrefix := fmt.Sprintf("media/%s/", s.companyID)
-		if !strings.HasPrefix(cmd.MediaObjectKey, tenantPrefix) || strings.Contains(cmd.MediaObjectKey, "..") {
-			err = fmt.Errorf("media object key is outside tenant prefix")
-			break
-		}
-		if cmd.MediaSize <= 0 || cmd.MediaSize > maxSendMediaBytes {
-			err = fmt.Errorf("invalid media size %d", cmd.MediaSize)
-			break
-		}
 		var mediaData []byte
-		mediaData, err = s.storage.DownloadMediaObject(ctx, cmd.MediaObjectKey, maxSendMediaBytes, cmd.MediaChecksum)
-		if err == nil && int64(len(mediaData)) != cmd.MediaSize {
-			err = fmt.Errorf("media size mismatch: expected %d, got %d", cmd.MediaSize, len(mediaData))
+		if prepared != nil {
+			mediaData, err = prepared.data, prepared.err
+		} else {
+			mediaData, err = s.downloadCommandMedia(ctx, cmd)
 		}
+
 		if err == nil && cmd.MediaAlbumID != "" {
 			albumSender, ok := s.sender.(mediaAlbumSender)
 			if !ok {
@@ -782,49 +802,11 @@ func (s *Subscriber) handleSendCommand(msg *nats.Msg) {
 	case "reaction":
 		resp, err = s.sender.SendReaction(ctx, cmd.To, cmd.TargetMessageID, cmd.Emoji, cmd.TargetSenderJID, cmd.FromMe)
 	default:
-		log.Printf("[NATS] Unknown message type: %s (corr_id=%s)", cmd.Type, correlationID)
-		msg.Nak()
-		return
+		log.Printf("[NATS] Unknown message type: %s (corr_id=%s)", cmd.Type, cmd.CorrelationID)
+		err = fmt.Errorf("unknown message type: %s", cmd.Type)
 	}
 
-	if err != nil {
-		log.Printf("[NATS] Send failed: msg_id=%s corr_id=%s attempt=%d/%d error=%v", cmd.MessageID, correlationID, deliveryCount, commandSideEffectMaxAttempts, err)
-
-		// Check if this is the final retry attempt
-		if deliveryCount >= commandSideEffectMaxAttempts {
-			log.Printf("[NATS] Max retries exceeded: msg_id=%s corr_id=%s - marking as failed", cmd.MessageID, correlationID)
-			s.finishFailedSend(msg, cmd, err.Error())
-			return
-		}
-
-		// Still have retries left, NAK to trigger redelivery
-		log.Printf("[NATS] Scheduling retry: msg_id=%s corr_id=%s next_attempt=%d/%d", cmd.MessageID, correlationID, deliveryCount+1, commandSideEffectMaxAttempts)
-		msg.Nak()
-		return
-	}
-
-	stored := storedCommandResult{
-		PendingMessageID: cmd.MessageID,
-		CommandType:      cmd.Type,
-		Response:         resp,
-		CorrelationID:    correlationID,
-	}
-	if persistErr := s.persistCommandResult(cmd.CommandID, stored); persistErr != nil {
-		// This is the unavoidable external-side-effect/local-persistence crash
-		// window. Do not ACK; operators can reconcile by command/message ID.
-		log.Printf("[NATS] Failed to persist successful command result: msg_id=%s error=%v", cmd.MessageID, persistErr)
-		msg.Nak()
-		return
-	}
-
-	if err := s.publishStoredCommandResult(stored, cmd.CommandID); err != nil {
-		log.Printf("[NATS] Failed to publish confirmation; result will replay: msg_id=%s error=%v", cmd.MessageID, err)
-		msg.Nak()
-		return
-	}
-
-	log.Printf("[NATS] Send success: msg_id=%s corr_id=%s to=%s real_id=%s", cmd.MessageID, correlationID, cmd.To, resp.ID)
-	msg.Ack()
+	return resp, err
 }
 
 // handleBlockCommand processes a block/unblock contact command.
@@ -1589,6 +1571,7 @@ func (s *Subscriber) Stop() {
 	if s.sub != nil {
 		s.sub.Unsubscribe()
 	}
+	s.workers.Wait()
 	if s.nc != nil {
 		s.nc.Close()
 	}

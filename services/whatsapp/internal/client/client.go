@@ -717,7 +717,7 @@ func (c *Client) SendMessage(ctx context.Context, jid string, text string, reply
 	}
 
 	// Send message
-	resp, err := c.client.SendMessage(ctx, recipient, msg)
+	resp, err := c.sendCommandMessage(ctx, recipient, msg)
 	if err != nil {
 		return types.SendResponse{}, fmt.Errorf("failed to send message: %w", err)
 	}
@@ -765,7 +765,7 @@ func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType str
 	}
 
 	// Send message
-	resp, err := c.client.SendMessage(ctx, recipient, msg)
+	resp, err := c.sendCommandMessage(ctx, recipient, msg)
 	if err != nil {
 		return types.SendResponse{}, fmt.Errorf("failed to send media message: %w", err)
 	}
@@ -808,12 +808,7 @@ func (c *Client) SendMediaAlbumMessage(ctx context.Context, jid string, mediaTyp
 	}
 
 	if album.Index == 0 {
-		_, err = c.client.SendMessage(
-			ctx,
-			recipient,
-			buildMediaAlbumManifest(album),
-			whatsmeow.SendRequestExtra{ID: waTypes.MessageID(album.ID)},
-		)
+		_, err = c.sendCommandMessageWithID(ctx, recipient, buildMediaAlbumManifest(album), album.ID)
 		if err != nil {
 			return types.SendResponse{}, fmt.Errorf("failed to send media album manifest: %w", err)
 		}
@@ -821,7 +816,7 @@ func (c *Client) SendMediaAlbumMessage(ctx context.Context, jid string, mediaTyp
 
 	applyMediaAlbumAssociation(msg, recipient, album)
 
-	resp, err := c.client.SendMessage(ctx, recipient, msg)
+	resp, err := c.sendCommandMessage(ctx, recipient, msg)
 	if err != nil {
 		return types.SendResponse{}, fmt.Errorf("failed to send media album child: %w", err)
 	}
@@ -883,7 +878,7 @@ func (c *Client) SendReaction(ctx context.Context, chatJID string, messageID str
 	msg := buildReactionMessage(reactionKey, emoji)
 
 	// Send reaction
-	resp, err := c.client.SendMessage(ctx, recipient, msg)
+	resp, err := c.sendCommandMessage(ctx, recipient, msg)
 	if err != nil {
 		return types.SendResponse{}, fmt.Errorf("failed to send reaction: %w", err)
 	}
@@ -1940,4 +1935,24 @@ func (c *Client) updateBlocklistWithRetry(ctx context.Context, jidStr string, ac
 	}
 
 	return fmt.Errorf("failed to %s contact after %d attempts: %w", action, blockMaxRetries, lastErr)
+}
+
+// Only command sends use this write-ahead boundary; pairing/history operations
+// continue to use their own protocol identities.
+func (c *Client) sendCommandMessage(ctx context.Context, to waTypes.JID, msg *waE2E.Message) (whatsmeow.SendResponse, error) {
+	return c.sendCommandMessageWithID(ctx, to, msg, types.SendOperationFromContext(ctx).ID)
+}
+
+func (c *Client) sendCommandMessageWithID(ctx context.Context, to waTypes.JID, msg *waE2E.Message, id string) (whatsmeow.SendResponse, error) {
+	operation := types.SendOperationFromContext(ctx)
+	if operation.BeforeSend != nil {
+		if err := operation.BeforeSend(ctx); err != nil {
+			return whatsmeow.SendResponse{}, err
+		}
+	}
+	response, err := c.client.SendMessage(ctx, to, msg, whatsmeow.SendRequestExtra{ID: waTypes.MessageID(id)})
+	if err != nil && operation.ID != "" {
+		return response, &types.UnknownSendOutcome{Err: err}
+	}
+	return response, err
 }

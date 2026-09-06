@@ -395,7 +395,7 @@ async function reconcileProcessedCommands(
         m.id,
         COALESCE((pc.result->>'failed')::boolean, false) AS failed,
         pc.result->>'error_message' AS error_message,
-        pc.result->'response'->>'ID' AS whatsapp_message_id
+        NULLIF(pc.result->'response'->>'ID', '') AS whatsapp_message_id
       FROM ${messages} AS m
       INNER JOIN ${outbox} AS command
         ON command.payload->>'message_id' = m.message_id
@@ -415,7 +415,7 @@ async function reconcileProcessedCommands(
         AND split_part(command.subject, '.', 3) = ${companyId}
         AND (
           COALESCE((pc.result->>'failed')::boolean, false)
-          OR pc.result->'response'->>'ID' IS NOT NULL
+          OR NULLIF(pc.result->'response'->>'ID', '') IS NOT NULL
         )
       ORDER BY m.timestamp ASC, m.id ASC
       LIMIT ${batchSize}
@@ -543,7 +543,9 @@ export async function cleanupCompanyMessages(
           WHERE split_part(command.subject, '.', 3) = ${companyId}
             AND (
               COALESCE((pc.result->>'failed')::boolean, false)
-              OR pc.result->'response'->>'ID' IS NOT NULL
+              OR COALESCE((pc.result->>'in_flight')::boolean, false)
+              OR COALESCE((pc.result->>'unknown')::boolean, false)
+              OR NULLIF(pc.result->'response'->>'ID', '') IS NOT NULL
             )
         )
       ORDER BY m.timestamp ASC, m.id ASC
@@ -574,7 +576,9 @@ export async function cleanupCompanyMessages(
         WHERE split_part(command.subject, '.', 3) = ${companyId}
           AND (
             COALESCE((pc.result->>'failed')::boolean, false)
-            OR pc.result->'response'->>'ID' IS NOT NULL
+            OR COALESCE((pc.result->>'in_flight')::boolean, false)
+            OR COALESCE((pc.result->>'unknown')::boolean, false)
+            OR NULLIF(pc.result->'response'->>'ID', '') IS NOT NULL
           )
       )
     RETURNING m.id, m.contact_id, m.message_id, m.status::text AS status

@@ -18,7 +18,11 @@ import {
   recoverOutboxDispatch,
   releaseWorkspaceDispatch,
 } from "./outbox-dispatch.service.js";
-import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
+import {
+  getSchemaName,
+  getTenantConnection,
+  type TenantDatabase,
+} from "./tenant.service.js";
 import { getActiveSessionId } from "./whatsapp/session.js";
 
 const logger = createLogger("CommandOutbox");
@@ -136,6 +140,18 @@ export async function enqueueCommand(
   subject: string,
   payload: Record<string, unknown>,
 ): Promise<string> {
+  // Serialize acceptance within one recipient so two API replicas cannot
+  // commit commands in an order different from their durable queue order.
+  if (executor.isTransaction === false) {
+    return executor
+      .transaction()
+      .execute((trx) => enqueueCommand(trx, subject, payload));
+  }
+  if (typeof payload.to === "string") {
+    await sql`SELECT pg_advisory_xact_lock(hashtextextended(${JSON.stringify([subject, payload.to])}, 0))`.execute(
+      executor,
+    );
+  }
   const id = crypto.randomUUID();
   const databaseNow = sql<Date>`statement_timestamp()`;
   await executor
@@ -226,6 +242,13 @@ export async function dispatchCompany(
           ]),
         ]),
       )
+      .where(sql<boolean>`NOT EXISTS (
+        SELECT 1 FROM ${sql.table(`${getSchemaName(companyId)}.nats_outbox`)} AS earlier
+        WHERE earlier.subject = nats_outbox.subject
+          AND earlier.payload->>'to' = nats_outbox.payload->>'to'
+          AND earlier.status IN ('pending', 'claimed')
+          AND (earlier.created_at, earlier.id) < (nats_outbox.created_at, nats_outbox.id)
+      )`)
       .orderBy("created_at", "asc")
       .limit(BATCH_SIZE)
       .forUpdate()
