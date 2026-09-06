@@ -239,3 +239,216 @@ describe("start_conversation", () => {
     }),
   );
 });
+
+const createContact = writeTools.find(
+  (tool) => tool.name === "create_contact",
+)!;
+const scheduleMessage = writeTools.find(
+  (tool) => tool.name === "schedule_message",
+)!;
+const changeState = writeTools.find(
+  (tool) => tool.name === "update_conversation_state",
+)!;
+
+describe("create_contact and schedule_message", () => {
+  integrationTest(
+    "prepares a contact without sending and schedules once on concurrent retries",
+    () =>
+      withWorkspace(async ({ tenantDb, c }) => {
+        const created = (await createContact.handler(
+          { phoneNumber: "6589001305", customName: "Example" },
+          c,
+        )) as { contactId: string; contactCreated: boolean };
+        const reused = (await createContact.handler(
+          { phoneNumber: "+65 8900 1305", customName: "Do not overwrite" },
+          c,
+        )) as {
+          contactId: string;
+          contactCreated: boolean;
+          displayName: string;
+        };
+        expect(created.contactCreated).toBe(true);
+        expect(reused.contactCreated).toBe(false);
+        expect(reused.contactId).toBe(created.contactId);
+        expect(reused.displayName).toBe("Example");
+        expect(
+          await tenantDb.selectFrom("messages").select("id").execute(),
+        ).toHaveLength(0);
+        expect(
+          await tenantDb.selectFrom("nats_outbox").select("id").execute(),
+        ).toHaveLength(0);
+        expect(
+          await tenantDb
+            .selectFrom("conversation_cases")
+            .select("id")
+            .execute(),
+        ).toHaveLength(0);
+        const args = {
+          contactId: created.contactId,
+          content: "Hello later",
+          scheduledAt: new Date(Date.now() + 3600000).toISOString(),
+          scheduledMessageId: crypto.randomUUID(),
+        };
+        await expect(scheduleMessage.handler(args, c)).rejects.toThrow();
+        expect(
+          await tenantDb
+            .selectFrom("scheduled_messages")
+            .select("id")
+            .execute(),
+        ).toHaveLength(0);
+        expect(
+          await tenantDb
+            .selectFrom("contact_assignments")
+            .select("id")
+            .execute(),
+        ).toHaveLength(0);
+        await changeState.handler(
+          { contactId: created.contactId, action: "open" },
+          c,
+        );
+        const results = (await Promise.all([
+          scheduleMessage.handler(args, c),
+          scheduleMessage.handler(args, c),
+        ])) as { alreadyExisted: boolean; status: string }[];
+        expect(results.map((r) => r.alreadyExisted).sort()).toEqual([
+          false,
+          true,
+        ]);
+        expect(results.every((r) => r.status === "scheduled")).toBe(true);
+        const rows = await tenantDb
+          .selectFrom("scheduled_messages")
+          .selectAll()
+          .execute();
+        expect(rows).toHaveLength(1);
+        expect(rows[0].bulk_job_id).toBeNull();
+        expect(rows[0].content).toBe(args.content);
+        expect(
+          await tenantDb.selectFrom("messages").select("id").execute(),
+        ).toHaveLength(0);
+        expect(
+          await tenantDb.selectFrom("nats_outbox").select("id").execute(),
+        ).toHaveLength(0);
+        await expect(
+          scheduleMessage.handler({ ...args, content: "Changed" }, c),
+        ).rejects.toThrow("different request");
+      }),
+  );
+
+  integrationTest(
+    "rejects blocked recipients and invalid times without scheduling or claiming them",
+    () =>
+      withWorkspace(async ({ tenantDb, c }) => {
+        const created = (await createContact.handler(
+          { phoneNumber: "6589001305" },
+          c,
+        )) as { contactId: string };
+        await changeState.handler(
+          { contactId: created.contactId, action: "open" },
+          c,
+        );
+        const args = {
+          contactId: created.contactId,
+          content: "Hello",
+          scheduledAt: new Date(Date.now() - 1000).toISOString(),
+          scheduledMessageId: crypto.randomUUID(),
+        };
+        await expect(scheduleMessage.handler(args, c)).rejects.toThrow(
+          "30 seconds",
+        );
+        await expect(
+          scheduleMessage.handler(
+            {
+              ...args,
+              scheduledAt: new Date(Date.now() + 366 * 86400000).toISOString(),
+            },
+            c,
+          ),
+        ).rejects.toThrow("one year");
+        await tenantDb
+          .updateTable("contacts")
+          .set({ is_blocked: true })
+          .where("id", "=", created.contactId)
+          .execute();
+        await expect(
+          scheduleMessage.handler(
+            {
+              ...args,
+              scheduledAt: new Date(Date.now() + 3600000).toISOString(),
+            },
+            c,
+          ),
+        ).rejects.toThrow();
+        expect(
+          await tenantDb
+            .selectFrom("scheduled_messages")
+            .select("id")
+            .execute(),
+        ).toHaveLength(0);
+        expect(
+          await tenantDb
+            .selectFrom("contact_assignments")
+            .select("id")
+            .execute(),
+        ).toHaveLength(0);
+      }),
+  );
+});
+
+integrationTest(
+  "scheduling respects tenant isolation and another teammate's assignment",
+  () =>
+    withWorkspace(async (first) => {
+      await withWorkspace(async (second) => {
+        const created = (await createContact.handler(
+          { phoneNumber: "6589001305" },
+          first.c,
+        )) as { contactId: string };
+        await changeState.handler(
+          { contactId: created.contactId, action: "open" },
+          first.c,
+        );
+        const args = {
+          contactId: created.contactId,
+          content: "Hello",
+          scheduledAt: new Date(Date.now() + 3600000).toISOString(),
+          scheduledMessageId: crypto.randomUUID(),
+        };
+        await expect(scheduleMessage.handler(args, second.c)).rejects.toThrow();
+        await first.tenantDb
+          .insertInto("contact_assignments")
+          .values({
+            contact_id: created.contactId,
+            assigned_to: second.userId,
+            assigned_by: first.userId,
+          })
+          .execute();
+        await expect(scheduleMessage.handler(args, first.c)).rejects.toThrow();
+        const restricted = fakeContext({
+          tenantDb: first.tenantDb,
+          companyId: first.companyId,
+          user: first.c.get("user"),
+          companyPermissions: {
+            can_send_messages: true,
+            can_view_all_chats: false,
+          },
+          companyRole: "member",
+          apiToken: first.c.get("apiToken"),
+        });
+        await expect(
+          createContact.handler({ phoneNumber: "6589001305" }, restricted),
+        ).rejects.toThrow("Contact not found");
+        expect(
+          await first.tenantDb
+            .selectFrom("scheduled_messages")
+            .select("id")
+            .execute(),
+        ).toHaveLength(0);
+        expect(
+          await second.tenantDb
+            .selectFrom("scheduled_messages")
+            .select("id")
+            .execute(),
+        ).toHaveLength(0);
+      });
+    }),
+);

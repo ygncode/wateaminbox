@@ -32,3 +32,30 @@ sequenceDiagram
     A->>D: run tool via the same services as the REST routes
     A-->>G: tool result (compact JSON) or isError content
 ```
+
+## Prepare contacts and schedule individual text messages
+
+`create_contact` creates a contact without sending anything or opening a case.
+Pass `phoneNumber`, optional `customName`/`notesShared`, and `connectionId` from
+`list_connections` when multiple accounts are connected. A duplicate on that
+connection is reused without overwriting its profile; hidden contacts are not
+returned. Phone normalization does not verify WhatsApp registration.
+
+Add shared notes with `add_contact_note` and apply tags with `tag_contact`.
+Before the first scheduled message, open the conversation using
+`update_conversation_state` with `action: "open"`. Resolved conversations require
+an explicit `reopen` with a reason, as with normal sends.
+
+`schedule_message` accepts `contactId`, `content`, `scheduledAt` (ISO datetime
+with timezone), and a client-generated UUID `scheduledMessageId`. Confirm the
+recipient, wording and time before scheduling. The time must be 30 seconds to
+one year ahead. Reuse the same UUID and payload after an uncertain response:
+concurrent retries return the same row, and different payloads are rejected.
+An existing matching request returns its current status even after its due time.
+
+This writes a normal individual schedule, with no broadcast job. It requires
+write scope and `can_send_messages`, shares the REST scheduling rate budget,
+and enforces the same blocking, assignment and active-case guards. Dispatch
+runs server-side and rechecks access. The contact's connection determines the
+sender. `send_message` remains immediate. Inspect/cancel pending messages in
+the app's scheduled-message UI; those actions are not added to MCP here.

@@ -64,6 +64,7 @@ import { requireSendAccess } from "../../../services/send-access.service.js";
 import { getActiveSessionId } from "../../../services/whatsapp/session.js";
 import { type McpToolDefinition, McpToolError } from "../tool-context.js";
 import { requireVisibleContact } from "./read.js";
+import { schedulingTools } from "./scheduling.js";
 
 async function createMcpAuditLog(
   c: Context,
@@ -283,6 +284,7 @@ async function queueTextMessage(
 }
 
 export const writeTools: McpToolDefinition[] = [
+  ...schedulingTools,
   {
     name: "send_message",
     description:

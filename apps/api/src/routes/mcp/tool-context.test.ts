@@ -105,6 +105,9 @@ describe("tool registry", () => {
   test("high-impact tools declare the expected permissions", () => {
     const byName = new Map(allTools.map((tool) => [tool.name, tool]));
     expect(byName.get("send_message")?.permission).toBe("can_send_messages");
+    expect(byName.get("schedule_message")?.permission).toBe(
+      "can_send_messages",
+    );
     expect(byName.get("create_broadcast")?.permission).toBe(
       "can_send_bulk_messages",
     );
@@ -162,4 +165,24 @@ describe("tool registry", () => {
       idempotencyKey: "stable-key",
     });
   });
+});
+
+test("individual scheduling requires a retry UUID, text and a timezone", () => {
+  const schema = z.object(
+    writeTools.find((t) => t.name === "schedule_message")!.inputSchema,
+  );
+  const args = {
+    contactId: crypto.randomUUID(),
+    content: "Hello",
+    scheduledAt: "2030-01-01T10:00:00+07:00",
+    scheduledMessageId: crypto.randomUUID(),
+  };
+  expect(schema.safeParse(args).success).toBe(true);
+  expect(
+    schema.safeParse({ ...args, scheduledMessageId: undefined }).success,
+  ).toBe(false);
+  expect(schema.safeParse({ ...args, content: "  " }).success).toBe(false);
+  expect(
+    schema.safeParse({ ...args, scheduledAt: "2030-01-01T10:00:00" }).success,
+  ).toBe(false);
 });
