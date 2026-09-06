@@ -59,3 +59,37 @@ and enforces the same blocking, assignment and active-case guards. Dispatch
 runs server-side and rechecks access. The contact's connection determines the
 sender. `send_message` remains immediate. Inspect/cancel pending messages in
 the app's scheduled-message UI; those actions are not added to MCP here.
+
+## Workspace SLA, quick replies, and first-contact replies
+
+MCP server version `1.3.0` adds the following tools. All workspace IDs come from
+the authenticated token; callers cannot select another tenant.
+
+| Tools | Scope | Access / behavior |
+|-------|-------|-------------------|
+| `get_sla_policy`, `list_sla_policy_history` | read | Any workspace member; current policy and immutable history |
+| `update_sla_policy` | write | Live owner/admin role required; creates a new policy version |
+| `list_quick_replies`, `get_quick_reply` | read | Shared templates, full content; list supports search, limit (max 50), offset |
+| `create_quick_reply`, `update_quick_reply`, `delete_quick_reply` | write | Same member access and tenant isolation as the app |
+| `get_auto_reply_settings` | read | Current first-contact reply rule |
+| `update_auto_reply_settings` | write | Same member access as the app; replaces the rule |
+
+Read the current SLA before updating it. Supply `targetMinutes`,
+`directResolutionTargetMinutes`, `groupResponseTargetMinutes`,
+`groupResolutionTargetMinutes`, `timezone`, `weeklySchedule`, and `exceptions`
+using the REST policy shape. Existing cases retain their original policy.
+After an uncertain result, inspect history before retrying: each save creates
+another immutable version.
+
+Quick replies have `shortcut`, `title`, and `content`; edits and deletes use
+`quickReplyId`. Editing content also updates scheduled automatic replies using
+that template. Deleting the active template disables its rule and cancels its
+pending automatic replies.
+
+Automatic reply updates require `enabled`, nullable `quickReplyId`,
+`delayMinutes` (1–1440), and `sendMode` (`always` or `outside_business_hours`).
+Enabling requires a template and authorizes future outbound messages: confirm
+its wording, delay, and mode first. Outside-hours mode uses the SLA calendar.
+Replies apply once per direct contact, exclude history sync, and skip delivery
+if the team replies during the wait. Saving the rule cancels pending automatic
+replies; future first contacts use the new configuration.

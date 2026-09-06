@@ -1,3 +1,4 @@
+import { settingsReadTools } from "./settings.js";
 import { getContactDisplayName } from "@wateaminbox/shared";
 import type { Context } from "hono";
 import { z } from "zod";
@@ -77,6 +78,7 @@ export function fallbackInboundSenderLabel(senderJid: string): string {
 }
 
 export const readTools: McpToolDefinition[] = [
+  ...settingsReadTools,
   {
     name: "search",
     description:

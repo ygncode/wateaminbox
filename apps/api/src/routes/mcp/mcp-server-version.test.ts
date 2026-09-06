@@ -19,6 +19,16 @@ import { writeTools } from "./tools/write.js";
  * tools it describes.
  */
 const TOOLS_AT_THIS_VERSION = [
+  "get_sla_policy",
+  "list_sla_policy_history",
+  "update_sla_policy",
+  "list_quick_replies",
+  "get_quick_reply",
+  "create_quick_reply",
+  "update_quick_reply",
+  "delete_quick_reply",
+  "get_auto_reply_settings",
+  "update_auto_reply_settings",
   "add_contact_note",
   "assign_contact",
   "create_broadcast",
