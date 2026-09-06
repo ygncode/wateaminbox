@@ -1,3 +1,11 @@
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  EMPTY_SELECT_VALUE,
+} from "@/components/ui/select";
 import { AlertTriangle, Download, Loader2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -84,20 +92,28 @@ export function UploadStep({
               "WhatsApp account for imported contacts",
             )}
           </span>
-          <select
-            value={selectedConnectionId ?? ""}
-            onChange={(e) => onSelectConnection(e.target.value)}
-            className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-dark-border bg-white dark:bg-dark-tertiary px-3 py-2 text-sm text-gray-900 dark:text-dark-text-primary focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          <Select
+            value={selectedConnectionId || EMPTY_SELECT_VALUE}
+            onValueChange={(selectedValue) => {
+              const value =
+                selectedValue === EMPTY_SELECT_VALUE ? "" : selectedValue;
+              onSelectConnection(value);
+            }}
           >
-            <option value="" disabled>
-              {t("contacts.chooseAccountEllipsis", "Choose an account…")}
-            </option>
-            {connections.map((connection) => (
-              <option key={connection.id} value={connection.id}>
-                {connectionLabel(connection)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="mt-1 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={EMPTY_SELECT_VALUE} disabled>
+                {t("contacts.chooseAccountEllipsis", "Choose an account…")}
+              </SelectItem>
+              {connections.map((connection) => (
+                <SelectItem key={connection.id} value={connection.id}>
+                  {connectionLabel(connection)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
       )}
 

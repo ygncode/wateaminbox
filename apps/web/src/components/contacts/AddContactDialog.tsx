@@ -1,7 +1,14 @@
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Check, Loader2, UserPlus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -52,6 +59,7 @@ export function AddContactDialog({
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     setValue,
@@ -161,25 +169,43 @@ export function AddContactDialog({
                 <Label htmlFor="connectionId">
                   WhatsApp account <span className="text-red-500">*</span>
                 </Label>
-                <select
-                  id="connectionId"
-                  required
-                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-dark-border dark:bg-dark-elevated"
-                  {...register("connectionId")}
-                >
-                  <option value="">
-                    {t("connections.selectAccount", "Select an account")}
-                  </option>
-                  {activeConnections.map((connection) => (
-                    <option key={connection.id} value={connection.id}>
-                      {formatPhoneLikeText(
-                        connection.name ||
-                          connection.phoneNumber ||
-                          connection.id,
-                      )}
-                    </option>
-                  ))}
-                </select>
+                <Controller
+                  name="connectionId"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value ?? ""}
+                      onValueChange={field.onChange}
+                      name={field.name}
+                      required
+                    >
+                      <SelectTrigger
+                        id="connectionId"
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        aria-invalid={!!errors.connectionId}
+                      >
+                        <SelectValue
+                          placeholder={t(
+                            "connections.selectAccount",
+                            "Select an account",
+                          )}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeConnections.map((connection) => (
+                          <SelectItem key={connection.id} value={connection.id}>
+                            {formatPhoneLikeText(
+                              connection.name ||
+                                connection.phoneNumber ||
+                                connection.id,
+                            )}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </div>
             )}
 

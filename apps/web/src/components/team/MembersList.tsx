@@ -1,3 +1,10 @@
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import type { CompanyMember, MemberPermissions } from "@wateaminbox/shared";
 import { Crown, Settings2, Shield, ShieldCheck, Trash2 } from "lucide-react";
@@ -252,23 +259,33 @@ export function MembersList({
         toolbarActions={
           <label className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
             <span className="hidden sm:inline">{t("team.role", "Role")}</span>
-            <select
+            <Select
               value={roleFilter}
-              onChange={(event) =>
-                onRoleFilterChange(
-                  event.target.value as MembersListProps["roleFilter"],
-                )
-              }
-              className="h-9 rounded-lg border border-[#d7e0da] bg-white px-3 text-sm text-[#263b33] shadow-none dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary"
-              aria-label={t("team.filterByRole", "Filter members by role")}
+              onValueChange={(value) => {
+                onRoleFilterChange(value as MembersListProps["roleFilter"]);
+              }}
             >
-              <option value="all">{t("team.allRoles", "All roles")}</option>
-              <option value="owner">{t("team.owners", "Owners")}</option>
-              <option value="admin">{t("team.admins", "Admins")}</option>
-              <option value="member">
-                {t("team.membersLabel", "Members")}
-              </option>
-            </select>
+              <SelectTrigger
+                aria-label={t("team.filterByRole", "Filter members by role")}
+                className="h-9"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {t("team.allRoles", "All roles")}
+                </SelectItem>
+                <SelectItem value="owner">
+                  {t("team.owners", "Owners")}
+                </SelectItem>
+                <SelectItem value="admin">
+                  {t("team.admins", "Admins")}
+                </SelectItem>
+                <SelectItem value="member">
+                  {t("team.membersLabel", "Members")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </label>
         }
         isLoading={membersQuery.isLoading}

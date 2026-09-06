@@ -1,3 +1,10 @@
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { dayjs, nowMs, type CompanyInvitation } from "@wateaminbox/shared";
 import { Clock, Mail, RefreshCw, X } from "lucide-react";
@@ -251,23 +258,33 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
         toolbarActions={
           <label className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
             <span className="hidden sm:inline">{t("team.role", "Role")}</span>
-            <select
+            <Select
               value={roleFilter}
-              onChange={(event) =>
-                setRoleFilter(event.target.value as "all" | "admin" | "member")
-              }
-              className="h-9 rounded-lg border border-[#d7e0da] bg-white px-3 text-sm text-[#263b33] shadow-none dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary"
-              aria-label={t(
-                "team.filterInvitationsByRole",
-                "Filter invitations by role",
-              )}
+              onValueChange={(value) => {
+                setRoleFilter(value as "all" | "admin" | "member");
+              }}
             >
-              <option value="all">{t("team.allRoles", "All roles")}</option>
-              <option value="admin">{t("team.admins", "Admins")}</option>
-              <option value="member">
-                {t("team.membersLabel", "Members")}
-              </option>
-            </select>
+              <SelectTrigger
+                aria-label={t(
+                  "team.filterInvitationsByRole",
+                  "Filter invitations by role",
+                )}
+                className="h-9"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {t("team.allRoles", "All roles")}
+                </SelectItem>
+                <SelectItem value="admin">
+                  {t("team.admins", "Admins")}
+                </SelectItem>
+                <SelectItem value="member">
+                  {t("team.membersLabel", "Members")}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </label>
         }
         isLoading={invitationsQuery.isLoading}

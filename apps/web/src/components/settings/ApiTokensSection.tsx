@@ -1,3 +1,10 @@
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { Check, Copy, KeyRound, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -473,18 +480,23 @@ export function ApiTokensSection() {
             <Label htmlFor="api-token-expiry">
               {t("apiTokens.expiryLabel", "Expires")}
             </Label>
-            <select
-              id="api-token-expiry"
-              className="block h-9 w-40 rounded-md border border-input bg-background px-3 text-sm"
+            <Select
               value={expiryDays}
-              onChange={(event) => setExpiryDays(event.target.value)}
+              onValueChange={(value) => {
+                setExpiryDays(value);
+              }}
             >
-              {EXPIRY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {t(option.labelKey, option.label)}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="api-token-expiry" className="h-9 w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EXPIRY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {t(option.labelKey, option.label)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <Button onClick={handleCreate} disabled={isCreating}>
             <KeyRound className="mr-2 h-4 w-4" />

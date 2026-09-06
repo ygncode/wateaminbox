@@ -215,7 +215,7 @@ export const ChatList = memo(function ChatList({
           </span>
           <Select value={connectionFilter} onValueChange={setConnectionFilter}>
             <SelectTrigger
-              className="ml-auto h-8 min-w-0 max-w-[190px] border-0 bg-gray-100 px-2.5 text-xs shadow-none focus:ring-1 focus:ring-whatsapp-green dark:bg-dark-tertiary"
+              className="ml-auto h-8 min-w-0 max-w-[190px] text-xs"
               aria-label={t(
                 "chat.filterByAccount",
                 "Filter by WhatsApp account",

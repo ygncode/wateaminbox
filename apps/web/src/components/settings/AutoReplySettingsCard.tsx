@@ -152,10 +152,7 @@ export function AutoReplySettingsCard() {
               onValueChange={setQuickReplyId}
               disabled={repliesLoading || quickReplies.length === 0}
             >
-              <SelectTrigger
-                id="auto-reply-template"
-                className="h-11 rounded-xl"
-              >
+              <SelectTrigger id="auto-reply-template" className="h-11">
                 <SelectValue
                   placeholder={
                     repliesLoading

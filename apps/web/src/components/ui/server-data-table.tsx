@@ -1,4 +1,11 @@
 import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
   type ColumnDef,
   flexRender,
   getCoreRowModel,
@@ -361,23 +368,29 @@ export function ServerDataTable<TData>({
           <span className="text-[#c1cbc5] dark:text-dark-border">•</span>
           <label className="flex items-center gap-1.5">
             Rows
-            <select
-              value={pagination.pageSize}
-              onChange={(event) =>
+            <Select
+              value={String(pagination.pageSize)}
+              onValueChange={(value) => {
                 onPaginationChange({
                   pageIndex: 0,
-                  pageSize: Number(event.target.value),
-                })
-              }
-              className="h-7 rounded-md border border-[#d7e0da] bg-white px-1.5 text-xs text-[#263b33] dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary"
-              aria-label={t("table.rowsPerPage", "Rows per page")}
+                  pageSize: Number(value),
+                });
+              }}
             >
-              {pageSizeOptions.map((pageSize) => (
-                <option key={pageSize} value={pageSize}>
-                  {pageSize}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                aria-label={t("table.rowsPerPage", "Rows per page")}
+                className="h-7"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {pageSizeOptions.map((pageSize) => (
+                  <SelectItem key={pageSize} value={String(pageSize)}>
+                    {pageSize}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
         </div>
 

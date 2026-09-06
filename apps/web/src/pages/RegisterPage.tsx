@@ -1,3 +1,11 @@
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  EMPTY_SELECT_VALUE,
+} from "@/components/ui/select";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ArrowRight,
@@ -359,25 +367,30 @@ export function RegisterPage() {
                     {t("auth.optional", "(optional)")}
                   </span>
                 </label>
-                <select
-                  id="discovery-source"
-                  value={discoverySource}
-                  onChange={(event) => {
-                    setDiscoverySource(event.target.value);
+                <Select
+                  value={discoverySource || EMPTY_SELECT_VALUE}
+                  onValueChange={(selectedValue) => {
+                    const value =
+                      selectedValue === EMPTY_SELECT_VALUE ? "" : selectedValue;
+                    setDiscoverySource(value);
                     setDiscoveryOther("");
                   }}
                   disabled={isLoading}
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] disabled:opacity-50 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary"
                 >
-                  <option value="">
-                    {t("auth.discoverySourcePlaceholder", "Select an option")}
-                  </option>
-                  {discoverySources.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id="discovery-source" className="h-11 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={EMPTY_SELECT_VALUE}>
+                      {t("auth.discoverySourcePlaceholder", "Select an option")}
+                    </SelectItem>
+                    {discoverySources.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               {discoverySource === "other" && (
                 <div>
