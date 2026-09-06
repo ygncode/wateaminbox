@@ -122,11 +122,11 @@ describe("WhatsApp mention display names", () => {
 test("group mentions render as escaped text, never email or external links", () => {
   for (const groupMentions of [
     [],
-    [{ jid: "120363401436917596@g.us", subject: "<script>Bad</script>" }],
+    [{ jid: "120363000000000001@g.us", subject: "<script>Bad</script>" }],
   ]) {
     const html = renderToStaticMarkup(
       createElement(LinkifiedText, {
-        text: "@120363401436917596@g.us to RSVP ^^",
+        text: "@120363000000000001@g.us to RSVP ^^",
         isOwn: false,
         groupMentions,
       }),

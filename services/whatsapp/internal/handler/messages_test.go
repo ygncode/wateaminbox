@@ -310,7 +310,7 @@ func TestNewMessageEventPreservesFromMe(t *testing.T) {
 func TestNewMessageEventPreservesGroupProtocolSenderJID(t *testing.T) {
 	protocolSender := mustParseJID(t, "48954691608613:8@lid")
 	preferredSender := mustParseJID(t, "84855316944@s.whatsapp.net")
-	group := mustParseJID(t, "120363401436917596@g.us")
+	group := mustParseJID(t, "120363000000000001@g.us")
 	msg := &events.Message{Info: types.MessageInfo{MessageSource: types.MessageSource{
 		Sender:  protocolSender,
 		Chat:    group,
@@ -329,7 +329,7 @@ func TestNewMessageEventPreservesGroupProtocolSenderJID(t *testing.T) {
 
 func TestGetGroupMentionsPreservesGroupSubjectForTextAndCaptions(t *testing.T) {
 	contextInfo := &waE2E.ContextInfo{GroupMentions: []*waE2E.GroupMention{
-		{GroupJID: proto.String("120363401436917596@g.us"), GroupSubject: proto.String("AI Playground")},
+		{GroupJID: proto.String("120363000000000001@g.us"), GroupSubject: proto.String("AI Playground")},
 		{GroupJID: proto.String("12345@s.whatsapp.net"), GroupSubject: proto.String("Person")},
 	}}
 	for _, message := range []*waE2E.Message{
@@ -337,7 +337,7 @@ func TestGetGroupMentionsPreservesGroupSubjectForTextAndCaptions(t *testing.T) {
 		{ImageMessage: &waE2E.ImageMessage{ContextInfo: contextInfo}},
 	} {
 		mentions := getGroupMentions(message)
-		if len(mentions) != 1 || mentions[0].JID != "120363401436917596@g.us" || mentions[0].Subject != "AI Playground" {
+		if len(mentions) != 1 || mentions[0].JID != "120363000000000001@g.us" || mentions[0].Subject != "AI Playground" {
 			t.Fatalf("unexpected mentions: %+v", mentions)
 		}
 	}

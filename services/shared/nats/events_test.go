@@ -243,7 +243,7 @@ func TestMessagePayloadSerialization(t *testing.T) {
 		GroupID:           "group-456",
 		SenderName:        "John Doe",
 		ProtocolSenderJID: "48954691608613@lid",
-		GroupMentions:     []GroupMention{{JID: "120363401436917596@g.us", Subject: "AI Playground"}},
+		GroupMentions:     []GroupMention{{JID: "120363000000000001@g.us", Subject: "AI Playground"}},
 		Caption:           "Photo caption",
 		FileName:          "document.pdf",
 		MediaType:         "image/jpeg",
