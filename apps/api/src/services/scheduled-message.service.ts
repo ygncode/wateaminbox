@@ -45,6 +45,8 @@ import {
   ContactBlockedError,
   requireSendAccess,
 } from "./send-access.service.js";
+import { isWithinBusinessHours } from "./sla-policy/calendar.js";
+import { getCurrentSlaPolicy } from "./sla-policy/policy.service.js";
 import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 import { getUserAvatarSources, getUserNames } from "./user.service.js";
 import { getActiveSessionId } from "./whatsapp/session.js";
@@ -337,7 +339,7 @@ async function sendScheduledMessage(
       const [setting, trigger] = await Promise.all([
         trx
           .selectFrom("auto_reply_settings")
-          .select(["enabled", "quick_reply_id"])
+          .select(["enabled", "quick_reply_id", "send_mode"])
           .where("id", "=", 1)
           .executeTakeFirst(),
         trx
@@ -362,11 +364,30 @@ async function sendScheduledMessage(
             .select("id")
             .where("contact_id", "=", row.contact_id)
             .where("id", "!=", row.auto_reply_trigger_message_id)
-            .where("timestamp", "<=", trigger.timestamp)
+            // WhatsApp timestamps have second precision. A follow-up in
+            // the same second is not evidence of an earlier conversation.
+            .where((eb) =>
+              eb.or([
+                eb("timestamp", "<", trigger.timestamp),
+                eb.and([
+                  eb("timestamp", "=", trigger.timestamp),
+                  eb("created_at", "<", trigger.created_at),
+                ]),
+              ]),
+            )
             .limit(1)
             .executeTakeFirst()
         : true;
       caseId = await resolveActiveCaseIdForContact(trx, row.contact_id);
+      // The delay (or a retry) can cross into business hours, and the
+      // workspace calendar may have changed since this reply was queued.
+      const withinBusinessHours =
+        setting?.send_mode === "outside_business_hours"
+          ? isWithinBusinessHours(
+              await getCurrentSlaPolicy(companyId),
+              toDbDate(),
+            )
+          : false;
       const eligible =
         lockedContact &&
         !lockedContact.is_blocked &&
@@ -374,7 +395,8 @@ async function sendScheduledMessage(
         setting?.enabled &&
         setting.quick_reply_id === row.auto_reply_quick_reply_id &&
         !answered &&
-        !priorContactHistory;
+        !priorContactHistory &&
+        !withinBusinessHours;
       if (!eligible) {
         await trx
           .updateTable("scheduled_messages")

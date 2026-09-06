@@ -669,3 +669,160 @@ describe("scheduled message dispatcher integration", () => {
     30_000,
   );
 });
+
+describe("first-contact auto-reply dispatch regression", () => {
+  const scenarios = [
+    {
+      name: "allows a follow-up in the trigger's second",
+      history: "followup",
+      mode: "always",
+      open: true,
+      sends: true,
+    },
+    {
+      name: "rejects older history imported after queueing",
+      history: "older",
+      mode: "always",
+      open: true,
+      sends: false,
+    },
+    {
+      name: "rejects same-second history persisted before the trigger",
+      history: "prior",
+      mode: "always",
+      open: true,
+      sends: false,
+    },
+    {
+      name: "cancels an after-hours reply when business hours have started",
+      history: "none",
+      mode: "outside_business_hours",
+      open: true,
+      sends: false,
+    },
+    {
+      name: "sends an after-hours reply while the office is closed",
+      history: "none",
+      mode: "outside_business_hours",
+      open: false,
+      sends: true,
+    },
+  ] as const;
+
+  for (const scenario of scenarios) {
+    integrationTest(
+      scenario.name,
+      async () => {
+        const companyId = crypto.randomUUID();
+        try {
+          await createTenantSchema(companyId);
+          const tenantDb = getTenantConnection(companyId);
+          const seeded = await seedConversation(tenantDb, companyId);
+          const trigger = await tenantDb
+            .selectFrom("messages")
+            .select("id")
+            .where("contact_id", "=", seeded.contactId)
+            .executeTakeFirstOrThrow();
+          const timestamp = new Date("2026-03-02T08:59:00Z");
+          const createdAt = new Date("2026-03-02T08:59:00.100Z");
+          await tenantDb
+            .updateTable("messages")
+            .set({ timestamp, created_at: createdAt })
+            .where("id", "=", trigger.id)
+            .execute();
+          if (scenario.history !== "none") {
+            await tenantDb
+              .insertInto("messages")
+              .values({
+                contact_id: seeded.contactId,
+                message_id: crypto.randomUUID(),
+                from_me: false,
+                message_type: "text",
+                content: "Another inbound",
+                timestamp:
+                  scenario.history === "older"
+                    ? new Date(timestamp.getTime() - 1000)
+                    : timestamp,
+                created_at: new Date(
+                  createdAt.getTime() +
+                    (scenario.history === "prior" ? -50 : 50),
+                ),
+              })
+              .execute();
+          }
+          const reply = await tenantDb
+            .insertInto("quick_replies")
+            .values({
+              title: "Welcome",
+              shortcut: "welcome",
+              content: "Welcome!",
+              created_by: seeded.userId,
+            })
+            .returning("id")
+            .executeTakeFirstOrThrow();
+          await tenantDb
+            .insertInto("auto_reply_settings")
+            .values({
+              id: 1,
+              enabled: true,
+              quick_reply_id: reply.id,
+              send_mode: scenario.mode,
+              delay_minutes: 5,
+              updated_by: seeded.userId,
+            })
+            .execute();
+          // The queued rule was evaluated earlier. Dispatch must use the live
+          // calendar, regardless of the calendar/time when it was queued.
+          await db
+            .updateTable("sla_policies")
+            .set({
+              weekly_schedule: JSON.stringify(
+                DEFAULT_SLA_WEEKLY_SCHEDULE.map((day) => ({
+                  ...day,
+                  open: scenario.open,
+                })),
+              ),
+            })
+            .where("company_id", "=", companyId)
+            .execute();
+          const scheduledId = await insertScheduled(tenantDb, seeded);
+          await tenantDb
+            .updateTable("scheduled_messages")
+            .set({
+              auto_reply_trigger_message_id: trigger.id,
+              auto_reply_quick_reply_id: reply.id,
+            })
+            .where("id", "=", scheduledId)
+            .execute();
+
+          expect(await dispatchCompanyScheduledMessages(companyId)).toBe(
+            scenario.sends ? 1 : 0,
+          );
+          const result = await tenantDb
+            .selectFrom("scheduled_messages")
+            .select(["status", "sent_message_id"])
+            .where("id", "=", scheduledId)
+            .executeTakeFirstOrThrow();
+          expect(result.status).toBe(scenario.sends ? "sent" : "canceled");
+          expect(Boolean(result.sent_message_id)).toBe(scenario.sends);
+          const commands = await tenantDb
+            .selectFrom("nats_outbox")
+            .select("id")
+            .execute();
+          expect(commands).toHaveLength(scenario.sends ? 1 : 0);
+        } finally {
+          await dropTenantSchema(companyId);
+          await db
+            .deleteFrom("sla_policies")
+            .where("company_id", "=", companyId)
+            .execute();
+          await db
+            .deleteFrom("companies")
+            .where("id", "=", companyId)
+            .execute();
+        }
+      },
+      30_000,
+    );
+  }
+});
