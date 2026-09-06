@@ -1,4 +1,12 @@
 import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  EMPTY_SELECT_VALUE,
+} from "@/components/ui/select";
+import {
   Bell,
   Building2,
   CircleAlert,
@@ -292,26 +300,26 @@ export function SettingsPage() {
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#0b7a55]">
               {t("settings.title", "Settings")}
             </p>
-            <select
+            <Select
               value={current.id}
-              onChange={(event) => {
-                navigate(
-                  workspacePath(
-                    activeWorkspace.id,
-                    "settings",
-                    event.target.value,
-                  ),
-                );
+              onValueChange={(value) => {
+                navigate(workspacePath(activeWorkspace.id, "settings", value));
               }}
-              className="mt-3 h-11 w-full rounded-xl border border-[#dce3de] bg-white px-3 font-medium dark:border-dark-border dark:bg-dark-elevated"
-              aria-label={t("settings.sectionSelect", "Settings section")}
             >
-              {visibleSections.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {t(item.labelKey, item.label)}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger
+                aria-label={t("settings.sectionSelect", "Settings section")}
+                className="mt-3 h-11 w-full"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {visibleSections.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {t(item.labelKey, item.label)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <header className="mb-7 border-b border-[#dce3de] pb-5 dark:border-dark-border">
             <p className="text-xs font-semibold text-[#0b7a55]">
@@ -863,22 +871,30 @@ function GeneralSettings() {
           </DialogHeader>
           <label className="text-sm font-medium">
             {t("settings.newOwner", "New owner")}
-            <select
-              value={transferTarget}
-              onChange={(event) => setTransferTarget(event.target.value)}
-              className="mt-2 h-10 w-full rounded-lg border border-[#dce3de] bg-white px-3 dark:border-dark-border dark:bg-dark-tertiary"
+            <Select
+              value={transferTarget || EMPTY_SELECT_VALUE}
+              onValueChange={(selectedValue) => {
+                const value =
+                  selectedValue === EMPTY_SELECT_VALUE ? "" : selectedValue;
+                setTransferTarget(value);
+              }}
             >
-              <option value="">
-                {t("settings.selectMember", "Select a member")}
-              </option>
-              {members.data?.data
-                ?.filter((member) => member.userId !== user?.id)
-                .map((member) => (
-                  <option key={member.userId} value={member.userId}>
-                    {member.name || member.email} · {member.role}
-                  </option>
-                ))}
-            </select>
+              <SelectTrigger className="mt-2 h-10 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={EMPTY_SELECT_VALUE}>
+                  {t("settings.selectMember", "Select a member")}
+                </SelectItem>
+                {members.data?.data
+                  ?.filter((member) => member.userId !== user?.id)
+                  .map((member) => (
+                    <SelectItem key={member.userId} value={member.userId}>
+                      {member.name || member.email} · {member.role}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </label>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTransferOpen(false)}>

@@ -1,3 +1,11 @@
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+  EMPTY_SELECT_VALUE,
+} from "@/components/ui/select";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import { dayjs } from "@wateaminbox/shared";
 import {
@@ -399,13 +407,13 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                     value={actorFilter}
                     onChange={(value) => setFilter("actor", value)}
                   >
-                    <option value="">
+                    <SelectItem value={EMPTY_SELECT_VALUE}>
                       {t("audit.allActors", "All actors")}
-                    </option>
+                    </SelectItem>
                     {actors?.map((actor) => (
-                      <option key={actor.id} value={actor.id}>
+                      <SelectItem key={actor.id} value={actor.id}>
                         {actor.name || actor.email}
-                      </option>
+                      </SelectItem>
                     ))}
                   </FilterSelect>
                   <FilterSelect
@@ -413,13 +421,13 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                     value={actionFilter}
                     onChange={(value) => setFilter("action", value)}
                   >
-                    <option value="">
+                    <SelectItem value={EMPTY_SELECT_VALUE}>
                       {t("audit.allActions", "All actions")}
-                    </option>
+                    </SelectItem>
                     {actions?.map((action) => (
-                      <option key={action.value} value={action.value}>
+                      <SelectItem key={action.value} value={action.value}>
                         {action.label}
-                      </option>
+                      </SelectItem>
                     ))}
                   </FilterSelect>
                   <FilterSelect
@@ -427,13 +435,13 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                     value={entityFilter}
                     onChange={(value) => setFilter("entity", value)}
                   >
-                    <option value="">
+                    <SelectItem value={EMPTY_SELECT_VALUE}>
                       {t("audit.allEntities", "All entities")}
-                    </option>
+                    </SelectItem>
                     {entityTypes.map((entity) => (
-                      <option key={entity} value={entity}>
+                      <SelectItem key={entity} value={entity}>
                         {titleCase(entity)}
-                      </option>
+                      </SelectItem>
                     ))}
                   </FilterSelect>
                   <label className="text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
@@ -509,13 +517,19 @@ function FilterSelect({
   return (
     <label className="text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
       {label}
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-1 h-9 w-full rounded-lg border border-[#dce3de] bg-white px-2 text-sm text-[#10211b] dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-primary"
+      <Select
+        value={value || EMPTY_SELECT_VALUE}
+        onValueChange={(selectedValue) => {
+          const value =
+            selectedValue === EMPTY_SELECT_VALUE ? "" : selectedValue;
+          onChange(value);
+        }}
       >
-        {children}
-      </select>
+        <SelectTrigger className="mt-1 h-9 w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>{children}</SelectContent>
+      </Select>
     </label>
   );
 }

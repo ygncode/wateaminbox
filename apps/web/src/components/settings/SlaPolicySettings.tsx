@@ -1,4 +1,11 @@
 import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
   SLA_RESOLUTION_TARGET_MINUTES_MAX,
   SLA_RESOLUTION_TARGET_MINUTES_MIN,
   SLA_TARGET_MINUTES_MAX,
@@ -729,17 +736,23 @@ export function SlaPolicySettings() {
 
           <label className="block text-sm font-medium">
             {t("sla.timezone", "Timezone")}
-            <select
+            <Select
               value={timezone}
-              onChange={(event) => setTimezone(event.target.value)}
-              className="mt-2 h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm dark:border-dark-border dark:bg-dark-tertiary sm:w-1/2"
+              onValueChange={(value) => {
+                setTimezone(value);
+              }}
             >
-              {listTimeZones().map((tz) => (
-                <option key={tz} value={tz}>
-                  {tz}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="mt-2 h-9 w-full sm:w-1/2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {listTimeZones().map((tz) => (
+                  <SelectItem key={tz} value={tz}>
+                    {tz}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
 
           <div>

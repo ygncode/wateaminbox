@@ -107,7 +107,7 @@ export function WhatsAppAccountScope({
       ) : connections.length > 0 ? (
         <Select value={connectionId} onValueChange={onConnectionChange}>
           <SelectTrigger
-            className="h-10 min-w-0 w-full bg-white shadow-sm transition-all focus:border-whatsapp-green focus:ring-1 focus:ring-whatsapp-green focus:ring-offset-0 dark:bg-white/[0.05] dark:focus:border-whatsapp-green dark:focus:ring-whatsapp-green sm:w-64 [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1 [&>span:first-child]:overflow-hidden [&>span:first-child]:text-left"
+            className="w-full sm:w-64"
             aria-label={t("connections.whatsappAccount", "WhatsApp account")}
           >
             <SelectValue

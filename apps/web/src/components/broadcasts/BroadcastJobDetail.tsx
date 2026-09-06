@@ -794,7 +794,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
               onValueChange={(value) => setFilterParam("status", value)}
             >
               <SelectTrigger
-                className="h-8 w-40 border-[#d7e0da] bg-white text-xs shadow-none dark:border-dark-border dark:bg-dark-elevated"
+                className="h-8 w-40 text-xs"
                 aria-label={t(
                   "broadcasts.filterRecipients",
                   "Filter recipients by status",

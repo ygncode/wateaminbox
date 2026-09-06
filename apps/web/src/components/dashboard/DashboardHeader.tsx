@@ -1,3 +1,10 @@
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { Archive, BarChart3, ChevronDown, Download } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -82,23 +89,29 @@ export function DashboardHeader({
               </button>
             ))}
           </div>
-          <select
+          <Select
             value={dateRange}
-            onChange={(event) =>
-              onDateRangeChange(event.target.value as DateRange)
-            }
-            className="h-9 min-w-0 flex-1 rounded-lg border border-[#d7e0da] bg-white px-3 text-sm text-[#10211b] dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-primary sm:hidden"
-            aria-label={t("dashboard.dateRangeAria", "Dashboard date range")}
+            onValueChange={(value) => {
+              onDateRangeChange(value as DateRange);
+            }}
           >
-            {ranges.map((range) => (
-              <option key={range.id} value={range.id}>
-                {t("dashboard.lastRange", {
-                  defaultValue: "Last {{range}}",
-                  range: t(range.labelKey, range.label),
-                })}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger
+              aria-label={t("dashboard.dateRangeAria", "Dashboard date range")}
+              className="h-9 min-w-0 flex-1 sm:hidden"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ranges.map((range) => (
+                <SelectItem key={range.id} value={range.id}>
+                  {t("dashboard.lastRange", {
+                    defaultValue: "Last {{range}}",
+                    range: t(range.labelKey, range.label),
+                  })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {canExport && (
             <Popover open={exportMenuOpen} onOpenChange={setExportMenuOpen}>
               <PopoverTrigger asChild>
