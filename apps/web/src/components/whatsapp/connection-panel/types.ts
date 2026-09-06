@@ -21,6 +21,7 @@ export interface SingleConnectionPanelProps {
 }
 
 export interface GlobalErrorBannerProps {
+  billingUrl: string | null;
   error: string;
   onDismiss: () => void;
 }
