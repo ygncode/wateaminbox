@@ -174,19 +174,20 @@ type ConnectionPayload struct {
 
 // MessagePayload is the payload for message events (matches API MessageEvent.payload).
 type MessagePayload struct {
-	MessageID       string `json:"messageId"`
-	From            string `json:"from"`
-	To              string `json:"to"`
-	FromMe          bool   `json:"fromMe"`
-	Content         string `json:"content"`
-	MessageType     string `json:"messageType"`
-	Status          string `json:"status,omitempty"`
-	Timestamp       string `json:"timestamp"`
-	MediaURL        string `json:"mediaUrl,omitempty"`
-	QuotedMessageID string `json:"quotedMessageId,omitempty"`
-	IsGroup         bool   `json:"isGroup,omitempty"`
-	GroupID         string `json:"groupId,omitempty"`
-	SenderName      string `json:"senderName,omitempty"`
+	MessageID       string         `json:"messageId"`
+	From            string         `json:"from"`
+	To              string         `json:"to"`
+	FromMe          bool           `json:"fromMe"`
+	Content         string         `json:"content"`
+	MessageType     string         `json:"messageType"`
+	Status          string         `json:"status,omitempty"`
+	Timestamp       string         `json:"timestamp"`
+	MediaURL        string         `json:"mediaUrl,omitempty"`
+	QuotedMessageID string         `json:"quotedMessageId,omitempty"`
+	IsGroup         bool           `json:"isGroup,omitempty"`
+	GroupID         string         `json:"groupId,omitempty"`
+	SenderName      string         `json:"senderName,omitempty"`
+	GroupMentions   []GroupMention `json:"groupMentions,omitempty"`
 	// ProtocolSenderJID preserves the participant identity used in WhatsApp's
 	// message key (often a LID in modern groups), while From remains the
 	// user-facing phone-number identity when one is available.
@@ -487,6 +488,12 @@ type ConnectionStatusEvent struct {
 	Timestamp    time.Time `json:"timestamp"`
 }
 
+// GroupMention preserves the address and subject carried by WhatsApp context info.
+type GroupMention struct {
+	JID     string `json:"jid"`
+	Subject string `json:"subject"`
+}
+
 // MessageEvent represents an incoming WhatsApp message (internal use).
 type MessageEvent struct {
 	MessageID         string               `json:"message_id"`
@@ -508,6 +515,7 @@ type MessageEvent struct {
 	IsGroup           bool                 `json:"is_group"`
 	GroupID           string               `json:"group_id,omitempty"`
 	SenderName        string               `json:"sender_name,omitempty"`
+	GroupMentions     []GroupMention       `json:"group_mentions,omitempty"`
 	ProtocolSenderJID string               `json:"protocol_sender_jid,omitempty"`
 	QuotedMessageID   string               `json:"quoted_message_id,omitempty"`
 	Timestamp         time.Time            `json:"timestamp"`

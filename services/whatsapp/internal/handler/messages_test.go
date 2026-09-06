@@ -326,3 +326,22 @@ func TestNewMessageEventPreservesGroupProtocolSenderJID(t *testing.T) {
 		t.Fatalf("expected protocol sender LID, got %s", event.ProtocolSenderJID)
 	}
 }
+
+func TestGetGroupMentionsPreservesGroupSubjectForTextAndCaptions(t *testing.T) {
+	contextInfo := &waE2E.ContextInfo{GroupMentions: []*waE2E.GroupMention{
+		{GroupJID: proto.String("120363401436917596@g.us"), GroupSubject: proto.String("AI Playground")},
+		{GroupJID: proto.String("12345@s.whatsapp.net"), GroupSubject: proto.String("Person")},
+	}}
+	for _, message := range []*waE2E.Message{
+		{ExtendedTextMessage: &waE2E.ExtendedTextMessage{ContextInfo: contextInfo}},
+		{ImageMessage: &waE2E.ImageMessage{ContextInfo: contextInfo}},
+	} {
+		mentions := getGroupMentions(message)
+		if len(mentions) != 1 || mentions[0].JID != "120363401436917596@g.us" || mentions[0].Subject != "AI Playground" {
+			t.Fatalf("unexpected mentions: %+v", mentions)
+		}
+	}
+	if len(getGroupMentions(nil)) != 0 {
+		t.Fatal("nil message has mentions")
+	}
+}

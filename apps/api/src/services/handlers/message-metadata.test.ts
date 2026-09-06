@@ -51,3 +51,20 @@ describe("buildIncomingMessageMetadata", () => {
     ).toEqual({ mediaAlbumId: "album-parent" });
   });
 });
+
+test("preserves group mention subjects and rejects non-group addresses", () => {
+  expect(
+    buildIncomingMessageMetadata(
+      payload({
+        groupMentions: [
+          { jid: "120363401436917596@g.us", subject: "AI Playground" },
+          { jid: "12345@s.whatsapp.net", subject: "Person" },
+        ],
+      }),
+    ),
+  ).toEqual({
+    groupMentions: [
+      { jid: "120363401436917596@g.us", subject: "AI Playground" },
+    ],
+  });
+});

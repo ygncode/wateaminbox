@@ -71,6 +71,7 @@ export function MessageContent({
         text={message.content}
         isOwn={isOwn}
         mentionParticipants={mentionParticipants}
+        groupMentions={message.metadata?.groupMentions}
       />
     ),
     image: () => {
@@ -143,6 +144,7 @@ export function MessageContent({
               isOwn={isOwn}
               className="mt-1"
               mentionParticipants={mentionParticipants}
+              groupMentions={message.metadata?.groupMentions}
             />
           )}
         </div>
@@ -229,6 +231,7 @@ export function MessageContent({
               isOwn={isOwn}
               className="mt-1"
               mentionParticipants={mentionParticipants}
+              groupMentions={message.metadata?.groupMentions}
             />
           )}
         </div>
@@ -303,6 +306,7 @@ export function MessageContent({
               isOwn={isOwn}
               className="mt-1"
               mentionParticipants={mentionParticipants}
+              groupMentions={message.metadata?.groupMentions}
             />
           )}
         </div>
@@ -484,7 +488,11 @@ export function MessageContent({
         <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-1">
           {t("chat.templateMessage", "Template Message")}
         </p>
-        <LinkifiedText text={message.content} isOwn={isOwn} />
+        <LinkifiedText
+          text={message.content}
+          isOwn={isOwn}
+          groupMentions={message.metadata?.groupMentions}
+        />
       </div>
     ),
     contact: () => <ContactCardMessage message={message} isOwn={isOwn} />,
@@ -500,7 +508,11 @@ export function MessageContent({
 
   return (
     contentRenderer[message.messageType]?.() || (
-      <LinkifiedText text={message.content} isOwn={isOwn} />
+      <LinkifiedText
+        text={message.content}
+        isOwn={isOwn}
+        groupMentions={message.metadata?.groupMentions}
+      />
     )
   );
 }
