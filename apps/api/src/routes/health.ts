@@ -20,6 +20,7 @@ import {
   getCommandOutboxHealth,
 } from "../services/command-outbox.service.js";
 import { getMessageCleanupStatus } from "../services/message-cleanup.service.js";
+import { getMessageSearchHealth } from "../services/message-search-outbox.service.js";
 import { getScheduledMessageHealth } from "../services/scheduled-message.service.js";
 
 export const healthRoutes = new Hono();
@@ -69,6 +70,7 @@ healthRoutes.get("/ready", async (c) => {
     nats: natsState.nats.connected,
     eventConsumer: natsState.eventConsumer.active,
     outbox: getCommandOutboxHealth(),
+    messageSearch: getMessageSearchHealth(),
     outboxBacklog: { pending: 0, oldestPendingAt: null as Date | null },
     scheduledMessages: getScheduledMessageHealth(),
     centrifugo: {

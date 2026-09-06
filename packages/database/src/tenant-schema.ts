@@ -1,6 +1,7 @@
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import type { TenantDatabase } from "./client";
+import { installOutboxDispatchTrigger } from "./dispatch-schema.js";
 import {
   dropLegacyLabelUniqueIndex,
   formatDuplicateBlockers,
@@ -1133,6 +1134,7 @@ export async function reconcileTenantSchema<Database>(
       ON ${table("nats_outbox")} (status, next_attempt_at, created_at)
     `.execute(db),
   );
+  await installOutboxDispatchTrigger(db, schemaName);
 
   await sql`
     CREATE TABLE IF NOT EXISTS ${table("scheduled_messages")} (

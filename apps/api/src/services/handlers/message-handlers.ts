@@ -8,7 +8,6 @@ import {
   formatPhoneLikeText,
   getContactDisplayName,
   normalizeJid,
-  toDate,
   toDbDate,
 } from "@wateaminbox/shared";
 import { sql } from "kysely";
@@ -39,11 +38,11 @@ import {
   openOrReopenCaseForInboundMessage,
   resolveActiveCaseIdForContact,
 } from "../conversation-case.service.js";
-import { indexMessage, type MessageDocument } from "../meilisearch.service.js";
 import {
   broadcastNewMessageToViewers,
   broadcastToContactViewers,
 } from "../message-broadcast.service.js";
+import { enqueueMessageSearch } from "../message-search-outbox.service.js";
 import { sendPushToUsers } from "../notification-delivery.service.js";
 import { resolveIncomingMessageRecipients } from "../notification-recipient.service.js";
 import { getSchemaName, getTenantConnection } from "../tenant.service.js";
@@ -523,6 +522,12 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           }
         }
 
+        await enqueueMessageSearch(
+          trx,
+          companyId,
+          connection.id,
+          insertResult.id,
+        );
         return { insertResult, caseResult };
       });
 
@@ -536,6 +541,14 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     }
 
     const storedMessageId = insertResult.id;
+    const contactForNotification = await tenantDb
+      .selectFrom("contacts")
+      .select(["push_name", "username", "custom_name", "jid", "is_group"])
+      .where("id", "=", contact.id)
+      .executeTakeFirst();
+    const contactName = contactForNotification
+      ? getContactDisplayName(contactForNotification, "Unknown")
+      : null;
     logger.debug({ messageId: storedMessageId, companyId }, "Stored message");
 
     const profilePictureRequestJid = getProfilePictureRequestJid({
@@ -558,51 +571,6 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         );
       });
     }
-
-    // Index message for search (run in background, don't block message processing)
-    // Get contact name for search indexing
-    const contactForSearch = await tenantDb
-      .selectFrom("contacts")
-      .select(["push_name", "username", "custom_name", "jid", "is_group"])
-      .where("id", "=", contact.id)
-      .executeTakeFirst();
-
-    const contactName = contactForSearch
-      ? getContactDisplayName(contactForSearch, "Unknown")
-      : null;
-
-    // Index in Meilisearch for better search experience
-    const messageDoc: MessageDocument = {
-      id: storedMessageId,
-      companyId,
-      contactId: contact.id,
-      contactName,
-      contactJid: contactForSearch?.jid || contactJid,
-      isGroup: contactForSearch?.is_group || contactJid.includes("@g.us"),
-      messageId: payload.messageId,
-      content: payload.content || null,
-      messageType: payload.messageType || "text",
-      // Unix SECONDS - must match the reindex path (routes/search.ts) and the
-      // second-based filters/parsing in meilisearch.service.ts.
-      timestamp: Math.floor(
-        (toDate(payload.timestamp)?.getTime() || Date.now()) / 1000,
-      ),
-      fromMe: payload.fromMe,
-    };
-
-    // Keep task submission ordered before any purge cleanup. Purge takes an
-    // incompatible lock on this row, so its delete-by-contact task can only be
-    // enqueued after this add task (or this block sees the archived row and
-    // skips indexing entirely).
-    await tenantDb.transaction().execute(async (trx) => {
-      if (!(await lockActiveConnectionForEvent(trx, connection.id))) return;
-      const stillStored = await trx
-        .selectFrom("messages")
-        .select("id")
-        .where("id", "=", storedMessageId)
-        .executeTakeFirst();
-      if (stillStored) await indexMessage(companyId, messageDoc);
-    });
 
     // Skip notifications, unread counts, and broadcasts for history sync messages
     // History sync imports hundreds of old messages - we don't want to flood the notification system

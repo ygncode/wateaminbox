@@ -60,6 +60,7 @@ export interface LoginResponse {
 }
 
 export interface RegisterRequest {
+  discoverySource?: { source: string; other?: string };
   email: string;
   password: string;
   name: string;
