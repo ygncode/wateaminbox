@@ -69,3 +69,30 @@ sequenceDiagram
     S-->>A: summary + per-row results
     A-->>U: 201 {summary, results, connection}
 ```
+
+### First outgoing chat acknowledgment (inbox)
+
+The inbox checks `GET /contacts/:id/first-chat-acknowledgment` when the user
+attempts to send or schedule their first message, including attachments. Opening
+or typing in a chat does not prompt. The response includes `required`, `notice`,
+`noticeVersion`, and `guidanceUrl`. Groups and contacts with existing message
+history (incoming or outgoing) are exempt. A previous acknowledgment applies to
+this contact across teammates and sessions.
+
+When required, the user must check “I understand and will follow these messaging guidelines”
+and confirm before the pending action continues. Cancel or a failed request
+preserves the draft. The web client posts `{ checked: true, noticeVersion }` to
+`POST /contacts/:id/first-chat-acknowledgment`; false/missing acknowledgments and
+outdated notice versions are rejected. Both endpoints enforce tenant and contact
+visibility; POST also requires message-send permission.
+
+Acceptance creates `contact.first_chat_acknowledged` in the tenant's existing
+`audit_logs` table, recording the authenticated user, contact, server timestamp,
+checkbox value, exact notice/version, guidance URL, and client IP. Concurrent
+acceptances serialize under a contact-row lock and create one record. Audit
+failure prevents the inbox from continuing. No migration is required.
+
+This is an inbox acknowledgment, not evidence of recipient consent or an account
+safety guarantee. Direct API/MCP sends, forwards, and bulk automation do not gain
+a new acknowledgment requirement. Saving acceptance and sending the message are
+separate operations: acceptance remains recorded if subsequent delivery fails.
