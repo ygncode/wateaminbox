@@ -132,6 +132,7 @@ export class CloudflareMailDriver implements MailDriver {
         )}/email/sending/send`,
         {
           method: "POST",
+          signal: options.signal,
           headers: {
             Authorization: `Bearer ${this.apiToken.trim()}`,
             "Content-Type": "application/json",
