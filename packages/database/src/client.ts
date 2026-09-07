@@ -252,6 +252,7 @@ export type ProductVisibility = "visible" | "hidden";
  */
 export interface TenantDatabase {
   whatsapp_connections: WhatsAppConnectionsTable;
+  connection_email_alerts: ConnectionEmailAlertsTable;
   whatsapp_connection_sessions: WhatsAppConnectionSessionsTable;
   contacts: ContactsTable;
   tags: TagsTable;
@@ -281,6 +282,17 @@ export interface TenantDatabase {
   bulk_jobs: BulkJobsTable;
   bulk_connection_budgets: BulkConnectionBudgetsTable;
   purge_cleanup_items: PurgeCleanupItemsTable;
+}
+
+export interface ConnectionEmailAlertsTable {
+  id: Generated<string>;
+  connection_id: string;
+  user_id: string;
+  kind: "disconnected" | "logged_out";
+  occurred_at: Generated<Date>;
+  next_attempt_at: Date;
+  attempts: Generated<number>;
+  sent_at: Date | null;
 }
 
 export interface WhatsAppConnectionsTable {

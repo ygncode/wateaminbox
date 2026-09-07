@@ -10,6 +10,10 @@ import {
   shutdownCommandOutbox,
 } from "./services/command-outbox.service.js";
 import {
+  initializeConnectionEmailAlerts,
+  shutdownConnectionEmailAlerts,
+} from "./services/connection-email-alerts.service.js";
+import {
   initializeConnectionPurgeCleanup,
   shutdownConnectionPurgeCleanup,
 } from "./services/connection-purge-cleanup.service.js";
@@ -63,6 +67,7 @@ if (!isTestEnvironment) {
   initializeMessageSearch();
   initializeScheduledMessages();
   initializeConnectionPurgeCleanup();
+  initializeConnectionEmailAlerts();
 
   logger.info(
     { port },
@@ -105,6 +110,7 @@ function shutdownSteps(): ShutdownStep[] {
         await httpServer?.stop(false);
       },
     },
+    { name: "connection-email-alerts", run: shutdownConnectionEmailAlerts },
     { name: "message-cleanup", run: shutdownMessageCleanup },
     { name: "connection-purge-cleanup", run: shutdownConnectionPurgeCleanup },
     { name: "command-outbox", run: shutdownCommandOutbox },

@@ -38,6 +38,7 @@ export class ResendMailDriver implements MailDriver {
     try {
       const response = await this.fetchImpl("https://api.resend.com/emails", {
         method: "POST",
+        signal: options.signal,
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",

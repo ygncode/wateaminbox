@@ -3,6 +3,8 @@ export interface EmailOptions {
   subject: string;
   html: string;
   text?: string;
+  /** Optional caller deadline for background deliveries. */
+  signal?: AbortSignal;
 }
 
 export interface EmailResult {
