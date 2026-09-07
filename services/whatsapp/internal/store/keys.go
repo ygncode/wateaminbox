@@ -17,7 +17,7 @@ import (
 // GetOrGenPreKeys gets or generates pre-keys.
 func (s *PGSQLStore) GetOrGenPreKeys(ctx context.Context, count uint32) ([]*keys.PreKey, error) {
 	// First, try to get existing unuploaded pre-keys
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.decryptionExecutor(ctx).QueryContext(ctx, `
 		SELECT key_id, key FROM whatsmeow_pre_keys
 		WHERE connection_id = $1 AND jid = $2 AND uploaded = false
 		ORDER BY key_id LIMIT $3
@@ -61,7 +61,7 @@ func (s *PGSQLStore) GetOrGenPreKeys(ctx context.Context, count uint32) ([]*keys
 
 	// Clean up corrupted keys in background
 	for _, keyID := range corruptedKeyIDs {
-		_, _ = s.db.ExecContext(ctx, `
+		_, _ = s.decryptionExecutor(ctx).ExecContext(ctx, `
 			DELETE FROM whatsmeow_pre_keys
 			WHERE connection_id = $1 AND jid = $2 AND key_id = $3
 		`, s.connectionID, s.JID, keyID)
@@ -78,7 +78,7 @@ func (s *PGSQLStore) GetOrGenPreKeys(ctx context.Context, count uint32) ([]*keys
 
 	// Generate more pre-keys
 	var maxID uint32
-	err = s.db.QueryRowContext(ctx, `
+	err = s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT COALESCE(MAX(key_id), 0) FROM whatsmeow_pre_keys
 		WHERE connection_id = $1 AND jid = $2
 	`, s.connectionID, s.JID).Scan(&maxID)
@@ -91,7 +91,7 @@ func (s *PGSQLStore) GetOrGenPreKeys(ctx context.Context, count uint32) ([]*keys
 		keyID := maxID + i + 1
 		preKey := keys.NewPreKey(keyID)
 
-		_, err := s.db.ExecContext(ctx, `
+		_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 			INSERT INTO whatsmeow_pre_keys (connection_id, jid, key_id, key, uploaded)
 			VALUES ($1, $2, $3, $4, false)
 		`, s.connectionID, s.JID, keyID, preKey.Priv[:])
@@ -120,7 +120,7 @@ func (s *PGSQLStore) GenOnePreKey(ctx context.Context) (*keys.PreKey, error) {
 // GetPreKey retrieves a pre-key by ID.
 func (s *PGSQLStore) GetPreKey(ctx context.Context, id uint32) (*keys.PreKey, error) {
 	var keyData []byte
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT key FROM whatsmeow_pre_keys
 		WHERE connection_id = $1 AND jid = $2 AND key_id = $3
 	`, s.connectionID, s.JID, id).Scan(&keyData)
@@ -144,7 +144,7 @@ func (s *PGSQLStore) GetPreKey(ctx context.Context, id uint32) (*keys.PreKey, er
 	if keyPair.Pub == nil || *keyPair.Pub == emptyKey {
 		log.Printf("Detected corrupted PreKey %d with empty public key, removing it", id)
 		// Remove the corrupted key so whatsmeow will generate a new one
-		_, _ = s.db.ExecContext(ctx, `
+		_, _ = s.decryptionExecutor(ctx).ExecContext(ctx, `
 			DELETE FROM whatsmeow_pre_keys
 			WHERE connection_id = $1 AND jid = $2 AND key_id = $3
 		`, s.connectionID, s.JID, id)
@@ -160,7 +160,7 @@ func (s *PGSQLStore) GetPreKey(ctx context.Context, id uint32) (*keys.PreKey, er
 
 // RemovePreKey removes a pre-key.
 func (s *PGSQLStore) RemovePreKey(ctx context.Context, id uint32) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		DELETE FROM whatsmeow_pre_keys
 		WHERE connection_id = $1 AND jid = $2 AND key_id = $3
 	`, s.connectionID, s.JID, id)
@@ -169,7 +169,7 @@ func (s *PGSQLStore) RemovePreKey(ctx context.Context, id uint32) error {
 
 // MarkPreKeysAsUploaded marks pre-keys as uploaded.
 func (s *PGSQLStore) MarkPreKeysAsUploaded(ctx context.Context, upToID uint32) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		UPDATE whatsmeow_pre_keys SET uploaded = true
 		WHERE connection_id = $1 AND jid = $2 AND key_id <= $3
 	`, s.connectionID, s.JID, upToID)
@@ -179,7 +179,7 @@ func (s *PGSQLStore) MarkPreKeysAsUploaded(ctx context.Context, upToID uint32) e
 // UploadedPreKeyCount returns the count of uploaded pre-keys.
 func (s *PGSQLStore) UploadedPreKeyCount(ctx context.Context) (int, error) {
 	var count int
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM whatsmeow_pre_keys
 		WHERE connection_id = $1 AND jid = $2 AND uploaded = true
 	`, s.connectionID, s.JID).Scan(&count)
@@ -193,7 +193,7 @@ func (s *PGSQLStore) UploadedPreKeyCount(ctx context.Context) (int, error) {
 // GetSenderKey retrieves a sender key.
 func (s *PGSQLStore) GetSenderKey(ctx context.Context, group, user string) ([]byte, error) {
 	var senderKey []byte
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT sender_key FROM whatsmeow_sender_keys
 		WHERE connection_id = $1 AND our_jid = $2 AND chat_id = $3 AND sender_id = $4
 	`, s.connectionID, s.JID, group, user).Scan(&senderKey)
@@ -206,7 +206,7 @@ func (s *PGSQLStore) GetSenderKey(ctx context.Context, group, user string) ([]by
 
 // PutSenderKey stores a sender key.
 func (s *PGSQLStore) PutSenderKey(ctx context.Context, group, user string, session []byte) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		INSERT INTO whatsmeow_sender_keys (connection_id, our_jid, chat_id, sender_id, sender_key)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (connection_id, our_jid, chat_id, sender_id) DO UPDATE SET sender_key = EXCLUDED.sender_key
@@ -220,7 +220,7 @@ func (s *PGSQLStore) PutSenderKey(ctx context.Context, group, user string, sessi
 
 // PutAppStateSyncKey stores an app state sync key.
 func (s *PGSQLStore) PutAppStateSyncKey(ctx context.Context, id []byte, key store.AppStateSyncKey) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		INSERT INTO whatsmeow_app_state_sync_keys (connection_id, jid, key_id, key_data, timestamp, fingerprint)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (connection_id, jid, key_id) DO UPDATE SET
@@ -237,7 +237,7 @@ func (s *PGSQLStore) GetAppStateSyncKey(ctx context.Context, id []byte) (*store.
 	var keyData, fingerprint []byte
 	var timestamp int64
 
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT key_data, timestamp, fingerprint FROM whatsmeow_app_state_sync_keys
 		WHERE connection_id = $1 AND jid = $2 AND key_id = $3
 	`, s.connectionID, s.JID, id).Scan(&keyData, &timestamp, &fingerprint)
@@ -258,7 +258,7 @@ func (s *PGSQLStore) GetAppStateSyncKey(ctx context.Context, id []byte) (*store.
 
 // GetAllAppStateSyncKeys returns every sync key for the current device.
 func (s *PGSQLStore) GetAllAppStateSyncKeys(ctx context.Context) ([]*store.AppStateSyncKey, error) {
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.decryptionExecutor(ctx).QueryContext(ctx, `
 		SELECT key_data, timestamp, fingerprint FROM whatsmeow_app_state_sync_keys
 		WHERE connection_id = $1 AND jid = $2
 		ORDER BY timestamp DESC
@@ -282,7 +282,7 @@ func (s *PGSQLStore) GetAllAppStateSyncKeys(ctx context.Context) ([]*store.AppSt
 // GetLatestAppStateSyncKeyID retrieves the latest app state sync key ID.
 func (s *PGSQLStore) GetLatestAppStateSyncKeyID(ctx context.Context) ([]byte, error) {
 	var keyID []byte
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT key_id FROM whatsmeow_app_state_sync_keys
 		WHERE connection_id = $1 AND jid = $2
 		ORDER BY timestamp DESC LIMIT 1

@@ -94,3 +94,47 @@ late receipts, restricted worker-role persistence, and out-of-order history
 application. Set TEST_NATS_URL and TEST_DATABASE_URL for the Go integration tests;
 use only disposable local services. TypeScript integration tests use the existing
 RUN_DB_INTEGRATION and DATABASE_URL configuration.
+
+## Incoming persistence and user delivery
+
+Workers use synchronous WhatsApp acknowledgements and the success-status event
+handler. A failed message/reaction/revoke publication withholds acknowledgement.
+The decrypted event buffer retains plaintext for redelivery; its write and Signal
+ratchet updates commit in the same PostgreSQL transaction. Cleanup removes only
+completed buffer entries, never unprocessed plaintext. A restart still relies on
+WhatsApp redelivery of the unacknowledged stanza; this does not recover messages
+lost before this version was installed.
+
+Migration 089 adds `public.message_delivery_outbox`. Live message inserts enqueue
+realtime delivery and, for incoming messages, push delivery in the same transaction
+as unread counts and case changes. History imports do not enqueue user delivery.
+Auto-unassignment audit entries also commit with the message.
+
+Independent realtime and push pollers retry failed work with bounded backoff,
+using row locks to prevent concurrent claims. Each poller processes one job at a
+time. A push request times out after ten seconds; a slow push provider does not
+block realtime polling. Recipients are resolved from current authorization on
+every attempt. Archived connections and deleted messages are skipped. Jobs retain
+identifiers and case transitions, not copies of message content or media keys.
+
+Delivery is at least once: a crash after the external service accepts an update
+but before the job commits can replay it. Realtime uses the stored message UUID
+(the browser deduplicates it), and push retries retain the same notification tag.
+A partially successful push batch can notify a successful endpoint again. A
+successful provider response does not prove a device displayed the notification.
+
+For backlog inspection, query only counts and timing:
+
+```sql
+SELECT kind, count(*), min(created_at) AS oldest, max(attempts) AS retries
+FROM public.message_delivery_outbox GROUP BY kind;
+```
+
+Apply migration 089 before starting the updated API. Leave the table intact on
+rollback; a previous API will not drain it. Resume an updated API to finish
+pending work. No backfill is attempted for messages predating the migration,
+because their prior notification delivery cannot be determined reliably.
+
+Both message-send endpoints reject quotes to temporary or unconfirmed outgoing
+stanzas with HTTP 400. Retry the reply after the original message is confirmed;
+no pending message or command is created by a rejected reply.

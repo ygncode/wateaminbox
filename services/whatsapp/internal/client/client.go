@@ -87,6 +87,7 @@ type Client struct {
 	container           *store.PGContainer
 	device              *waStore.Device
 	handlers            []func(interface{})
+	durableHandlers     []func(interface{}) bool
 	qrCallback          QRCallback
 	statusCb            StatusCallback
 	logger              waLog.Logger
@@ -166,13 +167,15 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	c.cacheCatalogIdentity()
 
 	// Register internal event handler to forward events
-	waClient.AddEventHandler(c.internalEventHandler)
+	waClient.AddEventHandlerWithSuccessStatus(c.internalEventHandlerWithSuccessStatus)
 
 	return c, nil
 }
 
 func configureMessageRecovery(waClient *whatsmeow.Client) {
 	waClient.AutomaticMessageRerequestFromPhone = true
+	waClient.SynchronousAck = true
+	waClient.EnableDecryptedEventBuffer = true
 }
 
 // SetQRCallback sets the callback for QR code events.
@@ -199,6 +202,26 @@ func (c *Client) internalEventHandler(evt interface{}) {
 	for _, handler := range handlers {
 		handler(evt)
 	}
+}
+
+// Failure retains the decrypted event and withholds the WhatsApp acknowledgement.
+func (c *Client) internalEventHandlerWithSuccessStatus(evt interface{}) bool {
+	c.internalEventHandler(evt)
+	c.mu.RLock()
+	handlers := append([]func(interface{}) bool(nil), c.durableHandlers...)
+	c.mu.RUnlock()
+	for _, handler := range handlers {
+		if !handler(evt) {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *Client) RegisterDurableEventHandler(handler func(interface{}) bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.durableHandlers = append(c.durableHandlers, handler)
 }
 
 // cacheCatalogIdentity copies account identifiers that WhatsMeow owns into

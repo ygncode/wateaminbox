@@ -14,6 +14,7 @@ import {
   buildCommandSubject,
   buildSendMessageCommand,
 } from "../../lib/nats/index.js";
+import { isConfirmedQuote } from "../../lib/message-quote.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
 import {
   forwardMessageSchema,
@@ -133,11 +134,18 @@ sendRoutes.post(
     if (body.replyToMessageId) {
       const quotedMessage = await tenantDb
         .selectFrom("messages")
-        .select(["message_id", "sender_jid", "from_me"])
+        .select(["message_id", "sender_jid", "from_me", "status"])
         .where("id", "=", body.replyToMessageId)
         .where("contact_id", "=", body.contactId)
         .where("whatsapp_connection_id", "=", connection.id)
         .executeTakeFirst();
+      if (!quotedMessage) return notFound(c, "Quoted message");
+      if (!isConfirmedQuote(quotedMessage)) {
+        return badRequest(
+          c,
+          "Wait for the quoted message to be confirmed before replying",
+        );
+      }
       quotedWaMessageId = quotedMessage?.message_id || undefined;
 
       if (quotedMessage?.from_me) {

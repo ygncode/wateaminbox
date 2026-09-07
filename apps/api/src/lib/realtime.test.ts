@@ -194,6 +194,32 @@ describe("conversation events are delivered per authorized user", () => {
     expect(capture.calls).toHaveLength(1);
   });
 
+  test("durable delivery propagates transport and per-channel failures", async () => {
+    for (const respond of [
+      () => new Response("offline", { status: 503 }),
+      () =>
+        Response.json({
+          result: { responses: [{ error: { code: 102, message: "failed" } }] },
+        }),
+    ]) {
+      const capture = captureFetch(respond);
+      try {
+        await expect(
+          broadcastToUsers(
+            companyId,
+            [viewerA],
+            "message:new",
+            {},
+            { requireDelivery: true },
+          ),
+        ).rejects.toThrow();
+      } finally {
+        capture.restore();
+      }
+      expect(capture.calls).toHaveLength(1);
+    }
+  });
+
   test("a per-channel error inside the batch is not silently ignored", async () => {
     // Centrifugo reports these inside `responses`, not as a top-level error.
     const capture = captureFetch(
