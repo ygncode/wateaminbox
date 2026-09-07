@@ -9,6 +9,13 @@ export function buildIncomingMessageMetadata(
     metadata.protocolSenderJid = payload.protocolSenderJid;
   }
 
+  const groupMentions = payload.groupMentions?.filter(
+    (mention) =>
+      /^\d+(?:-\d+)?@g\.us$/.test(mention.jid) &&
+      typeof mention.subject === "string",
+  );
+  if (groupMentions?.length) metadata.groupMentions = groupMentions;
+
   const albumId = payload.mediaAlbumId?.trim();
   if (albumId) {
     metadata.mediaAlbumId = albumId;

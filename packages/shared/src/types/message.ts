@@ -139,6 +139,7 @@ export type MediaDownloadStatus =
   | null;
 
 export interface MessageMetadata {
+  groupMentions?: Array<{ jid: string; subject: string }>;
   mediaUrl?: string;
   mimeType?: string;
   fileName?: string;

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Fragment, type ReactNode } from "react";
 import {
   type MentionParticipant,
+  type MentionedGroup,
   resolveMentionSegments,
 } from "./group-mentions";
 
@@ -99,12 +100,14 @@ export function LinkifiedText({
   isOwn,
   className,
   mentionParticipants = [],
+  groupMentions = [],
   enableInteractions = true,
   trailing,
 }: {
   text: string;
   isOwn: boolean;
   className?: string;
+  groupMentions?: MentionedGroup[];
   mentionParticipants?: Pick<
     GroupParticipant,
     "jid" | "phoneNumber" | "mentionIds" | "displayName" | "contactId"
@@ -125,6 +128,7 @@ export function LinkifiedText({
   const resolvedSegments = resolveMentionSegments(
     text,
     mentionParticipants as MentionParticipant[],
+    groupMentions,
   );
 
   return (
@@ -136,6 +140,16 @@ export function LinkifiedText({
       )}
     >
       {resolvedSegments.map((resolved, resolvedIndex) => {
+        if (resolved.group) {
+          return (
+            <span
+              key={`${resolvedIndex}-${resolved.value}`}
+              className="font-semibold text-whatsapp-teal-green dark:text-[#53bdeb]"
+            >
+              {resolved.displayValue}
+            </span>
+          );
+        }
         if (resolved.type === "mention" && resolved.participant) {
           const contactId = resolved.participant.contactId;
           const mentionClassName = cn(

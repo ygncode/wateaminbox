@@ -88,17 +88,7 @@ func getQuotedMessageID(message *waE2E.Message) string {
 	if message == nil {
 		return ""
 	}
-	carriers := []contextInfoCarrier{
-		message.ExtendedTextMessage,
-		message.ImageMessage,
-		message.VideoMessage,
-		message.AudioMessage,
-		message.DocumentMessage,
-		message.StickerMessage,
-		message.LocationMessage,
-		message.ContactMessage,
-		message.ContactsArrayMessage,
-	}
+	carriers := messageContextCarriers(message)
 	for _, carrier := range carriers {
 		if contextInfo := carrier.GetContextInfo(); contextInfo != nil {
 			if stanzaID := contextInfo.GetStanzaID(); stanzaID != "" {
@@ -182,6 +172,7 @@ func (h *Handler) handleMessage(msg *events.Message) error {
 	}
 
 	msgEvent.QuotedMessageID = getQuotedMessageID(msg.Message)
+	msgEvent.GroupMentions = getGroupMentions(msg.Message)
 	h.applyMediaAlbumMetadata(chatJID.String(), msg.Message, &msgEvent)
 
 	// Text message
@@ -399,4 +390,37 @@ func (h *Handler) handleReceipt(receipt *events.Receipt) {
 			log.Printf("Failed to publish receipt event: %v", err)
 		}
 	}
+}
+
+func messageContextCarriers(message *waE2E.Message) []contextInfoCarrier {
+	if message == nil {
+		return nil
+	}
+	return []contextInfoCarrier{
+		message.ExtendedTextMessage,
+		message.ImageMessage,
+		message.VideoMessage,
+		message.AudioMessage,
+		message.DocumentMessage,
+		message.StickerMessage,
+		message.LocationMessage,
+		message.ContactMessage,
+		message.ContactsArrayMessage,
+	}
+}
+
+func getGroupMentions(message *waE2E.Message) []natsClient.GroupMention {
+	var mentions []natsClient.GroupMention
+	seen := make(map[string]bool)
+	for _, carrier := range messageContextCarriers(message) {
+		for _, mention := range carrier.GetContextInfo().GetGroupMentions() {
+			jid, err := types.ParseJID(mention.GetGroupJID())
+			if err != nil || jid.Server != types.GroupServer || jid.User == "" || seen[jid.String()] {
+				continue
+			}
+			seen[jid.String()] = true
+			mentions = append(mentions, natsClient.GroupMention{JID: jid.String(), Subject: mention.GetGroupSubject()})
+		}
+	}
+	return mentions
 }

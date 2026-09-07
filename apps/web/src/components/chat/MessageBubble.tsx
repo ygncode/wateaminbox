@@ -381,6 +381,7 @@ export const MessageBubble = memo(function MessageBubble({
             mentionParticipants={mentionParticipants}
             className="text-[15px] leading-[1.35rem]"
             trailing={message.status === "failed" && isOwn ? undefined : meta}
+            groupMentions={message.metadata?.groupMentions}
           />
         ) : (
           <MessageContent
@@ -678,6 +679,7 @@ function ReplyPreview({
                 ? "text-current opacity-70"
                 : "text-gray-700 dark:text-dark-text-secondary"
             }`}
+            groupMentions={replyToMessage?.metadata?.groupMentions}
           />
         </div>
       </div>

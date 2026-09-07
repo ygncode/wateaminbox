@@ -243,6 +243,7 @@ func TestMessagePayloadSerialization(t *testing.T) {
 		GroupID:           "group-456",
 		SenderName:        "John Doe",
 		ProtocolSenderJID: "48954691608613@lid",
+		GroupMentions:     []GroupMention{{JID: "120363000000000001@g.us", Subject: "AI Playground"}},
 		Caption:           "Photo caption",
 		FileName:          "document.pdf",
 		MediaType:         "image/jpeg",
@@ -274,6 +275,9 @@ func TestMessagePayloadSerialization(t *testing.T) {
 	}
 	if parsed.MediaSize != payload.MediaSize {
 		t.Errorf("MediaSize = %v, want %v", parsed.MediaSize, payload.MediaSize)
+	}
+	if len(parsed.GroupMentions) != 1 || parsed.GroupMentions[0] != payload.GroupMentions[0] {
+		t.Fatal("lost group mention metadata")
 	}
 	if parsed.ProtocolSenderJID != payload.ProtocolSenderJID {
 		t.Errorf("ProtocolSenderJID = %v, want %v", parsed.ProtocolSenderJID, payload.ProtocolSenderJID)

@@ -17,14 +17,21 @@ export interface ActiveMentionToken {
   query: string;
 }
 
+export interface MentionedGroup {
+  jid: string;
+  subject: string;
+}
+
 export interface ResolvedMentionSegment {
   type: "text" | "mention";
   value: string;
   displayValue?: string;
   participant?: MentionParticipant;
+  group?: MentionedGroup;
 }
 
-const PHONE_MENTION_PATTERN = /(^|[\s([{])@(\d{5,20})\b/g;
+const MENTION_PATTERN =
+  /(^|[\s([{])@(\d+(?:-\d+)?@g\.us)(?!\w|\.[a-z0-9])|(^|[\s([{])@(\d{5,20})\b(?![@-])/g;
 
 function digitsOnly(value: string): string {
   return value.replace(/\D/g, "");
@@ -71,24 +78,38 @@ function buildParticipantByMentionId(
 export function resolveMentionSegments(
   text: string,
   participants: MentionParticipant[],
+  groups: MentionedGroup[] = [],
 ): ResolvedMentionSegment[] {
-  if (participants.length === 0 || !text.includes("@")) {
+  if (!text.includes("@")) {
     return [{ type: "text", value: text }];
   }
 
   const participantByMentionId = buildParticipantByMentionId(participants);
   const segments: ResolvedMentionSegment[] = [];
   let cursor = 0;
-  for (const match of text.matchAll(PHONE_MENTION_PATTERN)) {
-    const prefix = match[1];
+  for (const match of text.matchAll(MENTION_PATTERN)) {
+    const prefix = match[1] ?? match[3];
     const rawMention = match[0].slice(prefix.length);
     const start = (match.index ?? 0) + prefix.length;
     if (start > cursor) {
       segments.push({ type: "text", value: text.slice(cursor, start) });
     }
 
-    const participant = participantByMentionId.get(match[2]);
-    if (participant) {
+    const groupJid = match[2];
+    const group = groups.find((item) => item.jid === groupJid);
+    const participant = groupJid
+      ? undefined
+      : participantByMentionId.get(match[4]);
+    if (groupJid) {
+      segments.push({
+        type: "mention",
+        value: rawMention,
+        displayValue: group?.subject.trim()
+          ? `@${group.subject.trim()}`
+          : rawMention,
+        group: group ?? { jid: groupJid, subject: "" },
+      });
+    } else if (participant) {
       segments.push({
         type: "mention",
         value: rawMention,

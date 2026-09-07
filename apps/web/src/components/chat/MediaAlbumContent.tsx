@@ -17,10 +17,6 @@ interface MediaAlbumContentProps {
   enableMediaPreview?: boolean;
 }
 
-function albumCaption(messages: Message[]): string | undefined {
-  return messages.find((message) => message.content.trim())?.content;
-}
-
 function tileClassName(count: number, index: number): string {
   if (count === 2) return "aspect-[4/5]";
   if (count === 3 && index === 0) return "row-span-2 min-h-52";
@@ -37,7 +33,8 @@ export function MediaAlbumContent({
   const visibleMessages = messages.slice(0, 4);
   const totalCount = Math.max(expectedCount, messages.length);
   const hiddenCount = Math.max(0, totalCount - visibleMessages.length);
-  const caption = albumCaption(messages);
+  const captionMessage = messages.find((message) => message.content.trim());
+  const caption = captionMessage?.content;
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(
     null,
   );
@@ -133,6 +130,7 @@ export function MediaAlbumContent({
       {caption && (
         <LinkifiedText
           text={caption}
+          groupMentions={captionMessage?.metadata?.groupMentions}
           isOwn={isOwn}
           className="mt-1.5"
           mentionParticipants={mentionParticipants}

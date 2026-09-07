@@ -100,3 +100,62 @@ describe("group mention composer", () => {
     ).toEqual({ content: "Ask someone else", mentionedJids: [] });
   });
 });
+
+describe("mentions of another group", () => {
+  test("resolves the complete group address using message metadata", () => {
+    expect(
+      resolveMentionSegments(
+        "@120363000000000001@g.us to RSVP ^^",
+        [],
+        [{ jid: "120363000000000001@g.us", subject: "AI Playground" }],
+      ),
+    ).toEqual([
+      {
+        type: "mention",
+        value: "@120363000000000001@g.us",
+        displayValue: "@AI Playground",
+        group: { jid: "120363000000000001@g.us", subject: "AI Playground" },
+      },
+      { type: "text", value: " to RSVP ^^" },
+    ]);
+  });
+
+  test("keeps unknown group addresses intact instead of matching a person", () => {
+    const segments = resolveMentionSegments("@120363000000000001@g.us", [
+      {
+        jid: "120363000000000001@lid",
+        displayName: "Wrong person",
+        contactId: null,
+        phoneNumber: null,
+      },
+    ]);
+    expect(segments[0].participant).toBeUndefined();
+    expect(segments[0].displayValue).toBe("@120363000000000001@g.us");
+    expect(segments[0].group?.jid).toBe("120363000000000001@g.us");
+  });
+});
+
+test("resolves legacy group addresses next to punctuation and person mentions", () => {
+  const segments = resolveMentionSegments(
+    "Ask @6591234567 in (@123456789-987654321@g.us).",
+    [
+      {
+        jid: "6591234567@s.whatsapp.net",
+        displayName: "Alice",
+        contactId: null,
+        phoneNumber: "6591234567",
+      },
+    ],
+    [{ jid: "123456789-987654321@g.us", subject: "Events" }],
+  );
+  expect(
+    segments.map((segment) => segment.displayValue ?? segment.value).join(""),
+  ).toBe("Ask @Alice in (@Events).");
+  expect(
+    resolveMentionSegments(
+      "@123456789-987654321@g.us.",
+      [],
+      [{ jid: "123456789-987654321@g.us", subject: "Events" }],
+    )[0].displayValue,
+  ).toBe("@Events");
+});

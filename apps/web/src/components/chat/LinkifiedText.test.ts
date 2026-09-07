@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { parseMessageLinks, resolveMentionNames } from "./LinkifiedText";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import {
+  LinkifiedText,
+  parseMessageLinks,
+  resolveMentionNames,
+} from "./LinkifiedText";
 
 describe("message linkification", () => {
   test("is used for text messages and media captions", async () => {
@@ -111,4 +117,24 @@ describe("WhatsApp mention display names", () => {
       "@123456789 hello",
     );
   });
+});
+
+test("group mentions render as escaped text, never email or external links", () => {
+  for (const groupMentions of [
+    [],
+    [{ jid: "120363000000000001@g.us", subject: "<script>Bad</script>" }],
+  ]) {
+    const html = renderToStaticMarkup(
+      createElement(LinkifiedText, {
+        text: "@120363000000000001@g.us to RSVP ^^",
+        isOwn: false,
+        groupMentions,
+      }),
+    );
+    expect(html).not.toContain("href=");
+    expect(html).not.toContain("<script>");
+    expect(html).toContain("to RSVP ^^");
+    if (groupMentions.length)
+      expect(html).toContain("@&lt;script&gt;Bad&lt;/script&gt;");
+  }
 });

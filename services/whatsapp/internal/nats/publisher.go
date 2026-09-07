@@ -83,6 +83,7 @@ type (
 	QRPayload               = sharednats.QRPayload
 	ConnectionPayload       = sharednats.ConnectionPayload
 	MessagePayload          = sharednats.MessagePayload
+	GroupMention            = sharednats.GroupMention
 	ContactCardPayload      = sharednats.ContactCardPayload
 	MessageRevokePayload    = sharednats.MessageRevokePayload
 	ReceiptPayload          = sharednats.ReceiptPayload
@@ -407,6 +408,7 @@ func (p *Publisher) PublishMessage(msg MessageEvent) error {
 			GroupID:            msg.GroupID,
 			SenderName:         msg.SenderName,
 			ProtocolSenderJID:  msg.ProtocolSenderJID,
+			GroupMentions:      msg.GroupMentions,
 			Caption:            msg.Caption,
 			FileName:           msg.FileName,
 			ContactCards:       msg.ContactCards,
