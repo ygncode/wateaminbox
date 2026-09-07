@@ -18,6 +18,7 @@ export type AuditAction =
   | "invitation.resent"
   | "member.role_changed"
   | "member.removed"
+  | "contact.first_chat_acknowledged"
   | "contact.created"
   | "contact.updated"
   | "contact.assigned"
