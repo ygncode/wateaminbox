@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/ygncode-lab/whatsapp-web/services/orchestrator/internal/types"
 )
 
 // WorkerRegistry provides persistent storage for worker state. Every registry
@@ -717,6 +718,30 @@ func (r *WorkerRegistry) TakeOverFailedNodeWorker(ctx context.Context, connectio
 		return false, fmt.Errorf("inspect failed-node worker takeover: %w", err)
 	}
 	return transferred == 1, nil
+}
+
+// UpdateRuntimeStatusLaunch reconciles an authenticated runtime edge without
+// allowing an old node or a late signal to overwrite authoritative lifecycle
+// state. Repeated runtime heartbeats execute this statement but do not write
+// when the durable status is already current.
+func (r *WorkerRegistry) UpdateRuntimeStatusLaunch(
+	ctx context.Context,
+	connectionID, companyID, launchID, status string,
+) error {
+	if status != types.StatusConnected && status != types.StatusDisconnected {
+		return fmt.Errorf("unsupported durable runtime status %q", status)
+	}
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry SET status = $1
+		WHERE connection_id = $2 AND company_id = $3 AND launch_id = $4
+			AND node_id = $5 AND desired_state = 'running'
+			AND status IN ('starting', 'connecting', 'connected', 'disconnected')
+			AND status IS DISTINCT FROM $1
+	`, status, connectionID, companyID, launchID, r.nodeID)
+	if err != nil {
+		return fmt.Errorf("failed to update worker runtime status: %w", err)
+	}
+	return nil
 }
 
 func (r *WorkerRegistry) UpdateStatusLaunch(
