@@ -117,6 +117,9 @@ export function RealtimeProvider({
   const { user } = useAuth();
   const { activeWorkspaceId: currentCompanyId } = useWorkspace();
   const navigate = useNavigate();
+  // Router navigation changes with location; keep it out of the socket lifecycle.
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
 
   // TanStack Query client for cache updates
   const queryClient = useQueryClient();
@@ -180,7 +183,7 @@ export function RealtimeProvider({
     eventUnsubscribesRef.current.forEach((unsubscribe) => unsubscribe());
     eventUnsubscribesRef.current = registerRealtimeEventHandlers({
       queryClient: queryClientRef.current,
-      navigate,
+      navigate: (path) => navigateRef.current(path),
       companyId: currentCompanyId!,
       setSyncingConnections,
       addTypingIndicator: (indicator) =>
@@ -190,7 +193,7 @@ export function RealtimeProvider({
       setTypingTimeout,
       clearTypingTimeout,
     });
-  }, [setTypingTimeout, clearTypingTimeout, currentCompanyId, navigate]);
+  }, [setTypingTimeout, clearTypingTimeout, currentCompanyId]);
 
   // Connect to Realtime
   const connect = useCallback(() => {
