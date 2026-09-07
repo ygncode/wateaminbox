@@ -26,6 +26,7 @@ export interface ContactAssignmentBroadcastParams {
 export async function broadcastContactAssignmentEvent(
   companyId: string,
   params: ContactAssignmentBroadcastParams,
+  requireDelivery = false,
 ): Promise<void> {
   await broadcastToContactViewers(
     companyId,
@@ -42,7 +43,10 @@ export async function broadcastContactAssignmentEvent(
     // Both sides of the transition must react: the incoming assignee gains the
     // conversation, and the outgoing one - who the viewer resolver no longer
     // returns - has to drop it from their inbox and composer gate.
-    { alsoNotifyUserIds: [params.previousAssignee, params.newAssignee] },
+    {
+      alsoNotifyUserIds: [params.previousAssignee, params.newAssignee],
+      requireDelivery,
+    },
   );
 }
 
@@ -93,6 +97,7 @@ export async function broadcastAutoUnassignment(
   companyId: string,
   contactId: string,
   previousAssigneeId: string,
+  requireDelivery = false,
 ): Promise<void> {
   const contact = await tenantDb
     .selectFrom("contacts")
@@ -103,12 +108,16 @@ export async function broadcastAutoUnassignment(
     ? getContactDisplayName(contact, "Unknown Contact")
     : "Unknown Contact";
 
-  await broadcastContactAssignmentEvent(companyId, {
-    event: "unassigned",
-    contactId,
-    contactName,
-    previousAssignee: previousAssigneeId,
-    newAssignee: null,
-    assignedBy: null,
-  });
+  await broadcastContactAssignmentEvent(
+    companyId,
+    {
+      event: "unassigned",
+      contactId,
+      contactName,
+      previousAssignee: previousAssigneeId,
+      newAssignee: null,
+      assignedBy: null,
+    },
+    requireDelivery,
+  );
 }

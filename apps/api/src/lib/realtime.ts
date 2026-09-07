@@ -272,6 +272,8 @@ export async function broadcastToUser(
 }
 
 export interface UserFanOutOptions {
+  /** Durable outbox callers must observe failures to retry. */
+  requireDelivery?: boolean;
   /** WhatsApp connection the event originated from, echoed to clients. */
   connectionId?: string;
   /** Centrifugo client ID that triggered the event and should not see it. */
@@ -281,10 +283,9 @@ export interface UserFanOutOptions {
 /**
  * Fan a payload out to an explicit, already-authorized set of user channels.
  *
- * Delivery is one Centrifugo batch regardless of audience size, and never
- * throws: realtime is an update signal, and the persisted rows stay
- * authoritative. A publish failure must not fail the operation that produced
- * the event.
+ * Delivery is one Centrifugo batch regardless of audience size. By default,
+ * failures are logged because the persisted rows stay authoritative. Durable
+ * outbox callers set requireDelivery to propagate failures and retain retry work.
  */
 export async function broadcastToUsers(
   companyId: string,
@@ -317,6 +318,7 @@ export async function broadcastToUsers(
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    if (options.requireDelivery) throw error;
     logger.error(
       {
         error: formatError(error),

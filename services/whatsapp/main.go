@@ -210,7 +210,7 @@ func run() error {
 	})
 
 	// Register event handlers
-	waClient.RegisterEventHandler(msgHandler.HandleEvent)
+	waClient.RegisterDurableEventHandler(msgHandler.HandleEventWithSuccessStatus)
 
 	// Initialize on-demand download handler
 	downloadHandler, err := handler.NewDownloadHandler(msgHandler)

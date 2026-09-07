@@ -119,16 +119,18 @@ async function withTenantAndUsers(
           ...(permissions ? { permissions } : {}),
         })
         .execute();
-      const headers = await loginAndGetHeaders(memberEmail, PASSWORD, companyId);
+      const headers = await loginAndGetHeaders(
+        memberEmail,
+        PASSWORD,
+        companyId,
+      );
       return { headers, userId: memberId };
     };
 
     await run({ companyId, ownerHeaders, createMember });
   } finally {
     await clearTenantConnection(companyId);
-    await sql
-      .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
-      .execute(db);
+    await sql.raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`).execute(db);
     await db
       .deleteFrom("sla_policies")
       .where("company_id", "=", companyId)
@@ -295,3 +297,79 @@ describe("POST /api/messages - assignment-aware send access", () => {
     },
   );
 });
+
+integrationTest(
+  "both send endpoints reject pending quotes without queuing a send",
+  async () => {
+    await withTenantAndUsers(async ({ companyId, ownerHeaders }) => {
+      const tenant = getTenantConnection(companyId);
+      const contactId = await setupSendableContact(companyId);
+      const contact = await tenant
+        .selectFrom("contacts")
+        .select("whatsapp_connection_id")
+        .where("id", "=", contactId)
+        .executeTakeFirstOrThrow();
+      const quoteId = crypto.randomUUID();
+      await tenant
+        .insertInto("messages")
+        .values({
+          id: quoteId,
+          contact_id: contactId,
+          whatsapp_connection_id: contact.whatsapp_connection_id,
+          message_id: `pending_${quoteId}`,
+          from_me: true,
+          status: "pending",
+          message_type: "text",
+          content: "original",
+          timestamp: new Date(),
+        })
+        .execute();
+      const endpoints = [
+        "/api/messages",
+        `/api/conversations/${contactId}/messages`,
+      ];
+      for (const endpoint of endpoints) {
+        const response = await app.request(endpoint, {
+          method: "POST",
+          headers: ownerHeaders,
+          body: JSON.stringify({
+            contactId,
+            content: "reply",
+            messageType: "text",
+            replyToMessageId: quoteId,
+          }),
+        });
+        expect(response.status).toBe(400);
+        expect(await response.text()).toContain("confirmed");
+      }
+      expect(
+        await tenant.selectFrom("nats_outbox").select("id").execute(),
+      ).toHaveLength(0);
+      await tenant
+        .updateTable("messages")
+        .set({ message_id: "confirmed-wa-id", status: "sent" })
+        .where("id", "=", quoteId)
+        .execute();
+      for (const endpoint of endpoints) {
+        const response = await app.request(endpoint, {
+          method: "POST",
+          headers: ownerHeaders,
+          body: JSON.stringify({
+            contactId,
+            content: "reply",
+            messageType: "text",
+            replyToMessageId: quoteId,
+          }),
+        });
+        expect(response.status).toBe(200);
+      }
+      const commands = await tenant
+        .selectFrom("nats_outbox")
+        .select("payload")
+        .execute();
+      expect(commands).toHaveLength(2);
+      for (const command of commands)
+        expect(command.payload.reply_to).toBe("confirmed-wa-id");
+    });
+  },
+);

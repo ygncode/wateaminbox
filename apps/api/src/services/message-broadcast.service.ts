@@ -165,11 +165,11 @@ export function mergeFanOutRecipients(
 /**
  * Deliver a conversation-scoped event to that contact's authorized viewers.
  *
- * Resolution failures are logged and swallowed rather than propagated: the
+ * By default, resolution failures are logged rather than propagated: the
  * state change is already committed by the time this runs, and realtime is an
  * update signal that clients reconcile against PostgreSQL. Failing closed (no
  * broadcast) is the safe direction - it costs a delayed UI update, never a
- * disclosure.
+ * disclosure. Durable delivery callers set requireDelivery to retain failed work.
  */
 export async function broadcastToContactViewers(
   companyId: string,
@@ -190,6 +190,7 @@ export async function broadcastToContactViewers(
     );
     await broadcastToUsers(companyId, recipients, eventType, payload, options);
   } catch (error) {
+    if (options.requireDelivery) throw error;
     logger.error(
       { err: formatError(error), companyId, contactId, eventType },
       "Failed to fan out conversation event to authorized viewers",

@@ -23,6 +23,10 @@ import {
 } from "./services/message-cleanup.service.js";
 import { initializeMessageHandler } from "./services/message-handler.js";
 import {
+  initializeMessageDelivery,
+  shutdownMessageDelivery,
+} from "./services/message-delivery-outbox.service.js";
+import {
   initializeMessageSearch,
   shutdownMessageSearch,
 } from "./services/message-search-outbox.service.js";
@@ -65,6 +69,7 @@ if (!isTestEnvironment) {
 
   initializeCommandOutbox();
   initializeMessageSearch();
+  initializeMessageDelivery();
   initializeScheduledMessages();
   initializeConnectionPurgeCleanup();
   initializeConnectionEmailAlerts();
@@ -117,6 +122,7 @@ function shutdownSteps(): ShutdownStep[] {
     { name: "scheduled-messages", run: shutdownScheduledMessages },
     // Drains the event supervisor, then the NATS connection itself.
     { name: "nats", run: () => natsLifecycle.shutdown() },
+    { name: "message-delivery", run: shutdownMessageDelivery },
     { name: "message-search", run: shutdownMessageSearch },
     // Stops PostgreSQL cleanup (or closes the optional Redis connection)
     // before the database pools used by the store are released.

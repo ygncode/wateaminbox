@@ -67,7 +67,7 @@ func (s *PGSQLStore) PutManyLIDMappings(ctx context.Context, mappings []store.LI
 
 // PutLIDMapping stores a single identity-level LID to phone-number mapping.
 func (s *PGSQLStore) PutLIDMapping(ctx context.Context, lid, jid types.JID) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		INSERT INTO whatsmeow_lid_mappings (connection_id, lid, jid)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (connection_id, lid) DO UPDATE SET jid = EXCLUDED.jid
@@ -79,7 +79,7 @@ func (s *PGSQLStore) PutLIDMapping(ctx context.Context, lid, jid types.JID) erro
 // requested device number.
 func (s *PGSQLStore) GetPNForLID(ctx context.Context, lid types.JID) (types.JID, error) {
 	var jidStr string
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT jid FROM whatsmeow_lid_mappings
 		WHERE connection_id = $1 AND lid = $2
 	`, s.connectionID, normalizedMappingJID(lid)).Scan(&jidStr)
@@ -98,7 +98,7 @@ func (s *PGSQLStore) GetPNForLID(ctx context.Context, lid types.JID) (types.JID,
 // requested device number.
 func (s *PGSQLStore) GetLIDForPN(ctx context.Context, pn types.JID) (types.JID, error) {
 	var lidStr string
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT lid FROM whatsmeow_lid_mappings
 		WHERE connection_id = $1 AND jid = $2
 	`, s.connectionID, normalizedMappingJID(pn)).Scan(&lidStr)
@@ -130,7 +130,7 @@ func (s *PGSQLStore) GetManyLIDsForPNs(ctx context.Context, pns []types.JID) (ma
 		devicesByPN[normalized] = append(devicesByPN[normalized], pn)
 	}
 
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := s.decryptionExecutor(ctx).QueryContext(ctx, `
 		SELECT lid, jid FROM whatsmeow_lid_mappings
 		WHERE connection_id = $1 AND jid = ANY($2)
 	`, s.connectionID, pq.Array(pnStrs))
@@ -193,7 +193,7 @@ func (s *PGSQLStore) PutMessageSecrets(ctx context.Context, inserts []store.Mess
 
 // PutMessageSecret stores a single message secret.
 func (s *PGSQLStore) PutMessageSecret(ctx context.Context, chat, sender types.JID, id types.MessageID, secret []byte) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		INSERT INTO whatsmeow_message_secrets (connection_id, our_jid, chat_jid, sender_jid, message_id, secret)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (connection_id, our_jid, chat_jid, sender_jid, message_id) DO UPDATE SET secret = EXCLUDED.secret
@@ -206,7 +206,7 @@ func (s *PGSQLStore) GetMessageSecret(ctx context.Context, chat, sender types.JI
 	var secret []byte
 	var senderStr string
 
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT secret, sender_jid FROM whatsmeow_message_secrets
 		WHERE connection_id = $1 AND our_jid = $2 AND chat_jid = $3 AND sender_jid = $4 AND message_id = $5
 	`, s.connectionID, s.JID, chat.String(), sender.String(), string(id)).Scan(&secret, &senderStr)
@@ -264,7 +264,7 @@ func (s *PGSQLStore) PutPrivacyTokens(ctx context.Context, tokens ...store.Priva
 
 // DeleteExpiredPrivacyTokens removes expired tokens for the current device.
 func (s *PGSQLStore) DeleteExpiredPrivacyTokens(ctx context.Context, cutoff time.Time) (int64, error) {
-	result, err := s.db.ExecContext(ctx, `
+	result, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		DELETE FROM whatsmeow_privacy_tokens
 		WHERE connection_id = $1 AND our_jid = $2 AND timestamp < $3
 	`, s.connectionID, s.JID, cutoff.Unix())
@@ -279,7 +279,7 @@ func (s *PGSQLStore) GetPrivacyToken(ctx context.Context, user types.JID) (*stor
 	var token []byte
 	var timestamp int64
 
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT token, timestamp FROM whatsmeow_privacy_tokens
 		WHERE connection_id = $1 AND our_jid = $2 AND user_jid = $3
 	`, s.connectionID, s.JID, user.String()).Scan(&token, &timestamp)
@@ -303,7 +303,7 @@ func (s *PGSQLStore) GetPrivacyToken(ctx context.Context, user types.JID) (*stor
 // ============================================
 
 func (s *PGSQLStore) PutNCTSalt(ctx context.Context, salt []byte) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		INSERT INTO whatsmeow_nct_salt (connection_id, our_jid, salt)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (connection_id, our_jid) DO UPDATE SET salt = EXCLUDED.salt
@@ -313,7 +313,7 @@ func (s *PGSQLStore) PutNCTSalt(ctx context.Context, salt []byte) error {
 
 func (s *PGSQLStore) GetNCTSalt(ctx context.Context) ([]byte, error) {
 	var salt []byte
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT salt FROM whatsmeow_nct_salt
 		WHERE connection_id = $1 AND our_jid = $2
 	`, s.connectionID, s.JID).Scan(&salt)
@@ -324,7 +324,7 @@ func (s *PGSQLStore) GetNCTSalt(ctx context.Context) ([]byte, error) {
 }
 
 func (s *PGSQLStore) DeleteNCTSalt(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		DELETE FROM whatsmeow_nct_salt
 		WHERE connection_id = $1 AND our_jid = $2
 	`, s.connectionID, s.JID)
@@ -338,7 +338,7 @@ func (s *PGSQLStore) DeleteNCTSalt(ctx context.Context) error {
 func (s *PGSQLStore) GetBufferedEvent(ctx context.Context, ciphertextHash [32]byte) (*store.BufferedEvent, error) {
 	var plaintext []byte
 	var serverTimestamp, insertTimestamp int64
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT plaintext, server_timestamp, insert_timestamp
 		FROM whatsmeow_event_buffer
 		WHERE connection_id = $1 AND our_jid = $2 AND ciphertext_hash = $3
@@ -357,7 +357,7 @@ func (s *PGSQLStore) GetBufferedEvent(ctx context.Context, ciphertextHash [32]by
 }
 
 func (s *PGSQLStore) PutBufferedEvent(ctx context.Context, ciphertextHash [32]byte, plaintext []byte, serverTimestamp time.Time) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		INSERT INTO whatsmeow_event_buffer (
 			connection_id, our_jid, ciphertext_hash, plaintext,
 			server_timestamp, insert_timestamp
@@ -369,15 +369,24 @@ func (s *PGSQLStore) PutBufferedEvent(ctx context.Context, ciphertextHash [32]by
 	return err
 }
 
-// database/sql cannot attach a transaction to context like whatsmeow's dbutil
-// wrapper does. The individual store writes remain atomic, and this hook keeps
-// the decryption flow compatible with the EventBuffer interface.
+// The Signal ratchet and replay plaintext must commit together.
 func (s *PGSQLStore) DoDecryptionTxn(ctx context.Context, fn func(context.Context) error) error {
-	return fn(ctx)
+	if tx, ok := ctx.Value(decryptionTransactionKey{}).(decryptionTransaction); ok && tx.owner == s.PGContainer {
+		return fn(ctx)
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err = fn(context.WithValue(ctx, decryptionTransactionKey{}, decryptionTransaction{s.PGContainer, tx})); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *PGSQLStore) ClearBufferedEventPlaintext(ctx context.Context, ciphertextHash [32]byte) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		UPDATE whatsmeow_event_buffer SET plaintext = NULL
 		WHERE connection_id = $1 AND our_jid = $2 AND ciphertext_hash = $3
 	`, s.connectionID, s.JID, ciphertextHash[:])
@@ -385,9 +394,9 @@ func (s *PGSQLStore) ClearBufferedEventPlaintext(ctx context.Context, ciphertext
 }
 
 func (s *PGSQLStore) DeleteOldBufferedHashes(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		DELETE FROM whatsmeow_event_buffer
-		WHERE connection_id = $1 AND our_jid = $2 AND insert_timestamp < $3
+		WHERE connection_id = $1 AND our_jid = $2 AND plaintext IS NULL AND insert_timestamp < $3
 	`, s.connectionID, s.JID, time.Now().Add(-14*24*time.Hour).UnixMilli())
 	return err
 }
@@ -395,7 +404,7 @@ func (s *PGSQLStore) DeleteOldBufferedHashes(ctx context.Context) error {
 func (s *PGSQLStore) GetOutgoingEvent(ctx context.Context, chatJID, altChatJID types.JID, id types.MessageID) (string, []byte, error) {
 	var format string
 	var plaintext []byte
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT format, plaintext FROM whatsmeow_retry_buffer
 		WHERE connection_id = $1 AND our_jid = $2
 			AND (chat_jid = $3 OR chat_jid = $4) AND message_id = $5
@@ -407,7 +416,7 @@ func (s *PGSQLStore) GetOutgoingEvent(ctx context.Context, chatJID, altChatJID t
 }
 
 func (s *PGSQLStore) AddOutgoingEvent(ctx context.Context, chatJID types.JID, id types.MessageID, format string, plaintext []byte) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		INSERT INTO whatsmeow_retry_buffer (
 			connection_id, our_jid, chat_jid, message_id, format, plaintext, timestamp
 		) VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -420,7 +429,7 @@ func (s *PGSQLStore) AddOutgoingEvent(ctx context.Context, chatJID types.JID, id
 }
 
 func (s *PGSQLStore) DeleteOldOutgoingEvents(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		DELETE FROM whatsmeow_retry_buffer
 		WHERE connection_id = $1 AND our_jid = $2 AND timestamp < $3
 	`, s.connectionID, s.JID, time.Now().Add(-7*24*time.Hour).UnixMilli())

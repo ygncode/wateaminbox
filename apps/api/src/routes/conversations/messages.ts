@@ -27,6 +27,7 @@ import {
   getPrivateMediaReference,
   resolveMediaKeyForCompany,
 } from "../../lib/storage.js";
+import { isConfirmedQuote } from "../../lib/message-quote.js";
 import { getRouteContext } from "../../middleware/context.js";
 import {
   markDeprecatedMessageSend,
@@ -363,11 +364,18 @@ messageRoutes.post(
     if (replyToMessageId) {
       const quotedMessage = await tenantDb
         .selectFrom("messages")
-        .select(["message_id", "sender_jid", "from_me"])
+        .select(["message_id", "sender_jid", "from_me", "status"])
         .where("id", "=", replyToMessageId)
         .where("contact_id", "=", contactId)
         .where("whatsapp_connection_id", "=", connection.id)
         .executeTakeFirst();
+      if (!quotedMessage) return notFound(c, "Quoted message");
+      if (!isConfirmedQuote(quotedMessage)) {
+        return badRequest(
+          c,
+          "Wait for the quoted message to be confirmed before replying",
+        );
+      }
       quotedWaMessageId = quotedMessage?.message_id || undefined;
 
       if (quotedMessage?.from_me) {
