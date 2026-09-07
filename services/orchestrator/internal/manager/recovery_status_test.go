@@ -38,18 +38,18 @@ func TestRecoveryAnnouncement_LostWorkerIsStillAnError(t *testing.T) {
 	}
 }
 
-// The regression this guards: worker_registry is written once, at spawn, and
-// never advanced as the session comes up, so a worker connected for hours still
-// carries "connecting". Republishing that on recovery pushed a connection the
-// API had as "connected" back to "connecting", where nothing corrected it —
-// the process survived, so it never re-announced itself.
+// The regression this guards: even though authenticated runtime edges now
+// advance worker_registry, persistence can lag during a transient failure and
+// an adopted surviving worker cannot prove its current session state merely
+// from the durable snapshot. Republishing that snapshot could overwrite the
+// newer status already held by the API.
 //
 // No registry status is exempt, including the shutdown marker. See
 // TestSurvivorAnnouncement_RecoveringIsAlsoDeclined.
 func TestSurvivorAnnouncement_StaleRecordIsNotRepublished(t *testing.T) {
 	for _, recorded := range []string{
-		types.StatusConnecting, // the spawn-time default: the actual production case
-		types.StatusConnected,  // never written today, and still not ours to assert
+		types.StatusConnecting, // possible if the runtime edge was not persisted
+		types.StatusConnected,  // durable observation, but potentially stale
 		types.StatusStarting,
 		types.StatusDisconnected,
 		types.StatusError,

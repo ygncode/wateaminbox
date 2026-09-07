@@ -126,6 +126,85 @@ func TestWorkerReadinessRejectsStaleFutureReplayAndDisconnectReordering(t *testi
 	assert.True(t, manager.workerIsReady("connection", "company", "launch"))
 }
 
+func TestWorkerRuntimeEdgesUpdateAndPersistOperationalStatus(t *testing.T) {
+	manager := New(Config{})
+	manager.workers["connection"] = &WorkerProcess{
+		CompanyID: "company", ConnectionID: "connection", LaunchID: "launch",
+		ArtifactVersion: "v2", readinessToken: testReadinessToken,
+		DesiredState: DesiredStateRunning, Status: "connecting",
+	}
+	var persisted []string
+	manager.persistWorkerRuntimeStatus = func(
+		_ context.Context,
+		connectionID, companyID, launchID, status string,
+	) error {
+		assert.Equal(t, "connection", connectionID)
+		assert.Equal(t, "company", companyID)
+		assert.Equal(t, "launch", launchID)
+		persisted = append(persisted, status)
+		return nil
+	}
+
+	manager.RecordWorkerRuntimeStatus(runtimeStatus(
+		"company", "connection", "launch", "v2", sharednats.WorkerRuntimeStatusConnected,
+	))
+	worker, _ := manager.GetWorkerStatus("connection")
+	assert.Equal(t, "connected", worker.Status)
+	assert.Equal(t, []string{"connected"}, persisted)
+
+	manager.RecordWorkerRuntimeStatus(runtimeStatus(
+		"company", "connection", "launch", "v2", sharednats.WorkerRuntimeStatusDisconnected,
+	))
+	worker, _ = manager.GetWorkerStatus("connection")
+	assert.Equal(t, "disconnected", worker.Status)
+	assert.Equal(t, []string{"connected", "disconnected"}, persisted)
+}
+
+func TestWorkerRuntimeHeartbeatRetriesFailedStatusPersistence(t *testing.T) {
+	manager := New(Config{})
+	manager.workers["connection"] = &WorkerProcess{
+		CompanyID: "company", ConnectionID: "connection", LaunchID: "launch",
+		ArtifactVersion: "v2", readinessToken: testReadinessToken,
+		DesiredState: DesiredStateRunning, Status: "connecting",
+	}
+	attempts := 0
+	manager.persistWorkerRuntimeStatus = func(context.Context, string, string, string, string) error {
+		attempts++
+		if attempts == 1 {
+			return assert.AnError
+		}
+		return nil
+	}
+
+	for range 2 {
+		manager.RecordWorkerRuntimeStatus(runtimeStatus(
+			"company", "connection", "launch", "v2", sharednats.WorkerRuntimeStatusConnected,
+		))
+	}
+	assert.Equal(t, 2, attempts)
+}
+
+func TestWorkerRuntimeEdgeCannotOverwriteLifecycleState(t *testing.T) {
+	manager := New(Config{})
+	manager.workers["connection"] = &WorkerProcess{
+		CompanyID: "company", ConnectionID: "connection", LaunchID: "launch",
+		ArtifactVersion: "v2", readinessToken: testReadinessToken,
+		DesiredState: DesiredStateRunning, Status: WorkerStatusRecovering,
+	}
+	persisted := false
+	manager.persistWorkerRuntimeStatus = func(context.Context, string, string, string, string) error {
+		persisted = true
+		return nil
+	}
+
+	manager.RecordWorkerRuntimeStatus(runtimeStatus(
+		"company", "connection", "launch", "v2", sharednats.WorkerRuntimeStatusConnected,
+	))
+	worker, _ := manager.GetWorkerStatus("connection")
+	assert.Equal(t, WorkerStatusRecovering, worker.Status)
+	assert.False(t, persisted)
+}
+
 func TestWorkerReadinessTimestampFenceResetsForNewLaunchAndToken(t *testing.T) {
 	manager := New(Config{})
 	now := time.Now().UTC()

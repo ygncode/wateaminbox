@@ -175,6 +175,28 @@ func TestRestartCountLookupIsScopedToTenantAndLaunch(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestRuntimeStatusUpdateIsGenerationNodeAndLifecycleScoped(t *testing.T) {
+	registry, mock := newMockRegistry(t)
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET status = $1 WHERE connection_id = $2 AND company_id = $3 AND launch_id = $4 AND node_id = $5 AND desired_state = 'running' AND status IN ('starting', 'connecting', 'connected', 'disconnected') AND status IS DISTINCT FROM $1")).
+		WithArgs("connected", "connection", "company", "launch", "test-node-1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := registry.UpdateRuntimeStatusLaunch(
+		context.Background(), "connection", "company", "launch", "connected",
+	)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRuntimeStatusUpdateRejectsUnsupportedState(t *testing.T) {
+	registry, mock := newMockRegistry(t)
+	err := registry.UpdateRuntimeStatusLaunch(
+		context.Background(), "connection", "company", "launch", WorkerStatusRecovering,
+	)
+	require.ErrorContains(t, err, "unsupported durable runtime status")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestStatusUpdateRejectsStaleLaunch(t *testing.T) {
 	registry, mock := newMockRegistry(t)
 	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET status = $1, last_heartbeat = $2 WHERE connection_id = $3 AND company_id = $4 AND launch_id = $5")).

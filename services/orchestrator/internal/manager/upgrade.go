@@ -7,9 +7,11 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
+	"github.com/ygncode-lab/whatsapp-web/services/orchestrator/internal/types"
 	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
 )
 
@@ -19,8 +21,9 @@ var (
 )
 
 const (
-	workerRuntimeSignalMaxAge     = time.Minute
-	workerRuntimeSignalFutureSkew = 5 * time.Second
+	workerRuntimeSignalMaxAge       = time.Minute
+	workerRuntimeSignalFutureSkew   = 5 * time.Second
+	workerRuntimePersistenceTimeout = 2 * time.Second
 )
 
 // WorkerUpgradeRequest selects a retained immutable artifact and optionally
@@ -927,6 +930,20 @@ func (m *Manager) waitWorkerReady(ctx context.Context, launchID string) error {
 	}
 }
 
+func acceptsRuntimeConnectionState(worker *WorkerProcess) bool {
+	if worker.DesiredState != DesiredStateRunning {
+		return false
+	}
+	switch worker.Status {
+	case types.StatusStarting, types.StatusConnecting, types.StatusConnected, types.StatusDisconnected:
+		return true
+	default:
+		// Lifecycle states such as recovering, stopping, stopped, and error must
+		// win over a late runtime signal from the process being terminated.
+		return false
+	}
+}
+
 // RecordWorkerRuntimeStatus is the NATS callback and a focused-test seam. It
 // rejects stale, cross-tenant, cross-generation, and wrong-artifact signals.
 func (m *Manager) RecordWorkerRuntimeStatus(status sharednats.WorkerRuntimeStatus) {
@@ -941,19 +958,41 @@ func (m *Manager) RecordWorkerRuntimeStatus(status sharednats.WorkerRuntimeStatu
 	}
 	m.mu.Lock()
 	worker, ok := m.workers[status.ConnectionID]
-	if !ok || worker.CompanyID != status.CompanyID || worker.LaunchID != status.LaunchID ||
-		worker.ArtifactVersion != status.ArtifactVersion ||
+	if !ok {
+		m.mu.Unlock()
+		return
+	}
+	if worker.runtimeStatusMu == nil {
+		worker.runtimeStatusMu = &sync.Mutex{}
+	}
+	runtimeStatusMu := worker.runtimeStatusMu
+	m.mu.Unlock()
+	// The NATS subscription invokes callbacks serially, but this lock also makes
+	// the focused test seam and any future caller preserve durable edge order.
+	// It is deliberately acquired without the manager lock so database latency
+	// in an earlier callback cannot freeze unrelated lifecycle operations.
+	runtimeStatusMu.Lock()
+	defer runtimeStatusMu.Unlock()
+
+	m.mu.Lock()
+	current, ok := m.workers[status.ConnectionID]
+	if !ok || current != worker || worker.CompanyID != status.CompanyID ||
+		worker.LaunchID != status.LaunchID || worker.ArtifactVersion != status.ArtifactVersion ||
 		!sharednats.VerifyWorkerRuntimeStatus(status, worker.readinessToken) ||
 		!signalTime.After(worker.LastRuntimeSignalAt) {
 		m.mu.Unlock()
 		return
 	}
+	durableStatus := ""
 	switch status.Status {
 	case sharednats.WorkerRuntimeStatusProcessReady:
 		worker.ProcessReady = true
 	case sharednats.WorkerRuntimeStatusConnected:
 		worker.RuntimeConnected = true
-		worker.Status = "connected"
+		if acceptsRuntimeConnectionState(worker) {
+			worker.Status = types.StatusConnected
+			durableStatus = types.StatusConnected
+		}
 	case sharednats.WorkerRuntimeStatusAuthenticated:
 		worker.Authenticated = true
 	case sharednats.WorkerRuntimeStatusDisconnected:
@@ -962,6 +1001,10 @@ func (m *Manager) RecordWorkerRuntimeStatus(status sharednats.WorkerRuntimeStatu
 		worker.ProcessReady = false
 		worker.RuntimeConnected = false
 		worker.Authenticated = false
+		if acceptsRuntimeConnectionState(worker) {
+			worker.Status = types.StatusDisconnected
+			durableStatus = types.StatusDisconnected
+		}
 	default:
 		m.mu.Unlock()
 		return
@@ -969,13 +1012,36 @@ func (m *Manager) RecordWorkerRuntimeStatus(status sharednats.WorkerRuntimeStatu
 	worker.LastRuntimeSignalAt = signalTime
 	complete := worker.ProcessReady && worker.RuntimeConnected && worker.Authenticated
 	m.mu.Unlock()
-	if !complete {
-		return
+
+	if complete {
+		m.readinessMu.Lock()
+		if ready := m.readiness[status.LaunchID]; ready != nil {
+			close(ready)
+			delete(m.readiness, status.LaunchID)
+		}
+		m.readinessMu.Unlock()
 	}
-	m.readinessMu.Lock()
-	if ready := m.readiness[status.LaunchID]; ready != nil {
-		close(ready)
-		delete(m.readiness, status.LaunchID)
+
+	if durableStatus != "" && m.persistWorkerRuntimeStatus != nil {
+		baseCtx := m.ctx
+		if baseCtx == nil {
+			baseCtx = context.Background()
+		}
+		ctx, cancel := context.WithTimeout(baseCtx, workerRuntimePersistenceTimeout)
+		defer cancel()
+		if err := m.persistWorkerRuntimeStatus(
+			ctx,
+			status.ConnectionID,
+			status.CompanyID,
+			status.LaunchID,
+			durableStatus,
+		); err != nil {
+			log.Printf(
+				"Warning: failed to persist worker %s runtime status %s: %v",
+				status.ConnectionID,
+				durableStatus,
+				err,
+			)
+		}
 	}
-	m.readinessMu.Unlock()
 }

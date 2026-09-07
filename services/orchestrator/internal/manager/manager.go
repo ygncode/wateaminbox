@@ -106,6 +106,11 @@ type Manager struct {
 	// a database.
 	recordWorkerHeartbeat func(context.Context, string, string, string) (bool, error)
 
+	// persistWorkerRuntimeStatus keeps the registry's operational status aligned
+	// with authenticated runtime edges. Keeping this as a seam makes the NATS
+	// status path testable without a database.
+	persistWorkerRuntimeStatus func(context.Context, string, string, string, string) error
+
 	// checkConnectionAllowances names the subset of the given companies that may
 	// no longer run any connection. It is wired to the registry when persistence
 	// initialises, and is a field rather than a direct registry call so
@@ -147,9 +152,10 @@ type WorkerProcess struct {
 	ProcessReady        bool
 	RuntimeConnected    bool
 	Authenticated       bool
-	LastRuntimeSignalAt time.Time // strictly monotonic per launch/readiness token
-	ExpectedExit        bool      // Suppresses crash handling in monitorWorkerProcess.
-	RemoveOnExit        bool      // One-shot unlink workers remove themselves on exit.
+	LastRuntimeSignalAt time.Time   // strictly monotonic per launch/readiness token
+	runtimeStatusMu     *sync.Mutex // serializes durable runtime edges for this generation
+	ExpectedExit        bool        // Suppresses crash handling in monitorWorkerProcess.
+	RemoveOnExit        bool        // One-shot unlink workers remove themselves on exit.
 	cmd                 *exec.Cmd
 	healthCancel        context.CancelFunc
 	done                chan struct{} // closed after cmd.Wait() reaps the process
@@ -290,6 +296,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			m.registry = registry
 			m.markWorkersRecovering = registry.MarkWorkersRecovering
 			m.recordWorkerHeartbeat = registry.UpdateHeartbeatLaunch
+			m.persistWorkerRuntimeStatus = registry.UpdateRuntimeStatusLaunch
 			m.checkConnectionAllowances = registry.CompaniesWithoutConnectionAllowance
 			log.Println("Worker registry initialized successfully")
 
@@ -1986,11 +1993,10 @@ func recoveryAnnouncement(recordStatus string) (status, reason string) {
 // survivorAnnouncement reports what to publish for a worker whose process
 // outlived the orchestrator. Nothing, whatever the record says.
 //
-// The registry is written once, by RegisterWorker at spawn, and never advanced
-// as the WhatsApp session comes up, so a worker connected for hours still
-// carries the status it was born with. Republishing that took a connection the
-// API held as "connected" and pushed it back to "connecting", where nothing
-// corrected it: the process survived, so it never re-announced itself.
+// Authenticated runtime edges are persisted in the registry, but that durable
+// observation can still lag the surviving process during a transient NATS or
+// database failure. Republishing it could overwrite the newer status already
+// held by the API, so recovery must not manufacture a customer-facing event.
 //
 // "recovering" is declined for the same reason, which is easy to get wrong.
 // That marker means this orchestrator's shutdown path asked the worker to
