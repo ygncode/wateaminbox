@@ -2,6 +2,7 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import type { TenantDatabase } from "./client";
 import { ensureConnectionAlertSchema } from "./connection-alert-schema.js";
+import { ensureConnectionSystemNotificationSchema } from "./connection-system-notification-schema.js";
 import {
   installOutboxDispatchTrigger,
   installOutboxRecipientIndex,
@@ -24,6 +25,7 @@ import {
  */
 export const TENANT_SCHEMA_CONTRACT = {
   connection_email_alerts: [
+    "notification_created_at",
     "id",
     "connection_id",
     "user_id",
@@ -1049,6 +1051,7 @@ export async function reconcileTenantSchema<Database>(
   );
 
   await ensureConnectionAlertSchema(db, schemaName);
+  await ensureConnectionSystemNotificationSchema(db, schemaName);
 
   await sql`
     CREATE TABLE IF NOT EXISTS ${table("whatsapp_connection_sessions")} (

@@ -4,7 +4,7 @@ import { sql } from "kysely";
 import type { EmailOptions } from "../lib/email.js";
 import {
   connectionAlertRetryMs,
-  processConnectionEmailAlerts,
+  processConnectionEmailAlerts as processConnectionEmailAlertsImpl,
 } from "./connection-email-alerts.service.js";
 import {
   createTenantSchema,
@@ -12,6 +12,16 @@ import {
   getSchemaName,
   getTenantConnection,
 } from "./tenant.service.js";
+
+const processConnectionEmailAlerts: typeof processConnectionEmailAlertsImpl = (
+  tenantDb,
+  companyId,
+  options = {},
+) =>
+  processConnectionEmailAlertsImpl(tenantDb, companyId, {
+    publishNotification: async () => {},
+    ...options,
+  });
 
 const integration = (name: string, run: () => Promise<void>) =>
   (process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip)(
@@ -313,5 +323,128 @@ integration(
           (await second.rows()).every((r) => r.attempts === 0 && !r.sent_at),
         ).toBe(true);
       });
+    }),
+);
+
+integration(
+  "persistent alerts survive email failure, reading, dismissal and recovery",
+  () =>
+    fixture(async (f) => {
+      await f.update({ status: "disconnected", logged_out_at: new Date() });
+      const history = () =>
+        f.tenant.selectFrom("notification_history").selectAll().execute();
+      let published = 0;
+      const sender = async () => ({ success: false });
+      await processConnectionEmailAlerts(f.tenant, f.companyId, {
+        sender,
+        publishNotification: async () => {
+          published++;
+          throw new Error("offline");
+        },
+      });
+      const notifications = await history();
+      expect(notifications).toHaveLength(2);
+      expect(published).toBe(2);
+      expect(new Set(notifications.map((n) => n.user_id))).toEqual(
+        new Set(f.users.slice(0, 2).map((u) => u.id)),
+      );
+      expect(
+        notifications.every(
+          (n) =>
+            n.notification_type === "system" &&
+            !n.is_read &&
+            n.action_url === `/w/${f.companyId}/settings/connections`,
+        ),
+      ).toBe(true);
+      expect(notifications[0].metadata).toMatchObject({
+        connectionId: f.connection.id,
+        connectionAlertKind: "logged_out",
+      });
+      await f.tenant
+        .updateTable("notification_history")
+        .set({ is_read: true })
+        .where("id", "=", notifications[0].id)
+        .execute();
+      await f.tenant
+        .deleteFrom("notification_history")
+        .where("id", "=", notifications[1].id)
+        .execute();
+      await f.due();
+      await processConnectionEmailAlerts(f.tenant, f.companyId, { sender });
+      expect(await history()).toHaveLength(1);
+      expect((await history())[0].is_read).toBe(true);
+      await f.update({ status: "connected", logged_out_at: null });
+      expect(await f.rows()).toHaveLength(0);
+      expect(await history()).toHaveLength(1);
+      await f.update({ status: "disconnected", logged_out_at: new Date() });
+      await processConnectionEmailAlerts(f.tenant, f.companyId, { sender });
+      expect(await history()).toHaveLength(3);
+    }),
+);
+
+integration(
+  "escalation rearms persistent alerts and existing mail is not resent",
+  () =>
+    fixture(async (f) => {
+      await f.update({ status: "disconnected" });
+      await f.due();
+      await f.tenant
+        .updateTable("connection_email_alerts")
+        .set({ sent_at: new Date() })
+        .execute();
+      let sent = 0;
+      const sender = async () => {
+        sent++;
+        return { success: true };
+      };
+      await processConnectionEmailAlerts(f.tenant, f.companyId, { sender });
+      expect(sent).toBe(0);
+      expect((await f.rows()).every((r) => r.notification_created_at)).toBe(
+        true,
+      );
+      await f.update({ logged_out_at: new Date() });
+      expect(
+        (await f.rows()).every((r) => r.notification_created_at === null),
+      ).toBe(true);
+      await Promise.all([
+        processConnectionEmailAlerts(f.tenant, f.companyId, { sender }),
+        processConnectionEmailAlerts(f.tenant, f.companyId, { sender }),
+      ]);
+      expect(sent).toBe(2);
+      const history = await f.tenant
+        .selectFrom("notification_history")
+        .selectAll()
+        .execute();
+      expect(history).toHaveLength(4);
+      expect(
+        history.filter((n) => n.title === "WhatsApp logged out"),
+      ).toHaveLength(2);
+    }),
+);
+
+integration(
+  "upgrades an existing email queue without losing incident or delivery state",
+  () =>
+    fixture(async (f) => {
+      const schema = getSchemaName(f.companyId);
+      await f.update({ status: "disconnected", logged_out_at: new Date() });
+      await f.tenant
+        .updateTable("connection_email_alerts")
+        .set({ sent_at: new Date() })
+        .execute();
+      const before = await f.rows();
+      await sql`DROP TRIGGER connection_notification_reset ON ${sql.table(`${schema}.connection_email_alerts`)}`.execute(
+        db,
+      );
+      await sql`ALTER TABLE ${sql.table(`${schema}.connection_email_alerts`)} DROP COLUMN notification_created_at`.execute(
+        db,
+      );
+      await reconcileTenantSchema(db, schema);
+      await reconcileTenantSchema(db, schema);
+      const after = await f.rows();
+      expect(after.map((r) => r.id)).toEqual(before.map((r) => r.id));
+      expect(
+        after.every((r) => r.sent_at && r.notification_created_at === null),
+      ).toBe(true);
     }),
 );

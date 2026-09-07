@@ -7,6 +7,8 @@ import {
   sendEmail,
 } from "../lib/email.js";
 import { createLogger, formatError } from "../lib/logger.js";
+import { persistConnectionSystemNotification } from "./connection-system-notifications.service.js";
+import { publishNotificationInvalidation } from "./notification-delivery.service.js";
 import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 
 const logger = createLogger("ConnectionEmailAlerts");
@@ -32,6 +34,7 @@ export async function processConnectionEmailAlerts(
   options: {
     sender?: Sender;
     publicDb?: typeof db;
+    publishNotification?: typeof publishNotificationInvalidation;
     limit?: number;
     shouldStop?: () => boolean;
   } = {},
@@ -44,7 +47,12 @@ export async function processConnectionEmailAlerts(
       const row = await trx
         .selectFrom("connection_email_alerts")
         .selectAll()
-        .where("sent_at", "is", null)
+        .where((eb) =>
+          eb.or([
+            eb("sent_at", "is", null),
+            eb("notification_created_at", "is", null),
+          ]),
+        )
         .where("next_attempt_at", "<=", sql<Date>`now()`)
         .orderBy("next_attempt_at")
         .forUpdate()
@@ -92,6 +100,28 @@ export async function processConnectionEmailAlerts(
           .execute();
         continue;
       }
+      const notification = await persistConnectionSystemNotification(
+        tenantDb,
+        companyId,
+        alert.id,
+        connection.name || "WhatsApp connection",
+      );
+      if (!notification) continue;
+      if (notification.created) {
+        try {
+          await (
+            options.publishNotification ?? publishNotificationInvalidation
+          )(companyId, alert.user_id, notification.id, "system");
+        } catch {
+          // History is authoritative; an unavailable realtime transport must
+          // neither remove the saved notification nor block email delivery.
+          logger.warn(
+            { companyId },
+            "Connection notification saved; realtime invalidation failed",
+          );
+        }
+      }
+      if (alert.sent_at) continue;
       const result = await sender({
         to: recipient.email,
         ...renderConnectionAlertEmail({

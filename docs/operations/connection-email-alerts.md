@@ -1,4 +1,4 @@
-# Connection email alerts
+# Connection alerts
 
 Connection alerts use the OSS app's existing `MAIL_DRIVER`, `EMAIL_FROM`,
 `APP_URL`, branded HTML shell and plain-text alternative. There is no new mail
@@ -43,6 +43,27 @@ provider response bodies. For a tenant's `connection_email_alerts` table,
 `sent_at IS NULL` indicates pending delivery; `next_attempt_at` includes both
 retry scheduling and an active claim lease. Use aggregate counts in operations
 checks, not recipient exports.
+
+## Persistent in-app notifications
+
+Migration `088_add_connection_system_notifications` adds a delivery marker to
+that same durable queue. Apply it before starting the updated API. Each eligible
+owner/admin gets a `system` notification in Notification Center before the mail
+attempt, with a workspace-specific Connections link. It survives refresh and
+recovery; users can mark it read or delete it using the existing controls.
+
+Email failures do not prevent notification creation. Retries and competing API
+replicas reuse the incident ID, and the delivery marker prevents a dismissed
+notification from reappearing. Escalation from offline to logged out creates a
+new notification. Existing unresolved queue rows can receive their first in-app
+notification without resending an already accepted email. Historical connections
+without a queued incident remain excluded.
+
+Realtime invalidation is best-effort; if it fails, the saved notification is
+available on the next list refresh. Logout and connection-error toasts offer an
+**Open connections** action, as do scheduled-message failures caused by an inactive
+connection. Links open Connections settings; reconnecting remains an explicit
+user action through the existing QR flow.
 
 ## Preview without sending
 

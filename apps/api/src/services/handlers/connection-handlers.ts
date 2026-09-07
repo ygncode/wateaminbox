@@ -427,6 +427,8 @@ export async function handleDisconnectedEvent(
         {
           type: "error",
           title: "WhatsApp logged out",
+          actionUrl: `/w/${encodeURIComponent(companyId)}/settings/connections`,
+          actionLabel: "Open connections",
           message:
             "This number was unlinked from WhatsApp. Scan a new QR code to reconnect.",
         },
@@ -541,6 +543,8 @@ export async function handleWorkerConnectionStatusEvent(
         {
           type: "error",
           title: "WhatsApp disconnected",
+          actionUrl: `/w/${encodeURIComponent(companyId)}/settings/connections`,
+          actionLabel: "Open connections",
           message: payload.reason || "Connection lost unexpectedly",
         },
         connectionId,
