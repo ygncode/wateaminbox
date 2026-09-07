@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log"
 	"time"
 
@@ -117,7 +118,7 @@ func contactCardPayloads(contacts []*waE2E.ContactMessage) []natsClient.ContactC
 }
 
 // handleMessage processes incoming messages.
-func (h *Handler) handleMessage(msg *events.Message) {
+func (h *Handler) handleMessage(msg *events.Message) error {
 	// Get preferred JIDs (PN over LID) to ensure consistency with stored contacts
 	senderJID := h.getPreferredSenderJID(msg.Info)
 	chatJID := h.getPreferredChatJID(msg.Info)
@@ -149,27 +150,25 @@ func (h *Handler) handleMessage(msg *events.Message) {
 	// Handle different message types
 	if msg.Message == nil {
 		log.Println("Message content is nil")
-		return
+		return nil
 	}
 	msg.Message = unwrapMediaAlbumMessage(msg.Message)
 
 	// Reaction message - handle separately and return early
 	if msg.Message.ReactionMessage != nil {
-		h.handleReactionMessage(msg)
-		return
+		return h.handleReactionMessage(msg)
 	}
 
 	// Protocol message (Revoke, etc.)
 	if msg.Message.ProtocolMessage != nil {
-		h.handleProtocolMessage(msg)
-		return
+		return h.handleProtocolMessage(msg)
 	}
 
 	// The album parent is a manifest, not a visible chat row. Its ordinary
 	// image/video children carry a MEDIA_ALBUM association to this message ID.
 	if album := msg.Message.GetAlbumMessage(); album != nil {
 		h.rememberMediaAlbum(chatJID.String(), msg.Info.ID, album)
-		return
+		return nil
 	}
 
 	msgEvent.QuotedMessageID = getQuotedMessageID(msg.Message)
@@ -273,29 +272,28 @@ func (h *Handler) handleMessage(msg *events.Message) {
 	// If we couldn't determine the message type, skip
 	if msgEvent.Type == "" {
 		log.Printf("Unknown message type from %s", senderJID.String())
-		return
+		return nil
 	}
 
-	// Publish to NATS
-	if h.publisher != nil {
-		if err := h.publisher.PublishMessage(msgEvent); err != nil {
-			log.Printf("Failed to publish message event: %v", err)
-		}
+	// Persistence failure propagates to the WhatsApp success-status callback.
+	if h.publishMessage != nil {
+		return h.publishMessage(msgEvent)
 	}
+	return errors.New("message publisher is not configured")
 }
 
 // handleProtocolMessage processes protocol messages (revokes, etc.)
-func (h *Handler) handleProtocolMessage(msg *events.Message) {
+func (h *Handler) handleProtocolMessage(msg *events.Message) error {
 	protoMsg := msg.Message.ProtocolMessage
 	if protoMsg == nil {
-		return
+		return nil
 	}
 
 	// Check for Revoke type
 	if protoMsg.Type != nil && *protoMsg.Type == waE2E.ProtocolMessage_REVOKE {
 		revokedID := protoMsg.GetKey().GetID()
 		if revokedID == "" {
-			return
+			return nil
 		}
 
 		// Get preferred JIDs (PN over LID)
@@ -307,19 +305,20 @@ func (h *Handler) handleProtocolMessage(msg *events.Message) {
 		if h.publisher != nil {
 			// Publish the revoke event
 			if err := h.publisher.PublishMessageRevoke(revokedID, senderJID.String(), chatJID.String(), msg.Info.Timestamp); err != nil {
-				log.Printf("Failed to publish message revoke: %v", err)
+				return err
 			}
 		}
 	}
+	return nil
 }
 
 // handleReactionMessage processes incoming reaction messages.
 // Reactions come as Message events with a ReactionMessage field.
-func (h *Handler) handleReactionMessage(msg *events.Message) {
+func (h *Handler) handleReactionMessage(msg *events.Message) error {
 	reactionMsg := msg.Message.ReactionMessage
 	if reactionMsg == nil || reactionMsg.Key == nil {
 		log.Println("Invalid reaction message: missing key")
-		return
+		return nil
 	}
 
 	// Get preferred JIDs (PN over LID)
@@ -342,9 +341,10 @@ func (h *Handler) handleReactionMessage(msg *events.Message) {
 			emoji,
 			msg.Info.Timestamp,
 		); err != nil {
-			log.Printf("Failed to publish reaction event: %v", err)
+			return err
 		}
 	}
+	return nil
 }
 
 func normalizeReceiptStatus(receiptType types.ReceiptType) string {

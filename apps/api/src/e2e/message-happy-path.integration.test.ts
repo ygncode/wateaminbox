@@ -175,7 +175,7 @@ describe("login to send confirmation happy path", () => {
           .where("id", "=", sent.message.id)
           .executeTakeFirstOrThrow();
         expect(receiptBeforeConfirmation).toEqual({
-          message_id: sent.message.messageId,
+          message_id: "whatsapp-confirmed-id",
           status: "delivered",
         });
 

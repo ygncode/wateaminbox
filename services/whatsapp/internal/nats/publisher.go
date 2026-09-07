@@ -739,6 +739,16 @@ func (p *Publisher) PublishSendConfirmation(pendingMessageID, messageID string, 
 	return p.publish(subject, event)
 }
 
+// PublishSendUncertain preserves an ambiguous result without inviting an
+// automatic resend. A later WhatsApp receipt can still settle this message.
+func (p *Publisher) PublishSendUncertain(pendingMessageID, messageID, correlationID string) error {
+	event := WhatsAppEvent{Type: sharednats.EventTypeSendFailed, CompanyID: p.companyID, ConnectionID: p.connectionID,
+		CorrelationID: correlationID, Timestamp: time.Now().Format(time.RFC3339),
+		Payload: SendFailedPayload{PendingMessageID: pendingMessageID, MessageID: messageID, Outcome: "unknown",
+			Reason: "Delivery is unconfirmed. Check the conversation before sending again.", CorrelationID: correlationID}}
+	return p.publish(fmt.Sprintf(SubjectSendConfirmation, p.companyID, p.connectionID), event)
+}
+
 // PublishSendFailed publishes a send failure event.
 // This is called when a message fails to send after all retry attempts.
 func (p *Publisher) PublishSendFailed(pendingMessageID, reason string, correlationID string) error {
@@ -917,6 +927,17 @@ func (p *Publisher) publish(subject string, event interface{}) error {
 		ID:      uuid.NewString(),
 		Subject: subject,
 		Payload: data,
+	}
+	// Carry the durable row identity through the API. Historical rows are
+	// retained until application; sync markers wait for earlier history rows.
+	var envelope map[string]interface{}
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return err
+	}
+	envelope["eventId"] = pending.ID
+	pending.Payload, err = json.Marshal(envelope)
+	if err != nil {
+		return err
 	}
 	if err = p.outbox.SavePendingEvent(p.ctx, pending); err != nil {
 		return fmt.Errorf("persist worker event before publish: %w", err)

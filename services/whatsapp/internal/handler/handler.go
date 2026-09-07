@@ -29,6 +29,7 @@ package handler
 
 import (
 	"context"
+	"log"
 	"sync"
 	"time"
 
@@ -103,6 +104,7 @@ type Config struct {
 
 // Handler processes WhatsApp events.
 type Handler struct {
+	publishMessage       func(natsClient.MessageEvent) error
 	config               Config
 	publisher            *natsClient.Publisher
 	syncStatusPublisher  SyncStatusPublisher
@@ -159,7 +161,7 @@ func New(cfg Config) *Handler {
 	if historyPagePublisher == nil && cfg.Publisher != nil {
 		historyPagePublisher = cfg.Publisher
 	}
-	return &Handler{
+	h := &Handler{
 		config:                 cfg,
 		publisher:              cfg.Publisher,
 		syncStatusPublisher:    syncPublisher,
@@ -169,6 +171,23 @@ func New(cfg Config) *Handler {
 		groupRefreshSlots:      make(chan struct{}, maxConcurrentGroupRefreshes),
 		mediaAlbumManifests:    make(map[string]mediaAlbumManifest),
 	}
+	if cfg.Publisher != nil {
+		h.publishMessage = cfg.Publisher.PublishMessage
+	}
+	return h
+}
+
+// HandleEventWithSuccessStatus acknowledges live messages only after persistence.
+func (h *Handler) HandleEventWithSuccessStatus(evt interface{}) bool {
+	if msg, ok := evt.(*events.Message); ok {
+		if err := h.handleMessage(msg); err != nil {
+			log.Printf("Incoming message retained for replay: %v", err)
+			return false
+		}
+		return true
+	}
+	h.HandleEvent(evt)
+	return true
 }
 
 // HandleEvent processes incoming WhatsApp events.

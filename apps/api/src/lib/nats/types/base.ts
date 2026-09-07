@@ -72,6 +72,7 @@ export interface NatsCommand {
 
 // Base event interface
 export interface WhatsAppEvent {
+  eventId?: string;
   contractVersion: 1;
   type:
     | "qr"

@@ -1,3 +1,5 @@
+import { useFirstChatAcknowledgment } from "./FirstChatAcknowledgment";
+import { getCompanyId } from "@/lib/api/client";
 import type { Message, WhatsAppConnectionIdentity } from "@wateaminbox/shared";
 import { dayjs } from "@wateaminbox/shared";
 import {
@@ -148,7 +150,7 @@ interface MessageComposerProps {
   mentionParticipants?: GroupParticipant[];
 }
 
-export function MessageComposer({
+function AcknowledgedMessageComposer({
   conversationId,
   contactId,
   replyToMessage,
@@ -162,6 +164,7 @@ export function MessageComposer({
 }: MessageComposerProps) {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
+  const acknowledgment = useFirstChatAcknowledgment(contactId);
 
   // A conversation is permanently routed through the account that owns it.
   const isDisconnected = !connection || connection.status !== "connected";
@@ -169,8 +172,8 @@ export function MessageComposer({
   // it makes the browser blur the element, which drops the caret mid-typing and
   // forces the user back to the mouse - so only a real disconnect takes the
   // textarea out of service. Send actions stay gated by isInputDisabled.
-  const isInputDisabled = disabled || isDisconnected;
-  const isTextareaDisabled = isDisconnected;
+  const isInputDisabled = disabled || isDisconnected || acknowledgment.pending;
+  const isTextareaDisabled = isDisconnected || acknowledgment.pending;
   const [message, setMessage] = useState("");
   const [caretPosition, setCaretPosition] = useState(0);
   const [selectedQuickReplyIndex, setSelectedQuickReplyIndex] = useState(0);
@@ -520,9 +523,10 @@ export function MessageComposer({
     });
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const trimmedMessage = message.trim();
     if (!trimmedMessage || isInputDisabled || !conversationId) return;
+    if (!(await acknowledgment.ensureAcknowledged())) return;
 
     // Just clear typing state - don't send typing:stop to avoid WhatsApp cooldown
     // WhatsApp will auto-dismiss the indicator
@@ -561,9 +565,10 @@ export function MessageComposer({
     }, 100);
   };
 
-  const handleSchedule = (scheduledAtIso: string) => {
+  const handleSchedule = async (scheduledAtIso: string) => {
     const trimmedMessage = message.trim();
     if (!trimmedMessage || isInputDisabled || !contactId) return;
+    if (!(await acknowledgment.ensureAcknowledged("schedule"))) return;
 
     clearTypingState();
     scheduleMessageMutation.mutate(
@@ -615,6 +620,7 @@ export function MessageComposer({
     scheduledAtIso: string,
   ): Promise<boolean> => {
     if (!contactId || isInputDisabled) return false;
+    if (!(await acknowledgment.ensureAcknowledged("schedule"))) return false;
 
     try {
       const upload = await uploadMedia(file);
@@ -1109,7 +1115,11 @@ export function MessageComposer({
               current.filter((_, itemIndex) => itemIndex !== index),
             )
           }
-          onSend={onAttachFile}
+          onSend={async (files, type, caption) => {
+            if (isInputDisabled || !(await acknowledgment.ensureAcknowledged()))
+              return false;
+            return onAttachFile(files, type, caption);
+          }}
           onSchedule={
             contactId && pendingAttachments.length === 1
               ? handleScheduleAttachment
@@ -1117,7 +1127,18 @@ export function MessageComposer({
           }
         />
       )}
+      {acknowledgment.dialog}
     </>
+  );
+}
+
+export function MessageComposer(props: MessageComposerProps) {
+  if (!props.conversationId || !props.contactId) return null;
+  return (
+    <AcknowledgedMessageComposer
+      key={`${getCompanyId()}:${props.contactId}`}
+      {...props}
+    />
   );
 }
 

@@ -277,6 +277,8 @@ export interface SendFailedEvent extends WhatsAppEvent {
   type: "send_failed";
   payload: {
     pendingMessageId: string;
+    outcome?: "unknown";
+    messageId?: string;
     reason: string;
     correlationId?: string; // For end-to-end message flow tracing
   };
@@ -289,7 +291,11 @@ export interface SendFailedEvent extends WhatsAppEvent {
  * change DID take effect on WhatsApp and only the read-back failed. Presenting
  * that as a failure invites the user to repeat an action that already happened.
  */
-export type CommandOutcome = "succeeded" | "failed" | "applied_not_synced";
+export type CommandOutcome =
+  | "succeeded"
+  | "failed"
+  | "applied_not_synced"
+  | "unknown";
 
 export interface CommandResultEvent extends WhatsAppEvent {
   type: "command_result";

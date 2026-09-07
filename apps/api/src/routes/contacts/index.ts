@@ -45,6 +45,7 @@ import {
   getContactsWithLastMessage,
   OutboundContactError,
 } from "../../services/contact.service.js";
+import { firstChatAcknowledgmentRoutes } from "./first-chat-acknowledgment.js";
 import { assignmentRoutes } from "./assignment.js";
 import { importRoutes } from "./import.js";
 // Import sub-routes
@@ -63,6 +64,7 @@ contactRoutes.route("/", importRoutes);
 contactRoutes.route("/", notesRoutes);
 contactRoutes.route("/", tagsRoutes);
 contactRoutes.route("/", assignmentRoutes);
+contactRoutes.route("/", firstChatAcknowledgmentRoutes);
 
 // Direct contact resources must honor assignment visibility.
 contactRoutes.use("/:id", requireContactVisibility());

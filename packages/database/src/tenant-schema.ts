@@ -1,7 +1,12 @@
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import type { TenantDatabase } from "./client";
-import { installOutboxDispatchTrigger } from "./dispatch-schema.js";
+import { ensureConnectionAlertSchema } from "./connection-alert-schema.js";
+import { ensureConnectionSystemNotificationSchema } from "./connection-system-notification-schema.js";
+import {
+  installOutboxDispatchTrigger,
+  installOutboxRecipientIndex,
+} from "./dispatch-schema.js";
 import {
   dropLegacyLabelUniqueIndex,
   formatDuplicateBlockers,
@@ -19,6 +24,17 @@ import {
  * to this contract.
  */
 export const TENANT_SCHEMA_CONTRACT = {
+  connection_email_alerts: [
+    "notification_created_at",
+    "id",
+    "connection_id",
+    "user_id",
+    "kind",
+    "occurred_at",
+    "next_attempt_at",
+    "attempts",
+    "sent_at",
+  ],
   whatsapp_connections: [
     "id",
     "name",
@@ -1034,6 +1050,9 @@ export async function reconcileTenantSchema<Database>(
       `.execute(db),
   );
 
+  await ensureConnectionAlertSchema(db, schemaName);
+  await ensureConnectionSystemNotificationSchema(db, schemaName);
+
   await sql`
     CREATE TABLE IF NOT EXISTS ${table("whatsapp_connection_sessions")} (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1135,6 +1154,7 @@ export async function reconcileTenantSchema<Database>(
     `.execute(db),
   );
   await installOutboxDispatchTrigger(db, schemaName);
+  await installOutboxRecipientIndex(db, schemaName);
 
   await sql`
     CREATE TABLE IF NOT EXISTS ${table("scheduled_messages")} (

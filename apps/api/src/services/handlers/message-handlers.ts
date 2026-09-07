@@ -5,18 +5,12 @@
 import { type MessageStatus, type MessageType } from "@wateaminbox/database";
 import {
   extractPhoneFromJid,
-  formatPhoneLikeText,
-  getContactDisplayName,
   normalizeJid,
   toDbDate,
 } from "@wateaminbox/shared";
 import { sql } from "kysely";
 import { formatError } from "../../lib/logger.js";
-import {
-  buildInboundMessageMetadata,
-  buildQuotedMessageData,
-  type MessageDbRow,
-} from "../../lib/message-formatters.js";
+import { buildInboundMessageMetadata } from "../../lib/message-formatters.js";
 import {
   buildCommandSubject,
   type MessageEvent,
@@ -28,8 +22,6 @@ import {
   type SendFailedEvent,
 } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/realtime.js";
-import { broadcastAutoUnassignment } from "../assignment-broadcast.service.js";
-import { createAuditLog } from "../audit.service.js";
 import {
   getAutoReplyCandidate,
   scheduleFirstContactAutoReply,
@@ -38,13 +30,9 @@ import {
   openOrReopenCaseForInboundMessage,
   resolveActiveCaseIdForContact,
 } from "../conversation-case.service.js";
-import {
-  broadcastNewMessageToViewers,
-  broadcastToContactViewers,
-} from "../message-broadcast.service.js";
+import { broadcastToContactViewers } from "../message-broadcast.service.js";
+import { enqueueMessageDelivery } from "../message-delivery-outbox.service.js";
 import { enqueueMessageSearch } from "../message-search-outbox.service.js";
-import { sendPushToUsers } from "../notification-delivery.service.js";
-import { resolveIncomingMessageRecipients } from "../notification-recipient.service.js";
 import { getSchemaName, getTenantConnection } from "../tenant.service.js";
 import { lockActiveConnectionForEvent } from "./connection-event-guard.js";
 import { buildIncomingMessageMetadata } from "./message-metadata.js";
@@ -312,7 +300,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     // versa) would corrupt the SLA clock. See conversation-case.service.ts
     // for why the case-open step itself is additionally safe under retries
     // and concurrent events (partial unique index + ON CONFLICT DO NOTHING).
-    const { insertResult, caseResult } = await tenantDb
+    const { insertResult } = await tenantDb
       .transaction()
       .execute(async (trx) => {
         if (!(await lockActiveConnectionForEvent(trx, connection.id))) {
@@ -522,6 +510,33 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           }
         }
 
+        if (!payload.isHistorySync) {
+          await enqueueMessageDelivery(
+            trx,
+            companyId,
+            connection.id,
+            insertResult.id,
+            !payload.fromMe,
+            caseResult,
+          );
+          if (caseResult?.unassignedPreviousAssignee) {
+            await trx
+              .insertInto("audit_logs")
+              .values({
+                user_id: null,
+                action: "contact.unassigned",
+                entity_type: "contact",
+                entity_id: contact.id,
+                details: {
+                  previousAssignee: caseResult.unassignedPreviousAssignee,
+                  reason: "auto_reopen",
+                  caseId: caseResult.case.id,
+                },
+              })
+              .execute();
+          }
+        }
+
         await enqueueMessageSearch(
           trx,
           companyId,
@@ -539,17 +554,6 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       );
       return;
     }
-
-    const storedMessageId = insertResult.id;
-    const contactForNotification = await tenantDb
-      .selectFrom("contacts")
-      .select(["push_name", "username", "custom_name", "jid", "is_group"])
-      .where("id", "=", contact.id)
-      .executeTakeFirst();
-    const contactName = contactForNotification
-      ? getContactDisplayName(contactForNotification, "Unknown")
-      : null;
-    logger.debug({ messageId: storedMessageId, companyId }, "Stored message");
 
     const profilePictureRequestJid = getProfilePictureRequestJid({
       isGroupMessage,
@@ -571,195 +575,13 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         );
       });
     }
-
-    // Skip notifications, unread counts, and broadcasts for history sync messages
-    // History sync imports hundreds of old messages - we don't want to flood the notification system
-    if (payload.isHistorySync) {
-      logger.debug(
-        { messageId: storedMessageId, companyId, contactId: contact.id },
-        "Skipping notifications for history sync message",
-      );
-    }
-
-    // Resolve the quoted WhatsApp stanza for the realtime payload. Without the
-    // embedded message, an incoming reply only looks like a regular message
-    // until the conversation is manually refetched.
-    let replyToMessage: ReturnType<typeof buildQuotedMessageData> | undefined;
-    if (payload.quotedMessageId && !payload.isHistorySync) {
-      const quotedMessage = await tenantDb
-        .selectFrom("messages")
-        .selectAll()
-        .where("whatsapp_connection_id", "=", connection.id)
-        .where("contact_id", "=", contact.id)
-        .where("message_id", "=", payload.quotedMessageId)
-        .executeTakeFirst();
-      if (quotedMessage) {
-        replyToMessage = buildQuotedMessageData(quotedMessage as MessageDbRow);
-      }
-    }
-
-    // Broadcast to clients with proper format for frontend
-    // Frontend expects { message: Message, conversationId: string }
-    // Skip for history sync messages to avoid flooding during initial sync
-    if (!payload.isHistorySync) {
-      const realtimeMetadata = {
-        ...(payload.mediaUrl ? { mediaAvailable: true } : {}),
-        ...(payload.messageType === "contact" && incomingMetadata?.contactCards
-          ? { contactCards: incomingMetadata.contactCards }
-          : {}),
-        ...(incomingMetadata?.mediaAlbumId
-          ? {
-              mediaAlbumId: incomingMetadata.mediaAlbumId,
-              mediaAlbumIndex: incomingMetadata.mediaAlbumIndex,
-              mediaAlbumCount: incomingMetadata.mediaAlbumCount,
-            }
-          : {}),
-      };
-      await broadcastNewMessageToViewers(
-        companyId,
-        contact.id,
-        {
-          message: {
-            id: storedMessageId,
-            conversationId: contact.id,
-            senderId: payload.from,
-            senderType: payload.fromMe ? "user" : "contact",
-            senderJid: normalizedSenderJid,
-            senderName,
-            senderAvatarUrl: null,
-            content: payload.content || "",
-            messageType: payload.messageType || "text",
-            status: messageStatus,
-            whatsappMessageId: payload.messageId,
-            // Private media URLs are issued only by visibility-checked HTTP
-            // reads; realtime payloads carry update signals only.
-            metadata:
-              Object.keys(realtimeMetadata).length > 0
-                ? realtimeMetadata
-                : undefined,
-            replyToMessageId: payload.quotedMessageId,
-            replyToMessage,
-            isForwarded: false,
-            isDeleted: false,
-            isStarred: false,
-            createdAt: payload.timestamp,
-            updatedAt: payload.timestamp,
-          },
-          conversationId: contact.id,
-        },
-        connectionId,
-      );
-    }
-
-    if (caseResult) {
-      await broadcastToContactViewers(
-        companyId,
-        contact.id,
-        "conversation:updated",
-        {
-          event: caseResult.wasAutoReopen ? "auto_reopened" : "opened",
-          contactId: contact.id,
-          caseId: caseResult.case.id,
-          status: caseResult.case.status,
-        },
-        { connectionId },
-      );
-
-      // The automatic reopen cleared the prior assignee inside the
-      // transaction (see openOrReopenCaseForInboundMessage's doc comment) -
-      // broadcast/audit that outside it, same as every other realtime
-      // signal/audit entry in this handler.
-      if (caseResult.unassignedPreviousAssignee) {
-        await broadcastAutoUnassignment(
-          tenantDb,
-          companyId,
-          contact.id,
-          caseResult.unassignedPreviousAssignee,
-        );
-        await createAuditLog({
-          companyId,
-          userId: null,
-          action: "contact.unassigned",
-          entityType: "contact",
-          entityId: contact.id,
-          details: {
-            previousAssignee: caseResult.unassignedPreviousAssignee,
-            reason: "auto_reopen",
-            caseId: caseResult.case.id,
-          },
-        });
-      }
-    }
-
-    if (!payload.fromMe && !payload.isHistorySync) {
-      const senderLabel =
-        senderName || extractPhoneFromJid(normalizedSenderJid);
-      const senderTitle = senderLabel
-        ? formatPhoneLikeText(senderLabel)
-        : contactName || "New message";
-      const accountLabel = formatPhoneLikeText(
-        connection.name || connection.phone_number,
-      );
-      const pushTitle = accountLabel
-        ? `${senderTitle} → ${accountLabel}`
-        : senderTitle;
-      resolveIncomingMessageRecipients({
-        companyId,
-        contactId: contact.id,
-        contactJid,
-        fromMe: payload.fromMe,
-        isHistorySync: Boolean(payload.isHistorySync),
-      })
-        .then((recipientIds) =>
-          sendPushToUsers(companyId, recipientIds, {
-            version: 1,
-            type: "message",
-            title: pushTitle,
-            body: getPushMessagePreview(payload.messageType, payload.content),
-            tag: `message-${storedMessageId}`,
-            actionUrl: `/chat/${contact.id}`,
-            icon: "/apple-touch-icon.png",
-            badge: "/favicon-96x96.png",
-          }),
-        )
-        .catch((pushError) => {
-          logger.warn(
-            {
-              error: formatError(pushError),
-              companyId,
-              contactId: contact.id,
-              messageId: storedMessageId,
-              transport: "web-push",
-            },
-            "Incoming message persisted but push delivery failed",
-          );
-        });
-    }
   } catch (error) {
     logger.error(formatError(error), "Failed to store message");
     throw error;
   }
 }
 
-export function getPushMessagePreview(
-  messageType: string | undefined,
-  content: string | null | undefined,
-): string {
-  switch (messageType) {
-    case "image":
-      return "Sent an image";
-    case "video":
-      return "Sent a video";
-    case "audio":
-      return "Sent an audio message";
-    case "document":
-      return "Sent a document";
-    case "location":
-      return "Shared a location";
-    default:
-      return content?.slice(0, 100) || "New message";
-  }
-}
+export { getPushMessagePreview } from "../message-push-preview.js";
 
 /**
  * Maps WhatsApp receipt types to database message_status enum values
@@ -823,11 +645,12 @@ export async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
         .updateTable("messages")
         .set({
           status: dbStatus,
+          message_id: payload.messageId,
           // A delayed receipt can prove that a cleanup timeout was a false
           // failure. Preserve unrelated metadata (document names, protocol
           // sender identity, etc.) while removing only the stale timeout marker.
           metadata: sql<Record<string, unknown> | null>`CASE
-          WHEN metadata->>'error' = 'delivery_timeout' THEN NULLIF(
+          WHEN metadata->>'error' IN ('delivery_timeout', 'send_outcome_unknown') THEN NULLIF(
             metadata - ARRAY['error', 'error_message', 'failed_at'],
             '{}'::jsonb
           )
@@ -860,7 +683,7 @@ export async function handleReceiptEvent(event: ReceiptEvent): Promise<void> {
          AND pc.command_id::text = command.payload->>'command_id'
         WHERE split_part(command.subject, '.', 3) = ${companyId}
           AND split_part(command.subject, '.', 4) = ${sessionId}
-          AND pc.result->'response'->>'ID' = ${payload.messageId}
+          AND COALESCE(NULLIF(pc.result->'response'->>'ID', ''), pc.result->>'whatsapp_message_id') = ${payload.messageId}
         ORDER BY pc.processed_at DESC
         LIMIT 1
       `.execute(tenantDb);
@@ -940,14 +763,14 @@ export async function handleSendConfirmationEvent(
         // Clear a timeout written while its confirmation was waiting behind
         // other events, without discarding unrelated message metadata.
         metadata: sql<Record<string, unknown> | null>`CASE
-          WHEN metadata->>'error' = 'delivery_timeout' THEN NULLIF(
+          WHEN metadata->>'error' IN ('delivery_timeout', 'send_outcome_unknown') THEN NULLIF(
             metadata - ARRAY['error', 'error_message', 'failed_at'],
             '{}'::jsonb
           )
           ELSE metadata
         END`,
       })
-      .where("message_id", "=", payload.pendingMessageId)
+      .where("message_id", "in", [payload.pendingMessageId, payload.messageId])
       .where("whatsapp_connection_id", "=", connectionId)
       .returning(["id", "contact_id", "status"])
       .executeTakeFirst();
@@ -998,11 +821,55 @@ export async function handleSendFailedEvent(
       reason: payload.reason,
       connectionId,
     },
-    "Message send failed after max retries",
+    payload.outcome === "unknown"
+      ? "Message send outcome unconfirmed"
+      : "Message send failed after max retries",
   );
 
   try {
     const tenantDb = getTenantConnection(companyId);
+
+    if (payload.outcome === "unknown") {
+      const metadata = {
+        error: "send_outcome_unknown",
+        error_message: payload.reason,
+      };
+      const message = await tenantDb
+        .updateTable("messages")
+        .set({
+          ...(payload.messageId ? { message_id: payload.messageId } : {}),
+          status: "pending",
+          metadata: sql`COALESCE(metadata, '{}'::jsonb) || ${JSON.stringify(metadata)}::jsonb`,
+        })
+        .where("message_id", "=", payload.pendingMessageId)
+        .where("whatsapp_connection_id", "=", connectionId)
+        .where((eb) =>
+          eb.or([
+            eb("status", "=", "pending"),
+            eb.and([
+              eb("status", "=", "failed"),
+              sql<boolean>`metadata->>'error' = 'delivery_timeout'`,
+            ]),
+          ]),
+        )
+        .returning(["id", "contact_id"])
+        .executeTakeFirst();
+      if (message?.contact_id) {
+        await broadcastToContactViewers(
+          companyId,
+          message.contact_id,
+          "message:status",
+          {
+            conversationId: message.contact_id,
+            messageId: message.id,
+            status: "pending",
+            metadata: { error: metadata.error, errorMessage: payload.reason },
+          },
+          { connectionId },
+        );
+      }
+      return;
+    }
 
     // A late failure must not overwrite a confirmed delivery/read status.
     const updatedMessage = await tenantDb

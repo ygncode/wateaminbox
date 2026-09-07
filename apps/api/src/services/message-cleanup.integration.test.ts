@@ -518,3 +518,102 @@ describe("message cleanup multi-replica safety", () => {
     },
   );
 });
+
+integrationTest(
+  "cleanup never reports an unresolved transport intent as sent or failed",
+  async () => {
+    await withTenant(async (fixture) => {
+      const pendingId = `pending_${crypto.randomUUID()}`;
+      const internal = await insertPending(fixture, pendingId);
+      await insertSuccessfulWorkerOutcome(fixture, pendingId, "unused");
+      await sql`UPDATE whatsapp_sessions.processed_commands
+      SET result = ${JSON.stringify({ pending_message_id: pendingId, command_type: "text", in_flight: true, whatsapp_message_id: "stable-id", response: { ID: "", Timestamp: "0001-01-01T00:00:00Z" } })}::jsonb
+      WHERE connection_id = ${fixture.sessionId}::uuid`.execute(db);
+      const notifications: unknown[] = [];
+      await cleanupCompanyMessages(
+        fixture.companyId,
+        30,
+        100,
+        async (...args) => {
+          notifications.push(args);
+        },
+      );
+      const row = await getTenantConnection(fixture.companyId)
+        .selectFrom("messages")
+        .select(["status", "message_id", "metadata"])
+        .where("id", "=", internal)
+        .executeTakeFirstOrThrow();
+      expect(row.status).toBe("pending");
+      expect(row.message_id).toBe(pendingId);
+      expect(row.metadata).toBeNull();
+      expect(notifications).toEqual([]);
+    });
+  },
+);
+
+integrationTest(
+  "an uncertain send remains unconfirmed until a receipt settles its durable ID",
+  async () => {
+    const { handleSendFailedEvent, handleReceiptEvent } = await import(
+      "./handlers/message-handlers.js"
+    );
+    await withTenant(async (fixture) => {
+      const pending = `pending_${crypto.randomUUID()}`;
+      const id = await insertPending(fixture, pending);
+      const tenant = getTenantConnection(fixture.companyId);
+      const event = {
+        contractVersion: 1 as const,
+        companyId: fixture.companyId,
+        connectionId: fixture.connectionId,
+        sessionId: fixture.sessionId,
+        timestamp: new Date().toISOString(),
+      };
+      await handleSendFailedEvent({
+        ...event,
+        type: "send_failed",
+        payload: {
+          pendingMessageId: pending,
+          messageId: "stable-id",
+          outcome: "unknown",
+          reason: "Delivery is unconfirmed",
+        },
+      });
+      const unresolved = await tenant
+        .selectFrom("messages")
+        .select(["message_id", "status", "metadata"])
+        .where("id", "=", id)
+        .executeTakeFirstOrThrow();
+      expect(unresolved.message_id).toBe("stable-id");
+      expect(unresolved.status).toBe("pending");
+      expect(unresolved.metadata?.error).toBe("send_outcome_unknown");
+      await handleReceiptEvent({
+        ...event,
+        type: "receipt",
+        payload: {
+          messageId: "stable-id",
+          status: "read",
+          timestamp: event.timestamp,
+        },
+      });
+      // A late duplicate uncertainty event must not undo proof of delivery.
+      await handleSendFailedEvent({
+        ...event,
+        type: "send_failed",
+        payload: {
+          pendingMessageId: pending,
+          messageId: "stable-id",
+          outcome: "unknown",
+          reason: "Delivery is unconfirmed",
+        },
+      });
+      const settled = await tenant
+        .selectFrom("messages")
+        .select(["status", "metadata"])
+        .where("id", "=", id)
+        .executeTakeFirstOrThrow();
+      expect(settled.status).toBe("read");
+      expect(settled.metadata).toBeNull();
+    });
+  },
+  15_000,
+);

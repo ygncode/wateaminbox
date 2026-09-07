@@ -51,3 +51,32 @@ describe("mail drivers", () => {
     });
   });
 });
+
+for (const name of ["resend", "cloudflare"] as const) {
+  test(`${name} forwards the caller abort signal without serializing it`, async () => {
+    let request: RequestInit | undefined;
+    const fetchMock = (async (_url: unknown, init: RequestInit) => {
+      request = init;
+      return name === "resend"
+        ? Response.json({ id: "test-id" })
+        : Response.json({ success: true, result: { message_id: "test-id" } });
+    }) as unknown as typeof fetch;
+    const driver =
+      name === "resend"
+        ? new ResendMailDriver({
+            apiKey: "test-key",
+            from: "test@example.test",
+            fetch: fetchMock,
+          })
+        : new CloudflareMailDriver({
+            accountId: "test-account",
+            apiToken: "test-token",
+            from: "test@example.test",
+            fetch: fetchMock,
+          });
+    const controller = new AbortController();
+    await driver.send({ ...message, signal: controller.signal });
+    expect(request?.signal).toBe(controller.signal);
+    expect(JSON.parse(String(request?.body))).not.toHaveProperty("signal");
+  });
+}

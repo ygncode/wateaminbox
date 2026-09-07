@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "build": "turbo build --concurrency=3",
+    "preview:connection-emails": "bun --preload ./apps/api/src/test-env.ts scripts/preview-connection-emails.ts",
     "dev": "turbo dev",
     "lint": "biome lint apps/api apps/web packages && ./scripts/lint-go.sh",
     "typecheck": "bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",

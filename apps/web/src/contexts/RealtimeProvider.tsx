@@ -5,6 +5,7 @@
  * Central realtime provider for scalable company-scoped events.
  */
 
+import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   createContext,
@@ -115,6 +116,10 @@ export function RealtimeProvider({
   // Get current company ID from auth context
   const { user } = useAuth();
   const { activeWorkspaceId: currentCompanyId } = useWorkspace();
+  const navigate = useNavigate();
+  // Router navigation changes with location; keep it out of the socket lifecycle.
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
 
   // TanStack Query client for cache updates
   const queryClient = useQueryClient();
@@ -178,6 +183,7 @@ export function RealtimeProvider({
     eventUnsubscribesRef.current.forEach((unsubscribe) => unsubscribe());
     eventUnsubscribesRef.current = registerRealtimeEventHandlers({
       queryClient: queryClientRef.current,
+      navigate: (path) => navigateRef.current(path),
       companyId: currentCompanyId!,
       setSyncingConnections,
       addTypingIndicator: (indicator) =>

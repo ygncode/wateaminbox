@@ -95,7 +95,8 @@ const (
 	// CommandOutcomeSucceeded: the command ran and its result was delivered.
 	CommandOutcomeSucceeded = "succeeded"
 	// CommandOutcomeFailed: the command did not take effect.
-	CommandOutcomeFailed = "failed"
+	CommandOutcomeFailed  = "failed"
+	CommandOutcomeUnknown = "unknown"
 	// CommandOutcomeAppliedNotSynced: WhatsApp applied the change, but this
 	// workspace could not be refreshed with the result. The action must NOT be
 	// presented as failed, and must not be retried by the user.
@@ -347,6 +348,8 @@ type SyncStatusPayload struct {
 // SendFailedPayload is the payload for message send failure events.
 // Sent when a message fails to send after all retry attempts.
 type SendFailedPayload struct {
+	Outcome          string `json:"outcome,omitempty"`
+	MessageID        string `json:"messageId,omitempty"`
 	PendingMessageID string `json:"pendingMessageId"`        // The temporary message ID
 	Reason           string `json:"reason"`                  // Failure reason
 	CorrelationID    string `json:"correlationId,omitempty"` // For tracing the original command

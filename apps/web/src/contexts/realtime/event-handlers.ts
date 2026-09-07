@@ -51,7 +51,7 @@ interface CommandResultPayload {
   commandId: string;
   commandType: string;
   success: boolean;
-  outcome?: "succeeded" | "failed" | "applied_not_synced";
+  outcome?: "succeeded" | "failed" | "applied_not_synced" | "unknown";
   error?: string;
 }
 
@@ -76,6 +76,7 @@ interface ConversationUpdatedPayload {
 }
 
 interface RealtimeEventHandlerOptions {
+  navigate?: (path: string) => void;
   queryClient: QueryClient;
   companyId: string;
   setSyncingConnections: Dispatch<SetStateAction<Map<string, SyncState>>>;
@@ -87,6 +88,7 @@ interface RealtimeEventHandlerOptions {
 
 /** Register typed, company-scoped handlers and return their cleanup functions. */
 export function registerRealtimeEventHandlers({
+  navigate,
   queryClient: qc,
   companyId,
   setSyncingConnections,
@@ -101,7 +103,7 @@ export function registerRealtimeEventHandlers({
         data.payload && typeof data.payload === "object"
           ? { connectionId: data.connectionId, ...data.payload }
           : data.payload;
-      showRealtimeToast(payload);
+      showRealtimeToast(payload, navigate);
     }),
     // Delivered on this user's own channel: the server fans it out only to
     // members authorized to read the conversation.
@@ -132,10 +134,16 @@ export function registerRealtimeEventHandlers({
         qc,
         payload.conversationId,
         payload.messageId,
-        (message) => ({
-          ...message,
-          status: advanceMessageStatus(message.status, payload.status),
-        }),
+        (message) => {
+          const status = advanceMessageStatus(message.status, payload.status);
+          return {
+            ...message,
+            status,
+            ...(payload.metadata && status === "pending"
+              ? { metadata: { ...message.metadata, ...payload.metadata } }
+              : {}),
+          };
+        },
       );
     }),
     bindUserEvent<MessageFailedPayload>("message:failed", (data) => {

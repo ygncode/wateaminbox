@@ -889,6 +889,12 @@ func (ledger *memoryCommandLedger) GetProcessedCommand(_ context.Context, comman
 	result, found := ledger.results[commandID]
 	return result, found, nil
 }
+func (ledger *memoryCommandLedger) BeginSendCommand(ctx context.Context, commandID, commandType string, intent []byte) (bool, error) {
+	if _, exists := ledger.results[commandID]; exists {
+		return false, nil
+	}
+	return true, ledger.SaveProcessedCommand(ctx, commandID, commandType, intent)
+}
 func (ledger *memoryCommandLedger) SaveProcessedCommand(_ context.Context, commandID, _ string, result []byte) error {
 	ledger.saves++
 	ledger.results[commandID] = result

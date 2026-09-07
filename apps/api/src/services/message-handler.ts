@@ -53,6 +53,12 @@ import {
   handleTypingEvent,
   handleWorkerConnectionStatusEvent,
 } from "./handlers/index.js";
+import {
+  acknowledgeAppliedHistory,
+  canApplyHistoryBarrier,
+  startHistoryBarrierDrain,
+  stopHistoryBarrierDrain,
+} from "./history-apply-barrier.service.js";
 import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 import { resolveWhatsAppSession } from "./whatsapp/session.js";
 
@@ -66,10 +72,12 @@ interface MessageHandlerDependencies {
 
 export function initializeMessageHandler(): void {
   natsLifecycle.startEventSupervisor(handleWhatsAppEvent);
+  startHistoryBarrierDrain(handleWhatsAppEvent);
   logger.info("Event supervisor started");
 }
 
 export async function shutdownMessageHandler(): Promise<void> {
+  await stopHistoryBarrierDrain();
   await natsLifecycle.shutdown();
 }
 
@@ -77,6 +85,16 @@ export async function handleWhatsAppEvent(
   event: WhatsAppEvent,
   tenantDb: Kysely<TenantDatabase> = getTenantConnection(event.companyId),
   dependencies: MessageHandlerDependencies = {},
+): Promise<void> {
+  if (!(await canApplyHistoryBarrier(event))) return;
+  await processWhatsAppEvent(event, tenantDb, dependencies);
+  await acknowledgeAppliedHistory(event);
+}
+
+async function processWhatsAppEvent(
+  event: WhatsAppEvent,
+  tenantDb: Kysely<TenantDatabase>,
+  dependencies: MessageHandlerDependencies,
 ): Promise<void> {
   const { type, companyId } = event;
   const sessionId = event.connectionId;

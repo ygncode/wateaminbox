@@ -14,7 +14,7 @@ import (
 
 // PutIdentity stores an identity key.
 func (s *PGSQLStore) PutIdentity(ctx context.Context, address string, key [32]byte) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		INSERT INTO whatsmeow_identity_keys (connection_id, our_jid, their_id, identity)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (connection_id, our_jid, their_id) DO UPDATE SET identity = EXCLUDED.identity
@@ -25,7 +25,7 @@ func (s *PGSQLStore) PutIdentity(ctx context.Context, address string, key [32]by
 // IsTrustedIdentity checks if an identity key is trusted.
 func (s *PGSQLStore) IsTrustedIdentity(ctx context.Context, address string, key [32]byte) (bool, error) {
 	var storedKey []byte
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT identity FROM whatsmeow_identity_keys
 		WHERE connection_id = $1 AND our_jid = $2 AND their_id = $3
 	`, s.connectionID, s.JID, address).Scan(&storedKey)
@@ -50,7 +50,7 @@ func (s *PGSQLStore) IsTrustedIdentity(ctx context.Context, address string, key 
 
 // DeleteIdentity removes an identity.
 func (s *PGSQLStore) DeleteIdentity(ctx context.Context, address string) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		DELETE FROM whatsmeow_identity_keys
 		WHERE connection_id = $1 AND our_jid = $2 AND their_id = $3
 	`, s.connectionID, s.JID, address)
@@ -59,7 +59,7 @@ func (s *PGSQLStore) DeleteIdentity(ctx context.Context, address string) error {
 
 // DeleteAllIdentities removes all identities for a phone.
 func (s *PGSQLStore) DeleteAllIdentities(ctx context.Context, phone string) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		DELETE FROM whatsmeow_identity_keys
 		WHERE connection_id = $1 AND our_jid = $2 AND their_id LIKE $3
 	`, s.connectionID, s.JID, phone+":%")
@@ -73,7 +73,7 @@ func (s *PGSQLStore) DeleteAllIdentities(ctx context.Context, phone string) erro
 // GetSession retrieves a session.
 func (s *PGSQLStore) GetSession(ctx context.Context, address string) ([]byte, error) {
 	var session []byte
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT session FROM whatsmeow_sessions
 		WHERE connection_id = $1 AND our_jid = $2 AND their_id = $3
 	`, s.connectionID, s.JID, address).Scan(&session)
@@ -103,7 +103,7 @@ func (s *PGSQLStore) GetManySessions(ctx context.Context, addresses []string) (m
 	query := `SELECT their_id, session FROM whatsmeow_sessions
 		WHERE connection_id = $1 AND our_jid = $2 AND their_id = ANY($3)`
 
-	rows, err := s.db.QueryContext(ctx, query, s.connectionID, s.JID, pq.Array(addresses))
+	rows, err := s.decryptionExecutor(ctx).QueryContext(ctx, query, s.connectionID, s.JID, pq.Array(addresses))
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (s *PGSQLStore) GetManySessions(ctx context.Context, addresses []string) (m
 // HasSession checks if a session exists.
 func (s *PGSQLStore) HasSession(ctx context.Context, address string) (bool, error) {
 	var exists bool
-	err := s.db.QueryRowContext(ctx, `
+	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT EXISTS(SELECT 1 FROM whatsmeow_sessions
 		WHERE connection_id = $1 AND our_jid = $2 AND their_id = $3)
 	`, s.connectionID, s.JID, address).Scan(&exists)
@@ -133,7 +133,7 @@ func (s *PGSQLStore) HasSession(ctx context.Context, address string) (bool, erro
 
 // PutSession stores a session.
 func (s *PGSQLStore) PutSession(ctx context.Context, address string, session []byte) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		INSERT INTO whatsmeow_sessions (connection_id, our_jid, their_id, session)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (connection_id, our_jid, their_id) DO UPDATE SET session = EXCLUDED.session
@@ -174,7 +174,7 @@ func (s *PGSQLStore) PutManySessions(ctx context.Context, sessions map[string][]
 
 // DeleteSession removes a session.
 func (s *PGSQLStore) DeleteSession(ctx context.Context, address string) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		DELETE FROM whatsmeow_sessions
 		WHERE connection_id = $1 AND our_jid = $2 AND their_id = $3
 	`, s.connectionID, s.JID, address)
@@ -183,7 +183,7 @@ func (s *PGSQLStore) DeleteSession(ctx context.Context, address string) error {
 
 // DeleteAllSessions removes all sessions for a phone.
 func (s *PGSQLStore) DeleteAllSessions(ctx context.Context, phone string) error {
-	_, err := s.db.ExecContext(ctx, `
+	_, err := s.decryptionExecutor(ctx).ExecContext(ctx, `
 		DELETE FROM whatsmeow_sessions
 		WHERE connection_id = $1 AND our_jid = $2 AND their_id LIKE $3
 	`, s.connectionID, s.JID, phone+":%")

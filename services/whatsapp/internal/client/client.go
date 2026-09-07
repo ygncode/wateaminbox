@@ -87,6 +87,7 @@ type Client struct {
 	container           *store.PGContainer
 	device              *waStore.Device
 	handlers            []func(interface{})
+	durableHandlers     []func(interface{}) bool
 	qrCallback          QRCallback
 	statusCb            StatusCallback
 	logger              waLog.Logger
@@ -166,13 +167,15 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	c.cacheCatalogIdentity()
 
 	// Register internal event handler to forward events
-	waClient.AddEventHandler(c.internalEventHandler)
+	waClient.AddEventHandlerWithSuccessStatus(c.internalEventHandlerWithSuccessStatus)
 
 	return c, nil
 }
 
 func configureMessageRecovery(waClient *whatsmeow.Client) {
 	waClient.AutomaticMessageRerequestFromPhone = true
+	waClient.SynchronousAck = true
+	waClient.EnableDecryptedEventBuffer = true
 }
 
 // SetQRCallback sets the callback for QR code events.
@@ -199,6 +202,26 @@ func (c *Client) internalEventHandler(evt interface{}) {
 	for _, handler := range handlers {
 		handler(evt)
 	}
+}
+
+// Failure retains the decrypted event and withholds the WhatsApp acknowledgement.
+func (c *Client) internalEventHandlerWithSuccessStatus(evt interface{}) bool {
+	c.internalEventHandler(evt)
+	c.mu.RLock()
+	handlers := append([]func(interface{}) bool(nil), c.durableHandlers...)
+	c.mu.RUnlock()
+	for _, handler := range handlers {
+		if !handler(evt) {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *Client) RegisterDurableEventHandler(handler func(interface{}) bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.durableHandlers = append(c.durableHandlers, handler)
 }
 
 // cacheCatalogIdentity copies account identifiers that WhatsMeow owns into
@@ -717,7 +740,7 @@ func (c *Client) SendMessage(ctx context.Context, jid string, text string, reply
 	}
 
 	// Send message
-	resp, err := c.client.SendMessage(ctx, recipient, msg)
+	resp, err := c.sendCommandMessage(ctx, recipient, msg)
 	if err != nil {
 		return types.SendResponse{}, fmt.Errorf("failed to send message: %w", err)
 	}
@@ -765,7 +788,7 @@ func (c *Client) SendMediaMessage(ctx context.Context, jid string, mediaType str
 	}
 
 	// Send message
-	resp, err := c.client.SendMessage(ctx, recipient, msg)
+	resp, err := c.sendCommandMessage(ctx, recipient, msg)
 	if err != nil {
 		return types.SendResponse{}, fmt.Errorf("failed to send media message: %w", err)
 	}
@@ -808,12 +831,7 @@ func (c *Client) SendMediaAlbumMessage(ctx context.Context, jid string, mediaTyp
 	}
 
 	if album.Index == 0 {
-		_, err = c.client.SendMessage(
-			ctx,
-			recipient,
-			buildMediaAlbumManifest(album),
-			whatsmeow.SendRequestExtra{ID: waTypes.MessageID(album.ID)},
-		)
+		_, err = c.sendCommandMessageWithID(ctx, recipient, buildMediaAlbumManifest(album), album.ID)
 		if err != nil {
 			return types.SendResponse{}, fmt.Errorf("failed to send media album manifest: %w", err)
 		}
@@ -821,7 +839,7 @@ func (c *Client) SendMediaAlbumMessage(ctx context.Context, jid string, mediaTyp
 
 	applyMediaAlbumAssociation(msg, recipient, album)
 
-	resp, err := c.client.SendMessage(ctx, recipient, msg)
+	resp, err := c.sendCommandMessage(ctx, recipient, msg)
 	if err != nil {
 		return types.SendResponse{}, fmt.Errorf("failed to send media album child: %w", err)
 	}
@@ -883,7 +901,7 @@ func (c *Client) SendReaction(ctx context.Context, chatJID string, messageID str
 	msg := buildReactionMessage(reactionKey, emoji)
 
 	// Send reaction
-	resp, err := c.client.SendMessage(ctx, recipient, msg)
+	resp, err := c.sendCommandMessage(ctx, recipient, msg)
 	if err != nil {
 		return types.SendResponse{}, fmt.Errorf("failed to send reaction: %w", err)
 	}
@@ -1940,4 +1958,24 @@ func (c *Client) updateBlocklistWithRetry(ctx context.Context, jidStr string, ac
 	}
 
 	return fmt.Errorf("failed to %s contact after %d attempts: %w", action, blockMaxRetries, lastErr)
+}
+
+// Only command sends use this write-ahead boundary; pairing/history operations
+// continue to use their own protocol identities.
+func (c *Client) sendCommandMessage(ctx context.Context, to waTypes.JID, msg *waE2E.Message) (whatsmeow.SendResponse, error) {
+	return c.sendCommandMessageWithID(ctx, to, msg, types.SendOperationFromContext(ctx).ID)
+}
+
+func (c *Client) sendCommandMessageWithID(ctx context.Context, to waTypes.JID, msg *waE2E.Message, id string) (whatsmeow.SendResponse, error) {
+	operation := types.SendOperationFromContext(ctx)
+	if operation.BeforeSend != nil {
+		if err := operation.BeforeSend(ctx); err != nil {
+			return whatsmeow.SendResponse{}, err
+		}
+	}
+	response, err := c.client.SendMessage(ctx, to, msg, whatsmeow.SendRequestExtra{ID: waTypes.MessageID(id)})
+	if err != nil && operation.ID != "" {
+		return response, &types.UnknownSendOutcome{Err: err}
+	}
+	return response, err
 }

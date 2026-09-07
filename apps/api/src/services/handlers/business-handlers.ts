@@ -55,6 +55,8 @@ function describeCommandOutcome(event: CommandResultEvent): {
   type: "error" | "warning";
   title: string;
 } {
+  if (event.payload.outcome === "unknown")
+    return { type: "warning", title: "WhatsApp action unconfirmed" };
   if (event.payload.outcome === "applied_not_synced") {
     return {
       type: "warning",
@@ -152,7 +154,8 @@ export async function handleCommandResultEvent(
   // undo a change that actually happened.
   if (
     blocklistIntent !== undefined &&
-    event.payload.outcome !== "applied_not_synced"
+    event.payload.outcome !== "applied_not_synced" &&
+    event.payload.outcome !== "unknown"
   ) {
     await rollbackOptimisticBlockState(event, blocklistIntent);
   }

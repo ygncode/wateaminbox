@@ -158,7 +158,7 @@ export async function sendPushToUsers(
             keys: { p256dh: subscription.p256dh, auth: subscription.auth },
           },
           JSON.stringify(payload),
-          { TTL: 60 },
+          { TTL: 60, timeout: 10_000 },
         );
         await tenantDb
           .updateTable("push_subscriptions")

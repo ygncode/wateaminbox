@@ -73,17 +73,14 @@ async function withTenant(
 
     await run(companyId, connection.id);
   } finally {
-    // handleMessageEvent fires several NON-awaited background calls
-    // (search indexing, push notification recipient resolution) that can
+    // handleMessageEvent can start an optional profile-picture request that can
     // still be in flight against the tenant schema when `run()` resolves -
     // give them a beat to settle before dropping the schema, or the DROP
     // can race a background read/write and the subsequent sla_policies
     // cleanup below fails on the (still-existing) tenant FK.
     await new Promise((resolve) => setTimeout(resolve, 100));
     await clearTenantConnection(companyId);
-    await sql
-      .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
-      .execute(db);
+    await sql.raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`).execute(db);
     await db
       .deleteFrom("sla_policies")
       .where("company_id", "=", companyId)
@@ -676,19 +673,21 @@ describe("handleMessageEvent - conversation-case lifecycle wiring", () => {
         const oldAssigneeId = crypto.randomUUID();
         const otherUserId = crypto.randomUUID();
 
-        const {
-          assignContactToUser,
-          getCurrentAssignment,
-        } = await import("../contact.service.js");
+        const { assignContactToUser, getCurrentAssignment } = await import(
+          "../contact.service.js"
+        );
         const { resolveActiveCase } = await import(
           "../conversation-case.service.js"
         );
-        const { requireSendAccess, ContactAssignedToOtherError } =
-          await import("../send-access.service.js");
+        const { requireSendAccess, ContactAssignedToOtherError } = await import(
+          "../send-access.service.js"
+        );
 
         // Cycle 1: live inbound opens a case, an agent claims it, then
         // resolves.
-        await handleMessageEvent(directInboundEvent(companyId, connectionId, { from: jid }));
+        await handleMessageEvent(
+          directInboundEvent(companyId, connectionId, { from: jid }),
+        );
         const contact = await tenantDb
           .selectFrom("contacts")
           .selectAll()
@@ -736,9 +735,9 @@ describe("handleMessageEvent - conversation-case lifecycle wiring", () => {
           (auditRow.details as { previousAssignee?: string } | null)
             ?.previousAssignee,
         ).toBe(oldAssigneeId);
-        expect(
-          (auditRow.details as { reason?: string } | null)?.reason,
-        ).toBe("auto_reopen");
+        expect((auditRow.details as { reason?: string } | null)?.reason).toBe(
+          "auto_reopen",
+        );
 
         // The old assignee can no longer send - the contact is unassigned,
         // so ANY permitted user (including a completely different one) can
@@ -798,7 +797,9 @@ describe("handleMessageEvent - conversation-case lifecycle wiring", () => {
           "../conversation-case.service.js"
         );
 
-        await handleMessageEvent(directInboundEvent(companyId, connectionId, { from: jid }));
+        await handleMessageEvent(
+          directInboundEvent(companyId, connectionId, { from: jid }),
+        );
         const contact = await tenantDb
           .selectFrom("contacts")
           .selectAll()
@@ -847,3 +848,234 @@ describe("handleMessageEvent - conversation-case lifecycle wiring", () => {
     },
   );
 });
+
+integrationTest(
+  "message delivery survives persistence-only completion and duplicate replay",
+  async () => {
+    const { dispatchMessageDelivery } = await import(
+      "../message-delivery-outbox.service.js"
+    );
+    await withTenant(async (companyId, connectionId) => {
+      const event = directInboundEvent(companyId, connectionId);
+      await handleMessageEvent(event);
+      // Simulate a process ending after commit, before any delivery poll runs.
+      await handleMessageEvent(event);
+      const jobs = await sql<{
+        kind: string;
+      }>`SELECT kind FROM public.message_delivery_outbox
+      WHERE company_id = ${companyId}::uuid`.execute(db);
+      expect(jobs.rows.map((job) => job.kind).sort()).toEqual([
+        "push",
+        "realtime",
+      ]);
+      const tenant = getTenantConnection(companyId);
+      expect(
+        (
+          await tenant
+            .selectFrom("conversation_states")
+            .select("unread_count")
+            .executeTakeFirstOrThrow()
+        ).unread_count,
+      ).toBe(1);
+      let failedKind = "";
+      await dispatchMessageDelivery(async (job) => {
+        failedKind = job.kind;
+        throw new Error("transport offline");
+      });
+      const pending = await sql<{
+        attempts: number;
+      }>`SELECT attempts FROM public.message_delivery_outbox
+      WHERE company_id = ${companyId}::uuid AND kind = ${failedKind}`.execute(
+        db,
+      );
+      expect(pending.rows[0].attempts).toBe(1);
+      const delivered: string[] = [];
+      await dispatchMessageDelivery(async (job) => {
+        delivered.push(job.kind);
+      });
+      expect(delivered).toHaveLength(1);
+      expect(delivered[0]).not.toBe(failedKind);
+      await sql`UPDATE public.message_delivery_outbox SET next_attempt_at = now() WHERE company_id = ${companyId}::uuid`.execute(
+        db,
+      );
+      await dispatchMessageDelivery(async (job) => {
+        delivered.push(job.kind);
+      });
+      expect(delivered.sort()).toEqual(["push", "realtime"]);
+      expect(
+        (
+          await sql`SELECT 1 FROM public.message_delivery_outbox WHERE company_id = ${companyId}::uuid`.execute(
+            db,
+          )
+        ).rows,
+      ).toHaveLength(0);
+    });
+  },
+);
+
+integrationTest(
+  "delivery enqueue rolls back and archived connections discard retry work",
+  async () => {
+    const { enqueueMessageDelivery, dispatchMessageDelivery } = await import(
+      "../message-delivery-outbox.service.js"
+    );
+    await withTenant(async (companyId, connectionId) => {
+      const tenant = getTenantConnection(companyId);
+      await expect(
+        tenant.transaction().execute(async (trx) => {
+          await enqueueMessageDelivery(
+            trx,
+            companyId,
+            connectionId,
+            crypto.randomUUID(),
+            true,
+            null,
+          );
+          throw new Error("abort message transaction");
+        }),
+      ).rejects.toThrow("abort message transaction");
+      expect(
+        (
+          await sql`SELECT 1 FROM public.message_delivery_outbox WHERE company_id = ${companyId}::uuid`.execute(
+            db,
+          )
+        ).rows,
+      ).toHaveLength(0);
+      await handleMessageEvent(directInboundEvent(companyId, connectionId));
+      await tenant
+        .updateTable("whatsapp_connections")
+        .set({ archived_at: new Date() })
+        .where("id", "=", connectionId)
+        .execute();
+      let delivered = 0;
+      await dispatchMessageDelivery(async () => {
+        delivered++;
+      });
+      await dispatchMessageDelivery(async () => {
+        delivered++;
+      });
+      expect(delivered).toBe(0);
+      expect(
+        (
+          await sql`SELECT 1 FROM public.message_delivery_outbox WHERE company_id = ${companyId}::uuid`.execute(
+            db,
+          )
+        ).rows,
+      ).toHaveLength(0);
+    });
+  },
+);
+
+integrationTest(
+  "concurrent delivery pollers do not claim the same job",
+  async () => {
+    const { enqueueMessageDelivery, dispatchMessageDelivery } = await import(
+      "../message-delivery-outbox.service.js"
+    );
+    await withTenant(async (companyId, connectionId) => {
+      await getTenantConnection(companyId)
+        .transaction()
+        .execute(async (trx) => {
+          await enqueueMessageDelivery(
+            trx,
+            companyId,
+            connectionId,
+            crypto.randomUUID(),
+            false,
+            null,
+          );
+        });
+      expect(
+        await dispatchMessageDelivery(async () => {
+          throw new Error("wrong lane");
+        }, "push"),
+      ).toBe(0);
+      let release!: () => void;
+      let started!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        started = resolve;
+      });
+      const blocked = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const first = dispatchMessageDelivery(async () => {
+        started();
+        await blocked;
+      });
+      await entered;
+      try {
+        expect(
+          await dispatchMessageDelivery(async () => {
+            throw new Error("duplicate claim");
+          }),
+        ).toBe(0);
+      } finally {
+        release();
+      }
+      expect(await first).toBe(1);
+    });
+  },
+);
+
+integrationTest(
+  "real realtime delivery retries HTTP failure and discards deleted messages",
+  async () => {
+    const { dispatchMessageDelivery } = await import(
+      "../message-delivery-outbox.service.js"
+    );
+    const { deliverIncomingMessage } = await import(
+      "../incoming-message-delivery.service.js"
+    );
+    await withTenant(async (companyId, connectionId) => {
+      await handleMessageEvent(directInboundEvent(companyId, connectionId));
+      // Exercise realtime independently of push configuration.
+      await sql`DELETE FROM public.message_delivery_outbox WHERE company_id = ${companyId}::uuid AND kind = 'push'`.execute(
+        db,
+      );
+      const originalFetch = globalThis.fetch;
+      const calls: unknown[] = [];
+      let online = false;
+      globalThis.fetch = (async (_url: unknown, options?: RequestInit) => {
+        calls.push(JSON.parse(String(options?.body)));
+        return online
+          ? Response.json({ result: { responses: [{}] } })
+          : new Response("offline", { status: 503 });
+      }) as typeof fetch;
+      try {
+        await dispatchMessageDelivery(deliverIncomingMessage);
+        expect(calls).toHaveLength(1);
+        expect(
+          (
+            await sql`SELECT 1 FROM public.message_delivery_outbox WHERE company_id = ${companyId}::uuid`.execute(
+              db,
+            )
+          ).rows,
+        ).toHaveLength(1);
+        online = true;
+        await sql`UPDATE public.message_delivery_outbox SET next_attempt_at = now() WHERE company_id = ${companyId}::uuid`.execute(
+          db,
+        );
+        await dispatchMessageDelivery(deliverIncomingMessage);
+        expect(calls.length).toBeGreaterThan(1);
+        expect(
+          (
+            await sql`SELECT 1 FROM public.message_delivery_outbox WHERE company_id = ${companyId}::uuid`.execute(
+              db,
+            )
+          ).rows,
+        ).toHaveLength(0);
+        await handleMessageEvent(directInboundEvent(companyId, connectionId));
+        await getTenantConnection(companyId)
+          .updateTable("messages")
+          .set({ deleted_by_sender: true })
+          .execute();
+        calls.length = 0;
+        await dispatchMessageDelivery(deliverIncomingMessage);
+        await dispatchMessageDelivery(deliverIncomingMessage);
+        expect(calls).toHaveLength(0);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+  },
+);

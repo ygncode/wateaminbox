@@ -38,6 +38,7 @@ export const whatsAppEventEnvelopeSchema = z.object({
   // Version 0 (field absent) is accepted during rolling upgrades from workers
   // deployed before envelope versioning. Explicit unknown versions still fail.
   contractVersion: z.literal(1).optional().default(1),
+  eventId: z.string().uuid().optional(),
   type: z.enum([
     "qr",
     "paired",

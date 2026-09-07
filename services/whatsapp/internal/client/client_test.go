@@ -28,6 +28,8 @@ func TestConfigureMessageRecoveryRequestsUndecryptableMessagesFromPhone(t *testi
 	configureMessageRecovery(waClient)
 
 	assert.True(t, waClient.AutomaticMessageRerequestFromPhone)
+	assert.True(t, waClient.SynchronousAck)
+	assert.True(t, waClient.EnableDecryptedEventBuffer)
 }
 
 func TestBuildTextMessageAddsMentionContext(t *testing.T) {
@@ -1047,4 +1049,13 @@ func TestSendMediaMessage_AudioType_ParsesSuccessfully(t *testing.T) {
 	// Should fail at upload/send step (client is nil), not at type recognition
 	assert.Error(t, err, "should return error (client is nil)")
 	assert.NotContains(t, err.Error(), "unsupported media type", "error should not mention unsupported media type for audio")
+}
+
+func TestDurableEventHandlerWithholdsAcknowledgementUntilSuccess(t *testing.T) {
+	c := &Client{}
+	persisted := false
+	c.RegisterDurableEventHandler(func(interface{}) bool { return persisted })
+	require.False(t, c.internalEventHandlerWithSuccessStatus("message"))
+	persisted = true
+	require.True(t, c.internalEventHandlerWithSuccessStatus("message"))
 }

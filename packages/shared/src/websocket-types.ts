@@ -193,6 +193,7 @@ export interface NewMessagePayload {
 }
 
 export interface MessageStatusPayload {
+  metadata?: { error?: string; errorMessage?: string };
   messageId: string;
   conversationId: string;
   status: MessageStatus;
@@ -310,6 +311,9 @@ export interface NotificationPayload {
 }
 
 export interface ToastNotificationPayload {
+  /** App-relative destination for a user-initiated action. */
+  actionUrl?: string;
+  actionLabel?: string;
   type: "success" | "error" | "warning" | "info";
   title: string;
   message: string;

@@ -122,6 +122,10 @@ describe("terminal logout versus ordinary disconnect", () => {
     const toast = broadcasts.find((b) => b.event === "notification:toast");
     expect(toast).toBeDefined();
     expect(toast?.payload.type).toBe("error");
+    expect(toast?.payload.actionLabel).toBe("Open connections");
+    expect(toast?.payload.actionUrl).toMatch(
+      /^\/w\/[^/]+\/settings\/connections$/,
+    );
     expect(String(toast?.payload.message)).toContain("QR");
   });
 

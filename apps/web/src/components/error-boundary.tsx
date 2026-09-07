@@ -1,7 +1,8 @@
 import * as React from "react";
-import { useNavigate } from "react-router";
-import { Button } from "./ui/button";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router";
+import { recoverFromStaleModuleError } from "../lib/chunk-load-recovery";
+import { Button } from "./ui/button";
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -38,6 +39,11 @@ export class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     this.setState({ errorInfo });
+
+    // Lazy modules from two builds can evaluate successfully but bind to
+    // different React dispatchers. Vite emits no preload error in that case,
+    // so recover here before presenting a permanent crash screen.
+    if (recoverFromStaleModuleError(error)) return;
 
     // Call optional error callback
     if (this.props.onError) {

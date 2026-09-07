@@ -40,6 +40,26 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
 
   if (!isOwn) return null;
 
+  if (
+    message.status === "pending" &&
+    message.metadata?.error === "send_outcome_unknown"
+  ) {
+    const label = t(
+      "chat.statusLabels.unconfirmed",
+      "Delivery unconfirmed. Check the conversation before sending again.",
+    );
+    return (
+      <span
+        role="img"
+        aria-label={label}
+        title={label}
+        className="inline-flex text-amber-500"
+      >
+        ?
+      </span>
+    );
+  }
+
   switch (message.status) {
     case "pending":
       return (
