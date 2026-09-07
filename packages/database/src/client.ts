@@ -285,6 +285,7 @@ export interface TenantDatabase {
 }
 
 export interface ConnectionEmailAlertsTable {
+  notification_created_at: Date | null;
   id: Generated<string>;
   connection_id: string;
   user_id: string;

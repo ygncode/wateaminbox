@@ -598,6 +598,12 @@ async function recordDispatchFailure(
         broadcastToCompany(companyId, "notification:toast", {
           type: "error",
           title: "Scheduled message failed",
+          ...(message === "The contact's WhatsApp connection is not active"
+            ? {
+                actionUrl: `/w/${encodeURIComponent(companyId)}/settings/connections`,
+                actionLabel: "Open connections",
+              }
+            : {}),
           message: `A scheduled message could not be sent: ${message}`,
         }),
       ]);
