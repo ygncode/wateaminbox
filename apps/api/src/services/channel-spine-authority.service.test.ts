@@ -22,6 +22,8 @@ function enabled() {
     dual_write_revision: "api-r1",
     neutral_reads_enabled: true,
     neutral_read_revision: "api-r1",
+    shadow_normalization_enabled: true,
+    shadow_normalization_revision: "api-r1",
     write_authority: "neutral",
     write_authority_revision: "api-r1",
     enabled_providers: ["telegram_bot"],
@@ -40,6 +42,7 @@ describe("channel spine workspace authority", () => {
       source: "absent",
       dualWriteEnabled: false,
       neutralReadsEnabled: false,
+      shadowNormalizationEnabled: false,
       writeAuthority: "legacy",
       enabledProviders: [],
     });

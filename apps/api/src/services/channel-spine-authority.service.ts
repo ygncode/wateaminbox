@@ -15,6 +15,8 @@ export interface ChannelSpineWorkspaceAuthority {
   dualWriteRevision: string | null;
   neutralReadsEnabled: boolean;
   neutralReadRevision: string | null;
+  shadowNormalizationEnabled: boolean;
+  shadowNormalizationRevision: string | null;
   writeAuthority: ChannelSpineWriteAuthority;
   writeAuthorityRevision: string | null;
   enabledProviders: readonly string[];
@@ -30,6 +32,8 @@ interface StoredFlagRow {
   dual_write_revision: string | null;
   neutral_reads_enabled: boolean;
   neutral_read_revision: string | null;
+  shadow_normalization_enabled: boolean;
+  shadow_normalization_revision: string | null;
   write_authority: ChannelSpineWriteAuthority;
   write_authority_revision: string | null;
   enabled_providers: string[];
@@ -51,6 +55,8 @@ export async function getChannelSpineWorkspaceAuthority(
         "dual_write_revision",
         "neutral_reads_enabled",
         "neutral_read_revision",
+        "shadow_normalization_enabled",
+        "shadow_normalization_revision",
         "write_authority",
         "write_authority_revision",
         "enabled_providers",
@@ -68,6 +74,8 @@ export async function getChannelSpineWorkspaceAuthority(
     dualWriteRevision: row.dual_write_revision,
     neutralReadsEnabled: row.neutral_reads_enabled,
     neutralReadRevision: row.neutral_read_revision,
+    shadowNormalizationEnabled: row.shadow_normalization_enabled,
+    shadowNormalizationRevision: row.shadow_normalization_revision,
     writeAuthority: row.write_authority,
     writeAuthorityRevision: row.write_authority_revision,
     enabledProviders: row.enabled_providers,
@@ -99,6 +107,8 @@ function legacyAuthority(
     dualWriteRevision: null,
     neutralReadsEnabled: false,
     neutralReadRevision: null,
+    shadowNormalizationEnabled: false,
+    shadowNormalizationRevision: null,
     writeAuthority: "legacy",
     writeAuthorityRevision: null,
     enabledProviders: [],
@@ -122,6 +132,11 @@ function isValid(value: FlagRow): boolean {
   if (value.dualWriteEnabled && !nonBlank(value.dualWriteRevision))
     return false;
   if (value.neutralReadsEnabled && !nonBlank(value.neutralReadRevision))
+    return false;
+  if (
+    value.shadowNormalizationEnabled &&
+    !nonBlank(value.shadowNormalizationRevision)
+  )
     return false;
   if (
     value.writeAuthority === "neutral" &&

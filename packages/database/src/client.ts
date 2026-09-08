@@ -57,6 +57,8 @@ export interface ChannelSpineWorkspaceFlagsTable {
   dual_write_revision: string | null;
   neutral_reads_enabled: Generated<boolean>;
   neutral_read_revision: string | null;
+  shadow_normalization_enabled: Generated<boolean>;
+  shadow_normalization_revision: string | null;
   write_authority: Generated<ChannelSpineWriteAuthority>;
   write_authority_revision: string | null;
   enabled_providers: Generated<string[]>;

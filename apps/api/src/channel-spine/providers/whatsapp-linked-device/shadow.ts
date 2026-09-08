@@ -8,6 +8,7 @@ export interface LinkedDeviceBridge {
   conversationId: string;
   accountParticipantId: string;
   externalParticipantId: string;
+  externalThreadId: string;
 }
 
 export type LinkedDeviceBridgeResult =
@@ -341,6 +342,7 @@ export async function ensureLinkedDeviceBridge(
       conversationId,
       accountParticipantId,
       externalParticipantId,
+      externalThreadId: contact.jid,
     },
   };
 }
@@ -383,7 +385,7 @@ export async function shadowLinkedDeviceMessage(
       conversation_id: bridge.conversationId,
       external_message_id: confirmedProviderId,
       external_identity_scope: confirmedProviderId
-        ? linkedDeviceMessageScope(bridge.conversationId)
+        ? linkedDeviceMessageScope(bridge.externalThreadId)
         : null,
       client_idempotency_key: confirmedProviderId ? null : message.message_id,
       direction: message.from_me ? "outbound" : "inbound",
@@ -645,8 +647,8 @@ function linkedDeviceIdentityScope(connectionId: string): string {
   return `linked-device-account:${connectionId}`;
 }
 
-function linkedDeviceMessageScope(conversationId: string): string {
-  return `linked-device-conversation:${conversationId}`;
+function linkedDeviceMessageScope(externalThreadId: string): string {
+  return `linked-device-thread:${externalThreadId}`;
 }
 
 function mapLegacyConnectionStatus(
