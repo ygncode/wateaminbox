@@ -38,6 +38,22 @@ const definitions: readonly ConcurrentIndexDefinition[] = [
       ) AS duplicates`,
   },
   {
+    suffix: "msg_idempotency_uidx",
+    table: "messages",
+    columns: ["channel_account_id", "client_idempotency_key"],
+    predicate:
+      "channel_account_id IS NOT NULL AND client_idempotency_key IS NOT NULL",
+    duplicateGroupSql: (schemaName) => `
+      SELECT count(*)::integer AS count FROM (
+        SELECT 1
+        FROM ${qualified(schemaName, "messages")}
+        WHERE channel_account_id IS NOT NULL
+          AND client_idempotency_key IS NOT NULL
+        GROUP BY channel_account_id, client_idempotency_key
+        HAVING count(*) > 1
+      ) AS duplicates`,
+  },
+  {
     suffix: "mr_external_uidx",
     table: "message_reactions",
     columns: [
