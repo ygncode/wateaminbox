@@ -16,6 +16,7 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { hasContactVisibility } from "../../middleware/resource-visibility.js";
 import { tenantFromHeader } from "../../middleware/tenant.js";
+import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
 import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import {
   ContactAssignedToOtherError,
@@ -63,15 +64,53 @@ actionsRoutes.post(
 
     try {
       const tenantDb = c.get("tenantDb");
+      const resolvedContactId =
+        (await resolveWorkflowContactId(tenantDb, contactId)) ?? contactId;
       const contact = await tenantDb
         .selectFrom("contacts")
-        .select(["jid", "whatsapp_connection_id"])
-        .where("id", "=", contactId)
+        .select(["id", "jid", "whatsapp_connection_id"])
+        .where("id", "=", resolvedContactId)
         .executeTakeFirst();
-      if (!contact?.jid || !contact.whatsapp_connection_id) {
+      if (!contact) {
         throw new HTTPException(404, { message: "Contact not found" });
       }
-      if (contact.jid !== conversationId) {
+      if (!contact.jid || !contact.whatsapp_connection_id) {
+        if (isTyping) {
+          try {
+            await tenantDb.transaction().execute((trx) =>
+              requireSendAccess(trx, contact.id, user.id, {
+                claimUnassigned: false,
+              }),
+            );
+          } catch (error) {
+            if (error instanceof ContactAssignedToOtherError) {
+              throw new HTTPException(403, { message: error.message });
+            }
+            if (
+              error instanceof NoActiveCaseError ||
+              error instanceof ContactBlockedError
+            ) {
+              throw new HTTPException(409, { message: error.message });
+            }
+            throw error;
+          }
+        }
+        await broadcastToContactViewers(
+          companyId,
+          contact.id,
+          eventType,
+          {
+            ...payload,
+            conversationId: contact.id,
+          },
+          { excludeClientId: clientId },
+        );
+        return c.json({
+          success: true,
+          data: { eventType, conversationId: contact.id },
+        });
+      }
+      if (contact.jid !== conversationId && conversationId !== contact.id) {
         throw new HTTPException(400, { message: "Conversation JID mismatch" });
       }
       // Only starting a stray "is typing" signal is worth blocking - always
@@ -84,7 +123,7 @@ actionsRoutes.post(
       if (isTyping) {
         try {
           await tenantDb.transaction().execute((trx) =>
-            requireSendAccess(trx, contactId, user.id, {
+            requireSendAccess(trx, contact.id, user.id, {
               claimUnassigned: false,
             }),
           );
@@ -107,7 +146,7 @@ actionsRoutes.post(
       );
 
       await Promise.all([
-        broadcastToContactViewers(companyId, contactId, eventType, payload, {
+        broadcastToContactViewers(companyId, contact.id, eventType, payload, {
           excludeClientId: clientId,
         }),
         publishTypingCommand(companyId, sessionId, contact.jid, isTyping),

@@ -49,6 +49,7 @@ import {
   isChannelProviderEnabled,
 } from "../../services/channel-spine-authority.service.js";
 import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
+import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
 import { requireSendAccess } from "../../services/send-access.service.js";
 import {
@@ -69,7 +70,7 @@ messageRoutes.get(
   zValidator("query", listConversationMessagesQuerySchema),
   async (c) => {
     const { tenantDb, companyId } = getRouteContext(c);
-    const contactId = c.req.param("id");
+    let contactId = c.req.param("id")!;
     const { limit, cursor } = c.req.valid("query");
     const authority = await getChannelSpineWorkspaceAuthority(companyId);
     const neutralConversation = authority.neutralReadsEnabled
@@ -185,6 +186,8 @@ messageRoutes.get(
       });
     }
 
+    contactId =
+      (await resolveWorkflowContactId(tenantDb, contactId)) ?? contactId;
     const contact = await tenantDb
       .selectFrom("contacts")
       .select(["remote_history_status", "remote_history_updated_at"])
