@@ -10,6 +10,7 @@ import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
+import { isConfirmedQuote } from "../../lib/message-quote.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
 import {
   listScheduledMessagesQuerySchema,
@@ -141,12 +142,24 @@ scheduledRoutes.post(
     if (body.replyToMessageId) {
       const quotedMessage = await tenantDb
         .selectFrom("messages")
-        .select("id")
+        .select(["message_id", "from_me", "status"])
         .where("id", "=", body.replyToMessageId)
         .where("contact_id", "=", body.contactId)
         .executeTakeFirst();
       if (!quotedMessage) {
         return notFound(c, "Quoted message");
+      }
+      // Match the immediate-send routes: a pending/failed outgoing quote's
+      // `message_id` is the synthetic `pending_<uuid>` WhatsApp never issued,
+      // so it cannot back a real quote stanza. Reject up front rather than
+      // silently scheduling a reply that would dispatch with a broken (or,
+      // after the dispatch-time guard, dropped) quote. Dispatch still
+      // re-validates this in case the quote's state changed by then.
+      if (!isConfirmedQuote(quotedMessage)) {
+        return badRequest(
+          c,
+          "Wait for the quoted message to be confirmed before replying",
+        );
       }
     }
 

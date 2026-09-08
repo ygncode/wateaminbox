@@ -20,6 +20,7 @@ import { sql } from "kysely";
 import { bulkConfig } from "../config/bulk.config.js";
 import { NoActiveCaseError } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
+import { isConfirmedQuote } from "../lib/message-quote.js";
 import {
   buildCommandSubject,
   buildSendMessageCommand,
@@ -250,22 +251,31 @@ async function sendScheduledMessage(
   }
 
   // Resolve the quoted message at dispatch time; it may have been deleted
-  // since scheduling, in which case the message sends without a quote.
+  // since scheduling, in which case the message sends without a quote. A
+  // still-pending or already-failed outgoing quote is treated the same way:
+  // its `message_id` is the synthetic `pending_<uuid>` WhatsApp never issued,
+  // so it is not a valid `ContextInfo.StanzaID` — sending it would put a
+  // broken quote header on the wire. `isConfirmedQuote` is the same guard
+  // the immediate-send routes apply; here it degrades to an unquoted send
+  // rather than rejecting, because a scheduled row dispatches exactly once
+  // and an unconfirmed quote at dispatch time has no later retry.
   let quotedWaMessageId: string | undefined;
   let quotedSenderJid: string | undefined;
   if (row.reply_to_message_id) {
     const quotedMessage = await tenantDb
       .selectFrom("messages")
-      .select(["message_id", "sender_jid", "from_me"])
+      .select(["message_id", "sender_jid", "from_me", "status"])
       .where("id", "=", row.reply_to_message_id)
       .where("contact_id", "=", row.contact_id)
       .where("whatsapp_connection_id", "=", connection.id)
       .executeTakeFirst();
-    quotedWaMessageId = quotedMessage?.message_id || undefined;
-    if (quotedMessage?.from_me) {
-      quotedSenderJid = connection.jid || undefined;
-    } else if (quotedMessage) {
-      quotedSenderJid = quotedMessage.sender_jid || contact.jid;
+    if (quotedMessage && isConfirmedQuote(quotedMessage)) {
+      quotedWaMessageId = quotedMessage.message_id || undefined;
+      if (quotedMessage.from_me) {
+        quotedSenderJid = connection.jid || undefined;
+      } else {
+        quotedSenderJid = quotedMessage.sender_jid || contact.jid;
+      }
     }
   }
 
