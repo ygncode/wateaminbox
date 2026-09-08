@@ -4,32 +4,26 @@ import { notFound } from "../../lib/errors.js";
 import { successData } from "../../lib/response.js";
 import { assignContactSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
-import { contactIdForConversation } from "../../services/channel-workflow.service.js";
+import { resolveWorkflowIdentity } from "../../services/channel-workflow.service.js";
 import {
   assignContactToUser,
+  assignConversationToUser,
   getCurrentAssignment,
+  getCurrentConversationAssignment,
 } from "../../services/contact.service.js";
 
 export const conversationAssignmentRoutes = new Hono();
 
-async function workflowContactId(
-  tenantDb: ReturnType<typeof getRouteContext>["tenantDb"],
-  id: string,
-): Promise<string | null> {
-  const contact = await tenantDb
-    .selectFrom("contacts")
-    .select("id")
-    .where("id", "=", id)
-    .executeTakeFirst();
-  if (contact) return contact.id;
-  return contactIdForConversation(tenantDb, id);
-}
-
 conversationAssignmentRoutes.get("/:id/assignment", async (c) => {
   const { tenantDb } = getRouteContext(c);
-  const contactId = await workflowContactId(tenantDb, c.req.param("id")!);
-  if (!contactId) return notFound(c, "Conversation");
-  const assignment = await getCurrentAssignment(tenantDb, contactId);
+  const identity = await resolveWorkflowIdentity(tenantDb, c.req.param("id")!);
+  if (!identity) return notFound(c, "Conversation");
+  const assignment = identity.contactId
+    ? await getCurrentAssignment(tenantDb, identity.contactId)
+    : await getCurrentConversationAssignment(
+        tenantDb,
+        identity.conversationId!,
+      );
   return successData(c, assignment ?? null);
 });
 
@@ -38,14 +32,30 @@ conversationAssignmentRoutes.post(
   zValidator("json", assignContactSchema),
   async (c) => {
     const { tenantDb, user } = getRouteContext(c);
-    const contactId = await workflowContactId(tenantDb, c.req.param("id")!);
-    if (!contactId) return notFound(c, "Conversation");
-    const targetUserId = c.req.valid("json").targetUserId ?? user.id;
-    const assignment = await assignContactToUser(
+    const identity = await resolveWorkflowIdentity(
       tenantDb,
-      contactId,
+      c.req.param("id")!,
+    );
+    if (!identity) return notFound(c, "Conversation");
+    const targetUserId = c.req.valid("json").targetUserId ?? user.id;
+    if (identity.contactId) {
+      const assignment = await assignContactToUser(
+        tenantDb,
+        identity.contactId,
+        targetUserId,
+        user.id,
+      );
+      return successData(c, assignment, 201);
+    }
+    await assignConversationToUser(
+      tenantDb,
+      identity.conversationId!,
       targetUserId,
       user.id,
+    );
+    const assignment = await getCurrentConversationAssignment(
+      tenantDb,
+      identity.conversationId!,
     );
     return successData(c, assignment, 201);
   },

@@ -44,3 +44,43 @@ export async function resolveWorkflowContactId(
   if (contact) return contact.id;
   return contactIdForConversation(db, id);
 }
+
+export interface WorkflowIdentity {
+  contactId: string | null;
+  conversationId: string | null;
+  isGroup: boolean;
+  subject: string | null;
+}
+
+/** Accept a contact UUID or a conversation UUID and return both identities. */
+export async function resolveWorkflowIdentity(
+  db: WorkflowDb,
+  id: string,
+): Promise<WorkflowIdentity | null> {
+  const contact = await db
+    .selectFrom("contacts")
+    .select(["id", "is_group"])
+    .where("id", "=", id)
+    .executeTakeFirst();
+  if (contact) {
+    return {
+      contactId: contact.id,
+      conversationId: await conversationIdForContact(db, contact.id),
+      isGroup: contact.is_group,
+      subject: null,
+    };
+  }
+  const conversation = await db
+    .selectFrom("conversations")
+    .select(["id", "kind", "subject", "legacy_contact_id"])
+    .where("id", "=", id)
+    .where("archived_at", "is", null)
+    .executeTakeFirst();
+  if (!conversation) return null;
+  return {
+    contactId: conversation.legacy_contact_id,
+    conversationId: conversation.id,
+    isGroup: conversation.kind !== "direct",
+    subject: conversation.subject,
+  };
+}

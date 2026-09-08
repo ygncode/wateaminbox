@@ -248,6 +248,20 @@ async function assertActorOwnsContact(
   }
 }
 
+async function assertActorOwnsConversation(
+  trx: Transaction<TenantDatabase>,
+  conversationId: string,
+  actorUserId: string,
+): Promise<void> {
+  const assignment = await getCurrentConversationAssignment(
+    trx,
+    conversationId,
+  );
+  if (assignment && assignment.assigned_to !== actorUserId) {
+    throw new ContactAssignedToOtherError(assignment.assigned_to);
+  }
+}
+
 function toConversationCase(row: ConversationCaseRow): ConversationCase {
   return {
     id: row.id,
@@ -1016,6 +1030,195 @@ export async function resumePendingCase(
         ? "This conversation's active case changed before it could be resumed"
         : "This conversation has no active case to resume",
     );
+  });
+}
+
+export async function resolveActiveCaseForConversation(
+  tenantDb: Kysely<TenantDatabase>,
+  conversationId: string,
+  input: ResolveCaseInput,
+): Promise<ConversationCase> {
+  if (input.outcome === "other" && !input.notes?.trim()) {
+    throw new ValidationError("Notes are required when the outcome is 'other'");
+  }
+  return tenantDb.transaction().execute(async (trx) => {
+    await lockConversation(trx, conversationId);
+    await assertActorOwnsConversation(trx, conversationId, input.resolvedBy);
+    const active = await getActiveCase(trx, conversationId);
+    if (!active) {
+      throw new ConflictError(
+        "This conversation has no active case to resolve",
+      );
+    }
+    if (input.outcome === "handled") {
+      const unanswered = await hasUnansweredLatestTurn(trx, active.id);
+      if (unanswered) {
+        throw new ValidationError(
+          "'handled' requires a team reply to the latest inbound message - choose no_reply_needed, spam, or duplicate, or 'other' with notes",
+        );
+      }
+    }
+    const resolvedAt = toDbDate();
+    const updated = await trx
+      .updateTable("conversation_cases")
+      .set({
+        status: "resolved",
+        resolved_at: resolvedAt,
+        resolved_by: input.resolvedBy,
+        resolution_outcome: input.outcome,
+        resolution_notes: input.notes?.trim() || null,
+        updated_at: toDbDate(),
+      })
+      .where("id", "=", active.id)
+      .where("status", "in", ["open", "pending"])
+      .returningAll()
+      .executeTakeFirst();
+    if (!updated) {
+      throw new ConflictError(
+        "This conversation's active case changed before the resolve could be applied",
+      );
+    }
+    const resolvedCase = updated as unknown as ConversationCaseRow;
+    await syncConversationProjection(trx, conversationId, null, {
+      activeCaseId: null,
+      status: "resolved",
+      resolvedAt: resolvedCase.resolved_at,
+      resolvedBy: resolvedCase.resolved_by,
+      resolutionNotes: resolvedCase.resolution_notes,
+    });
+    return toConversationCase(resolvedCase);
+  });
+}
+
+export async function setActiveCasePendingForConversation(
+  tenantDb: Kysely<TenantDatabase>,
+  conversationId: string,
+  actorUserId: string,
+): Promise<ConversationCase> {
+  return tenantDb.transaction().execute(async (trx) => {
+    await lockConversation(trx, conversationId);
+    await assertActorOwnsConversation(trx, conversationId, actorUserId);
+    const updated = await trx
+      .updateTable("conversation_cases")
+      .set({ status: "pending", updated_at: toDbDate() })
+      .where("conversation_id", "=", conversationId)
+      .where("status", "=", "open")
+      .returningAll()
+      .executeTakeFirst();
+    if (updated) {
+      const pendingCase = updated as unknown as ConversationCaseRow;
+      await syncConversationProjection(trx, conversationId, null, {
+        activeCaseId: pendingCase.id,
+        status: "pending",
+      });
+      return toConversationCase(pendingCase);
+    }
+    const current = await getActiveCase(trx, conversationId);
+    if (current?.status === "pending") return current;
+    throw new ConflictError(
+      current
+        ? "This conversation's active case changed before it could be marked pending"
+        : "This conversation has no active case to mark pending",
+    );
+  });
+}
+
+export async function resumePendingCaseForConversation(
+  tenantDb: Kysely<TenantDatabase>,
+  conversationId: string,
+  actorUserId: string,
+): Promise<ConversationCase> {
+  return tenantDb.transaction().execute(async (trx) => {
+    await lockConversation(trx, conversationId);
+    await assertActorOwnsConversation(trx, conversationId, actorUserId);
+    const updated = await trx
+      .updateTable("conversation_cases")
+      .set({ status: "open", updated_at: toDbDate() })
+      .where("conversation_id", "=", conversationId)
+      .where("status", "=", "pending")
+      .returningAll()
+      .executeTakeFirst();
+    if (updated) {
+      const openCase = updated as unknown as ConversationCaseRow;
+      await syncConversationProjection(trx, conversationId, null, {
+        activeCaseId: openCase.id,
+        status: "open",
+      });
+      return toConversationCase(openCase);
+    }
+    const current = await getActiveCase(trx, conversationId);
+    if (current?.status === "open") return current;
+    throw new ConflictError(
+      current
+        ? "This conversation's active case changed before it could be resumed"
+        : "This conversation has no active case to resume",
+    );
+  });
+}
+
+export async function reopenAsNewCaseForConversation(
+  tenantDb: Kysely<TenantDatabase>,
+  conversation: { id: string; isGroup: boolean },
+  input: ManualOpenCaseInput,
+): Promise<ConversationCase> {
+  return tenantDb.transaction().execute(async (trx) => {
+    await lockConversation(trx, conversation.id);
+    await assertActorOwnsConversation(trx, conversation.id, input.openedBy);
+    const priorCase = await getMostRecentCase(trx, conversation.id);
+    if (input.expectedMode === "open" && priorCase) {
+      throw new ConflictError(
+        "This conversation already has prior case history - use Reopen instead of Open",
+      );
+    }
+    if (input.expectedMode === "reopen" && !priorCase) {
+      throw new ConflictError(
+        "This conversation has no prior case history - use Open instead of Reopen",
+      );
+    }
+    if (priorCase && !input.reason?.trim()) {
+      throw new ValidationError(
+        "A reason is required to reopen a previously-closed conversation",
+      );
+    }
+    const kind: ConversationCaseKind = conversation.isGroup
+      ? "group"
+      : "direct";
+    const policy = await getCurrentSlaPolicy(input.companyId);
+    const targets = resolveCaseTargets(policy, kind);
+    const openedAt = toDbDate();
+    const reason = input.reason?.trim() || null;
+    const casesTable = sql.table(
+      `${getSchemaName(input.companyId)}.conversation_cases`,
+    );
+    const insertResult = await sql<ConversationCaseRow>`
+      INSERT INTO ${casesTable} (
+        contact_id, conversation_id, company_id, kind, status, opened_at, opening_message_id,
+        open_source, opened_by, policy_id, response_target_minutes,
+        resolution_target_minutes, reopened_from_case_id, reopen_reason
+      )
+      VALUES (
+        NULL, ${conversation.id}, ${input.companyId}, ${kind}, 'open', ${openedAt}, NULL,
+        'manual', ${input.openedBy}, ${policy.id}, ${targets.responseTargetMinutes},
+        ${targets.resolutionTargetMinutes}, ${priorCase?.id ?? null}, ${reason}
+      )
+      ON CONFLICT (conversation_id) WHERE conversation_id IS NOT NULL AND status IN ('open', 'pending') DO NOTHING
+      RETURNING *
+    `.execute(trx);
+    if (insertResult.rows.length === 0) {
+      throw new ConflictError("This conversation already has an active case");
+    }
+    const created = insertResult.rows[0];
+    await syncConversationProjection(trx, conversation.id, null, {
+      activeCaseId: created.id,
+      status: "open",
+      resolvedAt: null,
+      resolvedBy: null,
+      resolutionNotes: null,
+      ...(priorCase
+        ? { reopenedAt: created.opened_at, reopenedBy: input.openedBy }
+        : {}),
+    });
+    return toConversationCase(created);
   });
 }
 

@@ -10,17 +10,27 @@ import {
   resolveConversationSchema,
 } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
-import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
+import {
+  broadcastToContactViewers,
+  broadcastToConversationViewers,
+} from "../../services/message-broadcast.service.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import {
   getActiveCase,
   hasCaseHistory,
   reopenAsNewCase,
+  reopenAsNewCaseForConversation,
   resolveActiveCase,
+  resolveActiveCaseForConversation,
   resumePendingCase,
+  resumePendingCaseForConversation,
   setActiveCasePending,
+  setActiveCasePendingForConversation,
 } from "../../services/conversation-case.service.js";
-import { contactIdForConversation } from "../../services/channel-workflow.service.js";
+import {
+  resolveWorkflowIdentity,
+  type WorkflowIdentity,
+} from "../../services/channel-workflow.service.js";
 import { getConversationState } from "../../services/conversation-state.service.js";
 
 export const stateRoutes = new Hono();
@@ -50,8 +60,25 @@ async function loadWorkflowContact(
 ) {
   const contact = await loadContact(tenantDb, id);
   if (contact) return contact;
-  const contactId = await contactIdForConversation(tenantDb, id);
-  return contactId ? loadContact(tenantDb, contactId) : undefined;
+  const identity = await resolveWorkflowIdentity(tenantDb, id);
+  return identity?.contactId
+    ? loadContact(tenantDb, identity.contactId)
+    : undefined;
+}
+
+function workflowLabel(
+  identity: WorkflowIdentity,
+  contact?:
+    | {
+        custom_name: string | null;
+        push_name: string | null;
+        username: string | null;
+        phone_number: string | null;
+      }
+    | undefined,
+) {
+  if (contact) return getContactDisplayName(contact, "Unknown");
+  return identity.subject?.trim() || "Conversation";
 }
 
 /**
@@ -99,50 +126,66 @@ stateRoutes.post(
   zValidator("json", resolveConversationSchema),
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
-    let contactId = c.req.param("id")!;
     const { outcome, notes } = c.req.valid("json");
-
-    const contact = await loadWorkflowContact(tenantDb, contactId);
-    if (!contact) {
-      return notFound(c, "Contact");
-    }
-    contactId = contact.id;
-
-    const resolvedCase = await resolveActiveCase(tenantDb, contactId, {
-      outcome,
-      notes,
-      resolvedBy: user.id,
-    });
-
+    const identity = await resolveWorkflowIdentity(
+      tenantDb,
+      c.req.param("id")!,
+    );
+    if (!identity) return notFound(c, "Conversation");
+    const contact = identity.contactId
+      ? await loadContact(tenantDb, identity.contactId)
+      : undefined;
+    const resolvedCase = identity.contactId
+      ? await resolveActiveCase(tenantDb, identity.contactId, {
+          outcome,
+          notes,
+          resolvedBy: user.id,
+        })
+      : await resolveActiveCaseForConversation(
+          tenantDb,
+          identity.conversationId!,
+          { outcome, notes, resolvedBy: user.id },
+        );
+    const entityId = identity.contactId ?? identity.conversationId!;
     await createAuditLog({
       companyId,
       userId: user.id,
       action: "conversation.resolved",
       entityType: "conversation",
-      entityId: contactId,
+      entityId,
       details: {
-        contactId,
-        contactName: getContactDisplayName(contact, "Unknown"),
+        contactId: identity.contactId,
+        conversationId: identity.conversationId,
+        contactName: workflowLabel(identity, contact),
         caseId: resolvedCase.id,
         outcome,
         notes,
       },
       ipAddress: getClientIp(c),
     });
-
-    await broadcastToContactViewers(
-      companyId,
-      contactId,
-      "conversation:updated",
-      {
-        event: "resolved",
-        contactId,
-        caseId: resolvedCase.id,
-        resolvedBy: user.id,
-        resolvedAt: resolvedCase.resolvedAt?.toISOString(),
-      },
-    );
-
+    const payload = {
+      event: "resolved",
+      contactId: identity.contactId,
+      conversationId: identity.conversationId,
+      caseId: resolvedCase.id,
+      resolvedBy: user.id,
+      resolvedAt: resolvedCase.resolvedAt?.toISOString(),
+    };
+    if (identity.contactId) {
+      await broadcastToContactViewers(
+        companyId,
+        identity.contactId,
+        "conversation:updated",
+        payload,
+      );
+    } else {
+      await broadcastToConversationViewers(
+        companyId,
+        identity.conversationId,
+        "conversation:updated",
+        payload,
+      );
+    }
     return successData(c, resolvedCase);
   },
 );
@@ -161,60 +204,70 @@ async function performManualOpenOrReopen(
   reason: string | undefined,
 ) {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  let contactId = c.req.param("id")!;
-
-  const contact = await loadWorkflowContact(tenantDb, contactId);
-  if (!contact) {
-    return notFound(c, "Contact");
-  }
-  contactId = contact.id;
-
-  const newCase = await reopenAsNewCase(
-    tenantDb,
-    { id: contactId, isGroup: contact.is_group },
-    { companyId, openedBy: user.id, reason, expectedMode },
-  );
+  const identity = await resolveWorkflowIdentity(tenantDb, c.req.param("id")!);
+  if (!identity) return notFound(c, "Conversation");
+  const contact = identity.contactId
+    ? await loadContact(tenantDb, identity.contactId)
+    : undefined;
+  const newCase = identity.contactId
+    ? await reopenAsNewCase(
+        tenantDb,
+        { id: identity.contactId, isGroup: identity.isGroup },
+        { companyId, openedBy: user.id, reason, expectedMode },
+      )
+    : await reopenAsNewCaseForConversation(
+        tenantDb,
+        { id: identity.conversationId!, isGroup: identity.isGroup },
+        { companyId, openedBy: user.id, reason, expectedMode },
+      );
   const wasReopen = Boolean(newCase.reopenedFromCaseId);
-
+  const entityId = identity.contactId ?? identity.conversationId!;
   await createAuditLog({
     companyId,
     userId: user.id,
     action: wasReopen ? "conversation.reopened" : "conversation.opened",
     entityType: "conversation",
-    entityId: contactId,
+    entityId,
     details: {
-      contactId,
-      contactName: getContactDisplayName(contact, "Unknown"),
+      contactId: identity.contactId,
+      conversationId: identity.conversationId,
+      contactName: workflowLabel(identity, contact),
       caseId: newCase.id,
       reopenedFromCaseId: newCase.reopenedFromCaseId,
       reason,
     },
     ipAddress: getClientIp(c),
   });
-
-  await broadcastToContactViewers(
-    companyId,
-    contactId,
-    "conversation:updated",
-    {
-      event: wasReopen ? "reopened" : "opened",
-      contactId,
-      caseId: newCase.id,
-      // Field names track the ACTUAL transition (`wasReopen`), never the
-      // endpoint name - a genuine first-ever open must never be reported
-      // under reopenedBy/reopenedAt, and vice versa.
-      ...(wasReopen
-        ? {
-            reopenedBy: user.id,
-            reopenedAt: newCase.openedAt.toISOString(),
-          }
-        : {
-            openedBy: user.id,
-            openedAt: newCase.openedAt.toISOString(),
-          }),
-    },
-  );
-
+  const payload = {
+    event: wasReopen ? "reopened" : "opened",
+    contactId: identity.contactId,
+    conversationId: identity.conversationId,
+    caseId: newCase.id,
+    ...(wasReopen
+      ? {
+          reopenedBy: user.id,
+          reopenedAt: newCase.openedAt.toISOString(),
+        }
+      : {
+          openedBy: user.id,
+          openedAt: newCase.openedAt.toISOString(),
+        }),
+  };
+  if (identity.contactId) {
+    await broadcastToContactViewers(
+      companyId,
+      identity.contactId,
+      "conversation:updated",
+      payload,
+    );
+  } else {
+    await broadcastToConversationViewers(
+      companyId,
+      identity.conversationId,
+      "conversation:updated",
+      payload,
+    );
+  }
   return successData(c, newCase);
 }
 
@@ -252,45 +305,54 @@ stateRoutes.post(
  */
 stateRoutes.post("/:id/pending", requireMessageSendPermission, async (c) => {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  let contactId = c.req.param("id")!;
-
-  const contact = await loadWorkflowContact(tenantDb, contactId);
-  if (!contact) {
-    return notFound(c, "Contact");
-  }
-  contactId = contact.id;
-
-  const pendingCase = await setActiveCasePending(tenantDb, contactId, user.id);
-
-  // A live inbound can flip a pending case back to open at any moment (see
-  // conversation-case.service.ts), so this transition otherwise leaves no
-  // trace once that happens - the audit log is the only durable record
-  // that an agent deliberately paused it.
+  const identity = await resolveWorkflowIdentity(tenantDb, c.req.param("id")!);
+  if (!identity) return notFound(c, "Conversation");
+  const contact = identity.contactId
+    ? await loadContact(tenantDb, identity.contactId)
+    : undefined;
+  const pendingCase = identity.contactId
+    ? await setActiveCasePending(tenantDb, identity.contactId, user.id)
+    : await setActiveCasePendingForConversation(
+        tenantDb,
+        identity.conversationId!,
+        user.id,
+      );
+  const entityId = identity.contactId ?? identity.conversationId!;
   await createAuditLog({
     companyId,
     userId: user.id,
     action: "conversation.pending",
     entityType: "conversation",
-    entityId: contactId,
+    entityId,
     details: {
-      contactId,
-      contactName: getContactDisplayName(contact, "Unknown"),
+      contactId: identity.contactId,
+      conversationId: identity.conversationId,
+      contactName: workflowLabel(identity, contact),
       caseId: pendingCase.id,
     },
     ipAddress: getClientIp(c),
   });
-
-  await broadcastToContactViewers(
-    companyId,
-    contactId,
-    "conversation:updated",
-    {
-      event: "pending",
-      contactId,
-      caseId: pendingCase.id,
-    },
-  );
-
+  const payload = {
+    event: "pending",
+    contactId: identity.contactId,
+    conversationId: identity.conversationId,
+    caseId: pendingCase.id,
+  };
+  if (identity.contactId) {
+    await broadcastToContactViewers(
+      companyId,
+      identity.contactId,
+      "conversation:updated",
+      payload,
+    );
+  } else {
+    await broadcastToConversationViewers(
+      companyId,
+      identity.conversationId,
+      "conversation:updated",
+      payload,
+    );
+  }
   return successData(c, pendingCase);
 });
 
@@ -302,41 +364,54 @@ stateRoutes.post("/:id/pending", requireMessageSendPermission, async (c) => {
  */
 stateRoutes.post("/:id/resume", requireMessageSendPermission, async (c) => {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  let contactId = c.req.param("id")!;
-
-  const contact = await loadWorkflowContact(tenantDb, contactId);
-  if (!contact) {
-    return notFound(c, "Contact");
-  }
-  contactId = contact.id;
-
-  const openedCase = await resumePendingCase(tenantDb, contactId, user.id);
-
+  const identity = await resolveWorkflowIdentity(tenantDb, c.req.param("id")!);
+  if (!identity) return notFound(c, "Conversation");
+  const contact = identity.contactId
+    ? await loadContact(tenantDb, identity.contactId)
+    : undefined;
+  const openedCase = identity.contactId
+    ? await resumePendingCase(tenantDb, identity.contactId, user.id)
+    : await resumePendingCaseForConversation(
+        tenantDb,
+        identity.conversationId!,
+        user.id,
+      );
+  const entityId = identity.contactId ?? identity.conversationId!;
   await createAuditLog({
     companyId,
     userId: user.id,
     action: "conversation.resumed",
     entityType: "conversation",
-    entityId: contactId,
+    entityId,
     details: {
-      contactId,
-      contactName: getContactDisplayName(contact, "Unknown"),
+      contactId: identity.contactId,
+      conversationId: identity.conversationId,
+      contactName: workflowLabel(identity, contact),
       caseId: openedCase.id,
     },
     ipAddress: getClientIp(c),
   });
-
-  await broadcastToContactViewers(
-    companyId,
-    contactId,
-    "conversation:updated",
-    {
-      event: "resumed",
-      contactId,
-      caseId: openedCase.id,
-    },
-  );
-
+  const payload = {
+    event: "resumed",
+    contactId: identity.contactId,
+    conversationId: identity.conversationId,
+    caseId: openedCase.id,
+  };
+  if (identity.contactId) {
+    await broadcastToContactViewers(
+      companyId,
+      identity.contactId,
+      "conversation:updated",
+      payload,
+    );
+  } else {
+    await broadcastToConversationViewers(
+      companyId,
+      identity.conversationId,
+      "conversation:updated",
+      payload,
+    );
+  }
   return successData(c, openedCase);
 });
 
@@ -345,44 +420,53 @@ stateRoutes.post("/:id/resume", requireMessageSendPermission, async (c) => {
  */
 stateRoutes.post("/:id/read", async (c) => {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  let contactId = c.req.param("id")!;
-
-  const contact = await loadWorkflowContact(tenantDb, contactId);
-  if (!contact) {
-    return notFound(c, "Contact");
-  }
-  contactId = contact.id;
-
-  // Update conversation_states to reset unread count and record read time
-  const updateResult = await tenantDb
-    .updateTable("conversation_states")
-    .set({
-      unread_count: 0,
-      read_at: toDbDate(),
-      read_by_user_id: user.id,
-      updated_at: toDbDate(),
-    })
-    .where("contact_id", "=", contactId)
-    .executeTakeFirst();
-
-  // If no row exists, create one with unread_count = 0
+  const identity = await resolveWorkflowIdentity(tenantDb, c.req.param("id")!);
+  if (!identity) return notFound(c, "Conversation");
+  const updateQuery = tenantDb.updateTable("conversation_states").set({
+    unread_count: 0,
+    read_at: toDbDate(),
+    read_by_user_id: user.id,
+    updated_at: toDbDate(),
+  });
+  const updateResult = identity.contactId
+    ? await updateQuery
+        .where("contact_id", "=", identity.contactId)
+        .executeTakeFirst()
+    : await updateQuery
+        .where("conversation_id", "=", identity.conversationId!)
+        .executeTakeFirst();
   if (updateResult.numUpdatedRows === BigInt(0)) {
     await tenantDb
       .insertInto("conversation_states")
       .values({
-        contact_id: contactId,
+        contact_id: identity.contactId,
+        conversation_id: identity.conversationId,
         unread_count: 0,
         read_at: toDbDate(),
         read_by_user_id: user.id,
       })
       .execute();
   }
-
-  await broadcastToContactViewers(companyId, contactId, "conversation:read", {
-    contactId,
+  const payload = {
+    contactId: identity.contactId,
+    conversationId: identity.conversationId,
     unreadCount: 0,
     readBy: user.id,
-  });
-
+  };
+  if (identity.contactId) {
+    await broadcastToContactViewers(
+      companyId,
+      identity.contactId,
+      "conversation:read",
+      payload,
+    );
+  } else {
+    await broadcastToConversationViewers(
+      companyId,
+      identity.conversationId,
+      "conversation:read",
+      payload,
+    );
+  }
   return successData(c, { unreadCount: 0 });
 });
