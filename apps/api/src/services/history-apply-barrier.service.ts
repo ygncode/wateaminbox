@@ -92,6 +92,11 @@ export function startHistoryBarrierDrain(
         })
         .finally(schedule);
     }, 1_000);
+    // Like shutdown.ts's own deadline timer, the drain must never itself be
+    // the reason the process stays alive: shutdown stops it explicitly via
+    // stopHistoryBarrierDrain, and process.exit is the escape hatch for
+    // anything abandoned rather than cancelled.
+    timer.unref?.();
   };
   schedule();
 }

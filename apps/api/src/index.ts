@@ -2,7 +2,6 @@ import { app } from "./app.js";
 import { setVerifiedRequestIp } from "./lib/client-ip.js";
 import { env } from "./lib/env.js";
 import { createLogger, formatError } from "./lib/logger.js";
-import { natsLifecycle } from "./lib/nats/index.js";
 import { rateLimitStore } from "./lib/rate-limit-store.js";
 import { runShutdown, type ShutdownStep } from "./lib/shutdown.js";
 import {
@@ -21,11 +20,14 @@ import {
   initializeMessageCleanup,
   shutdownMessageCleanup,
 } from "./services/message-cleanup.service.js";
-import { initializeMessageHandler } from "./services/message-handler.js";
 import {
   initializeMessageDelivery,
   shutdownMessageDelivery,
 } from "./services/message-delivery-outbox.service.js";
+import {
+  initializeMessageHandler,
+  shutdownMessageHandler,
+} from "./services/message-handler.js";
 import {
   initializeMessageSearch,
   shutdownMessageSearch,
@@ -120,8 +122,10 @@ function shutdownSteps(): ShutdownStep[] {
     { name: "connection-purge-cleanup", run: shutdownConnectionPurgeCleanup },
     { name: "command-outbox", run: shutdownCommandOutbox },
     { name: "scheduled-messages", run: shutdownScheduledMessages },
-    // Drains the event supervisor, then the NATS connection itself.
-    { name: "nats", run: () => natsLifecycle.shutdown() },
+    // Drains the history-barrier loop, then the event supervisor, then the
+    // NATS connection itself -- every producer initializeMessageHandler
+    // started, in the order it started them.
+    { name: "nats", run: shutdownMessageHandler },
     { name: "message-delivery", run: shutdownMessageDelivery },
     { name: "message-search", run: shutdownMessageSearch },
     // Stops PostgreSQL cleanup (or closes the optional Redis connection)
