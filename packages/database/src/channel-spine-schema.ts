@@ -245,12 +245,29 @@ export async function ensureChannelSpineTenantSchema<Database>(
       ),
       error_code TEXT,
       provider_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      fetch_attempts INTEGER NOT NULL DEFAULT 0 CHECK (fetch_attempts >= 0),
+      next_fetch_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      fetch_lease_token UUID,
+      fetch_lease_expires_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (message_id, ordinal),
       CHECK (provider_locator IS NULL OR jsonb_typeof(provider_locator) = 'object'),
-      CHECK (jsonb_typeof(provider_metadata) = 'object')
+      CHECK (jsonb_typeof(provider_metadata) = 'object'),
+      CHECK ((fetch_lease_token IS NULL) = (fetch_lease_expires_at IS NULL))
     )`.execute(db);
+
+    await addColumnsIfMissing(db, schemaName, "message_attachments", [
+      ["fetch_attempts", "INTEGER NOT NULL DEFAULT 0"],
+      ["next_fetch_at", "TIMESTAMPTZ NOT NULL DEFAULT now()"],
+      ["fetch_lease_token", "UUID"],
+      ["fetch_lease_expires_at", "TIMESTAMPTZ"],
+    ]);
+    await sql`CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_ma_fetch_due_idx`)}
+      ON ${table("message_attachments")} (next_fetch_at, created_at)
+      WHERE status = 'pending' AND provider_attachment_id IS NOT NULL`.execute(
+      db,
+    );
 
     await sql`CREATE TABLE IF NOT EXISTS ${table("whatsapp_attachment_fetch_state")} (
       attachment_id UUID PRIMARY KEY REFERENCES ${table("message_attachments")}(id) ON DELETE CASCADE,

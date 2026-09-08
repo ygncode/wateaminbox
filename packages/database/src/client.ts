@@ -540,6 +540,10 @@ export interface MessageAttachmentsTable {
   status: Generated<"pending" | "available" | "failed" | "deleted">;
   error_code: string | null;
   provider_metadata: Generated<Record<string, unknown>>;
+  fetch_attempts: Generated<number>;
+  next_fetch_at: Generated<Date>;
+  fetch_lease_token: string | null;
+  fetch_lease_expires_at: Date | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
