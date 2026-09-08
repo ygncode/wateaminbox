@@ -16,6 +16,9 @@ export type {
   AutoReplySettingsTable,
   BulkConnectionBudgetsTable,
   BulkJobsTable,
+  ChannelSpineWorkspaceFlagAuditTable,
+  ChannelSpineWorkspaceFlagsTable,
+  ChannelSpineWriteAuthority,
   CatalogProductsTable,
   CatalogStatus,
   // Public schema types

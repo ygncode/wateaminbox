@@ -32,6 +32,8 @@ export interface Database {
   oauth_grants: OAuthGrantsTable;
   oauth_authorization_codes: OAuthAuthorizationCodesTable;
   sla_policies: SlaPoliciesTable;
+  channel_spine_workspace_flags: ChannelSpineWorkspaceFlagsTable;
+  channel_spine_workspace_flag_audit: ChannelSpineWorkspaceFlagAuditTable;
 }
 
 // Type alias for backward compatibility (deprecated - import from @wateaminbox/shared instead)
@@ -43,6 +45,34 @@ export interface ApiRateLimitBucketsTable {
   request_count: string;
   window_started_at: Date;
   expires_at: Date;
+}
+
+export type ChannelSpineWriteAuthority = "legacy" | "neutral";
+
+export interface ChannelSpineWorkspaceFlagsTable {
+  company_id: string;
+  dual_write_enabled: Generated<boolean>;
+  dual_write_revision: string | null;
+  neutral_reads_enabled: Generated<boolean>;
+  neutral_read_revision: string | null;
+  write_authority: Generated<ChannelSpineWriteAuthority>;
+  write_authority_revision: string | null;
+  enabled_providers: Generated<string[]>;
+  provider_enable_revision: string | null;
+  revision: Generated<string>;
+  created_by: string;
+  updated_by: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface ChannelSpineWorkspaceFlagAuditTable {
+  company_id: string;
+  revision: string;
+  changed_by: string;
+  changed_at: Generated<Date>;
+  previous_flags: unknown | null;
+  new_flags: unknown;
 }
 
 export interface CompaniesTable {

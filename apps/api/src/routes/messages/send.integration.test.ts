@@ -293,6 +293,13 @@ describe("POST /api/messages - assignment-aware send access", () => {
           }),
         });
         expect(response.status).toBe(200);
+        const body = (await response.json()) as {
+          message: { contactId: string; conversationId: string };
+        };
+        // Phase 0 compatibility: existing WhatsApp conversations still use the
+        // contact ID as both API identifiers.
+        expect(body.message.contactId).toBe(contactId);
+        expect(body.message.conversationId).toBe(contactId);
       });
     },
   );
