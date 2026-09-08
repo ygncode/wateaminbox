@@ -146,3 +146,73 @@ export function transformContactsToChats(
 ): Chat[] {
   return contacts.map(transformContactToChat);
 }
+
+export function transformChannelConversationToChat(conversation: {
+  id: string;
+  channel: string;
+  provider: string;
+  kind: "direct" | "group" | "thread";
+  subject: string | null;
+  lastMessageAt: string | null;
+  lastMessagePreview: string | null;
+  unreadCount: number;
+  conversationStatus: ConversationLifecycleStatus;
+  legacyContactId: string | null;
+}): Chat {
+  const name = conversation.subject?.trim() || conversation.channel;
+  return {
+    id: conversation.legacyContactId ?? conversation.id,
+    contact: {
+      id: conversation.legacyContactId ?? conversation.id,
+      jid: undefined,
+      phoneNumber: "",
+      name,
+      isGroup: conversation.kind !== "direct",
+      conversationId: conversation.id,
+      channel: conversation.channel,
+      provider: conversation.provider,
+    },
+    lastMessage: conversation.lastMessagePreview
+      ? {
+          id: `${conversation.id}:preview`,
+          chatId: conversation.legacyContactId ?? conversation.id,
+          senderId: conversation.id,
+          content: conversation.lastMessagePreview,
+          type: "text",
+          status: "delivered",
+          timestamp: toDate(conversation.lastMessageAt) ?? new Date(),
+          isFromMe: false,
+        }
+      : undefined,
+    unreadCount: conversation.unreadCount,
+    isPinned: false,
+    isMuted: false,
+    isArchived: false,
+    updatedAt: toDate(conversation.lastMessageAt) ?? new Date(),
+    conversationStatus: conversation.conversationStatus,
+    activeCaseId: null,
+  };
+}
+
+export function mergeInboxChats(
+  contactChats: Chat[],
+  conversations: Parameters<typeof transformChannelConversationToChat>[0][],
+): Chat[] {
+  const seenContacts = new Set(contactChats.map((chat) => chat.id));
+  const seenConversations = new Set(
+    contactChats
+      .map((chat) => chat.contact.conversationId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const extras = conversations
+    .filter(
+      (conversation) =>
+        !seenConversations.has(conversation.id) &&
+        (!conversation.legacyContactId ||
+          !seenContacts.has(conversation.legacyContactId)),
+    )
+    .map(transformChannelConversationToChat);
+  return [...contactChats, ...extras].sort(
+    (left, right) => right.updatedAt.getTime() - left.updatedAt.getTime(),
+  );
+}

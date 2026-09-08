@@ -11,6 +11,9 @@ export interface ChannelConversation {
   externalThreadId: string | null;
   firstMessageAt: string | null;
   lastMessageAt: string | null;
+  lastMessagePreview: string | null;
+  unreadCount: number;
+  conversationStatus: "open" | "pending" | "resolved";
   legacyContactId: string | null;
   account: {
     displayName: string | null;

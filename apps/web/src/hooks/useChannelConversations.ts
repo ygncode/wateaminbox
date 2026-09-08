@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { ApiRequestError } from "@/lib/api/client";
 import {
   getChannelConversations,
   getChannelMessages,
@@ -8,7 +9,16 @@ import { queryKeys } from "./query-keys";
 export function useChannelConversations(limit = 50) {
   return useQuery({
     queryKey: queryKeys.channelConversations.list({ limit }),
-    queryFn: () => getChannelConversations({ limit }),
+    queryFn: async () => {
+      try {
+        return await getChannelConversations({ limit });
+      } catch (error) {
+        if (error instanceof ApiRequestError && error.statusCode === 404) {
+          return [];
+        }
+        throw error;
+      }
+    },
     staleTime: 30_000,
   });
 }

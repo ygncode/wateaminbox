@@ -35,6 +35,11 @@ conversationRoutes.get("/", async (c) => {
       "account.id",
       "conversation.channel_account_id",
     )
+    .leftJoin(
+      "conversation_states as state",
+      "state.conversation_id",
+      "conversation.id",
+    )
     .select([
       "conversation.id",
       "conversation.channel_account_id",
@@ -48,6 +53,9 @@ conversationRoutes.get("/", async (c) => {
       "account.provider",
       "account.display_name as account_display_name",
       "account.status as account_status",
+      "state.unread_count",
+      "state.last_message_preview",
+      "state.status as conversation_status",
     ])
     .where("conversation.archived_at", "is", null)
     .where("account.archived_at", "is", null)
@@ -92,6 +100,9 @@ conversationRoutes.get("/", async (c) => {
       externalThreadId: conversation.external_thread_id,
       firstMessageAt: conversation.first_message_at,
       lastMessageAt: conversation.last_message_at,
+      lastMessagePreview: conversation.last_message_preview,
+      unreadCount: Number(conversation.unread_count ?? 0),
+      conversationStatus: conversation.conversation_status ?? "open",
       legacyContactId: conversation.legacy_contact_id,
       account: {
         displayName: conversation.account_display_name,

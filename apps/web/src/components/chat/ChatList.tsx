@@ -14,6 +14,7 @@ import { Link } from "react-router";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { type Tag, useTags } from "../../hooks/contact/useContactTags";
 import { useDebounce } from "../../hooks/ui";
+import { useChannelConversations } from "../../hooks/useChannelConversations";
 import {
   type AssignmentFilter,
   type ConversationStatusFilter,
@@ -21,6 +22,7 @@ import {
 } from "../../hooks/useChats";
 import { usePrefetchContact } from "../../hooks/usePrefetch";
 import { useWhatsAppConnections } from "../../hooks/useWhatsAppConnections";
+import { mergeInboxChats } from "../../lib/api/transformers";
 import { workspacePath } from "../../lib/workspace-routes";
 import type { ChatListProps } from "../../types/chat";
 import { AddContactDialog } from "../contacts/AddContactDialog";
@@ -116,6 +118,7 @@ export const ChatList = memo(function ChatList({
     conversationStatusFilter,
     selectedTagIds,
   );
+  const { data: channelConversations = [] } = useChannelConversations(100);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -157,8 +160,28 @@ export const ChatList = memo(function ChatList({
 
   // Filter archived chats for main view
   const visibleChats = useMemo(() => {
-    return chats?.filter((chat) => !chat.isArchived) ?? [];
-  }, [chats]);
+    const needle = searchQuery.trim().toLowerCase();
+    return mergeInboxChats(chats ?? [], channelConversations).filter((chat) => {
+      if (chat.isArchived) return false;
+      if (needle && !chat.contact.name.toLowerCase().includes(needle)) {
+        return false;
+      }
+      if (assignmentFilter === "unread" && chat.unreadCount <= 0) return false;
+      if (
+        conversationStatusFilter !== "all" &&
+        chat.conversationStatus !== conversationStatusFilter
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [
+    assignmentFilter,
+    channelConversations,
+    chats,
+    conversationStatusFilter,
+    searchQuery,
+  ]);
   const connectionState = resolveInboxConnectionState({
     connections,
     isLoading: areConnectionsLoading,
