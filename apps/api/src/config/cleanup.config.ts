@@ -64,33 +64,6 @@ function parsePositiveInt(
 }
 
 /**
- * Validate a cleanup configuration object
- * Returns true if the configuration is valid
- */
-export function isValidCleanupConfig(config: MessageCleanupConfig): boolean {
-  if (typeof config.enabled !== "boolean") {
-    return false;
-  }
-
-  if (typeof config.timeoutMinutes !== "number" || config.timeoutMinutes <= 0) {
-    return false;
-  }
-
-  if (
-    typeof config.intervalMinutes !== "number" ||
-    config.intervalMinutes <= 0
-  ) {
-    return false;
-  }
-
-  if (typeof config.batchSize !== "number" || config.batchSize <= 0) {
-    return false;
-  }
-
-  return true;
-}
-
-/**
  * Default configuration values
  */
 export const DEFAULT_CLEANUP_CONFIG: MessageCleanupConfig = {
