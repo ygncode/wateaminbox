@@ -10,10 +10,7 @@ import {
 import type { Kysely, Transaction } from "kysely";
 import { sql } from "kysely";
 import { createHash } from "node:crypto";
-import {
-  openOrReopenCaseForInboundMessage,
-  resolveActiveCaseIdForContact,
-} from "../../services/conversation-case.service.js";
+import { openOrReopenCaseForInboundConversation } from "../../services/conversation-case.service.js";
 import { enqueueMessageSearch } from "../../services/message-search-outbox.service.js";
 
 export interface AppliedChannelEvent {
@@ -426,28 +423,22 @@ async function applyMessageUpsert(
       )
       .execute();
   }
-  if (!existing && payload.direction === "inbound" && contactId) {
+  if (!existing && payload.direction === "inbound") {
     const conversation = await trx
       .selectFrom("conversations")
       .select("kind")
       .where("id", "=", conversationId)
       .executeTakeFirstOrThrow();
-    const caseResult = await openOrReopenCaseForInboundMessage(
+    await openOrReopenCaseForInboundConversation(
       trx,
       event.companyId,
-      { id: contactId, isGroup: conversation.kind !== "direct" },
-      { id: messageId, timestamp: occurredAt },
+      conversationId,
+      {
+        contactId,
+        isGroup: conversation.kind !== "direct",
+        message: { id: messageId, timestamp: occurredAt },
+      },
     );
-    const caseId =
-      caseResult?.case.id ??
-      (await resolveActiveCaseIdForContact(trx, contactId));
-    if (caseId) {
-      await trx
-        .updateTable("messages")
-        .set({ case_id: caseId })
-        .where("id", "=", messageId)
-        .execute();
-    }
     const preview = (payload.textContent ?? "").slice(0, 100) || null;
     const unreadUpdate = await trx
       .updateTable("conversation_states")
@@ -457,7 +448,7 @@ async function applyMessageUpsert(
         last_message_preview: preview,
         updated_at: new Date(),
       }))
-      .where("contact_id", "=", contactId)
+      .where("conversation_id", "=", conversationId)
       .executeTakeFirst();
     if (Number(unreadUpdate.numUpdatedRows ?? 0) === 0) {
       await trx

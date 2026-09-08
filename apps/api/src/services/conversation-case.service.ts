@@ -90,7 +90,12 @@ import {
   ValidationError,
 } from "../lib/errors.js";
 import { conversationIdForContact } from "./channel-workflow.service.js";
-import { getCurrentAssignment, unassignContact } from "./contact.service.js";
+import {
+  getCurrentAssignment,
+  getCurrentConversationAssignment,
+  unassignContact,
+  unassignConversation,
+} from "./contact.service.js";
 import {
   getCurrentSlaPolicy,
   resolveCaseTargets,
@@ -139,7 +144,7 @@ export const RESOLUTION_OUTCOMES: ConversationCaseResolutionOutcome[] = [
 
 interface ConversationCaseRow {
   id: string;
-  contact_id: string;
+  contact_id: string | null;
   kind: ConversationCaseKind;
   status: "open" | "pending" | "resolved";
   opened_at: Date;
@@ -246,7 +251,7 @@ async function assertActorOwnsContact(
 function toConversationCase(row: ConversationCaseRow): ConversationCase {
   return {
     id: row.id,
-    contactId: row.contact_id,
+    contactId: row.contact_id ?? "",
     kind: row.kind,
     status: row.status,
     openedAt: row.opened_at,
@@ -648,6 +653,188 @@ export async function openOrReopenCaseForInboundMessage(
   }
 
   return result;
+}
+
+export async function openOrReopenCaseForInboundConversation(
+  trx: Transaction<TenantDatabase>,
+  companyId: string,
+  conversationId: string,
+  input: {
+    contactId: string | null;
+    isGroup: boolean;
+    message: { id: string; timestamp: Date };
+  },
+): Promise<{
+  case: ConversationCase;
+  wasAutoReopen: boolean;
+  unassignedPreviousAssignee: string | null;
+} | null> {
+  await lockConversation(trx, conversationId);
+  const serverNow = toDbDate();
+  const kind: ConversationCaseKind = input.isGroup ? "group" : "direct";
+  const policy = await getCurrentSlaPolicy(companyId);
+  const targets = resolveCaseTargets(policy, kind);
+  const existingProjection = await trx
+    .selectFrom("conversation_states")
+    .select(["status"])
+    .where("conversation_id", "=", conversationId)
+    .executeTakeFirst();
+  const isReopen = existingProjection?.status === "resolved";
+  const priorCase = isReopen
+    ? await trx
+        .selectFrom("conversation_cases")
+        .selectAll()
+        .where("conversation_id", "=", conversationId)
+        .orderBy("created_at", "desc")
+        .orderBy("id", "desc")
+        .limit(1)
+        .executeTakeFirst()
+    : null;
+  const casesTable = sql.table(
+    `${getSchemaName(companyId)}.conversation_cases`,
+  );
+  const insertResult = await sql<ConversationCaseRow>`
+    INSERT INTO ${casesTable} (
+      contact_id, conversation_id, company_id, kind, status, opened_at, opening_message_id,
+      open_source, opened_by, policy_id, response_target_minutes,
+      resolution_target_minutes, reopened_from_case_id
+    )
+    VALUES (
+      ${input.contactId}, ${conversationId}, ${companyId}, ${kind}, 'open', ${serverNow}, ${input.message.id},
+      'live_inbound', NULL, ${policy.id}, ${targets.responseTargetMinutes},
+      ${targets.resolutionTargetMinutes}, ${priorCase?.id ?? null}
+    )
+    ON CONFLICT (conversation_id) WHERE conversation_id IS NOT NULL AND status IN ('open', 'pending') DO NOTHING
+    RETURNING *
+  `.execute(trx);
+
+  let result: {
+    case: ConversationCase;
+    wasAutoReopen: boolean;
+    unassignedPreviousAssignee: string | null;
+  } | null = null;
+  let finalCaseId: string | null = null;
+
+  if (insertResult.rows.length > 0) {
+    const newCase = insertResult.rows[0];
+    let unassignedPreviousAssignee: string | null = null;
+    if (isReopen) {
+      const priorAssignment = await getCurrentConversationAssignment(
+        trx,
+        conversationId,
+      );
+      if (priorAssignment) {
+        await unassignConversation(trx, conversationId);
+        unassignedPreviousAssignee = priorAssignment.assigned_to;
+      }
+    }
+    await syncConversationProjection(trx, conversationId, input.contactId, {
+      activeCaseId: newCase.id,
+      status: "open",
+      resolvedAt: null,
+      resolvedBy: null,
+      resolutionNotes: null,
+      ...(isReopen ? { reopenedAt: serverNow, reopenedBy: null } : {}),
+    });
+    finalCaseId = newCase.id;
+    result = {
+      case: toConversationCase(newCase),
+      wasAutoReopen: isReopen,
+      unassignedPreviousAssignee,
+    };
+  } else {
+    const activeCase = await trx
+      .selectFrom("conversation_cases")
+      .selectAll()
+      .where("conversation_id", "=", conversationId)
+      .where("status", "in", ["open", "pending"])
+      .executeTakeFirst();
+    if (activeCase?.status === "pending") {
+      const updated = await trx
+        .updateTable("conversation_cases")
+        .set({ status: "open", updated_at: toDbDate() })
+        .where("id", "=", activeCase.id)
+        .where("status", "=", "pending")
+        .returningAll()
+        .executeTakeFirst();
+      if (updated) {
+        await syncConversationProjection(trx, conversationId, input.contactId, {
+          activeCaseId: activeCase.id,
+          status: "open",
+        });
+        finalCaseId = activeCase.id;
+        result = {
+          case: toConversationCase(updated as unknown as ConversationCaseRow),
+          wasAutoReopen: false,
+          unassignedPreviousAssignee: null,
+        };
+      }
+    }
+    if (!finalCaseId && activeCase) {
+      await syncConversationProjection(trx, conversationId, input.contactId, {
+        activeCaseId: activeCase.id,
+        status: activeCase.status,
+      });
+      finalCaseId = activeCase.id;
+    }
+  }
+  if (finalCaseId) {
+    await trx
+      .updateTable("messages")
+      .set({ case_id: finalCaseId })
+      .where("id", "=", input.message.id)
+      .execute();
+  }
+  return result;
+}
+
+async function syncConversationProjection(
+  trx: Transaction<TenantDatabase>,
+  conversationId: string,
+  contactId: string | null,
+  sync: ProjectionSync,
+): Promise<void> {
+  const updated = await trx
+    .updateTable("conversation_states")
+    .set({
+      active_case_id: sync.activeCaseId,
+      contact_id: contactId,
+      status: sync.status,
+      updated_at: toDbDate(),
+      ...(sync.resolvedAt !== undefined
+        ? { resolved_at: sync.resolvedAt }
+        : {}),
+      ...(sync.resolvedBy !== undefined
+        ? { resolved_by: sync.resolvedBy }
+        : {}),
+      ...(sync.resolutionNotes !== undefined
+        ? { resolution_notes: sync.resolutionNotes }
+        : {}),
+      ...(sync.reopenedAt !== undefined
+        ? { reopened_at: sync.reopenedAt }
+        : {}),
+      ...(sync.reopenedBy !== undefined
+        ? { reopened_by: sync.reopenedBy }
+        : {}),
+    })
+    .where("conversation_id", "=", conversationId)
+    .executeTakeFirst();
+  if (Number(updated.numUpdatedRows ?? 0) > 0) return;
+  await trx
+    .insertInto("conversation_states")
+    .values({
+      contact_id: contactId,
+      conversation_id: conversationId,
+      active_case_id: sync.activeCaseId,
+      status: sync.status,
+      resolved_at: sync.resolvedAt ?? null,
+      resolved_by: sync.resolvedBy ?? null,
+      resolution_notes: sync.resolutionNotes ?? null,
+      reopened_at: sync.reopenedAt ?? null,
+      reopened_by: sync.reopenedBy ?? null,
+      updated_at: toDbDate(),
+    })
+    .execute();
 }
 
 export interface ResolveCaseInput {

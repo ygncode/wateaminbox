@@ -479,6 +479,18 @@ export async function getCurrentAssignment(
 /**
  * Unassigns a contact
  */
+export async function unassignConversation(
+  tenantDb: Kysely<TenantDatabase>,
+  conversationId: string,
+): Promise<void> {
+  await tenantDb
+    .updateTable("contact_assignments")
+    .set({ unassigned_at: toDbDate() })
+    .where("conversation_id", "=", conversationId)
+    .where("unassigned_at", "is", null)
+    .execute();
+}
+
 export async function unassignContact(
   tenantDb: Kysely<TenantDatabase>,
   contactId: string,
