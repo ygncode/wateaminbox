@@ -4,7 +4,7 @@ import type { Context } from "hono";
 import { z } from "zod";
 import { getRouteContext } from "../../../middleware/context.js";
 import { hasContactVisibility } from "../../../middleware/resource-visibility.js";
-import { resolveWorkflowContactId } from "../../../services/channel-workflow.service.js";
+import { resolveWorkflowIdentity } from "../../../services/channel-workflow.service.js";
 import {
   formatBulkJob,
   getBulkJobProgress,
@@ -36,16 +36,44 @@ const limitField = z
 const offsetField = z.number().int().min(0).optional();
 
 /** Throws the same non-disclosing error the REST routes use (a 404). */
+export async function requireVisibleWorkflow(
+  c: Context,
+  id: string,
+): Promise<{ contactId: string | null; conversationId: string | null }> {
+  const { tenantDb, permissions, user } = getRouteContext(c);
+  const identity = await resolveWorkflowIdentity(tenantDb, id);
+  if (!identity) {
+    throw new McpToolError("Contact not found");
+  }
+  if (permissions.can_view_all_chats) return identity;
+  if (
+    identity.contactId &&
+    (await hasContactVisibility(c, identity.contactId))
+  ) {
+    return identity;
+  }
+  if (identity.conversationId) {
+    const assignment = await tenantDb
+      .selectFrom("contact_assignments")
+      .select("id")
+      .where("conversation_id", "=", identity.conversationId)
+      .where("assigned_to", "=", user.id)
+      .where("unassigned_at", "is", null)
+      .executeTakeFirst();
+    if (assignment) return identity;
+  }
+  throw new McpToolError("Contact not found");
+}
+
 export async function requireVisibleContact(
   c: Context,
   id: string,
 ): Promise<string> {
-  const { tenantDb } = getRouteContext(c);
-  const contactId = await resolveWorkflowContactId(tenantDb, id);
-  if (!contactId || !(await hasContactVisibility(c, contactId))) {
+  const identity = await requireVisibleWorkflow(c, id);
+  if (!identity.contactId) {
     throw new McpToolError("Contact not found");
   }
-  return contactId;
+  return identity.contactId;
 }
 
 function compactConversation(contact: ContactWithLastMessage) {
@@ -172,6 +200,11 @@ export const readTools: McpToolDefinition[] = [
         .string()
         .uuid()
         .describe("The conversation's contact id or conversation id"),
+      conversationId: z
+        .string()
+        .uuid()
+        .optional()
+        .describe("Preferred conversation id when no contact exists"),
       limit: limitField,
       cursor: z
         .string()
@@ -180,14 +213,19 @@ export const readTools: McpToolDefinition[] = [
         .describe("nextCursor from a previous call"),
     },
     handler: async (
-      args: { contactId: string; limit?: number; cursor?: string },
+      args: {
+        contactId: string;
+        conversationId?: string;
+        limit?: number;
+        cursor?: string;
+      },
       c,
     ) => {
       const { tenantDb } = getRouteContext(c);
-      const contactId = (args.contactId = await requireVisibleContact(
+      const identity = await requireVisibleWorkflow(
         c,
-        args.contactId,
-      ));
+        args.conversationId ?? args.contactId,
+      );
       const limit = clampLimit(args.limit);
 
       let query = tenantDb
@@ -203,7 +241,11 @@ export const readTools: McpToolDefinition[] = [
           "status",
           "timestamp",
         ])
-        .where("contact_id", "=", contactId)
+        .where((eb) =>
+          identity.conversationId
+            ? eb("conversation_id", "=", identity.conversationId)
+            : eb("contact_id", "=", identity.contactId!),
+        )
         .orderBy("timestamp", "desc")
         .orderBy("id", "desc")
         .limit(limit);
@@ -213,7 +255,11 @@ export const readTools: McpToolDefinition[] = [
           .selectFrom("messages")
           .select(["id", "timestamp"])
           .where("id", "=", args.cursor)
-          .where("contact_id", "=", contactId)
+          .where((eb) =>
+            identity.conversationId
+              ? eb("conversation_id", "=", identity.conversationId)
+              : eb("contact_id", "=", identity.contactId!),
+          )
           .executeTakeFirst();
         if (!cur) {
           throw new McpToolError("Invalid cursor");

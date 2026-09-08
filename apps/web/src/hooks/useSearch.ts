@@ -39,6 +39,7 @@ export interface MessageSearchOptions {
   limit?: number;
   offset?: number;
   contactId?: string;
+  conversationId?: string;
   startDate?: string;
   endDate?: string;
   messageTypes?: string[];
@@ -129,9 +130,12 @@ export function useMessageSearch(
  */
 export function useConversationSearch(
   query: string,
-  contactId: string | undefined,
+  scope: { contactId?: string; conversationId?: string } | string | undefined,
   enabled: boolean = true,
 ) {
+  const contactId = typeof scope === "string" ? scope : scope?.contactId;
+  const conversationId =
+    typeof scope === "string" ? undefined : scope?.conversationId;
   return useQuery<
     {
       query: string;
@@ -145,18 +149,22 @@ export function useConversationSearch(
     },
     Error
   >({
-    queryKey: searchKeys.messages(query, { contactId }),
+    queryKey: searchKeys.messages(query, { contactId, conversationId }),
     queryFn: async () => {
       const params: Record<string, unknown> = {
         q: query,
         limit: 50,
       };
-      if (contactId) params.contactId = contactId;
+      if (conversationId) params.conversationId = conversationId;
+      else if (contactId) params.contactId = contactId;
 
       const queryString = buildQueryString(params);
       return api.get(`/search/messages${queryString}`);
     },
-    enabled: enabled && query.trim().length >= 2 && !!contactId,
+    enabled:
+      enabled &&
+      query.trim().length >= 2 &&
+      Boolean(contactId || conversationId),
     staleTime: 1000 * 30,
     gcTime: 1000 * 60 * 5,
   });

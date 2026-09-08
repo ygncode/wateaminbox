@@ -74,11 +74,17 @@ import {
   isChannelProviderEnabled,
 } from "../../../services/channel-spine-authority.service.js";
 import { isChannelSpineTenantReady } from "../../../services/channel-spine-readiness.service.js";
-import { conversationIdForContact } from "../../../services/channel-workflow.service.js";
-import { requireSendAccess } from "../../../services/send-access.service.js";
+import {
+  conversationIdForContact,
+  resolveWorkflowIdentity,
+} from "../../../services/channel-workflow.service.js";
+import {
+  requireConversationSendAccess,
+  requireSendAccess,
+} from "../../../services/send-access.service.js";
 import { getActiveSessionId } from "../../../services/whatsapp/session.js";
 import { type McpToolDefinition, McpToolError } from "../tool-context.js";
-import { requireVisibleContact } from "./read.js";
+import { requireVisibleContact, requireVisibleWorkflow } from "./read.js";
 import { schedulingTools } from "./scheduling.js";
 
 async function createMcpAuditLog(
@@ -165,7 +171,7 @@ async function loadContactForCase(
 
 async function queueNeutralTextMessage(
   c: Context,
-  contactId: string,
+  targetId: string,
   content: string,
   options: { openCaseIfMissing?: boolean } = {},
 ): Promise<{
@@ -176,10 +182,14 @@ async function queueNeutralTextMessage(
   note: string;
 }> {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  const conversationId = await conversationIdForContact(tenantDb, contactId);
+  const identity = await resolveWorkflowIdentity(tenantDb, targetId);
+  const conversationId =
+    identity?.conversationId ??
+    (await conversationIdForContact(tenantDb, targetId));
   if (!conversationId) {
     throw new McpToolError("Conversation is not ready for send");
   }
+  const contactId = identity?.contactId ?? null;
   const conversation = await tenantDb
     .selectFrom("conversations as conversation")
     .innerJoin(
@@ -244,10 +254,10 @@ async function queueNeutralTextMessage(
     .digest("hex");
   let autoAssigned = false;
   await tenantDb.transaction().execute(async (trx) => {
-    if (options.openCaseIfMissing) {
+    if (options.openCaseIfMissing && contactId) {
       await ensureActiveCaseWithin(
         trx,
-        { id: contactId, isGroup: false },
+        { id: contactId, isGroup: identity?.isGroup ?? false },
         {
           companyId,
           openedBy: user.id,
@@ -255,7 +265,9 @@ async function queueNeutralTextMessage(
         },
       );
     }
-    const access = await requireSendAccess(trx, contactId, user.id);
+    const access = contactId
+      ? await requireSendAccess(trx, contactId, user.id)
+      : await requireConversationSendAccess(trx, conversationId, user.id);
     autoAssigned = access.autoAssigned;
     await trx
       .insertInto("messages")
@@ -301,7 +313,7 @@ async function queueNeutralTextMessage(
   });
   return {
     messageId,
-    contactId,
+    contactId: contactId ?? conversationId,
     status: "queued",
     autoAssigned,
     note: "Queued on the channel-neutral outbound path",
@@ -334,7 +346,7 @@ async function queueTextMessage(
     .where("id", "=", contactId)
     .executeTakeFirst();
   if (!contact) {
-    throw new McpToolError("Contact not found");
+    return queueNeutralTextMessage(c, contactId, content, options);
   }
   if (!contact.jid || !contact.whatsapp_connection_id) {
     return queueNeutralTextMessage(c, contact.id, content, options);
@@ -452,19 +464,24 @@ export const writeTools: McpToolDefinition[] = [
   {
     name: "send_message",
     description:
-      "Send a text WhatsApp message to a contact that already exists. The message is queued for delivery (status 'pending'); delivery happens asynchronously. Sending to an unassigned contact may auto-assign it to the token owner. To message a number that is not a contact yet, use start_conversation.",
+      "Send a text message to an existing conversation. Pass contactId or conversationId. The message is queued for delivery (status 'pending'); delivery happens asynchronously. Sending to an unassigned conversation may auto-assign it to the token owner. To message a number that is not a contact yet, use start_conversation.",
     scope: "write",
     permission: "can_send_messages",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       content: z.string().min(1).max(65536),
     },
-    handler: async (args: { contactId: string; content: string }, c) => {
-      const contactId = (args.contactId = await requireVisibleContact(
-        c,
-        args.contactId,
-      ));
-      return queueTextMessage(c, contactId, args.content);
+    handler: async (
+      args: { contactId?: string; conversationId?: string; content: string },
+      c,
+    ) => {
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      await requireVisibleWorkflow(c, targetId);
+      return queueTextMessage(c, targetId, args.content);
     },
   },
   {

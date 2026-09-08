@@ -348,7 +348,10 @@ export function ChatPage() {
           />
           {isSearchOpen && (
             <ConversationSearch
-              contactId={selectedChatId}
+              contactId={selectedContact?.id}
+              conversationId={
+                threadContact.conversationId ?? channelConversation?.id
+              }
               onClose={handleCloseSearch}
               onNavigateToMessage={handleNavigateToMessage}
             />
