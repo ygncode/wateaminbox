@@ -74,23 +74,33 @@ export const SCHEDULABLE_MEDIA_TYPES = ["image", "video", "document"] as const;
  * content as an optional caption. The cross-field rules live in the route so
  * the error messages match the immediate-send endpoint's.
  */
-export const scheduleMessageSchema = z.object({
-  contactId: uuidSchema,
-  content: z.string().max(65_536).optional(),
-  messageType: z.enum(["text", ...SCHEDULABLE_MEDIA_TYPES]).default("text"),
-  mediaUrl: z.string().url().optional(),
-  replyToMessageId: uuidSchema.optional(),
-  scheduledAt: z.string().datetime({ offset: true }),
-});
+export const scheduleMessageSchema = z
+  .object({
+    contactId: uuidSchema.optional(),
+    conversationId: uuidSchema.optional(),
+    content: z.string().max(65_536).optional(),
+    messageType: z.enum(["text", ...SCHEDULABLE_MEDIA_TYPES]).default("text"),
+    mediaUrl: z.string().url().optional(),
+    replyToMessageId: uuidSchema.optional(),
+    scheduledAt: z.string().datetime({ offset: true }),
+  })
+  .refine((value) => Boolean(value.contactId || value.conversationId), {
+    message: "contactId or conversationId is required",
+  });
 
 export type ScheduleMessageInput = z.infer<typeof scheduleMessageSchema>;
 
 /**
  * Schema for listing scheduled messages of a conversation
  */
-export const listScheduledMessagesQuerySchema = z.object({
-  contactId: uuidSchema,
-});
+export const listScheduledMessagesQuerySchema = z
+  .object({
+    contactId: uuidSchema.optional(),
+    conversationId: uuidSchema.optional(),
+  })
+  .refine((value) => Boolean(value.contactId || value.conversationId), {
+    message: "contactId or conversationId is required",
+  });
 
 export type ListScheduledMessagesQuery = z.infer<
   typeof listScheduledMessagesQuerySchema

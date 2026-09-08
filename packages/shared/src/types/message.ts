@@ -106,7 +106,8 @@ export type ScheduledMessageStatus =
  */
 export interface ScheduledMessage {
   id: string;
-  contactId: string;
+  contactId: string | null;
+  conversationId?: string | null;
   content: string;
   messageType: MessageType;
   /** Presigned URL of the media object; null for text messages */

@@ -43,10 +43,12 @@ import { resolveActiveCaseIdForContact } from "./conversation-case.service.js";
 import {
   broadcastNewMessageToViewers,
   broadcastToContactViewers,
+  broadcastToConversationViewers,
 } from "./message-broadcast.service.js";
 import {
   ContactAssignedToOtherError,
   ContactBlockedError,
+  requireConversationSendAccess,
   requireSendAccess,
 } from "./send-access.service.js";
 import { isWithinBusinessHours } from "./sla-policy/calendar.js";
@@ -97,6 +99,7 @@ export function formatScheduledMessage(
   return {
     id: row.id,
     contactId: row.contact_id,
+    conversationId: row.conversation_id,
     content: row.content,
     messageType: row.message_type,
     mediaUrl: authorizedMediaUrl,
@@ -126,14 +129,29 @@ export function getScheduleRetryDelayMs(attempts: number): number {
 async function broadcastScheduledUpdate(
   companyId: string,
   scheduledMessageId: string,
-  contactId: string,
+  contactId: string | null,
+  conversationId: string | null,
   status: ScheduledMessageStatus,
 ): Promise<void> {
-  await broadcastToContactViewers(
+  const payload = {
+    scheduledMessageId,
+    conversationId: conversationId ?? contactId,
+    status,
+  };
+  if (contactId) {
+    await broadcastToContactViewers(
+      companyId,
+      contactId,
+      "scheduled_message:updated",
+      payload,
+    );
+    return;
+  }
+  await broadcastToConversationViewers(
     companyId,
-    contactId,
+    conversationId,
     "scheduled_message:updated",
-    { scheduledMessageId, conversationId: contactId, status },
+    payload,
   );
 }
 
@@ -208,10 +226,24 @@ async function sendScheduledMessage(
   row: ScheduledMessageRow,
   claimToken: Date,
 ): Promise<DispatchSuccess | null> {
+  const contactId = row.contact_id;
+  if (!contactId) {
+    if (!row.conversation_id || row.bulk_job_id) {
+      throw new PermanentDispatchError("Contact no longer exists");
+    }
+    return sendScheduledChannelMessage(
+      tenantDb,
+      companyId,
+      row,
+      claimToken,
+      row.conversation_id,
+    );
+  }
+
   const contact = await tenantDb
     .selectFrom("contacts")
     .select(["id", "jid", "whatsapp_connection_id", "is_blocked"])
-    .where("id", "=", row.contact_id)
+    .where("id", "=", contactId)
     .executeTakeFirst();
 
   if (row.bulk_job_id) {
@@ -242,7 +274,7 @@ async function sendScheduledMessage(
 
   const conversationId =
     row.conversation_id ??
-    (await conversationIdForContact(tenantDb, row.contact_id));
+    (await conversationIdForContact(tenantDb, contactId));
   if (!contact.jid || !contact.whatsapp_connection_id) {
     if (!conversationId) {
       throw new PermanentDispatchError("Contact no longer exists");
@@ -278,7 +310,7 @@ async function sendScheduledMessage(
       .selectFrom("messages")
       .select(["message_id", "sender_jid", "from_me"])
       .where("id", "=", row.reply_to_message_id)
-      .where("contact_id", "=", row.contact_id)
+      .where("contact_id", "=", contactId)
       .where("whatsapp_connection_id", "=", connection.id)
       .executeTakeFirst();
     quotedWaMessageId = quotedMessage?.message_id || undefined;
@@ -347,14 +379,14 @@ async function sendScheduledMessage(
     // assignment claim, not the active-case requirement).
     let caseId: string | null;
     if (row.bulk_job_id) {
-      caseId = await resolveActiveCaseIdForContact(trx, row.contact_id);
+      caseId = await resolveActiveCaseIdForContact(trx, contactId);
     } else if (row.auto_reply_trigger_message_id) {
       // Serialize with interactive sends on the contact row, then re-check the
       // "still unanswered" promise at the last possible moment.
       const lockedContact = await trx
         .selectFrom("contacts")
         .select(["id", "is_blocked"])
-        .where("id", "=", row.contact_id)
+        .where("id", "=", contactId)
         .forUpdate()
         .executeTakeFirst();
       const [setting, trigger] = await Promise.all([
@@ -399,7 +431,7 @@ async function sendScheduledMessage(
             .limit(1)
             .executeTakeFirst()
         : true;
-      caseId = await resolveActiveCaseIdForContact(trx, row.contact_id);
+      caseId = await resolveActiveCaseIdForContact(trx, contactId);
       // The delay (or a retry) can cross into business hours, and the
       // workspace calendar may have changed since this reply was queued.
       const withinBusinessHours =
@@ -434,12 +466,9 @@ async function sendScheduledMessage(
       }
     } else {
       try {
-        const access = await requireSendAccess(
-          trx,
-          row.contact_id,
-          row.created_by,
-          { claimUnassigned: false },
-        );
+        const access = await requireSendAccess(trx, contactId, row.created_by, {
+          claimUnassigned: false,
+        });
         caseId = access.caseId;
       } catch (error) {
         if (
@@ -499,7 +528,7 @@ async function sendScheduledMessage(
       await shadowLinkedDeviceLegacyMutation(
         trx,
         companyId,
-        row.contact_id,
+        contactId,
         messageId,
       );
     }
@@ -569,12 +598,16 @@ async function sendScheduledChannelMessage(
   const shouldBroadcast = await tenantDb.transaction().execute(async (trx) => {
     let caseId: string | null;
     try {
-      const access = await requireSendAccess(
-        trx,
-        row.contact_id,
-        row.created_by,
-        { claimUnassigned: false },
-      );
+      const access = row.contact_id
+        ? await requireSendAccess(trx, row.contact_id, row.created_by, {
+            claimUnassigned: false,
+          })
+        : await requireConversationSendAccess(
+            trx,
+            conversationId,
+            row.created_by,
+            { claimUnassigned: false },
+          );
       caseId = access.caseId;
     } catch (error) {
       if (
@@ -715,6 +748,7 @@ async function recordDispatchFailure(
         companyId,
         row.id,
         row.contact_id,
+        row.conversation_id,
         "failed",
       );
     } else {
@@ -727,7 +761,13 @@ async function recordDispatchFailure(
         row.media_url,
       );
       await Promise.all([
-        broadcastScheduledUpdate(companyId, row.id, row.contact_id, "failed"),
+        broadcastScheduledUpdate(
+          companyId,
+          row.id,
+          row.contact_id,
+          row.conversation_id,
+          "failed",
+        ),
         broadcastToCompany(companyId, "notification:toast", {
           type: "error",
           title: "Scheduled message failed",
@@ -780,6 +820,7 @@ async function recordBulkSkip(
       companyId,
       row.id,
       row.contact_id,
+      row.conversation_id,
       "skipped",
     );
   }
@@ -842,23 +883,35 @@ export async function dispatchCompanyScheduledMessages(
           companyId,
           row.id,
           row.contact_id,
+          row.conversation_id,
           "canceled",
         );
         continue;
       }
       dispatched++;
       dispatchedTotal++;
+      const newMessageBroadcasts = row.contact_id
+        ? [
+            broadcastNewMessageToViewers(
+              companyId,
+              row.contact_id,
+              {
+                message: result.formattedMessage,
+                conversationId: row.conversation_id ?? row.contact_id,
+              },
+              result.connectionId,
+            ),
+          ]
+        : [];
       await Promise.all([
-        broadcastNewMessageToViewers(
+        ...newMessageBroadcasts,
+        broadcastScheduledUpdate(
           companyId,
+          row.id,
           row.contact_id,
-          {
-            message: result.formattedMessage,
-            conversationId: row.contact_id,
-          },
-          result.connectionId,
+          row.conversation_id,
+          "sent",
         ),
-        broadcastScheduledUpdate(companyId, row.id, row.contact_id, "sent"),
       ]);
       logger.info(
         {
@@ -1145,14 +1198,20 @@ export async function dispatchCompanyBulkMessages(
       await Promise.all([
         broadcastNewMessageToViewers(
           companyId,
-          leaf.contact_id,
+          leaf.contact_id!,
           {
             message: result.formattedMessage,
             conversationId: leaf.contact_id,
           },
           result.connectionId,
         ),
-        broadcastScheduledUpdate(companyId, leaf.id, leaf.contact_id, "sent"),
+        broadcastScheduledUpdate(
+          companyId,
+          leaf.id,
+          leaf.contact_id,
+          leaf.conversation_id,
+          "sent",
+        ),
       ]);
       logger.info(
         {

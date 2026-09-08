@@ -29,17 +29,24 @@ import { hasContactVisibility } from "../../middleware/resource-visibility.js";
 import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
 import { finalizeBulkJobIfComplete } from "../../services/bulk-job.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
-import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
+import {
+  broadcastToContactViewers,
+  broadcastToConversationViewers,
+} from "../../services/message-broadcast.service.js";
 import {
   cleanupScheduledMediaObject,
   formatScheduledMessage,
   type ScheduledMessageRow,
 } from "../../services/scheduled-message.service.js";
+import { getCurrentConversationAssignment } from "../../services/contact.service.js";
 import {
   conversationIdForContact,
-  resolveWorkflowContactId,
+  resolveWorkflowIdentity,
 } from "../../services/channel-workflow.service.js";
-import { requireSendAccess } from "../../services/send-access.service.js";
+import {
+  requireConversationSendAccess,
+  requireSendAccess,
+} from "../../services/send-access.service.js";
 import { getUserNames } from "../../services/user.service.js";
 
 const logger = createLogger("ScheduledMessageRoutes");
@@ -126,24 +133,27 @@ scheduledRoutes.post(
       storedMediaReference = getPrivateMediaReference(reference.key);
     }
 
-    const contactId =
-      (await resolveWorkflowContactId(tenantDb, body.contactId)) ??
-      body.contactId;
-    const contact = await tenantDb
-      .selectFrom("contacts")
-      .select(["id", "jid", "whatsapp_connection_id"])
-      .where("id", "=", contactId)
-      .executeTakeFirst();
-
-    if (!contact) {
-      return notFound(c, "Contact");
+    const targetId = body.conversationId ?? body.contactId;
+    if (!targetId) return notFound(c, "Conversation");
+    const identity = await resolveWorkflowIdentity(tenantDb, targetId);
+    if (!identity?.conversationId && !identity?.contactId) {
+      return notFound(c, "Conversation");
     }
-
-    const conversationId = await conversationIdForContact(tenantDb, contact.id);
-    if (!contact.jid) {
-      if (!conversationId) return notFound(c, "Contact or JID");
-    } else if (!contact.whatsapp_connection_id) {
+    const contact = identity.contactId
+      ? await tenantDb
+          .selectFrom("contacts")
+          .select(["id", "jid", "whatsapp_connection_id"])
+          .where("id", "=", identity.contactId)
+          .executeTakeFirst()
+      : undefined;
+    const conversationId =
+      identity.conversationId ??
+      (contact ? await conversationIdForContact(tenantDb, contact.id) : null);
+    if (contact?.jid && !contact.whatsapp_connection_id) {
       return badRequest(c, "The contact has no WhatsApp connection");
+    }
+    if (!contact && !conversationId) {
+      return notFound(c, "Conversation");
     }
 
     if (body.replyToMessageId) {
@@ -151,7 +161,11 @@ scheduledRoutes.post(
         .selectFrom("messages")
         .select("id")
         .where("id", "=", body.replyToMessageId)
-        .where("contact_id", "=", contact.id)
+        .where((eb) =>
+          conversationId
+            ? eb("conversation_id", "=", conversationId)
+            : eb("contact_id", "=", contact!.id),
+        )
         .executeTakeFirst();
       if (!quotedMessage) {
         return notFound(c, "Quoted message");
@@ -171,14 +185,16 @@ scheduledRoutes.post(
     let autoAssigned = false;
     const row = await tenantDb.transaction().execute(async (trx) => {
       await reserveMediaReferences(trx, companyId, [storedMediaReference]);
-      const access = await requireSendAccess(trx, contact.id, user.id);
+      const access = contact
+        ? await requireSendAccess(trx, contact.id, user.id)
+        : await requireConversationSendAccess(trx, conversationId!, user.id);
       autoAssigned = access.autoAssigned;
       return trx
         .insertInto("scheduled_messages")
         .values({
           id: crypto.randomUUID(),
-          contact_id: contact.id,
-          conversation_id: await conversationIdForContact(trx, contact.id),
+          contact_id: contact?.id ?? null,
+          conversation_id: conversationId,
           content: body.content?.trim() || "",
           message_type: body.messageType,
           media_url: storedMediaReference,
@@ -196,13 +212,8 @@ scheduledRoutes.post(
         .returningAll()
         .executeTakeFirstOrThrow();
     });
-    if (autoAssigned) {
-      await broadcastAutoAssignment(
-        tenantDb,
-        companyId,
-        body.contactId,
-        user.id,
-      );
+    if (autoAssigned && contact) {
+      await broadcastAutoAssignment(tenantDb, companyId, contact.id, user.id);
     }
 
     const scheduledMessage = formatScheduledMessage(
@@ -239,17 +250,37 @@ scheduledRoutes.get(
   "/scheduled",
   zValidator("query", listScheduledMessagesQuerySchema),
   async (c) => {
-    const { tenantDb, companyId } = getRouteContext(c);
-    const { contactId } = c.req.valid("query");
-
-    if (!(await hasContactVisibility(c, contactId))) {
-      return notFound(c, "Contact");
+    const { tenantDb, companyId, user, permissions } = getRouteContext(c);
+    const { contactId, conversationId } = c.req.valid("query");
+    const targetId = conversationId ?? contactId;
+    if (!targetId) return notFound(c, "Conversation");
+    const identity = await resolveWorkflowIdentity(tenantDb, targetId);
+    if (!identity) return notFound(c, "Conversation");
+    if (!permissions.can_view_all_chats) {
+      const contactVisible = identity.contactId
+        ? await hasContactVisibility(c, identity.contactId)
+        : false;
+      const conversationVisible = identity.conversationId
+        ? (
+            await getCurrentConversationAssignment(
+              tenantDb,
+              identity.conversationId,
+            )
+          )?.assigned_to === user.id
+        : false;
+      if (!contactVisible && !conversationVisible) {
+        return notFound(c, "Conversation");
+      }
     }
 
     const rows = await tenantDb
       .selectFrom("scheduled_messages")
       .selectAll()
-      .where("contact_id", "=", contactId)
+      .where((eb) =>
+        identity.conversationId
+          ? eb("conversation_id", "=", identity.conversationId)
+          : eb("contact_id", "=", identity.contactId!),
+      )
       .where("status", "in", ["scheduled", "processing", "failed"])
       .orderBy("scheduled_at", "asc")
       .limit(100)
@@ -285,11 +316,26 @@ scheduledRoutes.delete(
 
     const row = await tenantDb
       .selectFrom("scheduled_messages")
-      .select(["id", "contact_id", "status", "media_url", "bulk_job_id"])
+      .select([
+        "id",
+        "contact_id",
+        "conversation_id",
+        "status",
+        "media_url",
+        "bulk_job_id",
+      ])
       .where("id", "=", id)
       .executeTakeFirst();
 
-    if (!row || !(await hasContactVisibility(c, row.contact_id))) {
+    if (!row) return notFound(c, "Scheduled message");
+    const contactVisible = row.contact_id
+      ? await hasContactVisibility(c, row.contact_id)
+      : false;
+    const conversationVisible = row.conversation_id
+      ? (await getCurrentConversationAssignment(tenantDb, row.conversation_id))
+          ?.assigned_to === user.id
+      : false;
+    if (!contactVisible && !conversationVisible && !row.bulk_job_id) {
       return notFound(c, "Scheduled message");
     }
 
@@ -321,16 +367,29 @@ scheduledRoutes.delete(
       await cleanupScheduledMediaObject(tenantDb, companyId, id, row.media_url);
     }
 
-    await broadcastToContactViewers(
-      companyId,
-      row.contact_id,
-      "scheduled_message:updated",
-      {
-        scheduledMessageId: id,
-        conversationId: row.contact_id,
-        status: "canceled",
-      },
-    );
+    if (row.contact_id) {
+      await broadcastToContactViewers(
+        companyId,
+        row.contact_id,
+        "scheduled_message:updated",
+        {
+          scheduledMessageId: id,
+          conversationId: row.conversation_id ?? row.contact_id,
+          status: "canceled",
+        },
+      );
+    } else {
+      await broadcastToConversationViewers(
+        companyId,
+        row.conversation_id,
+        "scheduled_message:updated",
+        {
+          scheduledMessageId: id,
+          conversationId: row.conversation_id,
+          status: "canceled",
+        },
+      );
+    }
 
     return c.json({ success: true });
   },

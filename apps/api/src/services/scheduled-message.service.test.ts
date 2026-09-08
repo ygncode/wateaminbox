@@ -140,6 +140,7 @@ describe("formatScheduledMessage", () => {
     expect(formatScheduledMessage(row, "Aye Chan")).toEqual({
       id: row.id,
       contactId: row.contact_id,
+      conversationId: row.conversation_id,
       content: "hello",
       messageType: "text",
       mediaUrl: null,

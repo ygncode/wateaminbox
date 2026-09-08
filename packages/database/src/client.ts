@@ -1166,7 +1166,7 @@ export interface ConversationCasesTable {
 
 export interface ScheduledMessagesTable {
   id: Generated<string>;
-  contact_id: string;
+  contact_id: string | null;
   conversation_id: string | null;
   content: string;
   message_type: Generated<MessageType>;

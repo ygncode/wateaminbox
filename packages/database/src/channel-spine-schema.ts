@@ -493,6 +493,18 @@ export async function ensureChannelSpineTenantSchema<Database>(
         CHECK (contact_id IS NOT NULL OR conversation_id IS NOT NULL) NOT VALID`,
     );
 
+    await sql`ALTER TABLE ${table("scheduled_messages")}
+      ALTER COLUMN contact_id DROP NOT NULL`.execute(db);
+    await addConstraintIfMissing(
+      db,
+      schemaName,
+      "scheduled_messages",
+      "scheduled_messages_contact_or_conversation_check",
+      sql`ALTER TABLE ${table("scheduled_messages")}
+        ADD CONSTRAINT scheduled_messages_contact_or_conversation_check
+        CHECK (contact_id IS NOT NULL OR conversation_id IS NOT NULL) NOT VALID`,
+    );
+
     for (const workflowTable of [
       "conversation_cases",
       "conversation_states",
