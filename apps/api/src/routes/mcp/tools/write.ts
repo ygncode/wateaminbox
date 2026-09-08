@@ -1,7 +1,15 @@
 import { settingsWriteTools } from "./settings.js";
-import { getContactDisplayName, toDbDate } from "@wateaminbox/shared";
+import {
+  getContactDisplayName,
+  isChannel,
+  isChannelProvider,
+  toDbDate,
+} from "@wateaminbox/shared";
+import { createHash } from "node:crypto";
 import type { Context } from "hono";
 import { z } from "zod";
+import { resolveAdapterCapabilities } from "../../../channel-spine/application/adapter-registry.js";
+import { channelAdapterRegistry } from "../../../channel-spine/registry.js";
 import {
   buildCommandSubject,
   buildSendMessageCommand,
@@ -61,6 +69,12 @@ import {
 } from "../../../services/note.service.js";
 import { createAndPublishNotifications } from "../../../services/notification-delivery.service.js";
 import { getMemberWithPermissions } from "../../../services/permission.service.js";
+import {
+  getChannelSpineWorkspaceAuthority,
+  isChannelProviderEnabled,
+} from "../../../services/channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "../../../services/channel-spine-readiness.service.js";
+import { conversationIdForContact } from "../../../services/channel-workflow.service.js";
 import { requireSendAccess } from "../../../services/send-access.service.js";
 import { getActiveSessionId } from "../../../services/whatsapp/session.js";
 import { type McpToolDefinition, McpToolError } from "../tool-context.js";
@@ -149,6 +163,151 @@ async function loadContactForCase(
   return contact;
 }
 
+async function queueNeutralTextMessage(
+  c: Context,
+  contactId: string,
+  content: string,
+  options: { openCaseIfMissing?: boolean } = {},
+): Promise<{
+  messageId: string;
+  contactId: string;
+  status: "queued";
+  autoAssigned: boolean;
+  note: string;
+}> {
+  const { tenantDb, user, companyId } = getRouteContext(c);
+  const conversationId = await conversationIdForContact(tenantDb, contactId);
+  if (!conversationId) {
+    throw new McpToolError("Conversation is not ready for send");
+  }
+  const conversation = await tenantDb
+    .selectFrom("conversations as conversation")
+    .innerJoin(
+      "channel_accounts as account",
+      "account.id",
+      "conversation.channel_account_id",
+    )
+    .select([
+      "conversation.id",
+      "conversation.channel_account_id",
+      "account.channel",
+      "account.provider",
+    ])
+    .where("conversation.id", "=", conversationId)
+    .where("conversation.archived_at", "is", null)
+    .executeTakeFirst();
+  if (
+    !conversation ||
+    !isChannel(conversation.channel) ||
+    !isChannelProvider(conversation.provider)
+  ) {
+    throw new McpToolError("The channel adapter is not available");
+  }
+  const authority = await getChannelSpineWorkspaceAuthority(companyId);
+  if (
+    authority.writeAuthority !== "neutral" ||
+    !isChannelProviderEnabled(authority, conversation.provider) ||
+    !(await isChannelSpineTenantReady(tenantDb))
+  ) {
+    throw new McpToolError("Neutral channel writes are not enabled");
+  }
+  const capabilities = await resolveAdapterCapabilities(
+    channelAdapterRegistry,
+    conversation.channel,
+    conversation.provider,
+    {
+      companyId,
+      channelAccountId: conversation.channel_account_id,
+      conversationId,
+      now: new Date().toISOString(),
+    },
+  );
+  if (
+    !capabilities.messageTypes.some(
+      (type) => type.type === "text" && type.enabled,
+    )
+  ) {
+    throw new McpToolError("Text messages are not supported by this channel");
+  }
+  const messageId = crypto.randomUUID();
+  const idempotencyKey = `mcp:${messageId}`;
+  const normalizedPayload = {
+    messageType: "text",
+    textContent: content,
+    actorUserId: user.id,
+    sentByUserId: user.id,
+    replyToExternalMessageId: null as string | null,
+    attachments: [] as Array<Record<string, unknown>>,
+  };
+  const requestFingerprint = createHash("sha256")
+    .update(JSON.stringify(normalizedPayload))
+    .digest("hex");
+  let autoAssigned = false;
+  await tenantDb.transaction().execute(async (trx) => {
+    if (options.openCaseIfMissing) {
+      await ensureActiveCaseWithin(
+        trx,
+        { id: contactId, isGroup: false },
+        {
+          companyId,
+          openedBy: user.id,
+          reason: "Outbound conversation started from the API",
+        },
+      );
+    }
+    const access = await requireSendAccess(trx, contactId, user.id);
+    autoAssigned = access.autoAssigned;
+    await trx
+      .insertInto("messages")
+      .values({
+        id: messageId,
+        whatsapp_connection_id: null,
+        contact_id: contactId,
+        message_id: null,
+        from_me: true,
+        message_type: "text",
+        content,
+        sent_by_user_id: user.id,
+        status: "pending",
+        metadata: {},
+        timestamp: new Date(),
+        case_id: access.caseId,
+        channel_account_id: conversation.channel_account_id,
+        conversation_id: conversation.id,
+        client_idempotency_key: idempotencyKey,
+        direction: "outbound",
+        normalized_type: "text",
+        text_content: content,
+        provider_metadata: {},
+      })
+      .execute();
+    await trx
+      .insertInto("outbound_message_intents")
+      .values({
+        channel_account_id: conversation.channel_account_id,
+        conversation_id: conversation.id,
+        message_id: messageId,
+        scheduled_message_id: null,
+        operation: "send",
+        idempotency_key: idempotencyKey,
+        request_fingerprint: requestFingerprint,
+        normalized_payload: normalizedPayload,
+        lease_token: null,
+        lease_expires_at: null,
+        provider_request_id: null,
+        last_error_code: null,
+      })
+      .execute();
+  });
+  return {
+    messageId,
+    contactId,
+    status: "queued",
+    autoAssigned,
+    note: "Queued on the channel-neutral outbound path",
+  };
+}
+
 /**
  * Queue an outbound text message on an existing contact.
  *
@@ -174,8 +333,11 @@ async function queueTextMessage(
     .select(["id", "jid", "is_group", "whatsapp_connection_id"])
     .where("id", "=", contactId)
     .executeTakeFirst();
-  if (!contact || !contact.jid) {
+  if (!contact) {
     throw new McpToolError("Contact not found");
+  }
+  if (!contact.jid || !contact.whatsapp_connection_id) {
+    return queueNeutralTextMessage(c, contact.id, content, options);
   }
   const connection = contact.whatsapp_connection_id
     ? await tenantDb
@@ -297,8 +459,13 @@ export const writeTools: McpToolDefinition[] = [
       contactId: z.string().uuid(),
       content: z.string().min(1).max(65536),
     },
-    handler: async (args: { contactId: string; content: string }, c) =>
-      queueTextMessage(c, args.contactId, args.content),
+    handler: async (args: { contactId: string; content: string }, c) => {
+      const contactId = (args.contactId = await requireVisibleContact(
+        c,
+        args.contactId,
+      ));
+      return queueTextMessage(c, contactId, args.content);
+    },
   },
   {
     name: "start_conversation",
@@ -400,7 +567,7 @@ export const writeTools: McpToolDefinition[] = [
       c,
     ) => {
       const { tenantDb, user, companyId } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      args.contactId = await requireVisibleContact(c, args.contactId);
       const contact = await loadContactForCase(tenantDb, args.contactId);
       const contactName = getContactDisplayName(contact, "Unknown");
 
@@ -815,7 +982,7 @@ export const writeTools: McpToolDefinition[] = [
       c,
     ) => {
       const { tenantDb } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      args.contactId = await requireVisibleContact(c, args.contactId);
 
       if (args.customName === undefined && args.notesShared === undefined) {
         throw new McpToolError(
@@ -880,7 +1047,7 @@ export const writeTools: McpToolDefinition[] = [
       c,
     ) => {
       const { tenantDb, user, companyId } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      args.contactId = await requireVisibleContact(c, args.contactId);
       const content = args.content.trim();
 
       if (args.private) {
@@ -984,7 +1151,7 @@ export const writeTools: McpToolDefinition[] = [
     },
     handler: async (args: { contactId: string; tagId: string }, c) => {
       const { tenantDb } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      args.contactId = await requireVisibleContact(c, args.contactId);
       const tag = await tenantDb
         .selectFrom("tags")
         .select(["id", "name", "color"])
@@ -1019,7 +1186,7 @@ export const writeTools: McpToolDefinition[] = [
     },
     handler: async (args: { contactId: string; tagId: string }, c) => {
       const { tenantDb } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      args.contactId = await requireVisibleContact(c, args.contactId);
       await tenantDb
         .deleteFrom("contact_tags")
         .where("contact_id", "=", args.contactId)

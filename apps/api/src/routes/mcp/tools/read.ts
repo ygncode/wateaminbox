@@ -4,6 +4,7 @@ import type { Context } from "hono";
 import { z } from "zod";
 import { getRouteContext } from "../../../middleware/context.js";
 import { hasContactVisibility } from "../../../middleware/resource-visibility.js";
+import { resolveWorkflowContactId } from "../../../services/channel-workflow.service.js";
 import {
   formatBulkJob,
   getBulkJobProgress,
@@ -37,11 +38,14 @@ const offsetField = z.number().int().min(0).optional();
 /** Throws the same non-disclosing error the REST routes use (a 404). */
 export async function requireVisibleContact(
   c: Context,
-  contactId: string,
-): Promise<void> {
-  if (!(await hasContactVisibility(c, contactId))) {
+  id: string,
+): Promise<string> {
+  const { tenantDb } = getRouteContext(c);
+  const contactId = await resolveWorkflowContactId(tenantDb, id);
+  if (!contactId || !(await hasContactVisibility(c, contactId))) {
     throw new McpToolError("Contact not found");
   }
+  return contactId;
 }
 
 function compactConversation(contact: ContactWithLastMessage) {
@@ -164,7 +168,10 @@ export const readTools: McpToolDefinition[] = [
       "Read a conversation's messages, newest first, with cursor pagination. Long message bodies are truncated to 2000 characters. sentBy is the teammate name for outbound messages and the best stored contact/sender name (or a safe JID label) for inbound ones, including group participants; senderJid identifies inbound senders stably.",
     scope: "read",
     inputSchema: {
-      contactId: z.string().uuid().describe("The conversation's contact id"),
+      contactId: z
+        .string()
+        .uuid()
+        .describe("The conversation's contact id or conversation id"),
       limit: limitField,
       cursor: z
         .string()
@@ -177,7 +184,10 @@ export const readTools: McpToolDefinition[] = [
       c,
     ) => {
       const { tenantDb } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      const contactId = (args.contactId = await requireVisibleContact(
+        c,
+        args.contactId,
+      ));
       const limit = clampLimit(args.limit);
 
       let query = tenantDb
@@ -193,7 +203,7 @@ export const readTools: McpToolDefinition[] = [
           "status",
           "timestamp",
         ])
-        .where("contact_id", "=", args.contactId)
+        .where("contact_id", "=", contactId)
         .orderBy("timestamp", "desc")
         .orderBy("id", "desc")
         .limit(limit);
@@ -203,7 +213,7 @@ export const readTools: McpToolDefinition[] = [
           .selectFrom("messages")
           .select(["id", "timestamp"])
           .where("id", "=", args.cursor)
-          .where("contact_id", "=", args.contactId)
+          .where("contact_id", "=", contactId)
           .executeTakeFirst();
         if (!cur) {
           throw new McpToolError("Invalid cursor");
@@ -364,7 +374,10 @@ export const readTools: McpToolDefinition[] = [
     },
     handler: async (args: { contactId: string }, c) => {
       const { tenantDb } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      const contactId = (args.contactId = await requireVisibleContact(
+        c,
+        args.contactId,
+      ));
 
       const contact = await tenantDb
         .selectFrom("contacts")
@@ -379,32 +392,32 @@ export const readTools: McpToolDefinition[] = [
           "notes_shared",
           "created_at",
         ])
-        .where("id", "=", args.contactId)
+        .where("id", "=", contactId)
         .executeTakeFirst();
       if (!contact) {
         throw new McpToolError("Contact not found");
       }
 
-      const assignment = await getCurrentAssignment(tenantDb, args.contactId);
+      const assignment = await getCurrentAssignment(tenantDb, contactId);
 
       const [tags, sharedNotes, privateNotes] = await Promise.all([
         tenantDb
           .selectFrom("contact_tags")
           .innerJoin("tags", "tags.id", "contact_tags.tag_id")
           .select(["tags.id", "tags.name", "tags.color"])
-          .where("contact_tags.contact_id", "=", args.contactId)
+          .where("contact_tags.contact_id", "=", contactId)
           .execute(),
         tenantDb
           .selectFrom("contact_notes_shared")
           .select(["id", "author_name", "content", "created_at"])
-          .where("contact_id", "=", args.contactId)
+          .where("contact_id", "=", contactId)
           .orderBy("created_at", "desc")
           .limit(5)
           .execute(),
         tenantDb
           .selectFrom("contact_notes_private")
           .select(["id", "content", "created_at"])
-          .where("contact_id", "=", args.contactId)
+          .where("contact_id", "=", contactId)
           .where("user_id", "=", c.get("user").id)
           .orderBy("created_at", "desc")
           .limit(5)
@@ -464,7 +477,10 @@ export const readTools: McpToolDefinition[] = [
       c,
     ) => {
       const { tenantDb, user } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      const contactId = (args.contactId = await requireVisibleContact(
+        c,
+        args.contactId,
+      ));
       const limit = clampLimit(args.limit);
       const offset = args.offset ?? 0;
 
@@ -472,7 +488,7 @@ export const readTools: McpToolDefinition[] = [
         const notes = await tenantDb
           .selectFrom("contact_notes_private")
           .select(["id", "content", "created_at", "updated_at"])
-          .where("contact_id", "=", args.contactId)
+          .where("contact_id", "=", contactId)
           .where("user_id", "=", user.id)
           .orderBy("created_at", "desc")
           .limit(limit)
@@ -492,7 +508,7 @@ export const readTools: McpToolDefinition[] = [
       const notes = await tenantDb
         .selectFrom("contact_notes_shared")
         .select(["id", "author_name", "content", "created_at", "updated_at"])
-        .where("contact_id", "=", args.contactId)
+        .where("contact_id", "=", contactId)
         .orderBy("created_at", "desc")
         .limit(limit)
         .offset(offset)
@@ -529,7 +545,7 @@ export const readTools: McpToolDefinition[] = [
   {
     name: "list_connections",
     description:
-      "List the WhatsApp accounts connected to this workspace, with the id needed by start_conversation. Call this first when the workspace has more than one account: start_conversation requires connectionId to choose which number a new conversation is sent from, and the id is not derivable from the phone number without this.",
+      "List WhatsApp and other channel accounts in this workspace. WhatsApp rows include connectionId for start_conversation. Channel accounts include channelAccountId for Telegram and other adapters.",
     scope: "read",
     inputSchema: {
       includeDisconnected: z
@@ -560,6 +576,24 @@ export const readTools: McpToolDefinition[] = [
         .orderBy("created_at", "asc")
         .limit(50)
         .execute();
+      const channelAccounts = await tenantDb
+        .selectFrom("channel_accounts")
+        .select([
+          "id",
+          "channel",
+          "provider",
+          "display_name",
+          "status",
+          "connected_at",
+          "last_sync_at",
+        ])
+        .where("archived_at", "is", null)
+        .$if(!args.includeDisconnected, (qb) =>
+          qb.where("status", "=", "connected"),
+        )
+        .orderBy("created_at", "asc")
+        .limit(50)
+        .execute();
 
       return {
         connections: rows.map((row) => ({
@@ -569,6 +603,15 @@ export const readTools: McpToolDefinition[] = [
           status: row.status,
           connectedAt: row.connected_at,
           lastSyncAt: row.last_sync_at,
+        })),
+        channelAccounts: channelAccounts.map((account) => ({
+          channelAccountId: account.id,
+          channel: account.channel,
+          provider: account.provider,
+          name: account.display_name,
+          status: account.status,
+          connectedAt: account.connected_at,
+          lastSyncAt: account.last_sync_at,
         })),
       };
     },

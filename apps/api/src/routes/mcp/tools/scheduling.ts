@@ -100,7 +100,7 @@ export const schedulingTools: McpToolDefinition[] = [
       c,
     ) => {
       const { tenantDb, user, companyId } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      args.contactId = await requireVisibleContact(c, args.contactId);
       if (rateLimitConfig.enabled) {
         const tier = rateLimitConfig.tiers.messaging.send;
         try {
