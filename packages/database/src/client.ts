@@ -522,9 +522,9 @@ export interface MessageAttachmentsTable {
 export interface WhatsAppAttachmentFetchStateTable {
   attachment_id: string;
   direct_path: string | null;
-  media_key: string | null;
-  file_sha256: string | null;
-  file_enc_sha256: string | null;
+  media_key: Buffer | null;
+  file_sha256: Buffer | null;
+  file_enc_sha256: Buffer | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }

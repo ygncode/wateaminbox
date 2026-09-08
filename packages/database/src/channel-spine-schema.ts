@@ -224,9 +224,9 @@ export async function ensureChannelSpineTenantSchema<Database>(
     await sql`CREATE TABLE IF NOT EXISTS ${table("whatsapp_attachment_fetch_state")} (
       attachment_id UUID PRIMARY KEY REFERENCES ${table("message_attachments")}(id) ON DELETE CASCADE,
       direct_path TEXT,
-      media_key TEXT,
-      file_sha256 TEXT,
-      file_enc_sha256 TEXT,
+      media_key BYTEA,
+      file_sha256 BYTEA,
+      file_enc_sha256 BYTEA,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`.execute(db);
