@@ -35,21 +35,29 @@ export async function updateNotificationPreferences(
   );
 }
 
+function mutePayload(token: string): Record<string, string> {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    token,
+  )
+    ? { conversationId: token.toLowerCase() }
+    : { contactJid: token };
+}
+
 export async function muteContactApi(
-  contactJid: string,
+  token: string,
 ): Promise<{ mutedContacts: string[] }> {
   return fetchWithAuth<{ mutedContacts: string[] }>("/notifications/mute", {
     method: "POST",
-    body: JSON.stringify({ contactJid }),
+    body: JSON.stringify(mutePayload(token)),
   });
 }
 
 export async function unmuteContactApi(
-  contactJid: string,
+  token: string,
 ): Promise<{ mutedContacts: string[] }> {
   return fetchWithAuth<{ mutedContacts: string[] }>("/notifications/unmute", {
     method: "POST",
-    body: JSON.stringify({ contactJid }),
+    body: JSON.stringify(mutePayload(token)),
   });
 }
 

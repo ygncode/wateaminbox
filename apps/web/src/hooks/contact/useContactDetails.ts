@@ -22,6 +22,9 @@ export interface ContactDetail {
   notesShared: string | null;
   createdAt: string;
   updatedAt: string;
+  conversationId?: string | null;
+  channel?: string | null;
+  provider?: string | null;
   connection: {
     id: string;
     name: string | null;
