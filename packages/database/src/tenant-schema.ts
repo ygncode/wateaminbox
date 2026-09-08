@@ -11,6 +11,7 @@ import {
   dropLegacyLabelUniqueIndex,
   formatDuplicateBlockers,
   legacyIdentifier,
+  PG_IDENTIFIER_MAX_BYTES,
   reconcileTenantIndexNames,
   TENANT_INDEX_TARGETS,
   targetIdentifier,
@@ -954,6 +955,30 @@ export async function reconcileTenantSchema<Database>(
       ADD COLUMN IF NOT EXISTS title VARCHAR(255) NOT NULL DEFAULT ''
     `.execute(db),
   );
+  // Enforce shortcut uniqueness at the database level so concurrent
+  // POST /quick-replies with the same shortcut cannot both succeed. The
+  // service's check is advisory and non-atomic; this index is the only
+  // race-free backstop. See migration 090 for the existing-tenant path. The
+  // historical setup_tenant_schema function creates a plain (non-unique)
+  // index here - drop that and install the UNIQUE one so the tenant does not
+  // pay for a redundant non-unique index alongside the authoritative one.
+  const legacyShortcutIndex = `${schemaName}_quick_replies_shortcut_idx`.slice(
+    0,
+    PG_IDENTIFIER_MAX_BYTES,
+  );
+  if (existingIndexes.has(legacyShortcutIndex)) {
+    await sql`DROP INDEX IF EXISTS ${sql.id(
+      schemaName,
+      legacyShortcutIndex,
+    )}`.execute(db);
+    existingIndexes.delete(legacyShortcutIndex);
+  }
+  await ensureIndex(`${schemaName}_qr_shortcut_uidx`, (indexName) =>
+    sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("quick_replies")} (shortcut)
+    `.execute(db),
+  );
 
   await sql`
     CREATE TABLE IF NOT EXISTS ${table("auto_reply_settings")} (
@@ -1240,10 +1265,8 @@ export async function reconcileTenantSchema<Database>(
         ADD COLUMN IF NOT EXISTS auto_reply_quick_reply_id UUID
       `.execute(db),
   );
-  await ensureIndex(
-    `${schemaName}_sm_auto_reply_uidx`,
-    (indexName) =>
-      sql`
+  await ensureIndex(`${schemaName}_sm_auto_reply_uidx`, (indexName) =>
+    sql`
         CREATE UNIQUE INDEX IF NOT EXISTS ${sql.ref(indexName)}
         ON ${table("scheduled_messages")} (contact_id)
         WHERE auto_reply_trigger_message_id IS NOT NULL

@@ -44,14 +44,22 @@ const DATABASE_SRC = new URL(
 const SCHEMA = getTenantSchemaName("3f2504e0-4f89-41d3-9a0c-0305e82c3301");
 
 /**
- * The only historical over-length identifier that is NOT remediated by
+ * The only historical over-length identifiers that are NOT remediated by
  * migration 063.
  *
- * Current code merely DROPs this legacy index, so there is nothing to keep
- * correctly named. Everything else that overflows must appear in
- * TENANT_INDEX_TARGETS, which is what actually renames or rebuilds it.
+ * Current code only ever DROPs these legacy names (and, for quick replies,
+ * replaces the plain index with the short canonical `_qr_shortcut_uidx`), so
+ * there is nothing to keep correctly named going forward. The over-length name
+ * still appears in source for two reasons: migration 090's `down` has to
+ * restore the exact pre-migration index for a clean rollback, and the truncate
+ * form of it is what the catalog actually holds to drop. Everything else that
+ * overflows must appear in TENANT_INDEX_TARGETS, which is what actually renames
+ * or rebuilds it.
  */
-const UNREMEDIATED_BY_DESIGN = new Set(["_whatsapp_labels_label_uidx"]);
+const UNREMEDIATED_BY_DESIGN = new Set([
+  "_whatsapp_labels_label_uidx",
+  "_quick_replies_shortcut_idx",
+]);
 
 /** Legacy suffixes migration 063 knows how to fix. */
 const REMEDIATED = new Set(
