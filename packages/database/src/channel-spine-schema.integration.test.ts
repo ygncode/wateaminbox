@@ -87,6 +87,7 @@ integration(
       const tables = new Set(tableRows.rows.map((row) => row.table_name));
       for (const tableName of [
         "channel_accounts",
+        "channel_account_credentials",
         "contact_endpoints",
         "conversations",
         "conversation_participants",

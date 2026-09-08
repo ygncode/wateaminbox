@@ -74,6 +74,16 @@ export const TENANT_SCHEMA_CONTRACT = {
     "updated_at",
     "archived_at",
   ],
+  channel_account_credentials: [
+    "channel_account_id",
+    "credential_kind",
+    "encrypted_value",
+    "nonce",
+    "auth_tag",
+    "key_version",
+    "created_at",
+    "rotated_at",
+  ],
   contact_endpoints: [
     "id",
     "contact_id",

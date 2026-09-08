@@ -50,6 +50,22 @@ export async function ensureChannelSpineTenantSchema<Database>(
       CHECK (jsonb_typeof(provider_metadata) = 'object')
     )`.execute(db);
 
+    await sql`CREATE TABLE IF NOT EXISTS ${table("channel_account_credentials")} (
+      channel_account_id UUID NOT NULL REFERENCES ${table("channel_accounts")}(id) ON DELETE CASCADE,
+      credential_kind TEXT NOT NULL,
+      encrypted_value BYTEA NOT NULL,
+      nonce BYTEA NOT NULL,
+      auth_tag BYTEA NOT NULL,
+      key_version TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      rotated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (channel_account_id, credential_kind),
+      CHECK (length(trim(credential_kind)) > 0),
+      CHECK (octet_length(nonce) = 12),
+      CHECK (octet_length(auth_tag) = 16),
+      CHECK (length(trim(key_version)) > 0)
+    )`.execute(db);
+
     await sql`CREATE TABLE IF NOT EXISTS ${table("contact_endpoints")} (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       contact_id UUID REFERENCES ${table("contacts")}(id) ON DELETE SET NULL,

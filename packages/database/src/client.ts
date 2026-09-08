@@ -315,6 +315,7 @@ export type ProductVisibility = "visible" | "hidden";
 export interface TenantDatabase {
   whatsapp_connections: WhatsAppConnectionsTable;
   channel_accounts: ChannelAccountsTable;
+  channel_account_credentials: ChannelAccountCredentialsTable;
   contact_endpoints: ContactEndpointsTable;
   endpoint_account_states: EndpointAccountStatesTable;
   endpoint_presence: EndpointPresenceTable;
@@ -394,6 +395,17 @@ export interface ChannelAccountsTable {
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
   archived_at: Date | null;
+}
+
+export interface ChannelAccountCredentialsTable {
+  channel_account_id: string;
+  credential_kind: string;
+  encrypted_value: Buffer;
+  nonce: Buffer;
+  auth_tag: Buffer;
+  key_version: string;
+  created_at: Generated<Date>;
+  rotated_at: Generated<Date>;
 }
 
 export interface ContactEndpointsTable {

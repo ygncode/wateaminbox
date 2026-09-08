@@ -101,6 +101,16 @@ export const env = {
   // policy; when configured, it asks the private control plane to admit the
   // authenticated WhatsApp identity before exposing the connected session.
   CONNECTION_ADMISSION_URL: getEnv("CONNECTION_ADMISSION_URL", ""),
+  // Comma-separated key-version:base64(32-byte) entries. Required only when
+  // channel-provider credentials are provisioned or consumed.
+  CHANNEL_CREDENTIAL_ENCRYPTION_KEYS: getEnv(
+    "CHANNEL_CREDENTIAL_ENCRYPTION_KEYS",
+    "",
+  ),
+  CHANNEL_CREDENTIAL_ACTIVE_KEY_VERSION: getEnv(
+    "CHANNEL_CREDENTIAL_ACTIVE_KEY_VERSION",
+    "",
+  ),
 
   // Centrifugo realtime transport
   CENTRIFUGO_API_URL: getEnv(
