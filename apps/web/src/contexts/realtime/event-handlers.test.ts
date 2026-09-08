@@ -139,6 +139,7 @@ describe("conversation events are bound to the user channel", () => {
     try {
       for (const eventType of [
         "message:new",
+        "channel_message:new",
         "message:status",
         "message:failed",
         "message:deleted",
@@ -163,6 +164,38 @@ describe("conversation events are bound to the user channel", () => {
     } finally {
       cleanup();
     }
+  });
+
+  test("channel messages invalidate neutral conversation and matching message queries", () => {
+    setCompanyId("company-a");
+    const client = new QueryClient();
+    const conversationKey = queryKeys.channelConversations.list({ limit: 50 });
+    const matchingMessageKey = queryKeys.channelMessages.list({
+      conversationId: "conversation-1",
+      limit: 50,
+    });
+    const otherMessageKey = queryKeys.channelMessages.list({
+      conversationId: "conversation-2",
+      limit: 50,
+    });
+    client.setQueryData(conversationKey, []);
+    client.setQueryData(matchingMessageKey, { messages: [] });
+    client.setQueryData(otherMessageKey, { messages: [] });
+    const cleanup = register(client);
+
+    emit("channel_message:new", {
+      message: {
+        id: "message-1",
+        conversationId: "conversation-1",
+        channelAccountId: "account-1",
+      },
+      conversation: { id: "conversation-1" },
+    });
+
+    expect(client.getQueryState(conversationKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(matchingMessageKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(otherMessageKey)?.isInvalidated).toBe(false);
+    cleanup();
   });
 
   test("workspace control events stay on the company channel", () => {

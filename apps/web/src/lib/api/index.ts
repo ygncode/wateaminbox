@@ -39,6 +39,21 @@ export {
   updateCurrentUserProfile,
   verifyEmail,
 } from "./auth.js";
+// Re-export channel-neutral read APIs
+export {
+  getChannelAccountCapabilities,
+  getChannelAccounts,
+  type ChannelAccount,
+  type ChannelAccountStatus,
+} from "./channel-accounts.js";
+export {
+  getChannelConversations,
+  getChannelMessages,
+  type ChannelConversation,
+  type ChannelMessage,
+  type ChannelMessageAttachment,
+  type ChannelMessagesPage,
+} from "./channel-conversations.js";
 // Re-export catalogs functions
 export {
   archiveCatalog,

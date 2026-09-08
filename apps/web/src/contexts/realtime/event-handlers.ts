@@ -63,6 +63,17 @@ interface GroupUpdatedPayload {
   commandId: string | null;
 }
 
+interface ChannelMessageNewPayload {
+  message: {
+    id: string;
+    conversationId: string;
+    channelAccountId: string;
+  };
+  conversation: {
+    id: string;
+  };
+}
+
 interface ConversationUpdatedPayload {
   event:
     | "opened"
@@ -127,6 +138,26 @@ export function registerRealtimeEventHandlers({
       ) {
         markConversationAsRead(payload.conversationId).catch(() => {});
       }
+    }),
+    bindUserEvent<ChannelMessageNewPayload>("channel_message:new", (data) => {
+      const conversationId =
+        data.payload.message.conversationId || data.payload.conversation.id;
+      // Neutral projections have a different shape from the legacy WhatsApp
+      // cache, so use realtime only as an invalidation signal.
+      qc.invalidateQueries({
+        queryKey: queryKeys.channelConversations.lists(),
+      });
+      qc.invalidateQueries({
+        queryKey: queryKeys.channelMessages.lists(),
+        predicate: ({ queryKey }) =>
+          queryKey.some(
+            (part) =>
+              part !== null &&
+              typeof part === "object" &&
+              "conversationId" in part &&
+              part.conversationId === conversationId,
+          ),
+      });
     }),
     bindUserEvent<MessageStatusPayload>("message:status", (data) => {
       const payload = data.payload;

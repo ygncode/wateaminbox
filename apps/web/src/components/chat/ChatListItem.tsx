@@ -9,6 +9,7 @@ import {
   formatPhoneNumber,
 } from "@/lib/utils";
 import type { ChatListItemProps } from "../../types/chat";
+import { ChannelBadge } from "./ChannelIdentity";
 import { ConnectionBadge } from "./ConnectionIdentity";
 import { ConversationStatusBadge } from "./ConversationStatusBadge";
 import { resolveMentionNames } from "./group-mentions";
@@ -235,11 +236,14 @@ export const ChatListItem = memo(function ChatListItem({
               <ConversationStatusBadge status={chat.conversationStatus} />
             )}
             {contact.connection && (
-              <ConnectionBadge
-                connection={contact.connection}
-                compact
-                className="max-w-[92px] shrink-0"
-              />
+              <>
+                <ChannelBadge channel="whatsapp" compact iconOnly />
+                <ConnectionBadge
+                  connection={contact.connection}
+                  compact
+                  className="max-w-[92px] shrink-0"
+                />
+              </>
             )}
             {/* Message Status Icon for sent messages */}
             {lastMessage?.isFromMe && !lastMessage.isDeleted && (

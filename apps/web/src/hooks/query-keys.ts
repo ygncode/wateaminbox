@@ -81,6 +81,12 @@ export const queryKeys = {
   groups: createQueryKeyFactory("groups"),
   messages: createQueryKeyFactory("messages"),
   conversations: createQueryKeyFactory("conversations"),
+  channelAccounts: createQueryKeyFactory("channel-accounts"),
+  channelAccountCapabilities: createQueryKeyFactory(
+    "channel-account-capabilities",
+  ),
+  channelConversations: createQueryKeyFactory("channel-conversations"),
+  channelMessages: createQueryKeyFactory("channel-messages"),
   tags: createQueryKeyFactory("tags"),
   whatsapp: createQueryKeyFactory("whatsapp"),
   privateNotes: createQueryKeyFactory("privateNotes"),
