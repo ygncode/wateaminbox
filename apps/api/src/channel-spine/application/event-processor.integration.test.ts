@@ -93,6 +93,26 @@ integration(
         .executeTakeFirstOrThrow();
       expect(stored.contact_id).toBeNull();
       expect(stored.conversation_id).toBeTruthy();
+      expect(
+        Number(
+          (
+            await tenantDb
+              .selectFrom("conversation_cases")
+              .select((eb) => eb.fn.countAll<string>().as("count"))
+              .where("conversation_id", "=", stored.conversation_id!)
+              .executeTakeFirstOrThrow()
+          ).count,
+        ),
+      ).toBe(1);
+      expect(
+        (
+          await tenantDb
+            .selectFrom("conversation_states")
+            .select(["unread_count", "contact_id"])
+            .where("conversation_id", "=", stored.conversation_id!)
+            .executeTakeFirstOrThrow()
+        ).contact_id,
+      ).toBeNull();
       expect((await applyNormalizedChannelEvent(tenantDb, event)).outcome).toBe(
         "duplicate",
       );
