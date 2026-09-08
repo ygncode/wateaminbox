@@ -19,6 +19,7 @@ import {
   getContactsWithLastMessage,
   getCurrentAssignment,
 } from "../../../services/contact.service.js";
+import { getChannelSpineWorkspaceAuthority } from "../../../services/channel-spine-authority.service.js";
 import { globalSearch } from "../../../services/search.service.js";
 import { getUserNames } from "../../../services/user.service.js";
 import {
@@ -79,9 +80,32 @@ export async function requireVisibleContact(
   return identity.contactId;
 }
 
+function compactChannelConversation(row: {
+  id: string;
+  kind: string;
+  subject: string | null;
+  last_message_at: Date | null;
+  status: string | null;
+  unread_count: number | string | null;
+  assigned_to: string | null;
+}) {
+  return {
+    contactId: null as string | null,
+    conversationId: row.id,
+    name: row.subject?.trim() || "Conversation",
+    phoneNumber: null as string | null,
+    isGroup: row.kind !== "direct",
+    status: (row.status ?? "open") as "open" | "pending" | "resolved",
+    unreadCount: Number(row.unread_count ?? 0),
+    assignedTo: row.assigned_to,
+    lastMessageAt: row.last_message_at,
+    lastMessage: null,
+  };
+}
+
 function compactConversation(contact: ContactWithLastMessage) {
   return {
-    contactId: contact.id,
+    contactId: contact.id as string | null,
     conversationId: contact.conversation_id,
     name: getContactDisplayName(contact, "Unknown"),
     phoneNumber: contact.phone_number,
@@ -146,7 +170,7 @@ export const readTools: McpToolDefinition[] = [
   {
     name: "list_conversations",
     description:
-      "List conversations (contacts with their latest message and state), newest activity first. Members without view-all permission only see conversations assigned to them.",
+      "List conversations, newest activity first. Includes channel threads that have no contact. Members without view-all permission only see conversations assigned to them.",
     scope: "read",
     inputSchema: {
       status: z
@@ -187,9 +211,77 @@ export const readTools: McpToolDefinition[] = [
           restrictToAssigned: !permissions.can_view_all_chats,
         },
       );
+      const conversations = contacts.map(compactConversation);
+      const authority = await getChannelSpineWorkspaceAuthority(companyId);
+      if (authority.neutralReadsEnabled && (args.offset ?? 0) === 0) {
+        let extraQuery = tenantDb
+          .selectFrom("conversations as conversation")
+          .innerJoin(
+            "channel_accounts as account",
+            "account.id",
+            "conversation.channel_account_id",
+          )
+          .leftJoin(
+            "conversation_states as state",
+            "state.conversation_id",
+            "conversation.id",
+          )
+          .leftJoin("contact_assignments as assignment", (join) =>
+            join
+              .onRef("assignment.conversation_id", "=", "conversation.id")
+              .on("assignment.unassigned_at", "is", null),
+          )
+          .select([
+            "conversation.id",
+            "conversation.kind",
+            "conversation.subject",
+            "conversation.last_message_at",
+            "state.status",
+            "state.unread_count",
+            "assignment.assigned_to",
+          ])
+          .where("conversation.archived_at", "is", null)
+          .where("account.archived_at", "is", null)
+          .where("conversation.legacy_contact_id", "is", null);
+        if (!permissions.can_view_all_chats) {
+          extraQuery = extraQuery.where("assignment.assigned_to", "=", user.id);
+        }
+        if (args.status && args.status !== "all") {
+          extraQuery = extraQuery.where("state.status", "=", args.status);
+        }
+        if (args.unreadOnly) {
+          extraQuery = extraQuery.where("state.unread_count", ">", 0);
+        }
+        const extras = await extraQuery
+          .orderBy("conversation.last_message_at", "desc")
+          .limit(limit)
+          .execute();
+        const seen = new Set(
+          conversations
+            .map((row) => row.conversationId)
+            .filter((id): id is string => Boolean(id)),
+        );
+        const needle = args.search?.trim().toLowerCase();
+        for (const extra of extras) {
+          if (seen.has(extra.id)) continue;
+          if (needle && !(extra.subject ?? "").toLowerCase().includes(needle)) {
+            continue;
+          }
+          conversations.push(compactChannelConversation(extra));
+        }
+        conversations.sort((left, right) => {
+          const leftTime = left.lastMessageAt
+            ? new Date(left.lastMessageAt).getTime()
+            : 0;
+          const rightTime = right.lastMessageAt
+            ? new Date(right.lastMessageAt).getTime()
+            : 0;
+          return rightTime - leftTime;
+        });
+      }
       return {
-        conversations: contacts.map(compactConversation),
-        total,
+        conversations: conversations.slice(0, limit),
+        total: total + Math.max(0, conversations.length - contacts.length),
         hasMore: (args.offset ?? 0) + contacts.length < total,
       };
     },
@@ -509,17 +601,19 @@ export const readTools: McpToolDefinition[] = [
   {
     name: "list_contact_notes",
     description:
-      "List a contact's notes, newest first. type 'shared' (default) lists team-visible notes; 'private' lists only your own private notes.",
+      "List notes on a contact or conversation, newest first. type 'shared' (default) lists team-visible notes; 'private' lists only your own private notes. Pass contactId or conversationId.",
     scope: "read",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       type: z.enum(["shared", "private"]).optional(),
       limit: limitField,
       offset: offsetField,
     },
     handler: async (
       args: {
-        contactId: string;
+        contactId?: string;
+        conversationId?: string;
         type?: "shared" | "private";
         limit?: number;
         offset?: number;
@@ -527,10 +621,51 @@ export const readTools: McpToolDefinition[] = [
       c,
     ) => {
       const { tenantDb, user } = getRouteContext(c);
-      const contactId = (args.contactId = await requireVisibleContact(
-        c,
-        args.contactId,
-      ));
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      const identity = await requireVisibleWorkflow(c, targetId);
+      if (!identity.contactId && identity.conversationId) {
+        const limit = clampLimit(args.limit);
+        const offset = args.offset ?? 0;
+        const visibility = args.type === "private" ? "private" : "shared";
+        let notesQuery = tenantDb
+          .selectFrom("conversation_notes")
+          .select([
+            "id",
+            "author_user_id",
+            "content",
+            "created_at",
+            "updated_at",
+          ])
+          .where("conversation_id", "=", identity.conversationId)
+          .where("visibility", "=", visibility)
+          .orderBy("created_at", "desc")
+          .limit(limit)
+          .offset(offset);
+        if (visibility === "private") {
+          notesQuery = notesQuery.where("author_user_id", "=", user.id);
+        }
+        const notes = await notesQuery.execute();
+        const names = await getUserNames(
+          notes.map((note) => note.author_user_id),
+        );
+        return {
+          notes: notes.map((note) => ({
+            id: note.id,
+            author: names.get(note.author_user_id) ?? null,
+            ...truncateText(note.content),
+            createdAt: note.created_at,
+            updatedAt: note.updated_at,
+          })),
+          hasMore: notes.length === limit,
+        };
+      }
+      const contactId = identity.contactId;
+      if (!contactId) {
+        throw new McpToolError("Contact not found");
+      }
       const limit = clampLimit(args.limit);
       const offset = args.offset ?? 0;
 

@@ -1189,20 +1189,54 @@ export const writeTools: McpToolDefinition[] = [
   {
     name: "add_contact_note",
     description:
-      "Add a note to a contact. Shared notes are visible to the whole team; private notes only to the token owner.",
+      "Add a note to a contact or conversation. Shared notes are visible to the whole team; private notes only to the token owner. Pass contactId or conversationId.",
     scope: "write",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       content: z.string().min(1).max(10000),
       private: z.boolean().optional().describe("Default false (shared note)"),
     },
     handler: async (
-      args: { contactId: string; content: string; private?: boolean },
+      args: {
+        contactId?: string;
+        conversationId?: string;
+        content: string;
+        private?: boolean;
+      },
       c,
     ) => {
       const { tenantDb, user, companyId } = getRouteContext(c);
-      args.contactId = await requireVisibleContact(c, args.contactId);
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      const identity = await requireVisibleWorkflow(c, targetId);
       const content = args.content.trim();
+      if (!identity.contactId && identity.conversationId) {
+        const note = await tenantDb
+          .insertInto("conversation_notes")
+          .values({
+            conversation_id: identity.conversationId,
+            author_user_id: user.id,
+            visibility: args.private ? "private" : "shared",
+            content,
+          })
+          .returningAll()
+          .executeTakeFirstOrThrow();
+        return {
+          id: note.id,
+          conversationId: note.conversation_id,
+          visibility: note.visibility,
+          content: note.content,
+          createdAt: note.created_at,
+          updatedAt: note.updated_at,
+        };
+      }
+      args.contactId = identity.contactId ?? undefined;
+      if (!args.contactId) {
+        throw new McpToolError("Contact not found");
+      }
 
       if (args.private) {
         const note = await tenantDb
@@ -1297,15 +1331,49 @@ export const writeTools: McpToolDefinition[] = [
   },
   {
     name: "tag_contact",
-    description: "Add an existing tag to a contact.",
+    description:
+      "Add an existing tag to a contact or conversation. Pass contactId or conversationId.",
     scope: "write",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       tagId: z.string().uuid(),
     },
-    handler: async (args: { contactId: string; tagId: string }, c) => {
+    handler: async (
+      args: { contactId?: string; conversationId?: string; tagId: string },
+      c,
+    ) => {
       const { tenantDb } = getRouteContext(c);
-      args.contactId = await requireVisibleContact(c, args.contactId);
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      const identity = await requireVisibleWorkflow(c, targetId);
+      if (!identity.contactId && identity.conversationId) {
+        const tag = await tenantDb
+          .selectFrom("tags")
+          .select(["id", "name", "color"])
+          .where("id", "=", args.tagId)
+          .executeTakeFirst();
+        if (!tag) throw new McpToolError("Tag not found");
+        await tenantDb
+          .insertInto("conversation_tags")
+          .values({
+            conversation_id: identity.conversationId,
+            tag_id: args.tagId,
+          })
+          .onConflict((oc) => oc.doNothing())
+          .execute();
+        return {
+          conversationId: identity.conversationId,
+          tag,
+          alreadyTagged: false,
+        };
+      }
+      args.contactId = identity.contactId ?? undefined;
+      if (!args.contactId) {
+        throw new McpToolError("Contact not found");
+      }
       const tag = await tenantDb
         .selectFrom("tags")
         .select(["id", "name", "color"])
@@ -1332,21 +1400,42 @@ export const writeTools: McpToolDefinition[] = [
   },
   {
     name: "untag_contact",
-    description: "Remove a tag from a contact.",
+    description:
+      "Remove a tag from a contact or conversation. Pass contactId or conversationId.",
     scope: "write",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       tagId: z.string().uuid(),
     },
-    handler: async (args: { contactId: string; tagId: string }, c) => {
+    handler: async (
+      args: { contactId?: string; conversationId?: string; tagId: string },
+      c,
+    ) => {
       const { tenantDb } = getRouteContext(c);
-      args.contactId = await requireVisibleContact(c, args.contactId);
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      const identity = await requireVisibleWorkflow(c, targetId);
+      if (!identity.contactId && identity.conversationId) {
+        await tenantDb
+          .deleteFrom("conversation_tags")
+          .where("conversation_id", "=", identity.conversationId)
+          .where("tag_id", "=", args.tagId)
+          .execute();
+        return { conversationId: identity.conversationId, removed: true };
+      }
+      const contactId = identity.contactId;
+      if (!contactId) {
+        throw new McpToolError("Contact not found");
+      }
       await tenantDb
         .deleteFrom("contact_tags")
-        .where("contact_id", "=", args.contactId)
+        .where("contact_id", "=", contactId)
         .where("tag_id", "=", args.tagId)
         .execute();
-      return { contactId: args.contactId, removed: true };
+      return { contactId, removed: true };
     },
   },
   {
