@@ -80,7 +80,7 @@ stored as pending; the UI can request it later, and the API publishes
   publication and never repeat the send.
 - Invalid or exhausted API events are persisted in the separate
   `WHATSAPP_DEAD_LETTERS` stream before their source message is terminated.
-- The irreducible crash window is after WhatsApp accepts a send but before its result reaches the worker ledger. Such commands remain unacknowledged and are observable by command/message ID for reconciliation.
+- The worker claims a write-ahead send intent before invoking WhatsApp. A crash after that claim but before the terminal result is persisted is reported as an unknown outcome and surfaced in the inbox as "Delivery unconfirmed"; the command is acknowledged and a later receipt can still settle it by durable ID (see `docs/operations/message-delivery.md`).
 - Database uniqueness constraints deduplicate WhatsApp message IDs and reactions.
 - PostgreSQL is the source of truth; Centrifugo is a realtime update signal.
 - Clients refetch affected queries after reconnect or sync completion.
