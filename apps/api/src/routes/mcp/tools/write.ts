@@ -47,20 +47,28 @@ import { enqueueCommand } from "../../../services/command-outbox.service.js";
 import {
   ensureActiveCaseWithin,
   reopenAsNewCase,
+  reopenAsNewCaseForConversation,
   resolveActiveCase,
+  resolveActiveCaseForConversation,
   resumePendingCase,
+  resumePendingCaseForConversation,
   setActiveCasePending,
+  setActiveCasePendingForConversation,
 } from "../../../services/conversation-case.service.js";
 import {
   type FindOrCreateContactByPhoneResult,
   findOrCreateContactByPhone,
+  assignConversationToUser,
   getCurrentAssignment,
+  getCurrentConversationAssignment,
   OutboundContactError,
+  unassignConversation,
 } from "../../../services/contact.service.js";
 import { reserveMediaReferences } from "../../../services/media-reference-lock.js";
 import {
   broadcastNewMessageToViewers,
   broadcastToContactViewers,
+  broadcastToConversationViewers,
 } from "../../../services/message-broadcast.service.js";
 import {
   getAuthorName,
@@ -167,6 +175,28 @@ async function loadContactForCase(
     throw new McpToolError("Contact not found");
   }
   return contact;
+}
+
+async function broadcastMcpLifecycle(
+  companyId: string,
+  identity: { contactId: string | null; conversationId: string | null },
+  payload: Record<string, unknown>,
+): Promise<void> {
+  if (identity.contactId) {
+    await broadcastToContactViewers(
+      companyId,
+      identity.contactId,
+      "conversation:updated",
+      payload,
+    );
+    return;
+  }
+  await broadcastToConversationViewers(
+    companyId,
+    identity.conversationId,
+    "conversation:updated",
+    payload,
+  );
 }
 
 async function queueNeutralTextMessage(
@@ -559,7 +589,8 @@ export const writeTools: McpToolDefinition[] = [
     scope: "write",
     permission: "can_send_messages",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       action: z.enum(["resolve", "open", "reopen", "pending", "resume"]),
       outcome: z
         .enum(["handled", "no_reply_needed", "spam", "duplicate", "other"])
@@ -570,7 +601,8 @@ export const writeTools: McpToolDefinition[] = [
     },
     handler: async (
       args: {
-        contactId: string;
+        contactId?: string;
+        conversationId?: string;
         action: "resolve" | "open" | "reopen" | "pending" | "resume";
         outcome?:
           | "handled"
@@ -584,9 +616,18 @@ export const writeTools: McpToolDefinition[] = [
       c,
     ) => {
       const { tenantDb, user, companyId } = getRouteContext(c);
-      args.contactId = await requireVisibleContact(c, args.contactId);
-      const contact = await loadContactForCase(tenantDb, args.contactId);
-      const contactName = getContactDisplayName(contact, "Unknown");
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      const identity = await requireVisibleWorkflow(c, targetId);
+      const contact = identity.contactId
+        ? await loadContactForCase(tenantDb, identity.contactId)
+        : undefined;
+      const contactName = contact
+        ? getContactDisplayName(contact, "Unknown")
+        : identity.subject?.trim() || "Conversation";
+      const entityId = identity.contactId ?? identity.conversationId!;
 
       if (args.action === "resolve") {
         if (!args.outcome) {
@@ -595,19 +636,30 @@ export const writeTools: McpToolDefinition[] = [
         if (args.outcome === "other" && !args.notes) {
           throw new McpToolError("notes are required for outcome 'other'");
         }
-        const resolvedCase = await resolveActiveCase(tenantDb, args.contactId, {
-          outcome: args.outcome,
-          notes: args.notes,
-          resolvedBy: user.id,
-        });
+        const resolvedCase = identity.contactId
+          ? await resolveActiveCase(tenantDb, identity.contactId, {
+              outcome: args.outcome,
+              notes: args.notes,
+              resolvedBy: user.id,
+            })
+          : await resolveActiveCaseForConversation(
+              tenantDb,
+              identity.conversationId!,
+              {
+                outcome: args.outcome,
+                notes: args.notes,
+                resolvedBy: user.id,
+              },
+            );
         await createMcpAuditLog(c, {
           companyId,
           userId: user.id,
           action: "conversation.resolved",
           entityType: "conversation",
-          entityId: args.contactId,
+          entityId,
           details: {
-            contactId: args.contactId,
+            contactId: identity.contactId,
+            conversationId: identity.conversationId,
             contactName,
             caseId: resolvedCase.id,
             outcome: args.outcome,
@@ -615,41 +667,52 @@ export const writeTools: McpToolDefinition[] = [
           },
           ipAddress: getClientIp(c),
         });
-        await broadcastToContactViewers(
-          companyId,
-          args.contactId,
-          "conversation:updated",
-          {
-            event: "resolved",
-            contactId: args.contactId,
-            caseId: resolvedCase.id,
-            resolvedBy: user.id,
-            resolvedAt: resolvedCase.resolvedAt?.toISOString(),
-          },
-        );
+        await broadcastMcpLifecycle(companyId, identity, {
+          event: "resolved",
+          contactId: identity.contactId,
+          conversationId: identity.conversationId,
+          caseId: resolvedCase.id,
+          resolvedBy: user.id,
+          resolvedAt: resolvedCase.resolvedAt?.toISOString(),
+        });
         return { status: "resolved", caseId: resolvedCase.id };
       }
 
       if (args.action === "open" || args.action === "reopen") {
-        const newCase = await reopenAsNewCase(
-          tenantDb,
-          { id: args.contactId, isGroup: contact.is_group },
-          {
-            companyId,
-            openedBy: user.id,
-            reason: args.reason,
-            expectedMode: args.action,
-          },
-        );
+        const newCase = identity.contactId
+          ? await reopenAsNewCase(
+              tenantDb,
+              { id: identity.contactId, isGroup: contact?.is_group ?? false },
+              {
+                companyId,
+                openedBy: user.id,
+                reason: args.reason,
+                expectedMode: args.action,
+              },
+            )
+          : await reopenAsNewCaseForConversation(
+              tenantDb,
+              {
+                id: identity.conversationId!,
+                isGroup: identity.isGroup,
+              },
+              {
+                companyId,
+                openedBy: user.id,
+                reason: args.reason,
+                expectedMode: args.action,
+              },
+            );
         const wasReopen = Boolean(newCase.reopenedFromCaseId);
         await createMcpAuditLog(c, {
           companyId,
           userId: user.id,
           action: wasReopen ? "conversation.reopened" : "conversation.opened",
           entityType: "conversation",
-          entityId: args.contactId,
+          entityId,
           details: {
-            contactId: args.contactId,
+            contactId: identity.contactId,
+            conversationId: identity.conversationId,
             contactName,
             caseId: newCase.id,
             reopenedFromCaseId: newCase.reopenedFromCaseId,
@@ -657,25 +720,21 @@ export const writeTools: McpToolDefinition[] = [
           },
           ipAddress: getClientIp(c),
         });
-        await broadcastToContactViewers(
-          companyId,
-          args.contactId,
-          "conversation:updated",
-          {
-            event: wasReopen ? "reopened" : "opened",
-            contactId: args.contactId,
-            caseId: newCase.id,
-            ...(wasReopen
-              ? {
-                  reopenedBy: user.id,
-                  reopenedAt: newCase.openedAt.toISOString(),
-                }
-              : {
-                  openedBy: user.id,
-                  openedAt: newCase.openedAt.toISOString(),
-                }),
-          },
-        );
+        await broadcastMcpLifecycle(companyId, identity, {
+          event: wasReopen ? "reopened" : "opened",
+          contactId: identity.contactId,
+          conversationId: identity.conversationId,
+          caseId: newCase.id,
+          ...(wasReopen
+            ? {
+                reopenedBy: user.id,
+                reopenedAt: newCase.openedAt.toISOString(),
+              }
+            : {
+                openedBy: user.id,
+                openedAt: newCase.openedAt.toISOString(),
+              }),
+        });
         return {
           status: wasReopen ? "reopened" : "opened",
           caseId: newCase.id,
@@ -683,83 +742,94 @@ export const writeTools: McpToolDefinition[] = [
       }
 
       if (args.action === "pending") {
-        const pendingCase = await setActiveCasePending(
-          tenantDb,
-          args.contactId,
-          user.id,
-        );
+        const pendingCase = identity.contactId
+          ? await setActiveCasePending(tenantDb, identity.contactId, user.id)
+          : await setActiveCasePendingForConversation(
+              tenantDb,
+              identity.conversationId!,
+              user.id,
+            );
         await createMcpAuditLog(c, {
           companyId,
           userId: user.id,
           action: "conversation.pending",
           entityType: "conversation",
-          entityId: args.contactId,
+          entityId,
           details: {
-            contactId: args.contactId,
+            contactId: identity.contactId,
+            conversationId: identity.conversationId,
             contactName,
             caseId: pendingCase.id,
           },
           ipAddress: getClientIp(c),
         });
-        await broadcastToContactViewers(
-          companyId,
-          args.contactId,
-          "conversation:updated",
-          {
-            event: "pending",
-            contactId: args.contactId,
-            caseId: pendingCase.id,
-          },
-        );
+        await broadcastMcpLifecycle(companyId, identity, {
+          event: "pending",
+          contactId: identity.contactId,
+          conversationId: identity.conversationId,
+          caseId: pendingCase.id,
+        });
         return { status: "pending", caseId: pendingCase.id };
       }
 
-      const resumedCase = await resumePendingCase(
-        tenantDb,
-        args.contactId,
-        user.id,
-      );
+      const resumedCase = identity.contactId
+        ? await resumePendingCase(tenantDb, identity.contactId, user.id)
+        : await resumePendingCaseForConversation(
+            tenantDb,
+            identity.conversationId!,
+            user.id,
+          );
       await createMcpAuditLog(c, {
         companyId,
         userId: user.id,
         action: "conversation.resumed",
         entityType: "conversation",
-        entityId: args.contactId,
+        entityId,
         details: {
-          contactId: args.contactId,
+          contactId: identity.contactId,
+          conversationId: identity.conversationId,
           contactName,
           caseId: resumedCase.id,
         },
         ipAddress: getClientIp(c),
       });
-      await broadcastToContactViewers(
-        companyId,
-        args.contactId,
-        "conversation:updated",
-        {
-          event: "resumed",
-          contactId: args.contactId,
-          caseId: resumedCase.id,
-        },
-      );
+      await broadcastMcpLifecycle(companyId, identity, {
+        event: "resumed",
+        contactId: identity.contactId,
+        conversationId: identity.conversationId,
+        caseId: resumedCase.id,
+      });
       return { status: "open", caseId: resumedCase.id };
     },
   },
   {
     name: "assign_contact",
     description:
-      "Assign a conversation's contact to a workspace member (defaults to the token owner). Reassigning a contact away from another member requires the can_assign_contacts permission.",
+      "Assign a conversation to a workspace member (defaults to the token owner). Pass contactId or conversationId. Reassigning away from another member requires the can_assign_contacts permission.",
     scope: "write",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       targetUserId: z
         .string()
         .uuid()
         .optional()
         .describe("Member to assign to; defaults to the token owner"),
     },
-    handler: async (args: { contactId: string; targetUserId?: string }, c) => {
+    handler: async (
+      args: {
+        contactId?: string;
+        conversationId?: string;
+        targetUserId?: string;
+      },
+      c,
+    ) => {
       const { tenantDb, user, companyId, permissions } = getRouteContext(c);
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      const identity = await requireVisibleWorkflow(c, targetId);
       const targetUserId = args.targetUserId ?? user.id;
 
       const targetMember = await getMemberWithPermissions(
@@ -782,19 +852,61 @@ export const writeTools: McpToolDefinition[] = [
         );
       }
 
+      if (!identity.contactId && identity.conversationId) {
+        const previousAssignment = await getCurrentConversationAssignment(
+          tenantDb,
+          identity.conversationId,
+        );
+        const previousAssigneeId = previousAssignment?.assigned_to;
+        if (
+          decideContactAssignment({
+            actorUserId: user.id,
+            targetUserId,
+            currentAssigneeId: previousAssigneeId,
+            targetIsCompanyMember: true,
+            canAssignContacts: permissions.can_assign_contacts,
+          }) === "permission_denied"
+        ) {
+          throw new McpToolError(
+            "can_assign_contacts is required to reassign an assigned contact",
+          );
+        }
+        const isNoop = previousAssignment?.assigned_to === targetUserId;
+        if (!isNoop) {
+          await assignConversationToUser(
+            tenantDb,
+            identity.conversationId,
+            targetUserId,
+            user.id,
+          );
+        }
+        return {
+          contactId: null,
+          conversationId: identity.conversationId,
+          assignedTo: targetUserId,
+          wasTakeover: Boolean(
+            previousAssigneeId && previousAssigneeId !== targetUserId,
+          ),
+          previousAssignee: previousAssigneeId ?? null,
+          wasNoop: isNoop,
+        };
+      }
+
+      const contactId = identity.contactId;
+      if (!contactId) {
+        throw new McpToolError("Contact not found");
+      }
+
       const result = await tenantDb.transaction().execute(async (trx) => {
         const contact = await trx
           .selectFrom("contacts")
           .select(["id", "custom_name", "push_name", "phone_number", "jid"])
-          .where("id", "=", args.contactId)
+          .where("id", "=", contactId)
           .forUpdate()
           .executeTakeFirst();
         if (!contact) return null;
 
-        const previousAssignment = await getCurrentAssignment(
-          trx,
-          args.contactId,
-        );
+        const previousAssignment = await getCurrentAssignment(trx, contactId);
         const previousAssigneeId = previousAssignment?.assigned_to;
         const isTakeover = Boolean(
           previousAssigneeId && previousAssigneeId !== targetUserId,
@@ -822,13 +934,13 @@ export const writeTools: McpToolDefinition[] = [
         await trx
           .updateTable("contact_assignments")
           .set({ unassigned_at: toDbDate() })
-          .where("contact_id", "=", args.contactId)
+          .where("contact_id", "=", contactId)
           .where("unassigned_at", "is", null)
           .execute();
         const assignment = await trx
           .insertInto("contact_assignments")
           .values({
-            contact_id: args.contactId,
+            contact_id: contactId,
             assigned_to: targetUserId,
             assigned_by: user.id,
           })
@@ -861,7 +973,7 @@ export const writeTools: McpToolDefinition[] = [
         actorUserId: user.id,
         targetUserId,
         previousAssigneeId,
-        contactId: args.contactId,
+        contactId,
         contactName: contactDisplayName,
         isNoop,
       });
@@ -869,7 +981,7 @@ export const writeTools: McpToolDefinition[] = [
       if (!isNoop) {
         await broadcastContactAssignmentEvent(companyId, {
           event: isTakeover ? "reassigned" : "assigned",
-          contactId: args.contactId,
+          contactId,
           contactName: contactDisplayName,
           previousAssignee: previousAssigneeId ?? null,
           newAssignee: targetUserId,
@@ -881,7 +993,7 @@ export const writeTools: McpToolDefinition[] = [
         userId: user.id,
         action: "contact.assigned",
         entityType: "contact",
-        entityId: args.contactId,
+        entityId: contactId,
         details: isTakeover
           ? {
               previousAssignee: previousAssigneeId,
@@ -898,7 +1010,7 @@ export const writeTools: McpToolDefinition[] = [
       });
 
       return {
-        contactId: args.contactId,
+        contactId,
         assignedTo: targetUserId,
         wasTakeover: isTakeover,
         previousAssignee: previousAssigneeId ?? null,
@@ -908,33 +1020,58 @@ export const writeTools: McpToolDefinition[] = [
   },
   {
     name: "unassign_contact",
-    description: "Remove a contact's current assignment.",
+    description:
+      "Remove a conversation's current assignment. Pass contactId or conversationId.",
     scope: "write",
     permission: "can_assign_contacts",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
     },
-    handler: async (args: { contactId: string }, c) => {
+    handler: async (
+      args: { contactId?: string; conversationId?: string },
+      c,
+    ) => {
       const { tenantDb, user, companyId } = getRouteContext(c);
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      const identity = await requireVisibleWorkflow(c, targetId);
+      if (!identity.contactId && identity.conversationId) {
+        const previousAssignment = await getCurrentConversationAssignment(
+          tenantDb,
+          identity.conversationId,
+        );
+        if (previousAssignment) {
+          await unassignConversation(tenantDb, identity.conversationId);
+        }
+        return {
+          contactId: null,
+          conversationId: identity.conversationId,
+          unassigned: true,
+        };
+      }
+      const contactId = identity.contactId;
+      if (!contactId) {
+        throw new McpToolError("Contact not found");
+      }
       const result = await tenantDb.transaction().execute(async (trx) => {
         const contact = await trx
           .selectFrom("contacts")
           .select(["id", "custom_name", "push_name", "phone_number"])
-          .where("id", "=", args.contactId)
+          .where("id", "=", contactId)
           .forUpdate()
           .executeTakeFirst();
         if (!contact) return null;
-        const previousAssignment = await getCurrentAssignment(
-          trx,
-          args.contactId,
-        );
+        const previousAssignment = await getCurrentAssignment(trx, contactId);
         if (!previousAssignment) {
           return { contact, previousAssignment: null };
         }
         await trx
           .updateTable("contact_assignments")
           .set({ unassigned_at: toDbDate() })
-          .where("contact_id", "=", args.contactId)
+          .where("contact_id", "=", contactId)
           .where("unassigned_at", "is", null)
           .execute();
         return { contact, previousAssignment };
@@ -949,7 +1086,7 @@ export const writeTools: McpToolDefinition[] = [
         );
         await broadcastContactAssignmentEvent(companyId, {
           event: "unassigned",
-          contactId: args.contactId,
+          contactId,
           contactName: contactDisplayName,
           previousAssignee: result.previousAssignment.assigned_to,
           newAssignee: null,
@@ -960,7 +1097,7 @@ export const writeTools: McpToolDefinition[] = [
           userId: user.id,
           action: "contact.unassigned",
           entityType: "contact",
-          entityId: args.contactId,
+          entityId: contactId,
           details: {
             previousAssignee: result.previousAssignment.assigned_to,
             contactName: contactDisplayName,
@@ -968,7 +1105,7 @@ export const writeTools: McpToolDefinition[] = [
           ipAddress: getClientIp(c),
         });
       }
-      return { contactId: args.contactId, unassigned: true };
+      return { contactId, unassigned: true };
     },
   },
   {

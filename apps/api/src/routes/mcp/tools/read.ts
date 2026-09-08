@@ -4,7 +4,10 @@ import type { Context } from "hono";
 import { z } from "zod";
 import { getRouteContext } from "../../../middleware/context.js";
 import { hasContactVisibility } from "../../../middleware/resource-visibility.js";
-import { resolveWorkflowIdentity } from "../../../services/channel-workflow.service.js";
+import {
+  resolveWorkflowIdentity,
+  type WorkflowIdentity,
+} from "../../../services/channel-workflow.service.js";
 import {
   formatBulkJob,
   getBulkJobProgress,
@@ -39,7 +42,7 @@ const offsetField = z.number().int().min(0).optional();
 export async function requireVisibleWorkflow(
   c: Context,
   id: string,
-): Promise<{ contactId: string | null; conversationId: string | null }> {
+): Promise<WorkflowIdentity> {
   const { tenantDb, permissions, user } = getRouteContext(c);
   const identity = await resolveWorkflowIdentity(tenantDb, id);
   if (!identity) {
@@ -79,6 +82,7 @@ export async function requireVisibleContact(
 function compactConversation(contact: ContactWithLastMessage) {
   return {
     contactId: contact.id,
+    conversationId: contact.conversation_id,
     name: getContactDisplayName(contact, "Unknown"),
     phoneNumber: contact.phone_number,
     isGroup: contact.is_group,
