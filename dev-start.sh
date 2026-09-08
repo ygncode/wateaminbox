@@ -426,7 +426,21 @@ start_dev_servers() {
         (cd services/orchestrator && env -u DATABASE_URL air) > "$LOGS_DIR/orchestrator.log" 2>&1 &
     fi
     PIDS+=($!)
-    
+
+    # The persistence-free macOS orchestrator does not recover workers for
+    # connections that were connected before this restart. Respawning them here
+    # keeps sends working immediately after dev-start. This is idempotent:
+    # already-running workers are left untouched. Linux recovers via the
+    # durable worker registry, so this is macOS-only.
+    if [ "$(uname -s)" != "Linux" ]; then
+        print_status "  Respawning workers for connected connections..."
+        if (cd "$ROOT_DIR" && bun run scripts/spawn-connected-workers.ts >> "$LOGS_DIR/orchestrator.log" 2>&1); then
+            print_success "  Connected workers respawned"
+        else
+            print_warning "  Could not auto-respawn connected workers; reconnect them from Settings → Connections"
+        fi
+    fi
+
     echo ""
     echo -e "${GREEN}Service URLs:${NC}"
     echo -e "  Frontend:    ${BLUE}http://localhost:4444${NC}"
