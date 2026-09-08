@@ -103,6 +103,7 @@ export async function deliverIncomingMessage(
         message: {
           id: storedMessageId,
           conversationId: contact.id,
+          channelConversationId: message.conversation_id,
           senderId: payload.from,
           senderType: payload.fromMe ? "user" : "contact",
           senderJid: normalizedSenderJid,
@@ -127,6 +128,7 @@ export async function deliverIncomingMessage(
           updatedAt: payload.timestamp,
         },
         conversationId: contact.id,
+        channelConversationId: message.conversation_id,
       },
       { connectionId, requireDelivery: true },
     );

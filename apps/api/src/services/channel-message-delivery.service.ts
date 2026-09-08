@@ -155,7 +155,7 @@ async function deliver(
       row.text_content,
     ),
     tag: `channel-message-${row.id}`,
-    actionUrl: `/chat/${row.conversation_id}`,
+    actionUrl: `/chat/${row.legacy_contact_id ?? row.conversation_id}`,
     icon: "/apple-touch-icon.png",
     badge: "/favicon-96x96.png",
   });

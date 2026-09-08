@@ -30,3 +30,17 @@ export async function contactIdForConversation(
     .executeTakeFirst();
   return conversation?.legacy_contact_id ?? null;
 }
+
+/** Accept a contact UUID or a conversation UUID and return the workflow contact. */
+export async function resolveWorkflowContactId(
+  db: WorkflowDb,
+  id: string,
+): Promise<string | null> {
+  const contact = await db
+    .selectFrom("contacts")
+    .select("id")
+    .where("id", "=", id)
+    .executeTakeFirst();
+  if (contact) return contact.id;
+  return contactIdForConversation(db, id);
+}

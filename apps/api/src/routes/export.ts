@@ -8,8 +8,9 @@ import { extractPaginationParams } from "../lib/route-helpers.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
-import { requireContactVisibility } from "../middleware/resource-visibility.js";
+import { requireConversationVisibility } from "../middleware/resource-visibility.js";
 import { requirePermission, tenantMiddleware } from "../middleware/tenant.js";
+import { resolveWorkflowContactId } from "../services/channel-workflow.service.js";
 import * as exportService from "../services/export.service.js";
 import { PERMISSIONS } from "../services/permission.service.js";
 
@@ -75,9 +76,14 @@ exportRoutes.get("/contacts", exportRateLimiter, async (c) => {
  * Rate limit: 10 requests per hour per user
  */
 exportRoutes.get("/messages", exportRateLimiter, async (c) => {
-  const { companyId, user, permissions } = getRouteContext(c);
+  const { companyId, user, permissions, tenantDb } = getRouteContext(c);
   const format = (c.req.query("format") as "csv" | "json") || "csv";
-  const contactId = c.req.query("contactId");
+  const conversationId = c.req.query("conversationId");
+  const contactId =
+    c.req.query("contactId") ||
+    (conversationId
+      ? await resolveWorkflowContactId(tenantDb, conversationId)
+      : undefined);
   const startDateStr = c.req.query("startDate");
   const endDateStr = c.req.query("endDate");
   const messageTypes = c.req.query("messageTypes")?.split(",").filter(Boolean);
@@ -128,11 +134,13 @@ exportRoutes.get("/messages", exportRateLimiter, async (c) => {
  */
 exportRoutes.get(
   "/conversation/:contactId",
-  requireContactVisibility("contactId"),
+  requireConversationVisibility("contactId"),
   exportRateLimiter,
   async (c) => {
-    const { companyId, user, permissions } = getRouteContext(c);
-    const contactId = c.req.param("contactId")!;
+    const { companyId, user, permissions, tenantDb } = getRouteContext(c);
+    const contactId =
+      (await resolveWorkflowContactId(tenantDb, c.req.param("contactId")!)) ??
+      c.req.param("contactId")!;
     const format = (c.req.query("format") as "csv" | "json") || "json";
     const startDateStr = c.req.query("startDate");
     const endDateStr = c.req.query("endDate");
@@ -209,7 +217,7 @@ exportRoutes.get(
  * Rate limit: 10 requests per hour per user
  */
 exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
-  const { companyId, user, permissions } = getRouteContext(c);
+  const { companyId, user, permissions, tenantDb } = getRouteContext(c);
   const body = await c.req.json<{
     type: "contacts" | "messages";
     format?: "csv" | "json";
@@ -218,6 +226,7 @@ exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
       assignedTo?: string;
       hasCustomName?: boolean;
       contactId?: string;
+      conversationId?: string;
       startDate?: string;
       endDate?: string;
       messageTypes?: string[];
@@ -243,7 +252,14 @@ exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
     filename = `contacts-${datePrefix}`;
   } else {
     data = await exportService.exportMessages(companyId, {
-      contactId: filters.contactId,
+      contactId:
+        filters.contactId ||
+        (filters.conversationId
+          ? ((await resolveWorkflowContactId(
+              tenantDb,
+              filters.conversationId,
+            )) ?? undefined)
+          : undefined),
       startDate: filters.startDate ? toDbDate(filters.startDate) : undefined,
       endDate: filters.endDate ? toDbDate(filters.endDate) : undefined,
       messageTypes: filters.messageTypes,
