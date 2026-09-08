@@ -12,6 +12,7 @@ import { getRouteContext } from "../middleware/context.js";
 import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import * as meilisearchService from "../services/meilisearch.service.js";
+import { contactIdForConversation } from "../services/channel-workflow.service.js";
 import * as searchService from "../services/search.service.js";
 
 export const searchRoutes = new Hono();
@@ -67,10 +68,15 @@ searchRoutes.get("/", searchRateLimiter, async (c) => {
  * Rate limit: 30 requests per minute per user
  */
 searchRoutes.get("/messages", searchRateLimiter, async (c) => {
-  const { companyId, user, permissions } = getRouteContext(c);
+  const { companyId, user, permissions, tenantDb } = getRouteContext(c);
   const query = c.req.query("q");
   const { limit, offset } = extractPaginationParams(c);
-  const contactId = c.req.query("contactId");
+  const conversationId = c.req.query("conversationId");
+  const contactId =
+    c.req.query("contactId") ||
+    (conversationId
+      ? await contactIdForConversation(tenantDb, conversationId)
+      : undefined);
   const startDateStr = c.req.query("startDate");
   const endDateStr = c.req.query("endDate");
   const messageTypesStr = c.req.query("messageTypes");

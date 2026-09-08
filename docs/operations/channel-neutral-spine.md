@@ -46,21 +46,22 @@ Flag-first only:
 Once a Telegram account has accepted traffic, turning flags off does not make
 legacy WhatsApp code authoritative for that data.
 
+## Legacy API deprecation window
+
+Contact-id conversation routes remain supported as a compatibility façade.
+New clients should prefer conversation UUIDs for assign, state, send, search
+(`conversationId`), and merge. Do not remove contact-id routes in this
+release. Retirement is a later maintenance change after a documented window.
+
 ## Known remaining work
 
-Do not treat the RFC as complete. Still missing or incomplete:
+Still incomplete before claiming the RFC finished:
 
-- Conversation-scoped assignment, unread, cases, and SLA still use contact IDs
-  for most routes (`apps/api/src/routes/conversations/state.ts`).
-- Contact merge, search, export, analytics, notifications, and MCP are not
-  migrated onto conversation/endpoint identity.
-- The live composer still uses WhatsApp JID/`canSend` rather than resolved
-  conversation capabilities.
+- Search/export/analytics/notifications/MCP still index or authorize primarily
+  by contact, with only additive conversationId search mapping.
 - Database integration tests require `RUN_DB_INTEGRATION=1` and PostgreSQL.
 - Docker/Go worker validation is blocked until the daemon and vendored
   `whatsmeow` are available.
-- Linked-device purge deletes intents, inbox rows, the channel-account graph,
-  and public routing rows. Telegram-only purge/reset/export is not equivalent.
 - Uncertain Telegram sends keep the local message pending; do not retry them.
 
 ## Recovery notes
