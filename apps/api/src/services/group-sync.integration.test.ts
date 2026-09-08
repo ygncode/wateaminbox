@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
+import {
+  formatPhoneLikeText,
+  getContactDisplayName,
+} from "@wateaminbox/shared";
 import { sql } from "kysely";
-import { getContactDisplayName } from "@wateaminbox/shared";
 import type { ContactEvent } from "../lib/nats/index.js";
 import {
   getEnrichedGroupParticipants,
@@ -637,6 +640,19 @@ describe("group synchronization", () => {
         // No stable key exists for a LID-only member, so none is invented.
         expect(contactIdByJid.get(`${lidOnlyMember}@lid`)).toBeNull();
 
+        const displayNameByJid = new Map(
+          participants.map((participant) => [
+            participant.jid,
+            participant.displayName,
+          ]),
+        );
+        // The unnamed LID member resolves to the privacy-safe label the contact
+        // transform and the panel subtitle already use, regardless of the
+        // digit count of their LID local part.
+        expect(displayNameByJid.get(`${lidOnlyMember}@lid`)).toBe(
+          `WhatsApp user (ID …${lidOnlyMember.slice(-4)})`,
+        );
+
         const ownContact = await tenantDb
           .selectFrom("contacts")
           .select(["id"])
@@ -994,6 +1010,121 @@ describe("group synchronization", () => {
           DELETE FROM whatsapp_sessions.whatsmeow_contacts
           WHERE connection_id = ${connectionId}
         `.execute(db);
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      }
+    },
+    30_000,
+  );
+  integrationTest(
+    "masks unnamed LID participants like the panel subtitle regardless of digit length",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+      const groupJid = `${randomNumericId()}@g.us`;
+      const ownNumber = randomNumericId();
+      // A 16-digit LID local part: the >15-digit shape that the pre-fix server
+      // fallback stripped to a bare opaque token, diverging from both the
+      // message-bubble label and the panel's own subtitle.
+      const longLid = "6585719494172749";
+      // An 11-digit LID local part: within E.164's 7-15 cap, so the pre-fix
+      // fallback rendered "+<digits>" and matched the bubble but disagreed
+      // with the panel subtitle on the same row.
+      const shortLid = "88888888888";
+      // A hosted LID uses the same opaque local part over a different suffix.
+      const hostedLid = "99112233";
+
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: connectionId,
+            name: "Primary",
+            jid: `${ownNumber}@s.whatsapp.net`,
+            status: "connected",
+          })
+          .execute();
+
+        const contactEvent: ContactEvent = {
+          contractVersion: 1,
+          type: "contact",
+          companyId,
+          connectionId,
+          timestamp: new Date().toISOString(),
+          payload: {
+            jid: groupJid,
+            displayName: "LID Privacy Group",
+            isGroup: true,
+            participants: [
+              { jid: `${longLid}@lid`, isAdmin: false },
+              { jid: `${shortLid}@lid`, isAdmin: false },
+              { jid: `${hostedLid}@hosted.lid`, isAdmin: false },
+              { jid: `${ownNumber}@s.whatsapp.net`, isAdmin: true },
+            ],
+          },
+        };
+        await handleContactEvent(contactEvent);
+
+        const groupContact = await tenantDb
+          .selectFrom("contacts")
+          .select(["id"])
+          .where("jid", "=", groupJid)
+          .executeTakeFirstOrThrow();
+        const groupRecord = await tenantDb
+          .selectFrom("groups")
+          .select("id")
+          .where("contact_id", "=", groupContact.id)
+          .executeTakeFirstOrThrow();
+
+        const participants = await getEnrichedGroupParticipants(tenantDb, {
+          groupId: groupRecord.id,
+          contactId: groupContact.id,
+          connectionId,
+          connectionJid: `${ownNumber}@s.whatsapp.net`,
+        });
+        const displayNameByJid = new Map(
+          participants.map((participant) => [
+            participant.jid,
+            participant.displayName,
+          ]),
+        );
+
+        // Each unnamed LID member resolves to the privacy-safe label the
+        // contact transform and the panel subtitle already use, for both
+        // suffixes and regardless of the local part's digit count.
+        expect(displayNameByJid.get(`${longLid}@lid`)).toBe(
+          `WhatsApp user (ID …${longLid.slice(-4)})`,
+        );
+        expect(displayNameByJid.get(`${shortLid}@lid`)).toBe(
+          `WhatsApp user (ID …${shortLid.slice(-4)})`,
+        );
+        expect(displayNameByJid.get(`${hostedLid}@hosted.lid`)).toBe(
+          `WhatsApp user (ID …${hostedLid.slice(-4)})`,
+        );
+
+        // The panel renders the primary name through formatPhoneLikeText on
+        // displayName and the subtitle through formatPhoneLikeText on the
+        // full jid. Both inputs now route through getLidDisplayName, so the
+        // two lines on the same row must agree.
+        for (const participant of participants) {
+          const isLid =
+            participant.jid.endsWith("@lid") ||
+            participant.jid.endsWith("@hosted.lid");
+          if (!isLid) continue;
+          expect(formatPhoneLikeText(participant.displayName)).toBe(
+            formatPhoneLikeText(participant.jid),
+          );
+        }
+
+        // The phone-addressable member keeps the "+<number>" fallback; the
+        // new LID branch never shadows a real phone JID.
+        expect(displayNameByJid.get(`${ownNumber}@s.whatsapp.net`)).toBe(
+          `+${ownNumber}`,
+        );
+      } finally {
         await clearTenantConnection(companyId);
         await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
       }
