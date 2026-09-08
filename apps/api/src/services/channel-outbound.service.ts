@@ -3,6 +3,7 @@ import type {
   Channel,
   ChannelProvider,
   OutboundMessageIntent,
+  ProviderActionResult,
   ProviderSendResult,
 } from "@wateaminbox/shared";
 import { isChannel, isChannelProvider } from "@wateaminbox/shared";
@@ -126,6 +127,36 @@ export async function dispatchNextChannelOutbound(): Promise<number> {
           outcome: "permanent_failure",
           errorCode: "outbound_initiation_unsupported",
         };
+      } else if (claim.operation.startsWith("action:")) {
+        const action = await channelAdapterRegistry
+          .get(claim.channel, claim.provider)
+          .perform({
+            companyId: claim.companyId,
+            channelAccountId: claim.channelAccountId,
+            conversationId: claim.conversationId,
+            operation: claim.operation.slice("action:".length),
+            idempotencyKey: claim.idempotencyKey,
+            payload: claim.normalizedPayload,
+          });
+        if (action.outcome === "accepted" || action.outcome === "confirmed") {
+          result = {
+            outcome: action.outcome,
+            providerRequestId: action.providerRequestId,
+          };
+        } else {
+          const actionFailure = action as Exclude<
+            ProviderActionResult,
+            { outcome: "accepted" | "confirmed" }
+          >;
+          result = {
+            outcome:
+              actionFailure.outcome === "transient_failure"
+                ? "transient_failure"
+                : "permanent_failure",
+            errorCode: actionFailure.errorCode,
+            retryAfterMs: actionFailure.retryAfterMs,
+          };
+        }
       } else {
         result = await channelAdapterRegistry
           .get(claim.channel, claim.provider)
@@ -175,7 +206,29 @@ async function completeClaim(
         })
         .where("id", "=", claim.id)
         .execute();
-      if (fenced.message_id) {
+      if (
+        fenced.message_id &&
+        claim.operation.startsWith("action:") &&
+        result.outcome === "confirmed"
+      ) {
+        if (claim.operation === "action:delete") {
+          await trx
+            .updateTable("messages")
+            .set({ deleted_by_sender: true, deleted_at: new Date() })
+            .where("id", "=", fenced.message_id)
+            .execute();
+        } else if (claim.operation === "action:edit") {
+          const textContent = claim.normalizedPayload.textContent;
+          if (typeof textContent === "string") {
+            await trx
+              .updateTable("messages")
+              .set({ content: textContent, text_content: textContent })
+              .where("id", "=", fenced.message_id)
+              .execute();
+          }
+        }
+      }
+      if (fenced.message_id && !claim.operation.startsWith("action:")) {
         await trx
           .updateTable("messages")
           .set({
@@ -223,7 +276,11 @@ async function completeClaim(
       })
       .where("id", "=", claim.id)
       .execute();
-    if (fenced.message_id && !transient) {
+    if (
+      fenced.message_id &&
+      !transient &&
+      !claim.operation.startsWith("action:")
+    ) {
       await trx
         .updateTable("messages")
         .set({ status: "failed" })

@@ -261,7 +261,7 @@ function normalizeReaction(
           conversation.externalThreadId!,
         ),
         externalReactionId: `${reactor.identityScope}:${reactor.externalId}:${reaction.message_id}:${key}`,
-        externalEventScope: `telegram-update:${update.update_id}`,
+        externalEventScope: "telegram-reaction",
         reactor,
         emoji: reactionDisplayValue(descriptor),
       };
