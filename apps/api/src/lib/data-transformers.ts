@@ -21,7 +21,7 @@ import {
  */
 export interface RawContactFromDb {
   id: string;
-  jid: string;
+  jid: string | null;
   phone_number: string | null;
   push_name: string | null;
   username?: string | null;
@@ -39,6 +39,9 @@ export interface RawContactFromDb {
   connection_name?: string | null;
   connection_phone_number?: string | null;
   connection_status?: string | null;
+  conversation_id?: string | null;
+  channel?: string | null;
+  provider?: string | null;
   created_at: Date | string;
   updated_at: Date | string;
   conversation_status?: "open" | "pending" | "resolved";
@@ -67,7 +70,7 @@ export interface RawContactFromDb {
  */
 export interface TransformedContact {
   id: string;
-  jid: string;
+  jid: string | null;
   phoneNumber: string | null;
   pushName: string | null;
   username: string | null;
@@ -108,6 +111,9 @@ export interface TransformedContact {
   updatedAt: Date | string;
   conversationStatus: "open" | "pending" | "resolved";
   activeCaseId: string | null;
+  conversationId: string | null;
+  channel: string | null;
+  provider: string | null;
 }
 
 // ============================================================================
@@ -117,10 +123,10 @@ export interface TransformedContact {
 export function getContactPhoneNumber(contact: {
   is_group: boolean;
   phone_number: string | null;
-  jid: string;
+  jid: string | null;
 }): string | null {
   if (contact.is_group) return null;
-  const phoneFromJid = extractPhoneFromJid(contact.jid);
+  const phoneFromJid = extractPhoneFromJid(contact.jid ?? "");
   if (!phoneFromJid) return null;
   return contact.phone_number || phoneFromJid;
 }
@@ -192,6 +198,11 @@ export function transformContact(
     updatedAt: contact.updated_at,
     conversationStatus: contact.conversation_status ?? "resolved",
     activeCaseId: contact.active_case_id ?? null,
+    conversationId: contact.conversation_id ?? null,
+    channel: contact.channel ?? (contact.connection_id ? "whatsapp" : null),
+    provider:
+      contact.provider ??
+      (contact.connection_id ? "whatsapp_linked_device" : null),
   };
 }
 

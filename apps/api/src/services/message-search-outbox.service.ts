@@ -121,6 +121,7 @@ export async function dispatchMessageSearch(
             "c.custom_name",
             "c.jid",
             "c.is_group",
+            "m.conversation_id",
           ])
           .where(
             "m.id",
@@ -133,6 +134,7 @@ export async function dispatchMessageSearch(
           id: row.id,
           companyId: first.company_id,
           contactId: row.contact_id,
+          conversationId: row.conversation_id,
           contactName: getContactDisplayName(row, "Unknown"),
           contactJid: row.jid,
           isGroup: row.is_group || Boolean(row.jid?.includes("@g.us")),
@@ -142,6 +144,63 @@ export async function dispatchMessageSearch(
           timestamp: Math.floor(new Date(row.timestamp).getTime() / 1000),
           fromMe: row.from_me,
         }));
+        if (documents.length) await publish(first.company_id, documents);
+      } else {
+        const rows = await tenant
+          .selectFrom("messages as m")
+          .leftJoin("contacts as c", "c.id", "m.contact_id")
+          .select([
+            "m.id",
+            "m.message_id",
+            "m.contact_id",
+            "m.conversation_id",
+            "m.content",
+            "m.message_type",
+            "m.timestamp",
+            "m.from_me",
+            "c.push_name",
+            "c.username",
+            "c.custom_name",
+            "c.jid",
+            "c.is_group",
+          ])
+          .where(
+            "m.id",
+            "in",
+            jobs.map((job) => job.message_id),
+          )
+          .where("m.channel_account_id", "=", first.connection_id)
+          .execute();
+        const documents: MessageDocument[] = rows.flatMap((row) =>
+          row.contact_id
+            ? [
+                {
+                  id: row.id,
+                  companyId: first.company_id,
+                  contactId: row.contact_id,
+                  conversationId: row.conversation_id,
+                  contactName: getContactDisplayName(
+                    {
+                      custom_name: row.custom_name,
+                      push_name: row.push_name,
+                      username: row.username,
+                      jid: row.jid,
+                    },
+                    "Unknown",
+                  ),
+                  contactJid: row.jid,
+                  isGroup: Boolean(row.is_group),
+                  messageId: row.message_id,
+                  content: row.content,
+                  messageType: row.message_type,
+                  timestamp: Math.floor(
+                    new Date(row.timestamp).getTime() / 1000,
+                  ),
+                  fromMe: row.from_me,
+                },
+              ]
+            : [],
+        );
         if (documents.length) await publish(first.company_id, documents);
       }
       // The same transaction owns the lifecycle lock through submission and

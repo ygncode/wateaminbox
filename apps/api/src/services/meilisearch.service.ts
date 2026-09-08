@@ -49,6 +49,7 @@ export interface MessageDocument {
   id: string;
   companyId: string;
   contactId: string;
+  conversationId?: string | null;
   contactName: string | null;
   contactJid: string | null;
   isGroup: boolean;
@@ -117,6 +118,7 @@ export async function getMessagesIndex(
     await index.updateFilterableAttributes([
       "companyId",
       "contactId",
+      "conversationId",
       "messageType",
       "timestamp",
       "isGroup",
@@ -341,6 +343,7 @@ export interface MeilisearchSearchOptions {
   limit?: number;
   offset?: number;
   contactId?: string;
+  conversationId?: string;
   startDate?: Date;
   endDate?: Date;
   messageTypes?: string[];
@@ -368,6 +371,7 @@ export async function searchMessagesWithMeilisearch(
     limit = 50,
     offset = 0,
     contactId,
+    conversationId,
     startDate,
     endDate,
     messageTypes,
@@ -381,6 +385,9 @@ export async function searchMessagesWithMeilisearch(
 
     if (contactId) {
       filters.push(`contactId = "${contactId}"`);
+    }
+    if (conversationId) {
+      filters.push(`conversationId = "${conversationId}"`);
     }
 
     if (startDate) {

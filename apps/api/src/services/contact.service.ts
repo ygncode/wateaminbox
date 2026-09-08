@@ -64,6 +64,9 @@ export interface ContactWithLastMessage {
   connection_name: string | null;
   connection_phone_number: string | null;
   connection_status: string | null;
+  conversation_id: string | null;
+  channel: string | null;
+  provider: string | null;
   last_message: {
     id: string;
     messageId: string | null;
@@ -166,6 +169,9 @@ export async function getContactsWithLastMessage(
     connection_name: string | null;
     connection_phone_number: string | null;
     connection_status: string | null;
+    conversation_id: string | null;
+    channel: string | null;
+    provider: string | null;
     last_message_sent_by_user_id: string | null;
     conversation_status: "open" | "pending" | "resolved";
     active_case_id: string | null;
@@ -185,6 +191,9 @@ export async function getContactsWithLastMessage(
       c.is_online,
       c.last_seen,
       c.whatsapp_connection_id as connection_id,
+      conv.id as conversation_id,
+      COALESCE(acc.channel, CASE WHEN c.whatsapp_connection_id IS NOT NULL THEN 'whatsapp' END) as channel,
+      COALESCE(acc.provider, CASE WHEN c.whatsapp_connection_id IS NOT NULL THEN 'whatsapp_linked_device' END) as provider,
       wc.name as connection_name,
       wc.phone_number as connection_phone_number,
       wc.status::text as connection_status,
@@ -204,6 +213,11 @@ export async function getContactsWithLastMessage(
     FROM ${schema}.${sql.ref("contacts")} c
     LEFT JOIN ${schema}.${sql.ref("whatsapp_connections")} wc
       ON wc.id = c.whatsapp_connection_id
+    LEFT JOIN ${schema}.${sql.ref("conversations")} conv
+      ON conv.legacy_contact_id = c.id
+      AND conv.archived_at IS NULL
+    LEFT JOIN ${schema}.${sql.ref("channel_accounts")} acc
+      ON acc.id = conv.channel_account_id
     LEFT JOIN ${schema}.${sql.ref("contact_assignments")} ca
       ON ca.contact_id = c.id
       AND ca.unassigned_at IS NULL
@@ -270,6 +284,9 @@ export async function getContactsWithLastMessage(
       connection_name: contact.connection_name,
       connection_phone_number: contact.connection_phone_number,
       connection_status: contact.connection_status,
+      conversation_id: contact.conversation_id,
+      channel: contact.channel,
+      provider: contact.provider,
       conversation_status: contact.conversation_status,
       active_case_id: contact.active_case_id,
       last_message: lastMessage,

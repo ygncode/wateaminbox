@@ -213,6 +213,9 @@ export interface Contact {
   isGroup?: boolean;
   /** WhatsApp account that owns and routes this conversation. */
   connection?: WhatsAppConnectionIdentity | null;
+  channel?: string | null;
+  provider?: string | null;
+  conversationId?: string | null;
 }
 
 export interface GroupParticipant {
