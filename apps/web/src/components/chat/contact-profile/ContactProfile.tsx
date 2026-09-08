@@ -14,13 +14,20 @@ import { useContact } from "@/hooks/useContact";
 import { useGroup } from "@/hooks/useGroups";
 import type { ChannelConversation } from "@/lib/api/channel-conversations";
 import { AssignmentHistorySection } from "./AssignmentHistorySection";
-import { AssignmentSection } from "./AssignmentSection";
+import {
+  AssignmentSection,
+  ConversationAssignmentSection,
+} from "./AssignmentSection";
 import { BlockStatusSection } from "./BlockStatusSection";
 import { ContactInfoSection } from "./ContactInfoSection";
 import { ContactProfileSkeleton } from "./ContactProfileSkeleton";
 import { EditableNameSection } from "./EditableNameSection";
 import { GroupInfoSections } from "./GroupInfoSections";
-import { PrivateNotesSection, SharedNotesSection } from "./NotesPanel";
+import {
+  ConversationNotesSection,
+  PrivateNotesSection,
+  SharedNotesSection,
+} from "./NotesPanel";
 import { NotificationMuteSection } from "./NotificationMuteSection";
 import { ProfileHeader } from "./ProfileHeader";
 import { TagsSection } from "./TagsSection";
@@ -94,10 +101,34 @@ export function ContactProfile({
             )}
 
             {contact ? <EditableNameSection contact={contact} /> : null}
-            {contact ? <SharedNotesSection contactId={contact.id} /> : null}
-            {contact ? <PrivateNotesSection contactId={contact.id} /> : null}
-            {contact ? <TagsSection contact={contact} /> : null}
-            {contact ? <AssignmentSection contact={contact} /> : null}
+            {contact ? (
+              <SharedNotesSection contactId={contact.id} />
+            ) : (
+              <ConversationNotesSection
+                conversationId={profileContact.id}
+                visibility="shared"
+              />
+            )}
+            {contact ? (
+              <PrivateNotesSection contactId={contact.id} />
+            ) : (
+              <ConversationNotesSection
+                conversationId={profileContact.id}
+                visibility="private"
+              />
+            )}
+            {contact ? (
+              <TagsSection contact={contact} />
+            ) : (
+              <TagsSection conversationId={profileContact.id} />
+            )}
+            {contact ? (
+              <AssignmentSection contact={contact} />
+            ) : (
+              <ConversationAssignmentSection
+                conversationId={profileContact.id}
+              />
+            )}
             {contact ? (
               <AssignmentHistorySection contactId={contact.id} />
             ) : null}
@@ -106,37 +137,33 @@ export function ContactProfile({
 
             {contact ? <BlockStatusSection contact={contact} /> : null}
 
-            {contact ? (
-              <RightPanelSection title={t("export.title", "Export")}>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
-                    {t(
-                      "contacts.downloadConversation",
-                      "Download this conversation as CSV or JSON",
-                    )}
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShowExportDialog(true)}
-                    className="gap-1 dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
-                  >
-                    <Download className="h-4 w-4" />
-                    Export
-                  </Button>
-                </div>
-              </RightPanelSection>
-            ) : null}
+            <RightPanelSection title={t("export.title", "Export")}>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
+                  {t(
+                    "contacts.downloadConversation",
+                    "Download this conversation as CSV or JSON",
+                  )}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowExportDialog(true)}
+                  className="gap-1 dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
+                >
+                  <Download className="h-4 w-4" />
+                  Export
+                </Button>
+              </div>
+            </RightPanelSection>
 
-            {contact ? (
-              <ExportDialog
-                open={showExportDialog}
-                onOpenChange={setShowExportDialog}
-                type="conversation"
-                contactId={contact.id}
-                contactName={contact.displayName}
-              />
-            ) : null}
+            <ExportDialog
+              open={showExportDialog}
+              onOpenChange={setShowExportDialog}
+              type="conversation"
+              contactId={profileContact.id}
+              contactName={profileContact.displayName}
+            />
           </>
         )}
       </RightPanelContent>

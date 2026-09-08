@@ -10,6 +10,8 @@ import {
   assignConversationToUser,
   getCurrentAssignment,
   getCurrentConversationAssignment,
+  unassignContact,
+  unassignConversation,
 } from "../../services/contact.service.js";
 
 export const conversationAssignmentRoutes = new Hono();
@@ -60,3 +62,15 @@ conversationAssignmentRoutes.post(
     return successData(c, assignment, 201);
   },
 );
+
+conversationAssignmentRoutes.delete("/:id/assign", async (c) => {
+  const { tenantDb } = getRouteContext(c);
+  const identity = await resolveWorkflowIdentity(tenantDb, c.req.param("id")!);
+  if (!identity) return notFound(c, "Conversation");
+  if (identity.contactId) {
+    await unassignContact(tenantDb, identity.contactId);
+  } else {
+    await unassignConversation(tenantDb, identity.conversationId!);
+  }
+  return successData(c, { unassigned: true });
+});

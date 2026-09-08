@@ -6,6 +6,7 @@ import {
   type FullBackupData,
   generateBackupZip,
 } from "./export/compression.js";
+import { resolveWorkflowIdentity } from "./channel-workflow.service.js";
 import { getSchemaName, getTenantConnection } from "./tenant.service.js";
 
 /**
@@ -168,6 +169,7 @@ const DEFAULT_BATCH_SIZE = 5000;
 
 interface MessageExportOptions {
   contactId?: string;
+  conversationId?: string;
   startDate?: Date;
   endDate?: Date;
   messageTypes?: string[];
@@ -229,6 +231,9 @@ async function queryMessages(
   const contactIdFilter = options.contactId
     ? sql`AND m.contact_id = ${options.contactId}`
     : sql``;
+  const conversationIdFilter = options.conversationId
+    ? sql`AND m.conversation_id = ${options.conversationId}`
+    : sql``;
   const startDateFilter = options.startDate
     ? sql`AND m.timestamp >= ${options.startDate}`
     : sql``;
@@ -260,7 +265,7 @@ async function queryMessages(
     SELECT
       m.id as export_cursor_id,
       m.message_id,
-      c.jid as contact_whatsapp_id,
+      COALESCE(c.jid, '') as contact_whatsapp_id,
       c.custom_name as contact_name,
       m.from_me,
       m.message_type,
@@ -269,17 +274,27 @@ async function queryMessages(
       m.sent_by_user_id as sent_by_user,
       m.media_url
     FROM ${messagesTable} m
-    INNER JOIN ${contactsTable} c ON c.id = m.contact_id
     ${
-      options.assignedUserId
+      options.conversationId
+        ? sql`LEFT JOIN ${contactsTable} c ON c.id = m.contact_id`
+        : sql`INNER JOIN ${contactsTable} c ON c.id = m.contact_id`
+    }
+    ${
+      options.assignedUserId && options.conversationId
         ? sql`INNER JOIN ${assignmentsTable} ca
+            ON ca.conversation_id = ${options.conversationId}
+            AND ca.assigned_to = ${options.assignedUserId}
+            AND ca.unassigned_at IS NULL`
+        : options.assignedUserId
+          ? sql`INNER JOIN ${assignmentsTable} ca
             ON ca.contact_id = c.id
             AND ca.assigned_to = ${options.assignedUserId}
             AND ca.unassigned_at IS NULL`
-        : sql``
+          : sql``
     }
     WHERE 1=1
       ${contactIdFilter}
+      ${conversationIdFilter}
       ${startDateFilter}
       ${endDateFilter}
       ${messageTypesFilter}
@@ -316,6 +331,7 @@ export async function exportMessagesInBatches(
   companyId: string,
   options: {
     contactId?: string;
+    conversationId?: string;
     startDate?: Date;
     endDate?: Date;
     messageTypes?: string[];
@@ -336,6 +352,7 @@ export async function exportMessagesInBatches(
   while (true) {
     const batch = await queryMessages(companyId, {
       contactId: options.contactId,
+      conversationId: options.conversationId,
       startDate: options.startDate,
       endDate: options.endDate,
       messageTypes: options.messageTypes,
@@ -366,12 +383,78 @@ export async function exportMessagesInBatches(
   return { totalExported, batches: batchNumber };
 }
 
+async function exportConversationWithoutContact(
+  companyId: string,
+  conversationId: string,
+  subject: string | null,
+  options: {
+    startDate?: Date;
+    endDate?: Date;
+    assignedUserId?: string;
+  },
+): Promise<{ contact: ContactExport; messages: MessageExport[] }> {
+  const tenantDb = getTenantConnection(companyId);
+  if (options.assignedUserId) {
+    const assignment = await tenantDb
+      .selectFrom("contact_assignments")
+      .select("id")
+      .where("conversation_id", "=", conversationId)
+      .where("assigned_to", "=", options.assignedUserId)
+      .where("unassigned_at", "is", null)
+      .executeTakeFirst();
+    if (!assignment) throw new NotFoundError("Conversation");
+  }
+  const conversation = await tenantDb
+    .selectFrom("conversations")
+    .select(["id", "external_thread_id", "created_at", "last_message_at"])
+    .where("id", "=", conversationId)
+    .executeTakeFirst();
+  if (!conversation) throw new NotFoundError("Conversation");
+  const assignment = await tenantDb
+    .selectFrom("contact_assignments")
+    .select("assigned_to")
+    .where("conversation_id", "=", conversationId)
+    .where("unassigned_at", "is", null)
+    .executeTakeFirst();
+  const tagNames = await tenantDb
+    .selectFrom("conversation_tags as link")
+    .innerJoin("tags as tag", "tag.id", "link.tag_id")
+    .select("tag.name")
+    .where("link.conversation_id", "=", conversationId)
+    .orderBy("tag.name")
+    .execute();
+  const messages: MessageExport[] = [];
+  await exportMessagesInBatches(companyId, {
+    conversationId,
+    ...options,
+    onBatch: async (batch) => {
+      messages.push(...batch);
+    },
+  });
+  return {
+    contact: {
+      whatsapp_id: conversation.external_thread_id ?? conversation.id,
+      phone_number: null,
+      push_name: subject,
+      custom_name: subject,
+      shared_notes: null,
+      tags: tagNames.map((tag) => tag.name).join(","),
+      assigned_to: assignment?.assigned_to ?? null,
+      created_at: toISOString(conversation.created_at),
+      last_message_at: conversation.last_message_at
+        ? toISOString(conversation.last_message_at)
+        : null,
+    },
+    messages: messages.reverse(),
+  };
+}
+
 /**
  * Export conversation (messages for a specific contact)
  */
 export async function exportConversation(
   companyId: string,
-  contactId: string,
+  id: string,
   options: {
     startDate?: Date;
     endDate?: Date;
@@ -382,6 +465,19 @@ export async function exportConversation(
   messages: MessageExport[];
 }> {
   const tenantDb = getTenantConnection(companyId);
+  const identity = await resolveWorkflowIdentity(tenantDb, id);
+  if (!identity) {
+    throw new NotFoundError("Conversation");
+  }
+  if (!identity.contactId && identity.conversationId) {
+    return exportConversationWithoutContact(
+      companyId,
+      identity.conversationId,
+      identity.subject,
+      options,
+    );
+  }
+  const contactId = identity.contactId ?? id;
 
   // Raw SQL needs explicit tenant qualification; values remain parameters.
   const schemaName = getSchemaName(companyId);

@@ -93,6 +93,7 @@ exportRoutes.get("/messages", exportRateLimiter, async (c) => {
   const { limit, offset } = extractPaginationParams(c, 1000);
 
   const messages = await exportService.exportMessages(companyId, {
+    conversationId: conversationId || undefined,
     contactId: contactId || undefined,
     startDate: startDateStr ? toDbDate(startDateStr) : undefined,
     endDate: endDateStr ? toDbDate(endDateStr) : undefined,
@@ -137,10 +138,8 @@ exportRoutes.get(
   requireConversationVisibility("contactId"),
   exportRateLimiter,
   async (c) => {
-    const { companyId, user, permissions, tenantDb } = getRouteContext(c);
-    const contactId =
-      (await resolveWorkflowContactId(tenantDb, c.req.param("contactId")!)) ??
-      c.req.param("contactId")!;
+    const { companyId, user, permissions } = getRouteContext(c);
+    const contactId = c.req.param("contactId")!;
     const format = (c.req.query("format") as "csv" | "json") || "json";
     const startDateStr = c.req.query("startDate");
     const endDateStr = c.req.query("endDate");
@@ -252,6 +251,7 @@ exportRoutes.post("/bulk", exportRateLimiter, async (c) => {
     filename = `contacts-${datePrefix}`;
   } else {
     data = await exportService.exportMessages(companyId, {
+      conversationId: filters.conversationId,
       contactId:
         filters.contactId ||
         (filters.conversationId

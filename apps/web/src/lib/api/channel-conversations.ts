@@ -84,6 +84,114 @@ export function getChannelMessages(
   );
 }
 
+export interface ConversationNote {
+  id: string;
+  conversationId: string;
+  authorUserId: string;
+  authorName: string | null;
+  visibility: "shared" | "private";
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConversationTag {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+export function getConversationNotes(
+  conversationId: string,
+): Promise<ConversationNote[]> {
+  return api.get<ConversationNote[]>(
+    `/conversations/${encodeURIComponent(conversationId)}/notes`,
+  );
+}
+
+export function createConversationNote(
+  conversationId: string,
+  body: { content: string; visibility: "shared" | "private" },
+): Promise<unknown> {
+  return api.post(
+    `/conversations/${encodeURIComponent(conversationId)}/notes`,
+    body,
+  );
+}
+
+export function updateConversationNote(
+  conversationId: string,
+  noteId: string,
+  content: string,
+): Promise<unknown> {
+  return api.patch(
+    `/conversations/${encodeURIComponent(conversationId)}/notes/${encodeURIComponent(noteId)}`,
+    { content },
+  );
+}
+
+export function deleteConversationNote(
+  conversationId: string,
+  noteId: string,
+): Promise<unknown> {
+  return api.delete(
+    `/conversations/${encodeURIComponent(conversationId)}/notes/${encodeURIComponent(noteId)}`,
+  );
+}
+
+export function getConversationTags(
+  conversationId: string,
+): Promise<ConversationTag[]> {
+  return api.get<ConversationTag[]>(
+    `/conversations/${encodeURIComponent(conversationId)}/tags`,
+  );
+}
+
+export function addConversationTag(
+  conversationId: string,
+  tagId: string,
+): Promise<unknown> {
+  return api.post(`/conversations/${encodeURIComponent(conversationId)}/tags`, {
+    tagId,
+  });
+}
+
+export function removeConversationTag(
+  conversationId: string,
+  tagId: string,
+): Promise<unknown> {
+  return api.delete(
+    `/conversations/${encodeURIComponent(conversationId)}/tags/${encodeURIComponent(tagId)}`,
+  );
+}
+
+export function getConversationAssignment(conversationId: string) {
+  return api.get<{
+    id: string;
+    assigned_to: string;
+    assigned_by: string;
+    assigned_at: string;
+  } | null>(`/conversations/${encodeURIComponent(conversationId)}/assignment`);
+}
+
+export function assignConversation(
+  conversationId: string,
+  targetUserId?: string,
+): Promise<unknown> {
+  return api.post(
+    `/conversations/${encodeURIComponent(conversationId)}/assign`,
+    {
+      ...(targetUserId ? { targetUserId } : {}),
+    },
+  );
+}
+
+export function unassignConversation(conversationId: string): Promise<unknown> {
+  return api.delete(
+    `/conversations/${encodeURIComponent(conversationId)}/assign`,
+  );
+}
+
 export function sendChannelMessage(
   conversationId: string,
   body: {
