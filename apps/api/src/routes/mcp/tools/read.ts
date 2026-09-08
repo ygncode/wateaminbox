@@ -157,6 +157,7 @@ export const readTools: McpToolDefinition[] = [
       return {
         messages: results.messages.map((m) => ({
           contactId: m.contactId,
+          conversationId: m.conversationId ?? null,
           contactName: m.contactName,
           messageId: m.id,
           ...truncateText(m.content),

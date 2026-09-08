@@ -42,6 +42,7 @@ export function resetMeilisearchCache(): void {
 export interface SearchResult {
   id: string;
   contactId: string;
+  conversationId?: string | null;
   contactName: string | null;
   contactJid: string | null;
   isGroup: boolean;
@@ -152,6 +153,7 @@ export async function searchMessages(
   const result = await sql<{
     id: string;
     contact_id: string | null;
+    conversation_id: string | null;
     contact_name: string | null;
     contact_jid: string | null;
     is_group: boolean;
@@ -167,6 +169,7 @@ export async function searchMessages(
       SELECT
         m.id,
         m.contact_id,
+        m.conversation_id,
         COALESCE(
           c.custom_name,
           c.push_name,
@@ -219,6 +222,7 @@ export async function searchMessages(
   const results: SearchResult[] = result.rows.map((row) => ({
     id: row.id,
     contactId: row.contact_id ?? "",
+    conversationId: row.conversation_id,
     contactName: row.contact_jid
       ? getContactDisplayName(
           { jid: row.contact_jid, name: row.contact_name },

@@ -2,8 +2,10 @@ import { db, getTenantSchemaName } from "@wateaminbox/database";
 import { sql, type Transaction } from "kysely";
 import { broadcastToUsers } from "../lib/realtime.js";
 import { createLogger, formatError } from "../lib/logger.js";
-import { getCompanyMemberPermissions } from "./company-membership.service.js";
-import { resolveContactViewerIds } from "./message-broadcast.service.js";
+import {
+  resolveContactViewerIds,
+  resolveConversationViewerIds,
+} from "./message-broadcast.service.js";
 import { getPushMessagePreview } from "./message-push-preview.js";
 import { sendPushToUsers } from "./notification-delivery.service.js";
 import { resolveIncomingMessageRecipients } from "./notification-recipient.service.js";
@@ -107,15 +109,19 @@ async function deliver(
     .executeTakeFirst();
   if (!row || row.deleted_by_sender) return;
 
-  const viewerIds = row.legacy_contact_id
+  const contactViewers = row.legacy_contact_id
     ? await resolveContactViewerIds(
         job.company_id,
         row.legacy_contact_id,
         tenant,
       )
-    : (await getCompanyMemberPermissions(job.company_id))
-        .filter(({ permissions }) => permissions.can_view_all_chats)
-        .map(({ userId }) => userId);
+    : [];
+  const conversationViewers = await resolveConversationViewerIds(
+    job.company_id,
+    row.conversation_id,
+    tenant,
+  );
+  const viewerIds = [...new Set([...contactViewers, ...conversationViewers])];
   if (job.kind === "realtime") {
     await broadcastToUsers(
       job.company_id,

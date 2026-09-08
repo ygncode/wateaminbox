@@ -352,6 +352,7 @@ export interface MeilisearchSearchOptions {
 export interface MeilisearchMessageResult {
   id: string;
   contactId: string;
+  conversationId?: string | null;
   contactName: string | null;
   contactJid: string | null;
   isGroup: boolean;
@@ -419,6 +420,7 @@ export async function searchMessagesWithMeilisearch(
       (hit) => ({
         id: hit.id,
         contactId: hit.contactId,
+        conversationId: hit.conversationId,
         contactName: hit.contactName,
         contactJid: hit.contactJid,
         isGroup: hit.isGroup,
