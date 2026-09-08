@@ -82,6 +82,48 @@ const definitions: readonly ConcurrentIndexDefinition[] = [
         HAVING count(*) > 1
       ) AS duplicates`,
   },
+  {
+    suffix: "ca_conversation_uidx",
+    table: "contact_assignments",
+    columns: ["conversation_id"],
+    predicate: "conversation_id IS NOT NULL AND unassigned_at IS NULL",
+    duplicateGroupSql: (schemaName) => `
+      SELECT count(*)::integer AS count FROM (
+        SELECT 1
+        FROM ${qualified(schemaName, "contact_assignments")}
+        WHERE conversation_id IS NOT NULL AND unassigned_at IS NULL
+        GROUP BY conversation_id
+        HAVING count(*) > 1
+      ) AS duplicates`,
+  },
+  {
+    suffix: "cc_conversation_uidx",
+    table: "conversation_cases",
+    columns: ["conversation_id"],
+    predicate: "conversation_id IS NOT NULL AND status IN ('open', 'pending')",
+    duplicateGroupSql: (schemaName) => `
+      SELECT count(*)::integer AS count FROM (
+        SELECT 1
+        FROM ${qualified(schemaName, "conversation_cases")}
+        WHERE conversation_id IS NOT NULL AND status IN ('open', 'pending')
+        GROUP BY conversation_id
+        HAVING count(*) > 1
+      ) AS duplicates`,
+  },
+  {
+    suffix: "cs_conversation_uidx",
+    table: "conversation_states",
+    columns: ["conversation_id"],
+    predicate: "conversation_id IS NOT NULL",
+    duplicateGroupSql: (schemaName) => `
+      SELECT count(*)::integer AS count FROM (
+        SELECT 1
+        FROM ${qualified(schemaName, "conversation_states")}
+        WHERE conversation_id IS NOT NULL
+        GROUP BY conversation_id
+        HAVING count(*) > 1
+      ) AS duplicates`,
+  },
 ];
 
 /**

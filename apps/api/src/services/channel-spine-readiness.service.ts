@@ -7,6 +7,9 @@ const requiredSuffixes = [
   "msg_idempotency_uidx",
   "mr_external_uidx",
   "ma_fetch_due_idx",
+  "ca_conversation_uidx",
+  "cc_conversation_uidx",
+  "cs_conversation_uidx",
 ] as const;
 
 /** Provider enablement fails closed until every online index build completed. */

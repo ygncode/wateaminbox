@@ -19,9 +19,9 @@ without a separate explicit approval.
 
 1. Apply migrations `090`–`097` with all flags off. Confirm legacy messaging.
 2. Run `apps/api/src/scripts/reconcile-channel-spine-indexes.ts` for every
-   tenant. Unique message/reaction indexes are **not** created by migration
-   `092`; ingress, provisioning, and outbound dispatch fail closed until those
-   indexes exist and are valid.
+   tenant. Unique message/reaction/assignment/case/state indexes are **not**
+   created by migration `092`; ingress, provisioning, and outbound dispatch
+   fail closed until those indexes exist and are valid.
 3. Set `CHANNEL_CREDENTIAL_ENCRYPTION_KEYS` and
    `CHANNEL_CREDENTIAL_ACTIVE_KEY_VERSION` before provisioning Telegram.
    Startup does not currently require them in every production process because
@@ -57,12 +57,12 @@ release. Retirement is a later maintenance change after a documented window.
 
 Still incomplete before claiming the RFC finished:
 
-- Search/export/analytics/notifications/MCP still index or authorize primarily
-  by contact, with only additive conversationId search mapping.
+- Assignment/cases/SLA rows still have NOT NULL contact_id; conversation_id is
+  dual-written and uniquely indexed when present.
 - Database integration tests require `RUN_DB_INTEGRATION=1` and PostgreSQL.
 - Docker/Go worker validation is blocked until the daemon and vendored
   `whatsmeow` are available.
-- Uncertain Telegram sends keep the local message pending; do not retry them.
+- Phase 9 must not drop legacy WhatsApp columns in this branch.
 
 ## Recovery notes
 

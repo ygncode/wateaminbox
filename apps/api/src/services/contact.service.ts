@@ -424,12 +424,20 @@ export async function assignContactToUser(
 export async function getCurrentAssignment(
   tenantDb: Kysely<TenantDatabase>,
   contactId: string,
+  conversationId?: string | null,
 ) {
   return await tenantDb
     .selectFrom("contact_assignments")
     .select(["id", "assigned_to", "assigned_by", "assigned_at"])
-    .where("contact_id", "=", contactId)
     .where("unassigned_at", "is", null)
+    .where((eb) =>
+      conversationId
+        ? eb.or([
+            eb("contact_id", "=", contactId),
+            eb("conversation_id", "=", conversationId),
+          ])
+        : eb("contact_id", "=", contactId),
+    )
     .executeTakeFirst();
 }
 
