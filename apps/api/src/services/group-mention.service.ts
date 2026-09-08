@@ -30,7 +30,9 @@ export function validateGroupMentionRequest(
   if (
     mentionedJids.some((jid) => {
       const mentionId = jid.split("@")[0];
-      return !new RegExp(`@${mentionId}(?=$|\\D)`).test(content);
+      return !new RegExp(`(^|[\\s([\\{])@${mentionId}\\b(?![@-])`).test(
+        content,
+      );
     })
   ) {
     return {
