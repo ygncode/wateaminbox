@@ -19,6 +19,34 @@ export async function hasContactVisibility(
   return Boolean(assignment);
 }
 
+export function requireConversationVisibility(paramName = "id") {
+  return async (c: Context, next: Next) => {
+    const id = c.req.param(paramName)!;
+    if (await hasContactVisibility(c, id)) {
+      await next();
+      return;
+    }
+    const { tenantDb, permissions } = getRouteContext(c);
+    const conversation = await tenantDb
+      .selectFrom("conversations")
+      .select("legacy_contact_id")
+      .where("id", "=", id)
+      .where("archived_at", "is", null)
+      .executeTakeFirst();
+    const visible =
+      Boolean(conversation) &&
+      (permissions.can_view_all_chats ||
+        Boolean(
+          conversation?.legacy_contact_id &&
+            (await hasContactVisibility(c, conversation.legacy_contact_id)),
+        ));
+    if (!visible) {
+      throw new HTTPException(404, { message: "Conversation not found" });
+    }
+    await next();
+  };
+}
+
 export function requireContactVisibility(paramName = "id") {
   return async (c: Context, next: Next) => {
     if (!(await hasContactVisibility(c, c.req.param(paramName)!))) {

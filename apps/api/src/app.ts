@@ -47,6 +47,7 @@ app.use(
       "Authorization",
       "X-Company-Id",
       "X-Realtime-Client-Id",
+      "Idempotency-Key",
     ],
   }),
 );
