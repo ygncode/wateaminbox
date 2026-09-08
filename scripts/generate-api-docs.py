@@ -1010,7 +1010,8 @@ GROUPS = [
         "prefixes": ["/quick-replies"],
         "overview": (
             "Canned/shortcut replies. Synchronous CRUD; `GET /search/:shortcut` lets "
-            "the composer resolve a shortcut to its expansion."
+            "the composer resolve a shortcut to its expansion. Workspace first-contact "
+            "auto-reply settings live under `/auto-reply`."
         ),
         "flows": [
             ("Quick reply CRUD & lookup", """sequenceDiagram
