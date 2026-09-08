@@ -201,22 +201,52 @@ async function isClaimStillAuthorized(claim: ClaimedIntent): Promise<boolean> {
   if (!member?.permissions.can_send_messages) return false;
   const tenantDb = await getTenantConnection(claim.companyId);
   const conversation = await tenantDb
-    .selectFrom("conversations")
-    .select(["legacy_contact_id", "archived_at"])
-    .where("id", "=", claim.conversationId)
-    .where("channel_account_id", "=", claim.channelAccountId)
+    .selectFrom("conversations as conversation")
+    .innerJoin(
+      "channel_accounts as account",
+      "account.id",
+      "conversation.channel_account_id",
+    )
+    .select([
+      "conversation.legacy_contact_id",
+      "conversation.archived_at",
+      "account.status as account_status",
+      "account.archived_at as account_archived_at",
+    ])
+    .where("conversation.id", "=", claim.conversationId)
+    .where("conversation.channel_account_id", "=", claim.channelAccountId)
     .executeTakeFirst();
-  if (!conversation || conversation.archived_at) return false;
-  if (member.permissions.can_view_all_chats) return true;
-  if (!conversation.legacy_contact_id) return false;
+  if (
+    !conversation ||
+    conversation.archived_at ||
+    conversation.account_archived_at ||
+    conversation.account_status !== "connected"
+  ) {
+    return false;
+  }
+  if (conversation.legacy_contact_id) {
+    const contact = await tenantDb
+      .selectFrom("contacts")
+      .select("is_blocked")
+      .where("id", "=", conversation.legacy_contact_id)
+      .executeTakeFirst();
+    if (!contact || contact.is_blocked) return false;
+  }
   const assignment = await tenantDb
     .selectFrom("contact_assignments")
-    .select("id")
-    .where("contact_id", "=", conversation.legacy_contact_id)
-    .where("assigned_to", "=", actorUserId)
+    .select("assigned_to")
     .where("unassigned_at", "is", null)
+    .where((eb) =>
+      eb.or([
+        eb("conversation_id", "=", claim.conversationId),
+        conversation.legacy_contact_id
+          ? eb("contact_id", "=", conversation.legacy_contact_id)
+          : eb.val(false),
+      ]),
+    )
     .executeTakeFirst();
-  return Boolean(assignment);
+  if (assignment) return assignment.assigned_to === actorUserId;
+  return member.permissions.can_view_all_chats;
 }
 
 async function completeClaim(
@@ -324,6 +354,7 @@ async function completeClaim(
     if (
       fenced.message_id &&
       !transient &&
+      failure.outcome !== "uncertain" &&
       !claim.operation.startsWith("action:")
     ) {
       await trx

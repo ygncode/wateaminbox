@@ -387,6 +387,23 @@ export async function purgeArchivedConnection(
       .where("group_id", "in", groupIds)
       .execute();
     await trx.deleteFrom("groups").where("id", "in", groupIds).execute();
+    await trx
+      .deleteFrom("outbound_message_intents")
+      .where("channel_account_id", "=", connectionId)
+      .execute();
+    await trx
+      .deleteFrom("channel_event_inbox")
+      .where("channel_account_id", "=", connectionId)
+      .execute();
+    await trx
+      .deleteFrom("contact_endpoint_reassignment_events")
+      .where("contact_endpoint_id", "in", (eb) =>
+        eb
+          .selectFrom("contact_endpoints")
+          .select("id")
+          .where("channel_account_id", "=", connectionId),
+      )
+      .execute();
     const deletedMessages = await trx
       .deleteFrom("messages")
       .where((eb) =>

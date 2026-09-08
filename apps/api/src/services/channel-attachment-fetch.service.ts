@@ -239,6 +239,8 @@ export function storedContentType(
     if (!type) continue;
     if (
       type === "image/svg+xml" ||
+      type === "image/svg" ||
+      type.startsWith("image/svg") ||
       type.endsWith("+xml") ||
       type.startsWith("text/") ||
       type.includes("javascript") ||

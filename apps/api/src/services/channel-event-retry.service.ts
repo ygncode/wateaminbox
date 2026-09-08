@@ -9,6 +9,7 @@ import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
 } from "./channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "./channel-spine-readiness.service.js";
 import { getTenantConnection } from "./tenant.service.js";
 
 const logger = createLogger("ChannelEventRetry");
@@ -27,6 +28,7 @@ export async function dispatchNextChannelEventRetry(): Promise<number> {
     const authority = await getChannelSpineWorkspaceAuthority(company.id);
     if (authority.writeAuthority !== "neutral") continue;
     const tenantDb = await getTenantConnection(company.id);
+    if (!(await isChannelSpineTenantReady(tenantDb))) continue;
     const row = await tenantDb
       .selectFrom("channel_event_inbox")
       .select([

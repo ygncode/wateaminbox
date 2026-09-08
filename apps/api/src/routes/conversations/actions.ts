@@ -14,6 +14,7 @@ import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
 } from "../../services/channel-spine-authority.service.js";
+import { requireSendAccess } from "../../services/send-access.service.js";
 
 const actionSchema = z
   .object({
@@ -60,6 +61,7 @@ neutralActionRoutes.post(
       .select([
         "conversation.id",
         "conversation.channel_account_id",
+        "conversation.legacy_contact_id",
         "account.channel",
         "account.provider",
       ])
@@ -138,24 +140,32 @@ neutralActionRoutes.post(
         202,
       );
     }
-    const intent = await tenantDb
-      .insertInto("outbound_message_intents")
-      .values({
-        channel_account_id: conversation.channel_account_id,
-        conversation_id: conversationId,
-        message_id: body.messageId,
-        scheduled_message_id: null,
-        operation,
-        idempotency_key: idempotencyKey,
-        request_fingerprint: fingerprint,
-        normalized_payload: payload,
-        lease_token: null,
-        lease_expires_at: null,
-        provider_request_id: null,
-        last_error_code: null,
-      })
-      .returning("id")
-      .executeTakeFirstOrThrow();
+    if (!conversation.legacy_contact_id) {
+      return conflict(c, "Conversation is not ready for send");
+    }
+    const intent = await tenantDb.transaction().execute(async (trx) => {
+      await requireSendAccess(trx, conversation.legacy_contact_id!, user.id, {
+        claimUnassigned: false,
+      });
+      return trx
+        .insertInto("outbound_message_intents")
+        .values({
+          channel_account_id: conversation.channel_account_id,
+          conversation_id: conversationId,
+          message_id: body.messageId,
+          scheduled_message_id: null,
+          operation,
+          idempotency_key: idempotencyKey,
+          request_fingerprint: fingerprint,
+          normalized_payload: payload,
+          lease_token: null,
+          lease_expires_at: null,
+          provider_request_id: null,
+          last_error_code: null,
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow();
+    });
     return successData(c, { intentId: intent.id, status: "pending" }, 202);
   },
 );

@@ -456,6 +456,7 @@ messageRoutes.post(
       .select([
         "conversation.id",
         "conversation.channel_account_id",
+        "conversation.legacy_contact_id",
         "conversation.external_thread_id",
         "account.channel",
         "account.provider",
@@ -557,15 +558,23 @@ messageRoutes.post(
           202,
         );
       }
+      if (!neutralConversation.legacy_contact_id) {
+        return conflict(c, "Conversation is not ready for send");
+      }
       const messageId = crypto.randomUUID();
       await tenantDb.transaction().execute(async (trx) => {
         await reserveMediaReferences(trx, companyId, [storedMediaReference]);
+        const access = await requireSendAccess(
+          trx,
+          neutralConversation.legacy_contact_id!,
+          user.id,
+        );
         await trx
           .insertInto("messages")
           .values({
             id: messageId,
             whatsapp_connection_id: null,
-            contact_id: null,
+            contact_id: neutralConversation.legacy_contact_id,
             message_id: null,
             from_me: true,
             sender_jid: null,
@@ -588,7 +597,7 @@ messageRoutes.post(
             status: "pending",
             metadata: {},
             timestamp: new Date(),
-            case_id: null,
+            case_id: access.caseId,
             channel_account_id: neutralConversation.channel_account_id,
             conversation_id: neutralConversation.id,
             external_message_id: null,

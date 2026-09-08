@@ -29,18 +29,32 @@ export function requireConversationVisibility(paramName = "id") {
     const { tenantDb, permissions } = getRouteContext(c);
     const conversation = await tenantDb
       .selectFrom("conversations")
-      .select("legacy_contact_id")
+      .select(["id", "legacy_contact_id"])
       .where("id", "=", id)
       .where("archived_at", "is", null)
       .executeTakeFirst();
-    const visible =
-      Boolean(conversation) &&
-      (permissions.can_view_all_chats ||
-        Boolean(
-          conversation?.legacy_contact_id &&
-            (await hasContactVisibility(c, conversation.legacy_contact_id)),
-        ));
-    if (!visible) {
+    if (!conversation) {
+      throw new HTTPException(404, { message: "Conversation not found" });
+    }
+    if (permissions.can_view_all_chats) {
+      await next();
+      return;
+    }
+    const assignment = await tenantDb
+      .selectFrom("contact_assignments")
+      .select("id")
+      .where("assigned_to", "=", getRouteContext(c).user.id)
+      .where("unassigned_at", "is", null)
+      .where((eb) =>
+        eb.or([
+          eb("conversation_id", "=", conversation.id),
+          conversation.legacy_contact_id
+            ? eb("contact_id", "=", conversation.legacy_contact_id)
+            : eb.val(false),
+        ]),
+      )
+      .executeTakeFirst();
+    if (!assignment) {
       throw new HTTPException(404, { message: "Conversation not found" });
     }
     await next();

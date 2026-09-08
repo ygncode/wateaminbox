@@ -1,6 +1,7 @@
 import type { TenantDatabase } from "@wateaminbox/database";
 import { createHash } from "node:crypto";
 import type { Transaction } from "kysely";
+import { isChannelSpineTenantReady } from "../../../services/channel-spine-readiness.service.js";
 
 export interface LinkedDeviceBridge {
   channelAccountId: string;
@@ -532,6 +533,7 @@ export async function shadowLinkedDeviceLegacyMutation(
   legacyContactId: string,
   messageId?: string,
 ): Promise<boolean> {
+  if (!(await isChannelSpineTenantReady(trx))) return false;
   let errorCode: string | null = null;
   try {
     await trx.transaction().execute(async (savepoint) => {

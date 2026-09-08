@@ -59,8 +59,9 @@ Do not treat the RFC as complete. Still missing or incomplete:
 - Database integration tests require `RUN_DB_INTEGRATION=1` and PostgreSQL.
 - Docker/Go worker validation is blocked until the daemon and vendored
   `whatsmeow` are available.
-- Linked-device purge now removes the matching channel-account graph, but
-  Telegram account purge/reset/export paths are not yet equivalent.
+- Linked-device purge deletes intents, inbox rows, the channel-account graph,
+  and public routing rows. Telegram-only purge/reset/export is not equivalent.
+- Uncertain Telegram sends keep the local message pending; do not retry them.
 
 ## Recovery notes
 

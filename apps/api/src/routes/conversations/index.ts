@@ -56,13 +56,22 @@ conversationRoutes.get("/", async (c) => {
           eb
             .selectFrom("contact_assignments as assignment")
             .select("assignment.id")
-            .whereRef(
-              "assignment.contact_id",
-              "=",
-              "conversation.legacy_contact_id",
-            )
             .where("assignment.assigned_to", "=", user.id)
-            .where("assignment.unassigned_at", "is", null),
+            .where("assignment.unassigned_at", "is", null)
+            .where((inner) =>
+              inner.or([
+                inner(
+                  "assignment.conversation_id",
+                  "=",
+                  eb.ref("conversation.id"),
+                ),
+                inner(
+                  "assignment.contact_id",
+                  "=",
+                  eb.ref("conversation.legacy_contact_id"),
+                ),
+              ]),
+            ),
         ),
       ),
     )

@@ -10,6 +10,10 @@ import {
 import type { Kysely, Transaction } from "kysely";
 import { sql } from "kysely";
 import { createHash } from "node:crypto";
+import {
+  openOrReopenCaseForInboundMessage,
+  resolveActiveCaseIdForContact,
+} from "../../services/conversation-case.service.js";
 
 export interface AppliedChannelEvent {
   outcome: "applied" | "duplicate" | "transient";
@@ -294,6 +298,12 @@ async function applyMessageUpsert(
   const senderEndpointId = payload.sender
     ? await ensureEndpoint(trx, event, payload.sender)
     : null;
+  const contactId = await attachWorkflowContact(
+    trx,
+    conversationId,
+    payload.conversation,
+    senderEndpointId,
+  );
   const occurredAt = new Date(event.providerOccurredAt ?? event.receivedAt);
   const existing = await trx
     .selectFrom("messages")
@@ -312,7 +322,7 @@ async function applyMessageUpsert(
 
   const values = {
     whatsapp_connection_id: null,
-    contact_id: null,
+    contact_id: contactId,
     message_id: payload.externalMessageId,
     from_me: payload.direction === "outbound",
     sender_jid: payload.sender?.externalId ?? null,
@@ -414,6 +424,29 @@ async function applyMessageUpsert(
         oc.columns(["message_id", "role", "ordinal"]).doNothing(),
       )
       .execute();
+  }
+  if (!existing && payload.direction === "inbound" && contactId) {
+    const conversation = await trx
+      .selectFrom("conversations")
+      .select("kind")
+      .where("id", "=", conversationId)
+      .executeTakeFirstOrThrow();
+    const caseResult = await openOrReopenCaseForInboundMessage(
+      trx,
+      event.companyId,
+      { id: contactId, isGroup: conversation.kind !== "direct" },
+      { id: messageId, timestamp: occurredAt },
+    );
+    const caseId =
+      caseResult?.case.id ??
+      (await resolveActiveCaseIdForContact(trx, contactId));
+    if (caseId) {
+      await trx
+        .updateTable("messages")
+        .set({ case_id: caseId })
+        .where("id", "=", messageId)
+        .execute();
+    }
   }
   await replaceAttachments(trx, messageId, payload);
   await trx
@@ -583,7 +616,9 @@ async function applyAttachmentEvent(
     })
     .onConflict((oc) =>
       oc.columns(["message_id", "ordinal"]).doUpdateSet({
-        storage_uri: attachment.storageUri ?? null,
+        storage_uri: attachment.storageUri
+          ? attachment.storageUri
+          : sql`message_attachments.storage_uri`,
         status: event.kind === "attachment.failed" ? "failed" : "available",
         error_code: attachment.errorCode ?? null,
         updated_at: new Date(),
@@ -682,6 +717,74 @@ async function applySyncCheckpoint(
     )
     .execute();
   return { conversationId };
+}
+
+async function attachWorkflowContact(
+  trx: Transaction<TenantDatabase>,
+  conversationId: string,
+  reference: ExternalConversationReference,
+  senderEndpointId: string | null,
+): Promise<string | null> {
+  const conversation = await trx
+    .selectFrom("conversations")
+    .select(["id", "kind", "legacy_contact_id", "subject"])
+    .where("id", "=", conversationId)
+    .forUpdate()
+    .executeTakeFirstOrThrow();
+  if (conversation.legacy_contact_id) return conversation.legacy_contact_id;
+
+  let contactId: string | null = null;
+  if (conversation.kind === "direct" && senderEndpointId) {
+    const endpoint = await trx
+      .selectFrom("contact_endpoints")
+      .select(["id", "contact_id", "display_name", "address_display"])
+      .where("id", "=", senderEndpointId)
+      .forUpdate()
+      .executeTakeFirstOrThrow();
+    if (endpoint.contact_id) {
+      contactId = endpoint.contact_id;
+    } else {
+      contactId = crypto.randomUUID();
+      await trx
+        .insertInto("contacts")
+        .values({
+          id: contactId,
+          whatsapp_connection_id: null,
+          jid: null,
+          custom_name: endpoint.display_name,
+          display_name: endpoint.display_name ?? endpoint.address_display,
+          record_kind: "customer",
+          is_group: false,
+        })
+        .execute();
+      await trx
+        .updateTable("contact_endpoints")
+        .set({ contact_id: contactId, updated_at: new Date() })
+        .where("id", "=", endpoint.id)
+        .execute();
+    }
+  } else if (conversation.kind !== "direct") {
+    contactId = crypto.randomUUID();
+    await trx
+      .insertInto("contacts")
+      .values({
+        id: contactId,
+        whatsapp_connection_id: null,
+        jid: null,
+        custom_name: reference.subject ?? conversation.subject,
+        display_name: reference.subject ?? conversation.subject,
+        record_kind: "legacy_group_projection",
+        is_group: true,
+      })
+      .execute();
+  }
+  if (!contactId) return null;
+  await trx
+    .updateTable("conversations")
+    .set({ legacy_contact_id: contactId, updated_at: new Date() })
+    .where("id", "=", conversationId)
+    .execute();
+  return contactId;
 }
 
 async function ensureConversation(

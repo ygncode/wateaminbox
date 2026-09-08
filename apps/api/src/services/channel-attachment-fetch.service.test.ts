@@ -10,6 +10,7 @@ describe("stored attachment content type", () => {
     expect(storedContentType("text/html", "image/svg+xml")).toBe(
       "application/octet-stream",
     );
+    expect(storedContentType("image/svg")).toBe("application/octet-stream");
     expect(storedContentType("application/javascript")).toBe(
       "application/octet-stream",
     );
