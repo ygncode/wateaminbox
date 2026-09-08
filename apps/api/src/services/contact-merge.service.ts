@@ -1,0 +1,96 @@
+import type { TenantDatabase } from "@wateaminbox/database";
+import type { Kysely } from "kysely";
+import {
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from "../lib/errors.js";
+
+export async function mergeContacts(
+  tenantDb: Kysely<TenantDatabase>,
+  input: {
+    sourceContactId: string;
+    targetContactId: string;
+    actorUserId: string;
+    reason: string;
+  },
+): Promise<{ mergeEventId: string; movedEndpoints: number }> {
+  if (input.sourceContactId === input.targetContactId) {
+    throw new ValidationError("A contact cannot be merged into itself");
+  }
+  return tenantDb.transaction().execute(async (trx) => {
+    const [source, target] = await Promise.all([
+      trx
+        .selectFrom("contacts")
+        .select(["id", "is_group", "merged_into_contact_id"])
+        .where("id", "=", input.sourceContactId)
+        .forUpdate()
+        .executeTakeFirst(),
+      trx
+        .selectFrom("contacts")
+        .select(["id", "is_group", "merged_into_contact_id"])
+        .where("id", "=", input.targetContactId)
+        .forUpdate()
+        .executeTakeFirst(),
+    ]);
+    if (!source || !target) throw new NotFoundError("Contact");
+    if (source.is_group || target.is_group) {
+      throw new ValidationError("Group contacts cannot be merged");
+    }
+    if (source.merged_into_contact_id || target.merged_into_contact_id) {
+      throw new ConflictError("One of the contacts has already been merged");
+    }
+
+    const endpoints = await trx
+      .selectFrom("contact_endpoints")
+      .select(["id", "contact_id", "channel", "provider", "external_id"])
+      .where("contact_id", "=", source.id)
+      .execute();
+
+    const mergeEvent = await trx
+      .insertInto("contact_merge_events")
+      .values({
+        source_contact_id: source.id,
+        target_contact_id: target.id,
+        actor_user_id: input.actorUserId,
+        reason: input.reason,
+        endpoint_snapshot: endpoints,
+      })
+      .returning("id")
+      .executeTakeFirstOrThrow();
+
+    for (const endpoint of endpoints) {
+      await trx
+        .updateTable("contact_endpoints")
+        .set({ contact_id: target.id, updated_at: new Date() })
+        .where("id", "=", endpoint.id)
+        .execute();
+      await trx
+        .insertInto("contact_endpoint_reassignment_events")
+        .values({
+          merge_event_id: mergeEvent.id,
+          contact_endpoint_id: endpoint.id,
+          previous_contact_id: source.id,
+          new_contact_id: target.id,
+          actor_user_id: input.actorUserId,
+          reason: input.reason,
+        })
+        .execute();
+    }
+
+    await trx
+      .updateTable("contacts")
+      .set({
+        merged_into_contact_id: target.id,
+        archived_at: new Date(),
+        updated_at: new Date(),
+      })
+      .where("id", "=", source.id)
+      .execute();
+
+    return {
+      mergeEventId: mergeEvent.id,
+      movedEndpoints: endpoints.length,
+    };
+  });
+}
