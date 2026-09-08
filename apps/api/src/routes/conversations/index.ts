@@ -7,6 +7,7 @@ import { tenantMiddleware } from "../../middleware/tenant.js";
 import { getChannelSpineWorkspaceAuthority } from "../../services/channel-spine-authority.service.js";
 import { neutralActionRoutes } from "./actions.js";
 import { analyticsRoutes } from "./analytics.js";
+import { conversationAssignmentRoutes } from "./assignment.js";
 import { messageRoutes } from "./messages.js";
 import { metadataRoutes } from "./metadata.js";
 import { stateRoutes } from "./state.js";
@@ -109,6 +110,7 @@ conversationRoutes.route("/", analyticsRoutes);
 // Resource routes below this point address a real contact ID.
 conversationRoutes.use("/:id/*", requireConversationVisibility());
 conversationRoutes.route("/", stateRoutes);
+conversationRoutes.route("/", conversationAssignmentRoutes);
 conversationRoutes.route("/", messageRoutes);
 conversationRoutes.route("/", metadataRoutes);
 conversationRoutes.route("/", neutralActionRoutes);

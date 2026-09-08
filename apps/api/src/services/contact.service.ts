@@ -2,6 +2,7 @@ import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { normalizePhoneNumber } from "../lib/schemas.js";
+import { conversationIdForContact } from "./channel-workflow.service.js";
 import { buildContactWhereClause } from "./helpers/contact-query-builder.js";
 import { getSchemaName, type TenantDatabase } from "./tenant.service.js";
 import { getUserNames } from "./user.service.js";
@@ -380,10 +381,12 @@ export async function assignContactToUser(
     .execute();
 
   // Create new assignment
+  const conversationId = await conversationIdForContact(tenantDb, contactId);
   const assignment = await tenantDb
     .insertInto("contact_assignments")
     .values({
       contact_id: contactId,
+      conversation_id: conversationId,
       assigned_to: userId,
       assigned_by: assignedByUserId,
     })

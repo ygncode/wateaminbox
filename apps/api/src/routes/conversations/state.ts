@@ -20,6 +20,7 @@ import {
   resumePendingCase,
   setActiveCasePending,
 } from "../../services/conversation-case.service.js";
+import { contactIdForConversation } from "../../services/channel-workflow.service.js";
 import { getConversationState } from "../../services/conversation-state.service.js";
 
 export const stateRoutes = new Hono();
@@ -43,6 +44,16 @@ async function loadContact(
     .executeTakeFirst();
 }
 
+async function loadWorkflowContact(
+  tenantDb: ReturnType<typeof getRouteContext>["tenantDb"],
+  id: string,
+) {
+  const contact = await loadContact(tenantDb, id);
+  if (contact) return contact;
+  const contactId = await contactIdForConversation(tenantDb, id);
+  return contactId ? loadContact(tenantDb, contactId) : undefined;
+}
+
 /**
  * GET /conversations/:id/state - Get the conversation lifecycle state (the
  * current projection plus the active case, if any) for a contact.
@@ -52,7 +63,8 @@ async function loadContact(
  */
 stateRoutes.get("/:id/state", async (c) => {
   const { tenantDb } = getRouteContext(c);
-  const contactId = c.req.param("id")!;
+  const contact = await loadWorkflowContact(tenantDb, c.req.param("id")!);
+  const contactId = contact?.id ?? c.req.param("id")!;
 
   const [state, activeCase, caseHistory] = await Promise.all([
     getConversationState(tenantDb, contactId),
@@ -87,13 +99,14 @@ stateRoutes.post(
   zValidator("json", resolveConversationSchema),
   async (c) => {
     const { tenantDb, user, companyId } = getRouteContext(c);
-    const contactId = c.req.param("id")!;
+    let contactId = c.req.param("id")!;
     const { outcome, notes } = c.req.valid("json");
 
-    const contact = await loadContact(tenantDb, contactId);
+    const contact = await loadWorkflowContact(tenantDb, contactId);
     if (!contact) {
       return notFound(c, "Contact");
     }
+    contactId = contact.id;
 
     const resolvedCase = await resolveActiveCase(tenantDb, contactId, {
       outcome,
@@ -148,12 +161,13 @@ async function performManualOpenOrReopen(
   reason: string | undefined,
 ) {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  const contactId = c.req.param("id")!;
+  let contactId = c.req.param("id")!;
 
-  const contact = await loadContact(tenantDb, contactId);
+  const contact = await loadWorkflowContact(tenantDb, contactId);
   if (!contact) {
     return notFound(c, "Contact");
   }
+  contactId = contact.id;
 
   const newCase = await reopenAsNewCase(
     tenantDb,
@@ -238,12 +252,13 @@ stateRoutes.post(
  */
 stateRoutes.post("/:id/pending", requireMessageSendPermission, async (c) => {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  const contactId = c.req.param("id")!;
+  let contactId = c.req.param("id")!;
 
-  const contact = await loadContact(tenantDb, contactId);
+  const contact = await loadWorkflowContact(tenantDb, contactId);
   if (!contact) {
     return notFound(c, "Contact");
   }
+  contactId = contact.id;
 
   const pendingCase = await setActiveCasePending(tenantDb, contactId, user.id);
 
@@ -287,12 +302,13 @@ stateRoutes.post("/:id/pending", requireMessageSendPermission, async (c) => {
  */
 stateRoutes.post("/:id/resume", requireMessageSendPermission, async (c) => {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  const contactId = c.req.param("id")!;
+  let contactId = c.req.param("id")!;
 
-  const contact = await loadContact(tenantDb, contactId);
+  const contact = await loadWorkflowContact(tenantDb, contactId);
   if (!contact) {
     return notFound(c, "Contact");
   }
+  contactId = contact.id;
 
   const openedCase = await resumePendingCase(tenantDb, contactId, user.id);
 
@@ -329,18 +345,13 @@ stateRoutes.post("/:id/resume", requireMessageSendPermission, async (c) => {
  */
 stateRoutes.post("/:id/read", async (c) => {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  const contactId = c.req.param("id")!;
+  let contactId = c.req.param("id")!;
 
-  // Verify contact exists
-  const contact = await tenantDb
-    .selectFrom("contacts")
-    .select(["id"])
-    .where("id", "=", contactId)
-    .executeTakeFirst();
-
+  const contact = await loadWorkflowContact(tenantDb, contactId);
   if (!contact) {
     return notFound(c, "Contact");
   }
+  contactId = contact.id;
 
   // Update conversation_states to reset unread count and record read time
   const updateResult = await tenantDb

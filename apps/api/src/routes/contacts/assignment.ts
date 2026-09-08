@@ -10,6 +10,7 @@ import { requirePermission } from "../../middleware/tenant.js";
 import { broadcastContactAssignmentEvent } from "../../services/assignment-broadcast.service.js";
 import { decideContactAssignment } from "../../services/assignment-policy.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
+import { conversationIdForContact } from "../../services/channel-workflow.service.js";
 import { getCurrentAssignment } from "../../services/contact.service.js";
 import { getAssignmentNotificationInputs } from "../../services/assignment-notification.service.js";
 import { createAndPublishNotifications } from "../../services/notification-delivery.service.js";
@@ -117,6 +118,7 @@ assignmentRoutes.post(
         .insertInto("contact_assignments")
         .values({
           contact_id: contactId,
+          conversation_id: await conversationIdForContact(trx, contactId),
           assigned_to: targetUserId,
           assigned_by: user.id,
         })

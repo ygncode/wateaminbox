@@ -89,6 +89,7 @@ import {
   NotFoundError,
   ValidationError,
 } from "../lib/errors.js";
+import { conversationIdForContact } from "./channel-workflow.service.js";
 import { getCurrentAssignment, unassignContact } from "./contact.service.js";
 import {
   getCurrentSlaPolicy,
@@ -386,6 +387,7 @@ async function syncProjection(
 ): Promise<void> {
   const updateSet: Record<string, unknown> = {
     active_case_id: sync.activeCaseId,
+    conversation_id: await conversationIdForContact(trx, contactId),
     status: sync.status,
     updated_at: toDbDate(),
   };
@@ -400,6 +402,7 @@ async function syncProjection(
     .insertInto("conversation_states")
     .values({
       contact_id: contactId,
+      conversation_id: await conversationIdForContact(trx, contactId),
       active_case_id: sync.activeCaseId,
       status: sync.status,
       resolved_at: sync.resolvedAt ?? null,
@@ -450,6 +453,7 @@ export async function openOrReopenCaseForInboundMessage(
   unassignedPreviousAssignee: string | null;
 } | null> {
   await lockContact(trx, contact.id);
+  const conversationId = await conversationIdForContact(trx, contact.id);
   // Authoritative server ingestion time - NEVER the WhatsApp-supplied
   // `message.timestamp`, which can be delayed, out of order, or (for a
   // first-ever live inbound with a future-dated client clock) even later
@@ -487,12 +491,12 @@ export async function openOrReopenCaseForInboundMessage(
   );
   const insertResult = await sql<ConversationCaseRow>`
     INSERT INTO ${casesTable} (
-      contact_id, kind, status, opened_at, opening_message_id,
+      contact_id, conversation_id, company_id, kind, status, opened_at, opening_message_id,
       open_source, opened_by, policy_id, response_target_minutes,
       resolution_target_minutes, reopened_from_case_id
     )
     VALUES (
-      ${contact.id}, ${kind}, 'open', ${serverNow}, ${message.id},
+      ${contact.id}, ${conversationId}, ${companyId}, ${kind}, 'open', ${serverNow}, ${message.id},
       'live_inbound', NULL, ${policy.id}, ${targets.responseTargetMinutes},
       ${targets.resolutionTargetMinutes}, ${priorCase?.id ?? null}
     )
@@ -861,12 +865,12 @@ export async function openCaseWithin(
     );
     const insertResult = await sql<ConversationCaseRow>`
       INSERT INTO ${casesTable} (
-        contact_id, kind, status, opened_at, opening_message_id,
+        contact_id, conversation_id, company_id, kind, status, opened_at, opening_message_id,
         open_source, opened_by, policy_id, response_target_minutes,
         resolution_target_minutes, reopened_from_case_id, reopen_reason
       )
       VALUES (
-        ${contact.id}, ${kind}, 'open', ${openedAt}, NULL,
+        ${contact.id}, ${await conversationIdForContact(trx, contact.id)}, ${input.companyId}, ${kind}, 'open', ${openedAt}, NULL,
         'manual', ${input.openedBy}, ${policy.id}, ${targets.responseTargetMinutes},
         ${targets.resolutionTargetMinutes}, ${priorCase?.id ?? null}, ${reason}
       )
