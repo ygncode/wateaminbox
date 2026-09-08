@@ -1,4 +1,4 @@
-import { formatChatListTime } from "@wateaminbox/shared";
+import { formatChatListTime, isChannel } from "@wateaminbox/shared";
 import { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
@@ -235,14 +235,24 @@ export const ChatListItem = memo(function ChatListItem({
             {chat.conversationStatus !== "open" && (
               <ConversationStatusBadge status={chat.conversationStatus} />
             )}
-            {contact.connection && (
+            {(contact.channel || contact.connection) && (
               <>
-                <ChannelBadge channel="whatsapp" compact iconOnly />
-                <ConnectionBadge
-                  connection={contact.connection}
+                <ChannelBadge
+                  channel={
+                    contact.channel && isChannel(contact.channel)
+                      ? contact.channel
+                      : "whatsapp"
+                  }
                   compact
-                  className="max-w-[92px] shrink-0"
+                  iconOnly
                 />
+                {contact.connection && (
+                  <ConnectionBadge
+                    connection={contact.connection}
+                    compact
+                    className="max-w-[92px] shrink-0"
+                  />
+                )}
               </>
             )}
             {/* Message Status Icon for sent messages */}

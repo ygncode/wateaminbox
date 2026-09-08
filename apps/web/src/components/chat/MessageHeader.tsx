@@ -1,5 +1,5 @@
 import type { Contact } from "@wateaminbox/shared";
-import { formatLastSeen } from "@wateaminbox/shared";
+import { formatLastSeen, isChannel } from "@wateaminbox/shared";
 import { ArrowLeft, Info, MoreVertical, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { CONVERSATION_HEADER_INSET_CLASS } from "@/components/layout/conversation-chrome";
@@ -133,19 +133,25 @@ export function MessageHeader({
             </h2>
             {/* The account pill needs room to stay legible; on a phone the
                 same routing is carried by the status line below instead. */}
-            {contact.connection && (
+            {(contact.channel || contact.connection) && (
               <>
                 <ChannelBadge
-                  channel="whatsapp"
+                  channel={
+                    contact.channel && isChannel(contact.channel)
+                      ? contact.channel
+                      : "whatsapp"
+                  }
                   compact
                   iconOnly
                   className="hidden md:inline-flex"
                 />
-                <ConnectionBadge
-                  connection={contact.connection}
-                  compact
-                  className="hidden max-w-[110px] shrink md:inline-flex"
-                />
+                {contact.connection && (
+                  <ConnectionBadge
+                    connection={contact.connection}
+                    compact
+                    className="hidden max-w-[110px] shrink md:inline-flex"
+                  />
+                )}
               </>
             )}
           </span>

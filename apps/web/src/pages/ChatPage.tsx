@@ -47,6 +47,7 @@ import { useCreateContact } from "../hooks/useContact";
 import { useGroup } from "../hooks/useGroups";
 import { useWhatsAppConnectionsList } from "../hooks/whatsapp";
 import { sendChannelMessage } from "../lib/api/channel-conversations";
+import { uploadMedia } from "../lib/api/messages";
 import { ApiRequestError } from "../lib/api/client";
 import { cn } from "../lib/utils";
 import {
@@ -162,6 +163,41 @@ export function ChatPage() {
       handleSendMessage(content, replyToMessageId, mentionedJids);
     },
     [channelConversation, handleClearReply, handleSendMessage],
+  );
+  const handleChannelAttachFile = useCallback(
+    async (
+      files: File[],
+      type: "image" | "document",
+      caption: string,
+    ): Promise<boolean> => {
+      if (!channelConversation) {
+        return handleAttachFile(files, type, caption);
+      }
+      try {
+        for (const [index, file] of files.entries()) {
+          const uploaded = await uploadMedia(file);
+          let messageType: "image" | "video" | "audio" | "document" =
+            "document";
+          if (uploaded.mimeType.startsWith("image/")) messageType = "image";
+          else if (uploaded.mimeType.startsWith("video/"))
+            messageType = "video";
+          else if (uploaded.mimeType.startsWith("audio/"))
+            messageType = "audio";
+          await sendChannelMessage(channelConversation.id, {
+            content: index === 0 ? caption : "",
+            messageType,
+            mediaUrl: uploaded.mediaUrl,
+          });
+        }
+        return true;
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to send attachment",
+        );
+        return false;
+      }
+    },
+    [channelConversation, handleAttachFile],
   );
 
   const handleOpenSharedContact = useCallback((contact: SharedContactCard) => {
@@ -360,7 +396,7 @@ export function ChatPage() {
                   replyToMessage={replyToMessage}
                   onClearReply={handleClearReply}
                   onSendMessage={handleChannelSendMessage}
-                  onAttachFile={handleAttachFile}
+                  onAttachFile={handleChannelAttachFile}
                   disabled={isSending}
                   connection={selectedContact.connection}
                   currentUserName={user?.name}
@@ -374,7 +410,7 @@ export function ChatPage() {
                 replyToMessage={replyToMessage}
                 onClearReply={handleClearReply}
                 onSendMessage={handleSendMessage}
-                onAttachFile={handleAttachFile}
+                onAttachFile={handleChannelAttachFile}
                 disabled={isSending}
                 connection={selectedContact.connection}
                 currentUserName={user?.name}
