@@ -52,7 +52,7 @@ export async function purgeArchivedChannelAccount(
             "attachment.message_id",
           )
           .select([
-            eb.val(accountId).as("connection_id"),
+            sql<string>`${accountId}::uuid`.as("connection_id"),
             eb.val("media" as const).as("kind"),
             "attachment.storage_uri as reference",
           ])
@@ -82,20 +82,43 @@ export async function purgeArchivedChannelAccount(
           .where("channel_account_id", "=", accountId),
       )
       .execute();
-    if (contactIds.length > 0) {
-      await trx
-        .deleteFrom("conversation_cases")
-        .where("contact_id", "in", contactIds)
-        .execute();
-      await trx
-        .deleteFrom("conversation_states")
-        .where("contact_id", "in", contactIds)
-        .execute();
-      await trx
-        .deleteFrom("contact_assignments")
-        .where("contact_id", "in", contactIds)
-        .execute();
-    }
+    const conversations = trx
+      .selectFrom("conversations")
+      .select("id")
+      .where("channel_account_id", "=", accountId);
+    await trx
+      .deleteFrom("conversation_cases")
+      .where((eb) =>
+        eb.or([
+          eb("conversation_id", "in", conversations),
+          contactIds.length > 0
+            ? eb("contact_id", "in", contactIds)
+            : eb.val(false),
+        ]),
+      )
+      .execute();
+    await trx
+      .deleteFrom("conversation_states")
+      .where((eb) =>
+        eb.or([
+          eb("conversation_id", "in", conversations),
+          contactIds.length > 0
+            ? eb("contact_id", "in", contactIds)
+            : eb.val(false),
+        ]),
+      )
+      .execute();
+    await trx
+      .deleteFrom("contact_assignments")
+      .where((eb) =>
+        eb.or([
+          eb("conversation_id", "in", conversations),
+          contactIds.length > 0
+            ? eb("contact_id", "in", contactIds)
+            : eb.val(false),
+        ]),
+      )
+      .execute();
     const deletedMessages = await trx
       .deleteFrom("messages")
       .where("channel_account_id", "=", accountId)
