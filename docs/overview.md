@@ -112,3 +112,4 @@ CI runs a frozen install followed by all three commands and a forced clean build
 - [WhatsApp Connection Flow](whatsapp-connection-flow.md)
 - [WhatsApp Synchronization Flow](whatsapp-sync-flow.md)
 - [Typing Indicator Flow](typing-indicator-flow.md)
+- [Channel-neutral messaging spine (RFC)](channel-neutral-spine-rfc.md) — proposed architecture; not live behavior
