@@ -26,6 +26,7 @@ import { actionsRoutes } from "./actions/index.js";
 import { apiTokenRoutes } from "./api-tokens.js";
 import { oauthRoutes } from "./oauth.js";
 import { mcpRoutes } from "./mcp/index.js";
+import { channelAccountRoutes } from "./channel-accounts.js";
 
 export const routes = new Hono();
 
@@ -39,8 +40,9 @@ routes.route("/auth", authRoutes);
 routes.route("/companies", companyRoutes);
 routes.route("/invitations", invitationRoutes);
 
-// WhatsApp routes
+// WhatsApp compatibility and channel-neutral account routes
 routes.route("/whatsapp", whatsappRoutes);
+routes.route("/channel-accounts", channelAccountRoutes);
 
 // Contact routes
 routes.route("/contacts", contactRoutes);
