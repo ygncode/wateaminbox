@@ -448,6 +448,30 @@ async function applyMessageUpsert(
         .where("id", "=", messageId)
         .execute();
     }
+    const preview = (payload.textContent ?? "").slice(0, 100) || null;
+    const unreadUpdate = await trx
+      .updateTable("conversation_states")
+      .set((eb) => ({
+        unread_count: eb("unread_count", "+", 1),
+        last_message_at: occurredAt,
+        last_message_preview: preview,
+        updated_at: new Date(),
+      }))
+      .where("contact_id", "=", contactId)
+      .executeTakeFirst();
+    if (Number(unreadUpdate.numUpdatedRows ?? 0) === 0) {
+      await trx
+        .insertInto("conversation_states")
+        .values({
+          contact_id: contactId,
+          conversation_id: conversationId,
+          unread_count: 1,
+          last_message_at: occurredAt,
+          last_message_preview: preview,
+          status: "open",
+        })
+        .execute();
+    }
   }
   await enqueueMessageSearch(
     trx,

@@ -76,128 +76,29 @@ messageRoutes.get(
     const neutralConversation = authority.neutralReadsEnabled
       ? await tenantDb
           .selectFrom("conversations")
-          .select(["id", "provider_status"])
+          .select(["id", "provider_status", "legacy_contact_id"])
           .where("id", "=", contactId)
           .where("archived_at", "is", null)
           .executeTakeFirst()
       : undefined;
-    if (neutralConversation) {
-      let neutralQuery = tenantDb
-        .selectFrom("messages")
-        .select([
-          "id",
-          "channel_account_id",
-          "conversation_id",
-          "external_message_id",
-          "direction",
-          "normalized_type",
-          "subject",
-          "text_content",
-          "sanitized_html_content",
-          "reply_to_message_id",
-          "sent_by_user_id",
-          "status",
-          "provider_occurred_at",
-          "timestamp",
-          "created_at",
-        ])
-        .where("conversation_id", "=", neutralConversation.id)
-        .orderBy("timestamp", "desc")
-        .orderBy("id", "desc")
-        .limit(limit);
-      if (cursor) {
-        const cursorMessage = await tenantDb
-          .selectFrom("messages")
-          .select(["timestamp", "id"])
-          .where("id", "=", cursor)
-          .where("conversation_id", "=", neutralConversation.id)
-          .executeTakeFirst();
-        if (!cursorMessage) return badRequest(c, "Invalid cursor");
-        neutralQuery = neutralQuery.where((eb) =>
-          eb.or([
-            eb("timestamp", "<", cursorMessage.timestamp),
-            eb.and([
-              eb("timestamp", "=", cursorMessage.timestamp),
-              eb("id", "<", cursorMessage.id),
-            ]),
-          ]),
-        );
-      }
-      const messages = await neutralQuery.execute();
-      const messageIds = messages.map(({ id }) => id);
-      const attachments = messageIds.length
-        ? await tenantDb
-            .selectFrom("message_attachments")
-            .select([
-              "id",
-              "message_id",
-              "ordinal",
-              "kind",
-              "file_name",
-              "content_type",
-              "byte_size",
-              "status",
-              "error_code",
-            ])
-            .where("message_id", "in", messageIds)
-            .orderBy("ordinal")
-            .execute()
-        : [];
-      const attachmentsByMessage = new Map<string, typeof attachments>();
-      for (const attachment of attachments) {
-        const current = attachmentsByMessage.get(attachment.message_id) ?? [];
-        current.push(attachment);
-        attachmentsByMessage.set(attachment.message_id, current);
-      }
-      return successData(c, {
-        messages: messages.map((message) => ({
-          id: message.id,
-          channelAccountId: message.channel_account_id,
-          conversationId: message.conversation_id,
-          externalMessageId: message.external_message_id,
-          direction: message.direction,
-          messageType: message.normalized_type,
-          subject: message.subject,
-          textContent: message.text_content,
-          sanitizedHtmlContent: message.sanitized_html_content,
-          replyToMessageId: message.reply_to_message_id,
-          sentByUserId: message.sent_by_user_id,
-          status: message.status,
-          providerOccurredAt: message.provider_occurred_at,
-          timestamp: message.timestamp,
-          createdAt: message.created_at,
-          attachments: (attachmentsByMessage.get(message.id) ?? []).map(
-            (attachment) => ({
-              id: attachment.id,
-              ordinal: attachment.ordinal,
-              kind: attachment.kind,
-              fileName: attachment.file_name,
-              contentType: attachment.content_type,
-              byteSize: attachment.byte_size,
-              status: attachment.status,
-              errorCode: attachment.error_code,
-            }),
-          ),
-        })),
-        hasMore: messages.length === limit,
-        nextCursor:
-          messages.length > 0 ? messages[messages.length - 1].id : null,
-        providerStatus: neutralConversation.provider_status,
-      });
+    const historyConversationId = neutralConversation?.id;
+    if (neutralConversation?.legacy_contact_id) {
+      contactId = neutralConversation.legacy_contact_id;
+    } else if (!historyConversationId) {
+      contactId =
+        (await resolveWorkflowContactId(tenantDb, contactId)) ?? contactId;
     }
-
-    contactId =
-      (await resolveWorkflowContactId(tenantDb, contactId)) ?? contactId;
     const contact = await tenantDb
       .selectFrom("contacts")
       .select(["remote_history_status", "remote_history_updated_at"])
       .where("id", "=", contactId)
       .executeTakeFirst();
-    if (!contact) {
+    if (!contact && !historyConversationId) {
       return notFound(c, "Contact");
     }
-    let remoteHistoryStatus = contact.remote_history_status;
+    let remoteHistoryStatus = contact?.remote_history_status ?? "unknown";
     if (
+      contact &&
       remoteHistoryStatus === "requesting" &&
       (!contact.remote_history_updated_at ||
         contact.remote_history_updated_at.getTime() <=
@@ -217,7 +118,12 @@ messageRoutes.get(
     let query = tenantDb
       .selectFrom("messages")
       .selectAll()
-      .where("contact_id", "=", contactId)
+      .$if(Boolean(historyConversationId), (qb) =>
+        qb.where("conversation_id", "=", historyConversationId!),
+      )
+      .$if(!historyConversationId, (qb) =>
+        qb.where("contact_id", "=", contactId),
+      )
       .orderBy("timestamp", "desc")
       .orderBy("id", "desc")
       .limit(limit);
@@ -227,7 +133,12 @@ messageRoutes.get(
         .selectFrom("messages")
         .select(["timestamp", "id"])
         .where("id", "=", cursor)
-        .where("contact_id", "=", contactId)
+        .$if(Boolean(historyConversationId), (qb) =>
+          qb.where("conversation_id", "=", historyConversationId!),
+        )
+        .$if(!historyConversationId, (qb) =>
+          qb.where("contact_id", "=", contactId),
+        )
         .executeTakeFirst();
 
       if (!cursorMessage) {
@@ -265,14 +176,21 @@ messageRoutes.get(
     >();
     if (quotedIds.length > 0) {
       const connectionIds = [
-        ...new Set(messages.map((message) => message.whatsapp_connection_id)),
+        ...new Set(
+          messages
+            .map((message) => message.whatsapp_connection_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
       ];
-      const quoted = await tenantDb
-        .selectFrom("messages")
-        .selectAll()
-        .where("message_id", "in", quotedIds)
-        .where("whatsapp_connection_id", "in", connectionIds)
-        .execute();
+      const quoted =
+        connectionIds.length > 0
+          ? await tenantDb
+              .selectFrom("messages")
+              .selectAll()
+              .where("message_id", "in", quotedIds)
+              .where("whatsapp_connection_id", "in", connectionIds)
+              .execute()
+          : [];
 
       const quotedUserNames = await getUserNames(
         quoted
