@@ -100,6 +100,17 @@ analyticsRoutes.get("/team", analyticsRateLimiter, async (c) => {
  * Query params: startDate, endDate
  * Rate limit: 60 requests per minute per user
  */
+analyticsRoutes.get("/channels", analyticsRateLimiter, async (c) => {
+  const { companyId } = getRouteContext(c);
+  const { startDate, endDate } = extractOptionalDateRange(c);
+  const stats = await analyticsService.getChannelMessageStats(
+    companyId,
+    startDate,
+    endDate,
+  );
+  return successData(c, stats);
+});
+
 analyticsRoutes.get("/message-types", analyticsRateLimiter, async (c) => {
   const { companyId } = getRouteContext(c);
   const { startDate, endDate } = extractOptionalDateRange(c);
