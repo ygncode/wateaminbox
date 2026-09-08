@@ -67,7 +67,7 @@ Durable, state-changing WhatsApp actions persist state and enqueue a command in 
 | Auth | [`auth.md`](auth.md) | 14 |
 | Companies (Workspaces) | [`companies.md`](companies.md) | 22 |
 | Invitations (token acceptance) | [`invitations.md`](invitations.md) | 2 |
-| Contacts | [`contacts.md`](contacts.md) | 20 |
+| Contacts | [`contacts.md`](contacts.md) | 22 |
 | Conversations | [`conversations.md`](conversations.md) | 14 |
 | Messages | [`messages.md`](messages.md) | 15 |
 | Groups | [`groups.md`](groups.md) | 16 |

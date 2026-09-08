@@ -1,12 +1,12 @@
 # Contacts API
 
-> Base path: `/api/contacts` · 20 endpoints
+> Base path: `/api/contacts` · 22 endpoints
 
 Contact (customer) management: CRUD, assignment, notes, tags, and CSV import. Notes and assignments carry permission/visibility semantics; see the access column per endpoint.
 
 ## Endpoints
 
-**Methods:** GET 6 · POST 7 · DELETE 4 · PATCH 1 · PUT 2
+**Methods:** GET 7 · POST 8 · DELETE 4 · PATCH 1 · PUT 2
 
 | Method | Path | Access | Description |
 |--------|------|--------|-------------|
@@ -17,6 +17,8 @@ Contact (customer) management: CRUD, assignment, notes, tags, and CSV import. No
 | DELETE | `/contacts/:id/assign` | Authenticated · Tenant context · `can_assign_contacts` | Unassign contact |
 | POST | `/contacts/:id/assign` | Authenticated · Tenant context · Conditional `can_assign_contacts` (other-user assignment or takeover) | Assign contact to a user (or self) |
 | GET | `/contacts/:id/assignments` | Authenticated · Tenant context · Contact visibility | Get assignment history for a contact |
+| GET | `/contacts/:id/first-chat-acknowledgment` | Authenticated · Tenant context · Contact visibility | Get first outgoing chat acknowledgment notice and requirement status |
+| POST | `/contacts/:id/first-chat-acknowledgment` | Authenticated · Tenant context · Contact visibility · `can_send_messages` | Record the first outgoing chat acknowledgment |
 | GET | `/contacts/:id/notes/private` | Authenticated · Tenant context · Contact visibility | Get private notes for a contact (user's own notes only) |
 | POST | `/contacts/:id/notes/private` | Authenticated · Tenant context · Contact visibility | Create a new private note |
 | DELETE | `/contacts/:id/notes/private/:noteId` | Authenticated · Tenant context · Contact visibility | Delete a specific private note |
