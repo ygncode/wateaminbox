@@ -279,7 +279,12 @@ export async function getActiveCase(
   const row = await tenantDb
     .selectFrom("conversation_cases")
     .selectAll()
-    .where("contact_id", "=", contactId)
+    .where((eb) =>
+      eb.or([
+        eb("contact_id", "=", contactId),
+        eb("conversation_id", "=", contactId),
+      ]),
+    )
     .where("status", "in", ["open", "pending"])
     .executeTakeFirst();
   return row ? toConversationCase(row as unknown as ConversationCaseRow) : null;
@@ -293,7 +298,12 @@ export async function getMostRecentCase(
   const row = await tenantDb
     .selectFrom("conversation_cases")
     .selectAll()
-    .where("contact_id", "=", contactId)
+    .where((eb) =>
+      eb.or([
+        eb("contact_id", "=", contactId),
+        eb("conversation_id", "=", contactId),
+      ]),
+    )
     .orderBy("created_at", "desc")
     .orderBy("id", "desc")
     .limit(1)
@@ -309,7 +319,12 @@ export async function hasCaseHistory(
   const row = await tenantDb
     .selectFrom("conversation_cases")
     .select("id")
-    .where("contact_id", "=", contactId)
+    .where((eb) =>
+      eb.or([
+        eb("contact_id", "=", contactId),
+        eb("conversation_id", "=", contactId),
+      ]),
+    )
     .limit(1)
     .executeTakeFirst();
   return Boolean(row);

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ApiRequestError } from "@/lib/api/client";
 import {
+  getChannelConversation,
   getChannelConversations,
   getChannelMessages,
 } from "@/lib/api/channel-conversations";
@@ -19,6 +20,26 @@ export function useChannelConversations(limit = 50) {
         throw error;
       }
     },
+    staleTime: 30_000,
+  });
+}
+
+export function useChannelConversation(
+  conversationId: string | null | undefined,
+) {
+  return useQuery({
+    queryKey: queryKeys.channelConversations.detail(conversationId ?? ""),
+    queryFn: async () => {
+      try {
+        return await getChannelConversation(conversationId!);
+      } catch (error) {
+        if (error instanceof ApiRequestError && error.statusCode === 404) {
+          return null;
+        }
+        throw error;
+      }
+    },
+    enabled: Boolean(conversationId),
     staleTime: 30_000,
   });
 }

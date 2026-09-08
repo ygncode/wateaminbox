@@ -43,6 +43,7 @@ export interface ChatPageState {
   selectedChatId: string | undefined;
   selectedContact: Contact | undefined;
   contactLoadError: Error | null;
+  isContactLoading: boolean;
   isContactTyping: boolean;
 
   // Panel visibility
@@ -167,6 +168,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
   const {
     data: contactDetail,
     error: contactLoadError,
+    isLoading: isContactLoading,
     refetch: refetchContact,
   } = useContact(selectedChatId || null);
   const selectedContact = contactDetail
@@ -572,6 +574,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
     selectedChatId,
     selectedContact,
     contactLoadError,
+    isContactLoading,
     isContactTyping,
     isProfileOpen,
     profileContactId: participantProfileId ?? selectedChatId,

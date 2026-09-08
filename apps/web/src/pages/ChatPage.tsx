@@ -41,12 +41,13 @@ import { useWorkspace } from "../contexts/workspace-context";
 import { useChatPageState } from "../hooks/chat";
 import { useKeyboardInset } from "../hooks/ui";
 import { useChannelAccountCapabilities } from "../hooks/useChannelAccounts";
-import { useChannelConversations } from "../hooks/useChannelConversations";
+import { useChannelConversation } from "../hooks/useChannelConversations";
 import { useComposerAccess } from "../hooks/useComposerAccess";
 import { useCreateContact } from "../hooks/useContact";
 import { useGroup } from "../hooks/useGroups";
 import { useWhatsAppConnectionsList } from "../hooks/whatsapp";
 import { sendChannelMessage } from "../lib/api/channel-conversations";
+import { transformChannelConversationToChat } from "../lib/api/transformers";
 import { uploadMedia } from "../lib/api/messages";
 import { ApiRequestError } from "../lib/api/client";
 import { cn } from "../lib/utils";
@@ -101,6 +102,7 @@ export function ChatPage() {
     selectedChatId,
     selectedContact,
     contactLoadError,
+    isContactLoading,
     isContactTyping,
     isProfileOpen,
     profileContactId,
@@ -135,16 +137,22 @@ export function ChatPage() {
     handleForwardToContact,
     handleCloseForwardDialog,
   } = useChatPageState();
-  const { data: channelConversations = [] } = useChannelConversations();
-  const channelConversation = useMemo(
+  const { data: channelConversation, isLoading: isChannelConversationLoading } =
+    useChannelConversation(selectedChatId);
+  const conversationContact = useMemo(
     () =>
-      channelConversations.find(
-        (conversation) =>
-          conversation.id === selectedChatId ||
-          conversation.legacyContactId === selectedChatId,
-      ),
-    [channelConversations, selectedChatId],
+      channelConversation
+        ? transformChannelConversationToChat(channelConversation).contact
+        : undefined,
+    [channelConversation],
   );
+  const threadContact = selectedContact ?? conversationContact;
+  const isThreadLoading =
+    Boolean(selectedChatId) &&
+    !threadContact &&
+    (isContactLoading || isChannelConversationLoading);
+  const isThreadMissing =
+    Boolean(selectedChatId) && !threadContact && !isThreadLoading;
   const {
     data: channelCapabilities,
     isLoading: areChannelCapabilitiesLoading,
@@ -258,8 +266,8 @@ export function ChatPage() {
   const { access: composerAccess } = useComposerAccess(selectedChatId ?? null);
   const canSend = composerAccess.kind === "sendable";
   const isSelectedGroup = Boolean(
-    selectedContact &&
-      (selectedContact.isGroup || selectedContact.jid?.endsWith("@g.us")),
+    threadContact &&
+      (threadContact.isGroup || threadContact.jid?.endsWith("@g.us")),
   );
   const { data: selectedGroup } = useGroup(
     isSelectedGroup ? (selectedChatId ?? null) : null,
@@ -318,22 +326,20 @@ export function ChatPage() {
           />
         )}
 
-      {selectedChatId && !selectedContact && !contactLoadError && (
-        <ConversationLoadingState />
-      )}
+      {isThreadLoading && <ConversationLoadingState />}
 
-      {selectedChatId && !selectedContact && contactLoadError && (
+      {isThreadMissing && (
         <ConversationLoadError
-          message={contactLoadError.message}
+          message={contactLoadError?.message ?? "Conversation not found"}
           onRetry={retryContactLoad}
           onBackToInbox={() => handleChatSelect(null)}
         />
       )}
 
-      {selectedChatId && selectedContact && (
+      {selectedChatId && threadContact && (
         <>
           <MessageHeader
-            contact={selectedContact}
+            contact={threadContact}
             onOpenProfile={handleOpenProfile}
             onSearch={handleOpenSearch}
             isTyping={isContactTyping}
@@ -383,7 +389,7 @@ export function ChatPage() {
             contactId={selectedChatId}
             access={composerAccess}
             isSending={isSending}
-            contactName={selectedContact.name}
+            contactName={threadContact.name}
           >
             {channelConversation ? (
               <ChannelComposerGate
@@ -398,21 +404,21 @@ export function ChatPage() {
                   onSendMessage={handleChannelSendMessage}
                   onAttachFile={handleChannelAttachFile}
                   disabled={isSending}
-                  connection={selectedContact.connection}
+                  connection={selectedContact?.connection}
                   currentUserName={user?.name}
                   mentionParticipants={selectedGroup?.participants}
                 />
               </ChannelComposerGate>
             ) : (
               <MessageComposer
-                conversationId={selectedContact?.jid}
+                conversationId={threadContact.jid}
                 contactId={selectedChatId}
                 replyToMessage={replyToMessage}
                 onClearReply={handleClearReply}
                 onSendMessage={handleSendMessage}
                 onAttachFile={handleChannelAttachFile}
                 disabled={isSending}
-                connection={selectedContact.connection}
+                connection={selectedContact?.connection}
                 currentUserName={user?.name}
                 mentionParticipants={selectedGroup?.participants}
               />

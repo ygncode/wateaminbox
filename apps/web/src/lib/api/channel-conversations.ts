@@ -67,6 +67,14 @@ export function getChannelConversations(
   );
 }
 
+export function getChannelConversation(
+  conversationId: string,
+): Promise<ChannelConversation> {
+  return api.get<ChannelConversation>(
+    `/conversations/${encodeURIComponent(conversationId)}`,
+  );
+}
+
 export function getChannelMessages(
   conversationId: string,
   params: { limit?: number; cursor?: string } = {},

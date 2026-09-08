@@ -118,6 +118,75 @@ conversationRoutes.get("/", async (c) => {
 // bogus contact lookup.
 conversationRoutes.route("/", analyticsRoutes);
 
+conversationRoutes.get("/:id", requireConversationVisibility(), async (c) => {
+  const { tenantDb, companyId } = getRouteContext(c);
+  const authority = await getChannelSpineWorkspaceAuthority(companyId);
+  if (!authority.neutralReadsEnabled) {
+    return c.json({ error: "Neutral conversations are not enabled" }, 404);
+  }
+  const id = c.req.param("id")!;
+  const conversation = await tenantDb
+    .selectFrom("conversations as conversation")
+    .innerJoin(
+      "channel_accounts as account",
+      "account.id",
+      "conversation.channel_account_id",
+    )
+    .leftJoin(
+      "conversation_states as state",
+      "state.conversation_id",
+      "conversation.id",
+    )
+    .select([
+      "conversation.id",
+      "conversation.channel_account_id",
+      "conversation.kind",
+      "conversation.subject",
+      "conversation.external_thread_id",
+      "conversation.first_message_at",
+      "conversation.last_message_at",
+      "conversation.legacy_contact_id",
+      "account.channel",
+      "account.provider",
+      "account.display_name as account_display_name",
+      "account.status as account_status",
+      "state.unread_count",
+      "state.last_message_preview",
+      "state.status as conversation_status",
+    ])
+    .where("conversation.archived_at", "is", null)
+    .where("account.archived_at", "is", null)
+    .where((eb) =>
+      eb.or([
+        eb("conversation.id", "=", id),
+        eb("conversation.legacy_contact_id", "=", id),
+      ]),
+    )
+    .executeTakeFirst();
+  if (!conversation) {
+    return c.json({ error: "Conversation not found" }, 404);
+  }
+  return successData(c, {
+    id: conversation.id,
+    channelAccountId: conversation.channel_account_id,
+    channel: conversation.channel,
+    provider: conversation.provider,
+    kind: conversation.kind,
+    subject: conversation.subject,
+    externalThreadId: conversation.external_thread_id,
+    firstMessageAt: conversation.first_message_at,
+    lastMessageAt: conversation.last_message_at,
+    lastMessagePreview: conversation.last_message_preview,
+    unreadCount: Number(conversation.unread_count ?? 0),
+    conversationStatus: conversation.conversation_status ?? "open",
+    legacyContactId: conversation.legacy_contact_id,
+    account: {
+      displayName: conversation.account_display_name,
+      status: conversation.account_status,
+    },
+  });
+});
+
 // Resource routes below this point address a real contact ID.
 conversationRoutes.use("/:id/*", requireConversationVisibility());
 conversationRoutes.route("/", stateRoutes);
