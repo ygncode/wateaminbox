@@ -1,5 +1,5 @@
 import type { Channel, ChannelProvider } from "@wateaminbox/shared";
-import { api, buildQueryString } from "./client";
+import { api, buildQueryString, fetchApi } from "./client";
 
 export interface ChannelConversation {
   id: string;
@@ -70,5 +70,24 @@ export function getChannelMessages(
 ): Promise<ChannelMessagesPage> {
   return api.get<ChannelMessagesPage>(
     `/conversations/${encodeURIComponent(conversationId)}/messages${buildQueryString(params)}`,
+  );
+}
+
+export function sendChannelMessage(
+  conversationId: string,
+  body: {
+    content?: string;
+    messageType?: string;
+    mediaUrl?: string;
+    replyToMessageId?: string;
+  },
+): Promise<{ messageId: string; intentStatus: string }> {
+  return fetchApi(
+    `/conversations/${encodeURIComponent(conversationId)}/messages`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify(body),
+    },
   );
 }

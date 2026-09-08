@@ -8,11 +8,12 @@ import {
   RotateCcw,
   UsersRound,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { ChatSidebar, type SidebarView } from "../components/chat/ChatSidebar";
+import { ChannelComposerGate } from "../components/chat/ChannelComposerGate";
 import { ComposerLifecycleArea } from "../components/chat/ComposerLifecycleArea";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { ContactProfile } from "../components/chat/contact-profile";
@@ -39,10 +40,13 @@ import {
 import { useWorkspace } from "../contexts/workspace-context";
 import { useChatPageState } from "../hooks/chat";
 import { useKeyboardInset } from "../hooks/ui";
+import { useChannelAccountCapabilities } from "../hooks/useChannelAccounts";
+import { useChannelConversations } from "../hooks/useChannelConversations";
 import { useComposerAccess } from "../hooks/useComposerAccess";
 import { useCreateContact } from "../hooks/useContact";
 import { useGroup } from "../hooks/useGroups";
 import { useWhatsAppConnectionsList } from "../hooks/whatsapp";
+import { sendChannelMessage } from "../lib/api/channel-conversations";
 import { ApiRequestError } from "../lib/api/client";
 import { cn } from "../lib/utils";
 import {
@@ -130,6 +134,35 @@ export function ChatPage() {
     handleForwardToContact,
     handleCloseForwardDialog,
   } = useChatPageState();
+  const { data: channelConversations = [] } = useChannelConversations();
+  const channelConversation = useMemo(
+    () =>
+      channelConversations.find(
+        (conversation) =>
+          conversation.id === selectedChatId ||
+          conversation.legacyContactId === selectedChatId,
+      ),
+    [channelConversations, selectedChatId],
+  );
+  const {
+    data: channelCapabilities,
+    isLoading: areChannelCapabilitiesLoading,
+  } = useChannelAccountCapabilities(channelConversation?.channelAccountId);
+  const handleChannelSendMessage = useCallback(
+    (content: string, replyToMessageId?: string, mentionedJids?: string[]) => {
+      if (channelConversation) {
+        void sendChannelMessage(channelConversation.id, {
+          content,
+          messageType: "text",
+          replyToMessageId,
+        });
+        handleClearReply();
+        return;
+      }
+      handleSendMessage(content, replyToMessageId, mentionedJids);
+    },
+    [channelConversation, handleClearReply, handleSendMessage],
+  );
 
   const handleOpenSharedContact = useCallback((contact: SharedContactCard) => {
     setSharedContactCard(contact);
@@ -316,18 +349,38 @@ export function ChatPage() {
             isSending={isSending}
             contactName={selectedContact.name}
           >
-            <MessageComposer
-              conversationId={selectedContact?.jid}
-              contactId={selectedChatId}
-              replyToMessage={replyToMessage}
-              onClearReply={handleClearReply}
-              onSendMessage={handleSendMessage}
-              onAttachFile={handleAttachFile}
-              disabled={isSending}
-              connection={selectedContact.connection}
-              currentUserName={user?.name}
-              mentionParticipants={selectedGroup?.participants}
-            />
+            {channelConversation ? (
+              <ChannelComposerGate
+                capabilities={channelCapabilities}
+                isLoading={areChannelCapabilitiesLoading}
+              >
+                <MessageComposer
+                  conversationId={channelConversation.id}
+                  contactId={selectedChatId}
+                  replyToMessage={replyToMessage}
+                  onClearReply={handleClearReply}
+                  onSendMessage={handleChannelSendMessage}
+                  onAttachFile={handleAttachFile}
+                  disabled={isSending}
+                  connection={selectedContact.connection}
+                  currentUserName={user?.name}
+                  mentionParticipants={selectedGroup?.participants}
+                />
+              </ChannelComposerGate>
+            ) : (
+              <MessageComposer
+                conversationId={selectedContact?.jid}
+                contactId={selectedChatId}
+                replyToMessage={replyToMessage}
+                onClearReply={handleClearReply}
+                onSendMessage={handleSendMessage}
+                onAttachFile={handleAttachFile}
+                disabled={isSending}
+                connection={selectedContact.connection}
+                currentUserName={user?.name}
+                mentionParticipants={selectedGroup?.participants}
+              />
+            )}
           </ComposerLifecycleArea>
         </>
       )}
