@@ -7,6 +7,7 @@ import { tenantMiddleware } from "../../middleware/tenant.js";
 import { getChannelSpineWorkspaceAuthority } from "../../services/channel-spine-authority.service.js";
 import { analyticsRoutes } from "./analytics.js";
 import { messageRoutes } from "./messages.js";
+import { metadataRoutes } from "./metadata.js";
 import { stateRoutes } from "./state.js";
 
 export const conversationRoutes = new Hono();
@@ -99,3 +100,4 @@ conversationRoutes.route("/", analyticsRoutes);
 conversationRoutes.use("/:id/*", requireConversationVisibility());
 conversationRoutes.route("/", stateRoutes);
 conversationRoutes.route("/", messageRoutes);
+conversationRoutes.route("/", metadataRoutes);

@@ -321,6 +321,7 @@ export interface TenantDatabase {
   endpoint_presence: EndpointPresenceTable;
   contact_suppressions: ContactSuppressionsTable;
   conversations: ConversationsTable;
+  conversation_notes: ConversationNotesTable;
   conversation_sync_states: ConversationSyncStatesTable;
   conversation_participants: ConversationParticipantsTable;
   message_participants: MessageParticipantsTable;
@@ -474,6 +475,16 @@ export interface ConversationsTable {
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
   archived_at: Date | null;
+}
+
+export interface ConversationNotesTable {
+  id: Generated<string>;
+  conversation_id: string;
+  author_user_id: string;
+  visibility: "shared" | "private";
+  content: string;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
 }
 
 export interface ConversationSyncStatesTable {

@@ -143,6 +143,15 @@ export const TENANT_SCHEMA_CONTRACT = {
     "updated_at",
     "archived_at",
   ],
+  conversation_notes: [
+    "id",
+    "conversation_id",
+    "author_user_id",
+    "visibility",
+    "content",
+    "created_at",
+    "updated_at",
+  ],
   conversation_sync_states: [
     "conversation_id",
     "provider",

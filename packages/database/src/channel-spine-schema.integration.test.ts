@@ -90,6 +90,7 @@ integration(
         "channel_account_credentials",
         "contact_endpoints",
         "conversations",
+        "conversation_notes",
         "conversation_participants",
         "message_attachments",
         "channel_event_inbox",

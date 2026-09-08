@@ -150,6 +150,21 @@ export async function ensureChannelSpineTenantSchema<Database>(
       CHECK (jsonb_typeof(provider_metadata) = 'object')
     )`.execute(db);
 
+    await sql`CREATE TABLE IF NOT EXISTS ${table("conversation_notes")} (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      conversation_id UUID NOT NULL REFERENCES ${table("conversations")}(id) ON DELETE CASCADE,
+      author_user_id UUID NOT NULL,
+      visibility TEXT NOT NULL CHECK (visibility IN ('shared', 'private')),
+      content TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      CHECK (length(trim(content)) > 0)
+    )`.execute(db);
+    await sql`CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_conversation_notes_list_idx`)}
+      ON ${table("conversation_notes")} (conversation_id, created_at DESC, id DESC)`.execute(
+      db,
+    );
+
     await sql`CREATE TABLE IF NOT EXISTS ${table("conversation_sync_states")} (
       conversation_id UUID NOT NULL REFERENCES ${table("conversations")}(id) ON DELETE CASCADE,
       provider TEXT NOT NULL,
