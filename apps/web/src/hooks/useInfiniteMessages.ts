@@ -11,7 +11,7 @@ export const infiniteMessageKeys = {
     ["infinite-messages", getCompanyId(), conversationId] as const,
 };
 
-function selectInfiniteMessages(
+export function selectInfiniteMessages(
   data: InfiniteData<PaginatedMessages, string | undefined>,
 ) {
   return {
