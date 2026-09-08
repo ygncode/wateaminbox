@@ -77,6 +77,22 @@ integration(
       expect((await applyNormalizedChannelEvent(tenantDb, event)).outcome).toBe(
         "applied",
       );
+      expect(
+        Number(
+          (
+            await tenantDb
+              .selectFrom("contacts")
+              .select((eb) => eb.fn.countAll<string>().as("count"))
+              .executeTakeFirstOrThrow()
+          ).count,
+        ),
+      ).toBe(0);
+      const stored = await tenantDb
+        .selectFrom("messages")
+        .select(["contact_id", "conversation_id"])
+        .executeTakeFirstOrThrow();
+      expect(stored.contact_id).toBeNull();
+      expect(stored.conversation_id).toBeTruthy();
       expect((await applyNormalizedChannelEvent(tenantDb, event)).outcome).toBe(
         "duplicate",
       );

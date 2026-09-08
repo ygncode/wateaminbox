@@ -17,7 +17,7 @@ without a separate explicit approval.
 
 ## Required gates before any workspace enablement
 
-1. Apply migrations `090`–`098` with all flags off. Confirm legacy messaging.
+1. Apply migrations `090`–`099` with all flags off. Confirm legacy messaging.
 2. Run `apps/api/src/scripts/reconcile-channel-spine-indexes.ts` for every
    tenant. Unique message/reaction/assignment/case/state indexes are **not**
    created by migration `092`; ingress, provisioning, and outbound dispatch

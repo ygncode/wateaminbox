@@ -109,6 +109,7 @@ integration(
           "external_message_id",
           "direction",
           "normalized_type",
+          "contact_id",
         ],
         message_reactions: ["reactor_endpoint_id", "channel_account_id"],
         conversation_states: ["contact_id", "conversation_id"],
