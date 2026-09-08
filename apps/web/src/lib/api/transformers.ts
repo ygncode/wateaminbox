@@ -129,7 +129,11 @@ export function transformContactToChat(contact: ContactApiResponse): Chat {
     isPinned: false,
     isMuted: false,
     isArchived: false,
-    updatedAt: toDate(contact.updatedAt) ?? new Date(),
+    // The chat list is sorted by updatedAt. Use the latest message time as the
+    // sort key so a sync that refreshes contact rows does not reorder chats
+    // away from their actual most-recent activity.
+    updatedAt:
+      toDate(contact.lastMessageAt) ?? toDate(contact.updatedAt) ?? new Date(),
     conversationStatus: contact.conversationStatus,
     activeCaseId: contact.activeCaseId,
   };
