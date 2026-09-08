@@ -182,7 +182,7 @@ export async function purgeArchivedConnection(
         eb
           .selectFrom("contacts")
           .select([
-            eb.val(connectionId).as("connection_id"),
+            sql<string>`${connectionId}::uuid`.as("connection_id"),
             eb.val("search_contact" as const).as("kind"),
             sql<string>`id::text`.as("reference"),
           ])
@@ -204,7 +204,7 @@ export async function purgeArchivedConnection(
             "attachment.message_id",
           )
           .select([
-            eb.val(connectionId).as("connection_id"),
+            sql<string>`${connectionId}::uuid`.as("connection_id"),
             eb.val("media" as const).as("kind"),
             "attachment.storage_uri as reference",
           ])
@@ -261,7 +261,7 @@ export async function purgeArchivedConnection(
         eb
           .selectFrom("catalog_products")
           .select([
-            eb.val(connectionId).as("connection_id"),
+            sql<string>`${connectionId}::uuid`.as("connection_id"),
             eb.val("media" as const).as("kind"),
             sql<string>`unnest(image_urls)`.as("reference"),
           ])
