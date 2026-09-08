@@ -863,6 +863,7 @@ export const ChatList = memo(function ChatList({
                     chat={chat}
                     isSelected={
                       chat.id === selectedChatId ||
+                      chat.contact.id === selectedChatId ||
                       chat.contact.conversationId === selectedChatId
                     }
                     onClick={() =>

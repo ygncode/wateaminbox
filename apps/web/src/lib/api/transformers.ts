@@ -90,7 +90,7 @@ export interface ContactsListResponse {
  */
 export function transformContactToChat(contact: ContactApiResponse): Chat {
   return {
-    id: contact.id,
+    id: contact.conversationId ?? contact.id,
     contact: {
       id: contact.id,
       jid: contact.jid,
