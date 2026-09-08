@@ -13,7 +13,7 @@ import {
 } from "../channel-spine/providers/telegram-bot/api.js";
 import { channelAdapterRegistry } from "../channel-spine/registry.js";
 import { env } from "../lib/env.js";
-import { forbidden, notFound } from "../lib/errors.js";
+import { conflict, forbidden, notFound } from "../lib/errors.js";
 import { successData } from "../lib/response.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
@@ -22,6 +22,10 @@ import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
 } from "../services/channel-spine-authority.service.js";
+import {
+  ChannelAccountNotArchivedError,
+  purgeArchivedChannelAccount,
+} from "../services/channel-account-purge.service.js";
 import { isChannelSpineTenantReady } from "../services/channel-spine-readiness.service.js";
 import {
   readChannelCredential,
@@ -330,6 +334,23 @@ channelAccountRoutes.delete("/:id", async (c) => {
       .execute();
   });
   return c.json({ success: true });
+});
+
+channelAccountRoutes.post("/:id/purge", async (c) => {
+  const { tenantDb, role } = getRouteContext(c);
+  if (role === "member") return forbidden(c);
+  try {
+    const purged = await purgeArchivedChannelAccount(
+      tenantDb,
+      c.req.param("id"),
+    );
+    return successData(c, purged);
+  } catch (error) {
+    if (error instanceof ChannelAccountNotArchivedError) {
+      return conflict(c, error.message);
+    }
+    throw error;
+  }
 });
 
 channelAccountRoutes.get("/:id/capabilities", async (c) => {
