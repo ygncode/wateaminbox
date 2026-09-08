@@ -1,4 +1,5 @@
 import { app } from "./app.js";
+import { MAX_UPLOAD_BODY_SIZE } from "./config/media.config.js";
 import { setVerifiedRequestIp } from "./lib/client-ip.js";
 import { env } from "./lib/env.js";
 import { createLogger, formatError } from "./lib/logger.js";
@@ -21,11 +22,11 @@ import {
   initializeMessageCleanup,
   shutdownMessageCleanup,
 } from "./services/message-cleanup.service.js";
-import { initializeMessageHandler } from "./services/message-handler.js";
 import {
   initializeMessageDelivery,
   shutdownMessageDelivery,
 } from "./services/message-delivery-outbox.service.js";
+import { initializeMessageHandler } from "./services/message-handler.js";
 import {
   initializeMessageSearch,
   shutdownMessageSearch,
@@ -180,6 +181,17 @@ process.on("SIGINT", handleSignal);
 
 export default {
   port,
+  // Server-level backstop for the route-level Content-Length guards. Bun
+  // refuses a request whose body exceeds this at the header level (an honest
+  // Content-Length) or during streaming (chunked encoding, or a Content-Length
+  // that understates the actual body), so no route's body-buffering step
+  // (parseBody/formData/json) can hold more than this many bytes in memory.
+  // Sized to the largest legitimate body — a 50 MiB media upload plus 1 MiB
+  // of multipart framing (see config/media.config.ts). No other route
+  // buffers a body anywhere near this size; the next largest is the 5 MiB
+  // contacts CSV import. The default is 128 MiB, which left the 50 MiB–128 MiB
+  // attack window open for the media upload route's post-buffer rejection.
+  maxRequestBodySize: MAX_UPLOAD_BODY_SIZE,
   fetch(request: Request, server: Bun.Server<unknown>) {
     httpServer ??= server;
     const address = server.requestIP(request)?.address;
