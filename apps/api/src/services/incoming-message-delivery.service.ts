@@ -176,6 +176,7 @@ export async function deliverIncomingMessage(
     const recipientIds = await resolveIncomingMessageRecipients({
       companyId,
       contactId: contact.id,
+      conversationId: message.conversation_id,
       contactJid,
       fromMe: false,
       isHistorySync: false,

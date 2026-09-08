@@ -6,6 +6,7 @@ import { getCompanyMemberPermissions } from "./company-membership.service.js";
 import { resolveContactViewerIds } from "./message-broadcast.service.js";
 import { getPushMessagePreview } from "./message-push-preview.js";
 import { sendPushToUsers } from "./notification-delivery.service.js";
+import { resolveIncomingMessageRecipients } from "./notification-recipient.service.js";
 import type { TenantDatabase } from "./tenant.service.js";
 
 interface ChannelDeliveryJob {
@@ -146,7 +147,19 @@ async function deliver(
     return;
   }
   if (row.direction !== "inbound") return;
-  const push = await sendPushToUsers(job.company_id, viewerIds, {
+  const allowed = new Set(
+    await resolveIncomingMessageRecipients({
+      companyId: job.company_id,
+      contactId: row.legacy_contact_id,
+      conversationId: row.conversation_id,
+      contactJid: "",
+      fromMe: false,
+      isHistorySync: false,
+    }),
+  );
+  const recipients = viewerIds.filter((id) => allowed.has(id));
+  if (recipients.length === 0) return;
+  const push = await sendPushToUsers(job.company_id, recipients, {
     version: 1,
     type: "message",
     title: row.subject ?? row.sender_name ?? row.account_name ?? "New message",

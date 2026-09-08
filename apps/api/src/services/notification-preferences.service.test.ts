@@ -3,6 +3,7 @@ import {
   buildPreferenceUpdateData,
   DEFAULT_PREFERENCES,
   normalizeContactJid,
+  normalizeMuteToken,
 } from "./notification-preferences.service.js";
 
 describe("notification preference mapping", () => {
@@ -40,5 +41,19 @@ describe("notification preference mapping", () => {
     expect(normalizeContactJid("15551234567:4@s.whatsapp.net")).toBe(
       "15551234567@s.whatsapp.net",
     );
+  });
+
+  test("stores conversation and contact ids without treating them as JIDs", () => {
+    const conversationId = "11111111-1111-4111-8111-111111111111";
+    expect(normalizeMuteToken(conversationId)).toBe(conversationId);
+    expect(
+      buildPreferenceUpdateData(
+        { mutedContacts: [conversationId, conversationId.toUpperCase()] },
+        new Date(0),
+      ),
+    ).toEqual({
+      muted_contacts: [conversationId],
+      updated_at: new Date(0),
+    });
   });
 });

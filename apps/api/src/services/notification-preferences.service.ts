@@ -177,7 +177,7 @@ export function buildPreferenceUpdateData(
     updateData.quiet_hours_end = input.quietHoursEnd;
   if (input.mutedContacts !== undefined) {
     updateData.muted_contacts = [
-      ...new Set(input.mutedContacts.map(normalizeContactJid)),
+      ...new Set(input.mutedContacts.map(normalizeMuteToken)),
     ];
   }
   return updateData;
@@ -189,17 +189,17 @@ export function buildPreferenceUpdateData(
 export async function muteContact(
   companyId: string,
   userId: string,
-  contactJid: string,
+  token: string,
 ): Promise<NotificationPreferences> {
-  const normalizedJid = normalizeContactJid(contactJid);
+  const normalized = normalizeMuteToken(token);
   const preferences = await getNotificationPreferences(companyId, userId);
 
-  if (preferences.mutedContacts.includes(normalizedJid)) {
+  if (preferences.mutedContacts.includes(normalized)) {
     return preferences;
   }
 
   return updateNotificationPreferences(companyId, userId, {
-    mutedContacts: [...preferences.mutedContacts, normalizedJid],
+    mutedContacts: [...preferences.mutedContacts, normalized],
   });
 }
 
@@ -209,20 +209,33 @@ export async function muteContact(
 export async function unmuteContact(
   companyId: string,
   userId: string,
-  contactJid: string,
+  token: string,
 ): Promise<NotificationPreferences> {
-  const normalizedJid = normalizeContactJid(contactJid);
+  const normalized = normalizeMuteToken(token);
   const preferences = await getNotificationPreferences(companyId, userId);
 
-  if (!preferences.mutedContacts.includes(normalizedJid)) {
+  if (!preferences.mutedContacts.includes(normalized)) {
     return preferences;
   }
 
   return updateNotificationPreferences(companyId, userId, {
     mutedContacts: preferences.mutedContacts.filter(
-      (jid) => jid !== normalizedJid,
+      (value) => value !== normalized,
     ),
   });
+}
+
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isMuteUuid(value: string): boolean {
+  return uuidPattern.test(value);
+}
+
+export function normalizeMuteToken(token: string): string {
+  const trimmed = token.trim();
+  if (isMuteUuid(trimmed)) return trimmed.toLowerCase();
+  return normalizeContactJid(trimmed);
 }
 
 export function normalizeContactJid(contactJid: string): string {
