@@ -47,7 +47,9 @@ func TestOnDemandDownloadEndToEnd_StoresRealMimeType(t *testing.T) {
 		natsURL = "nats://localhost:4448"
 	}
 	nc, err := natsgo.Connect(natsURL, natsgo.MaxReconnects(-1), natsgo.ReconnectWait(time.Second))
-	require.NoError(t, err)
+	if err != nil {
+		t.Skipf("NATS not available at %s: %v", natsURL, err)
+	}
 	defer nc.Close()
 
 	jsm, err := nc.JetStream()
@@ -184,7 +186,9 @@ func TestOnDemandDownloadEndToEnd_RejectsCategoryOnlyPayload(t *testing.T) {
 		natsURL = "nats://localhost:4448"
 	}
 	nc, err := natsgo.Connect(natsURL)
-	require.NoError(t, err)
+	if err != nil {
+		t.Skipf("NATS not available at %s: %v", natsURL, err)
+	}
 	defer nc.Close()
 	jsm, err := nc.JetStream()
 	require.NoError(t, err)
