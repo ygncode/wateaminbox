@@ -38,6 +38,7 @@ import { getRouteContext } from "../../middleware/context.js";
 import { requireContactVisibility } from "../../middleware/resource-visibility.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
+import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
 import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
 import {
   type FindOrCreateContactByPhoneResult,
@@ -129,7 +130,9 @@ contactRoutes.get(
  */
 contactRoutes.get("/:id", async (c) => {
   const { tenantDb, companyId } = getRouteContext(c);
-  const contactId = c.req.param("id");
+  const contactId =
+    (await resolveWorkflowContactId(tenantDb, c.req.param("id")!)) ??
+    c.req.param("id")!;
 
   const contact = await tenantDb
     .selectFrom("contacts")
@@ -140,6 +143,22 @@ contactRoutes.get("/:id", async (c) => {
   if (!contact) {
     return notFound(c, "Contact");
   }
+
+  const conversation = await tenantDb
+    .selectFrom("conversations as conversation")
+    .leftJoin(
+      "channel_accounts as account",
+      "account.id",
+      "conversation.channel_account_id",
+    )
+    .select([
+      "conversation.id as conversation_id",
+      "account.channel as channel",
+      "account.provider as provider",
+    ])
+    .where("conversation.legacy_contact_id", "=", contact.id)
+    .where("conversation.archived_at", "is", null)
+    .executeTakeFirst();
 
   const connection = contact.whatsapp_connection_id
     ? await tenantDb
@@ -259,6 +278,13 @@ contactRoutes.get("/:id", async (c) => {
           status: connection.status,
         }
       : null,
+    conversationId: conversation?.conversation_id ?? null,
+    channel:
+      conversation?.channel ??
+      (contact.whatsapp_connection_id ? "whatsapp" : null),
+    provider:
+      conversation?.provider ??
+      (contact.whatsapp_connection_id ? "whatsapp_linked_device" : null),
     assignment: assignmentWithNames,
     tags,
   });

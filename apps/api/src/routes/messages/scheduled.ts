@@ -35,6 +35,10 @@ import {
   formatScheduledMessage,
   type ScheduledMessageRow,
 } from "../../services/scheduled-message.service.js";
+import {
+  conversationIdForContact,
+  resolveWorkflowContactId,
+} from "../../services/channel-workflow.service.js";
 import { requireSendAccess } from "../../services/send-access.service.js";
 import { getUserNames } from "../../services/user.service.js";
 
@@ -122,10 +126,13 @@ scheduledRoutes.post(
       storedMediaReference = getPrivateMediaReference(reference.key);
     }
 
+    const contactId =
+      (await resolveWorkflowContactId(tenantDb, body.contactId)) ??
+      body.contactId;
     const contact = await tenantDb
       .selectFrom("contacts")
       .select(["id", "jid", "whatsapp_connection_id"])
-      .where("id", "=", body.contactId)
+      .where("id", "=", contactId)
       .executeTakeFirst();
 
     if (!contact || !contact.jid) {
@@ -163,13 +170,14 @@ scheduledRoutes.post(
     let autoAssigned = false;
     const row = await tenantDb.transaction().execute(async (trx) => {
       await reserveMediaReferences(trx, companyId, [storedMediaReference]);
-      const access = await requireSendAccess(trx, body.contactId, user.id);
+      const access = await requireSendAccess(trx, contact.id, user.id);
       autoAssigned = access.autoAssigned;
       return trx
         .insertInto("scheduled_messages")
         .values({
           id: crypto.randomUUID(),
-          contact_id: body.contactId,
+          contact_id: contact.id,
+          conversation_id: await conversationIdForContact(trx, contact.id),
           content: body.content?.trim() || "",
           message_type: body.messageType,
           media_url: storedMediaReference,
