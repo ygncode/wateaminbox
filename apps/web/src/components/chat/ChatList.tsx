@@ -838,8 +838,13 @@ export const ChatList = memo(function ChatList({
                 >
                   <ChatListItem
                     chat={chat}
-                    isSelected={chat.id === selectedChatId}
-                    onClick={() => handleChatClick(chat.id)}
+                    isSelected={
+                      chat.id === selectedChatId ||
+                      chat.contact.conversationId === selectedChatId
+                    }
+                    onClick={() =>
+                      handleChatClick(chat.contact.conversationId ?? chat.id)
+                    }
                     onPrefetch={prefetchContact}
                   />
                 </div>

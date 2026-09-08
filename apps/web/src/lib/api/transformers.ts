@@ -58,6 +58,9 @@ export interface ContactApiResponse {
   } | null;
   conversationStatus: ConversationLifecycleStatus;
   activeCaseId: string | null;
+  conversationId?: string | null;
+  channel?: string | null;
+  provider?: string | null;
 }
 
 /**
@@ -102,6 +105,9 @@ export function transformContactToChat(contact: ContactApiResponse): Chat {
         : undefined,
       isGroup: contact.isGroup,
       connection: contact.connection,
+      conversationId: contact.conversationId,
+      channel: contact.channel,
+      provider: contact.provider,
     },
     lastMessage: contact.lastMessage
       ? {
