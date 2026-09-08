@@ -1,10 +1,31 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { downloadTelegramFile } from "./api";
+import { downloadTelegramFile, getTelegramBotIdentity } from "./api";
 
 const originalFetch = globalThis.fetch;
 const token = `12345:${"a".repeat(30)}`;
 afterEach(() => {
   globalThis.fetch = originalFetch;
+});
+
+describe("Telegram Bot API validation", () => {
+  test("rejects a malformed successful bot identity", async () => {
+    globalThis.fetch = (async () =>
+      Response.json({
+        ok: true,
+        result: { id: "not-a-number" },
+      })) as unknown as typeof fetch;
+    await expect(getTelegramBotIdentity(token)).rejects.toThrow(
+      "invalid bot identity",
+    );
+  });
+
+  test("rejects a non-boolean API envelope status", async () => {
+    globalThis.fetch = (async () =>
+      Response.json({ ok: "yes", result: {} })) as unknown as typeof fetch;
+    await expect(getTelegramBotIdentity(token)).rejects.toThrow(
+      "invalid response",
+    );
+  });
 });
 
 describe("Telegram file retrieval", () => {

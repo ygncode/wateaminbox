@@ -346,7 +346,11 @@ export interface ChannelActionIntent {
 export type ProviderActionResult =
   | { outcome: "confirmed" | "accepted"; providerRequestId?: string }
   | {
-      outcome: "unsupported" | "transient_failure" | "permanent_failure";
+      outcome:
+        | "unsupported"
+        | "transient_failure"
+        | "permanent_failure"
+        | "uncertain";
       errorCode: string;
       retryAfterMs?: number;
     };

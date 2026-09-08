@@ -9,6 +9,7 @@ import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
 } from "../services/channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "../services/channel-spine-readiness.service.js";
 import { getTenantConnection } from "../services/tenant.service.js";
 
 const MAX_INGRESS_BYTES = 1_048_576;
@@ -62,14 +63,18 @@ channelIngressRoutes.post("/:provider/:routeKey", async (c) => {
   }
 
   const tenantDb = await getTenantConnection(route.company_id);
+  if (!(await isChannelSpineTenantReady(tenantDb))) {
+    throw new HTTPException(503, { message: "Channel ingress is not ready" });
+  }
   const account = await tenantDb
     .selectFrom("channel_accounts")
-    .select(["id", "channel", "provider", "archived_at"])
+    .select(["id", "channel", "provider", "status", "archived_at"])
     .where("id", "=", route.channel_account_id)
     .executeTakeFirst();
   if (
     !account ||
     account.archived_at ||
+    account.status !== "connected" ||
     !isChannel(account.channel) ||
     !isChannelProvider(account.provider) ||
     account.provider !== provider

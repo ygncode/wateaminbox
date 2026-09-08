@@ -59,6 +59,13 @@ integration(
       expect((await applyNormalizedChannelEvent(tenantDb, event)).outcome).toBe(
         "duplicate",
       );
+      const redelivery = {
+        ...event,
+        receivedAt: "2026-09-08T12:05:00.000Z",
+      };
+      expect(
+        (await applyNormalizedChannelEvent(tenantDb, redelivery)).outcome,
+      ).toBe("duplicate");
       expect(
         Number(
           (
@@ -69,6 +76,39 @@ integration(
           ).count,
         ),
       ).toBe(1);
+
+      const edit: Extract<NormalizedChannelEvent, { kind: "message.edit" }> = {
+        ...event,
+        eventId: "update-2",
+        kind: "message.edit",
+        providerOccurredAt: "2026-09-08T12:10:00.000Z",
+        payload: {
+          conversation: event.payload.conversation,
+          externalMessageId: event.payload.externalMessageId,
+          externalIdentityScope: event.payload.externalIdentityScope,
+          textContent: "newer edit",
+        },
+      };
+      expect((await applyNormalizedChannelEvent(tenantDb, edit)).outcome).toBe(
+        "applied",
+      );
+      const staleUpsert = {
+        ...event,
+        eventId: "update-3",
+        receivedAt: "2026-09-08T12:15:00.000Z",
+        payload: { ...event.payload, textContent: "stale replay" },
+      };
+      expect(
+        (await applyNormalizedChannelEvent(tenantDb, staleUpsert)).outcome,
+      ).toBe("applied");
+      expect(
+        (
+          await tenantDb
+            .selectFrom("messages")
+            .select("content")
+            .executeTakeFirstOrThrow()
+        ).content,
+      ).toBe("newer edit");
 
       const conflicting = messageEvent(companyId, accountId, "changed");
       await expect(

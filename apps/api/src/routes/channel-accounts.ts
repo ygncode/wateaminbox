@@ -22,6 +22,7 @@ import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
 } from "../services/channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "../services/channel-spine-readiness.service.js";
 import {
   readChannelCredential,
   storeChannelCredential,
@@ -92,6 +93,9 @@ channelAccountRoutes.post(
     ) {
       return notFound(c, "Telegram Bot is not enabled for this workspace");
     }
+    if (!(await isChannelSpineTenantReady(tenantDb))) {
+      return c.json({ error: "Channel storage indexes are not ready" }, 503);
+    }
     const { botToken, displayName } = c.req.valid("json");
     let identity;
     try {
@@ -102,14 +106,14 @@ channelAccountRoutes.post(
 
     const existingAccount = await tenantDb
       .selectFrom("channel_accounts")
-      .select("id")
+      .select(["id", "status"])
       .where("channel", "=", "telegram")
       .where("provider", "=", "telegram_bot")
       .where("external_scope_id", "=", "telegram-bot")
       .where("external_account_id", "=", String(identity.id))
       .where("archived_at", "is", null)
       .executeTakeFirst();
-    if (existingAccount) {
+    if (existingAccount?.status === "connected") {
       return c.json({ error: "Telegram bot is already connected" }, 409);
     }
 
@@ -118,7 +122,7 @@ channelAccountRoutes.post(
       .select("schema_name")
       .where("id", "=", companyId)
       .executeTakeFirstOrThrow();
-    const accountId = crypto.randomUUID();
+    const accountId = existingAccount?.id ?? crypto.randomUUID();
     const routeKey = randomBytes(32).toString("base64url");
     const webhookSecret = randomBytes(32).toString("base64url");
     const routeHash = await crypto.subtle.digest(
@@ -129,28 +133,55 @@ channelAccountRoutes.post(
       const tenant = trx.withSchema(
         company.schema_name,
       ) as unknown as Transaction<TenantDatabase>;
-      await tenant
-        .insertInto("channel_accounts")
-        .values({
-          id: accountId,
-          channel: "telegram",
-          provider: "telegram_bot",
-          display_name: displayName ?? identity.first_name,
-          external_account_id: String(identity.id),
-          external_scope_id: "telegram-bot",
-          status: "connecting",
-          provider_status: null,
-          capabilities_revision: "telegram-bot:v1",
-          provider_metadata: identity.username
-            ? { username: identity.username }
-            : {},
-          legacy_whatsapp_connection_id: null,
-          connected_by: user.id,
-          connected_at: null,
-          last_sync_at: null,
-          archived_at: null,
-        })
-        .execute();
+      if (existingAccount) {
+        await trx
+          .updateTable("channel_ingress_routes")
+          .set({
+            state: "revoked",
+            revoked_at: new Date(),
+            updated_at: new Date(),
+          })
+          .where("company_id", "=", companyId)
+          .where("channel_account_id", "=", accountId)
+          .where("state", "!=", "revoked")
+          .execute();
+        await tenant
+          .updateTable("channel_accounts")
+          .set({
+            display_name: displayName ?? identity.first_name,
+            status: "connecting",
+            provider_status: null,
+            provider_metadata: identity.username
+              ? { username: identity.username }
+              : {},
+            updated_at: new Date(),
+          })
+          .where("id", "=", accountId)
+          .execute();
+      } else {
+        await tenant
+          .insertInto("channel_accounts")
+          .values({
+            id: accountId,
+            channel: "telegram",
+            provider: "telegram_bot",
+            display_name: displayName ?? identity.first_name,
+            external_account_id: String(identity.id),
+            external_scope_id: "telegram-bot",
+            status: "connecting",
+            provider_status: null,
+            capabilities_revision: "telegram-bot:v1",
+            provider_metadata: identity.username
+              ? { username: identity.username }
+              : {},
+            legacy_whatsapp_connection_id: null,
+            connected_by: user.id,
+            connected_at: null,
+            last_sync_at: null,
+            archived_at: null,
+          })
+          .execute();
+      }
       await storeChannelCredential(
         tenant,
         companyId,
@@ -215,6 +246,7 @@ channelAccountRoutes.post(
         .set({ state: "active", updated_at: new Date() })
         .where("company_id", "=", companyId)
         .where("channel_account_id", "=", accountId)
+        .where("state", "=", "pending")
         .execute();
     });
     return successData(
@@ -252,9 +284,19 @@ channelAccountRoutes.delete("/:id", async (c) => {
   );
   if (!botToken)
     return c.json({ error: "Channel credential unavailable" }, 503);
+  await tenantDb
+    .updateTable("channel_accounts")
+    .set({ status: "disabled", provider_status: "webhook_removal_pending" })
+    .where("id", "=", account.id)
+    .execute();
   try {
     await removeTelegramWebhook(botToken);
   } catch {
+    await tenantDb
+      .updateTable("channel_accounts")
+      .set({ status: "connected", provider_status: "webhook_removal_failed" })
+      .where("id", "=", account.id)
+      .execute();
     return c.json({ error: "Telegram webhook removal failed" }, 502);
   }
   const company = await db

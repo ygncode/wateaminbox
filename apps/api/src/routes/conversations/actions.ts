@@ -9,6 +9,7 @@ import { badRequest, conflict, notFound } from "../../lib/errors.js";
 import { successData } from "../../lib/response.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
+import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
 import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
@@ -43,7 +44,7 @@ neutralActionRoutes.post(
   requireMessageSendPermission,
   zValidator("json", actionSchema),
   async (c) => {
-    const { tenantDb, companyId } = getRouteContext(c);
+    const { tenantDb, companyId, user } = getRouteContext(c);
     const conversationId = c.req.param("id");
     const authority = await getChannelSpineWorkspaceAuthority(companyId);
     if (authority.writeAuthority !== "neutral") {
@@ -72,6 +73,9 @@ neutralActionRoutes.post(
       !isChannelProviderEnabled(authority, conversation.provider)
     ) {
       return notFound(c, "Conversation");
+    }
+    if (!(await isChannelSpineTenantReady(tenantDb))) {
+      return c.json({ error: "Channel storage indexes are not ready" }, 503);
     }
     const body = c.req.valid("json");
     const message = await tenantDb
@@ -108,6 +112,7 @@ neutralActionRoutes.post(
       return badRequest(c, "A valid Idempotency-Key header is required");
     }
     const payload = {
+      actorUserId: user.id,
       externalMessageId: message.external_message_id,
       textContent: body.textContent,
       emoji: body.emoji,

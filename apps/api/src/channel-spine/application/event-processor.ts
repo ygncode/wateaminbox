@@ -32,7 +32,7 @@ export async function applyNormalizedChannelEvent(
   assertNormalizedChannelEvent(event);
   if (!isDurableChannelEvent(event)) return { outcome: "transient" };
 
-  const digest = eventDigest(event);
+  const digest = channelEventPayloadDigest(event);
   const reserved = await reserveInboxEvent(tenantDb, event, digest);
   if (reserved === "duplicate") return { outcome: "duplicate" };
 
@@ -297,11 +297,18 @@ async function applyMessageUpsert(
   const occurredAt = new Date(event.providerOccurredAt ?? event.receivedAt);
   const existing = await trx
     .selectFrom("messages")
-    .select("id")
+    .select(["id", "provider_occurred_at"])
     .where("channel_account_id", "=", event.channelAccountId)
     .where("external_identity_scope", "=", payload.externalIdentityScope)
     .where("external_message_id", "=", payload.externalMessageId)
     .executeTakeFirst();
+
+  if (
+    existing?.provider_occurred_at &&
+    occurredAt.getTime() < existing.provider_occurred_at.getTime()
+  ) {
+    return { conversationId, messageId: existing.id };
+  }
 
   const values = {
     whatsapp_connection_id: null,
@@ -359,7 +366,23 @@ async function applyMessageUpsert(
   if (existing) {
     await trx
       .updateTable("messages")
-      .set(values)
+      .set({
+        conversation_id: conversationId,
+        sender_jid: payload.sender?.externalId ?? null,
+        sender_name: payload.sender?.displayName ?? null,
+        message_type: legacyMessageType(payload.normalizedType),
+        content: payload.textContent ?? payload.sanitizedHtmlContent ?? "",
+        quoted_message_id: payload.replyToExternalMessageId ?? null,
+        sent_by_user_id: payload.sentByUserId ?? null,
+        timestamp: occurredAt,
+        direction: payload.direction,
+        provider_occurred_at: occurredAt,
+        normalized_type: payload.normalizedType,
+        subject: payload.subject ?? null,
+        text_content: payload.textContent ?? null,
+        sanitized_html_content: payload.sanitizedHtmlContent ?? null,
+        provider_metadata: payload.providerMetadata ?? {},
+      })
       .where("id", "=", messageId)
       .execute();
   }
@@ -426,13 +449,21 @@ async function applyMessageMutation(
     event.payload.externalMessageId,
   );
   if (!message) throw new Error("message_dependency_missing");
+  const occurredAt = new Date(event.providerOccurredAt ?? event.receivedAt);
+  if (
+    message.provider_occurred_at &&
+    occurredAt.getTime() < message.provider_occurred_at.getTime()
+  ) {
+    return { messageId: message.id };
+  }
   await trx
     .updateTable("messages")
     .set(
       event.kind === "message.delete"
         ? {
             deleted_by_sender: true,
-            deleted_at: new Date(event.providerOccurredAt ?? event.receivedAt),
+            deleted_at: occurredAt,
+            provider_occurred_at: occurredAt,
           }
         : {
             content:
@@ -442,6 +473,7 @@ async function applyMessageMutation(
             text_content: event.payload.textContent ?? null,
             sanitized_html_content: event.payload.sanitizedHtmlContent ?? null,
             provider_metadata: event.payload.providerMetadata ?? {},
+            provider_occurred_at: occurredAt,
           },
     )
     .where("id", "=", message.id)
@@ -594,6 +626,23 @@ async function applyDeliveryUpdate(
     })
     .onConflict((oc) => oc.doNothing())
     .execute();
+  if (
+    ["pending", "sent", "delivered", "read", "failed"].includes(payload.status)
+  ) {
+    await trx
+      .updateTable("messages")
+      .set({
+        status: sql`CASE
+          WHEN ${payload.status} = 'read' THEN 'read'
+          WHEN ${payload.status} = 'delivered' AND status IN ('pending', 'sent') THEN 'delivered'
+          WHEN ${payload.status} = 'sent' AND status = 'pending' THEN 'sent'
+          WHEN ${payload.status} = 'failed' AND status = 'pending' THEN 'failed'
+          ELSE status
+        END`,
+      })
+      .where("id", "=", message.id)
+      .execute();
+  }
   return { messageId: message.id };
 }
 
@@ -796,9 +845,17 @@ async function replaceAttachments(
           file_name: attachment.fileName ?? null,
           content_type: attachment.contentType ?? null,
           byte_size: attachment.byteSize?.toString() ?? null,
-          storage_uri: attachment.storageUri ?? null,
-          status: attachment.status,
-          error_code: attachment.errorCode ?? null,
+          storage_uri: attachment.storageUri
+            ? attachment.storageUri
+            : sql`message_attachments.storage_uri`,
+          status: sql`CASE
+            WHEN message_attachments.status = 'available' AND ${attachment.status} = 'pending'
+              THEN message_attachments.status
+            ELSE ${attachment.status}
+          END`,
+          error_code: attachment.errorCode
+            ? attachment.errorCode
+            : sql`message_attachments.error_code`,
           provider_metadata: attachment.providerMetadata ?? {},
           updated_at: new Date(),
         }),
@@ -812,10 +869,10 @@ async function findMessage(
   channelAccountId: string,
   scope: string,
   externalId: string,
-): Promise<{ id: string } | undefined> {
+): Promise<{ id: string; provider_occurred_at: Date | null } | undefined> {
   return trx
     .selectFrom("messages")
-    .select("id")
+    .select(["id", "provider_occurred_at"])
     .where("channel_account_id", "=", channelAccountId)
     .where("external_identity_scope", "=", scope)
     .where("external_message_id", "=", externalId)
@@ -889,8 +946,13 @@ function legacyMessageType(value: string): LegacyMessageType {
   return supported.has(value) ? (value as LegacyMessageType) : "text";
 }
 
-function eventDigest(event: NormalizedChannelEvent): string {
-  return createHash("sha256").update(stableJson(event)).digest("hex");
+export function channelEventPayloadDigest(
+  event: NormalizedChannelEvent,
+): string {
+  // receivedAt is local transport metadata and changes on every provider
+  // redelivery. It cannot participate in the provider event identity digest.
+  const { receivedAt: _receivedAt, ...providerEvent } = event;
+  return createHash("sha256").update(stableJson(providerEvent)).digest("hex");
 }
 
 function stableJson(value: unknown): string {

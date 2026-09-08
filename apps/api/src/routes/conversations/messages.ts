@@ -48,6 +48,7 @@ import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
 } from "../../services/channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
 import { requireSendAccess } from "../../services/send-access.service.js";
 import {
@@ -480,6 +481,9 @@ messageRoutes.post(
           503,
         );
       }
+      if (!(await isChannelSpineTenantReady(tenantDb))) {
+        return c.json({ error: "Channel storage indexes are not ready" }, 503);
+      }
       const idempotencyKey = c.req.header("idempotency-key")?.trim();
       if (!idempotencyKey || idempotencyKey.length > 200) {
         return badRequest(c, "A valid Idempotency-Key header is required");
@@ -512,6 +516,7 @@ messageRoutes.post(
       const normalizedPayload = {
         messageType,
         textContent: content ?? "",
+        actorUserId: user.id,
         sentByUserId: user.id,
         replyToExternalMessageId: null as string | null,
         attachments: storedMediaReference

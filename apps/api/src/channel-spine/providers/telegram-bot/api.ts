@@ -10,7 +10,22 @@ export interface TelegramBotIdentity {
 export async function getTelegramBotIdentity(
   token: string,
 ): Promise<TelegramBotIdentity> {
-  return telegramBotRequest<TelegramBotIdentity>(token, "getMe", {});
+  const identity = await telegramBotRequest<TelegramBotIdentity>(
+    token,
+    "getMe",
+    {},
+  );
+  if (
+    !identity ||
+    !Number.isSafeInteger(identity.id) ||
+    identity.id <= 0 ||
+    typeof identity.first_name !== "string" ||
+    !identity.first_name.trim() ||
+    (identity.username !== undefined && typeof identity.username !== "string")
+  ) {
+    throw new Error("Telegram Bot API returned an invalid bot identity");
+  }
+  return identity;
 }
 
 export async function configureTelegramWebhook(
@@ -114,7 +129,20 @@ export async function telegramBotRequest<T = true>(
   } catch {
     throw new Error("Telegram Bot API returned an invalid response");
   }
-  if (!response.ok || !isTelegramResponse(result) || !result.ok) {
+  if (!isTelegramResponse(result)) {
+    throw new Error("Telegram Bot API returned an invalid response");
+  }
+  if (result.ok && !("result" in result)) {
+    throw new Error("Telegram Bot API returned an invalid response");
+  }
+  if (!response.ok || !result.ok) {
+    const errorCode =
+      typeof result.error_code === "number"
+        ? result.error_code
+        : response.status;
+    if (errorCode === 429 || errorCode >= 500) {
+      throw new Error("Telegram Bot API is unavailable");
+    }
     throw new Error("Telegram Bot API rejected the request");
   }
   return result.result as T;
@@ -149,6 +177,11 @@ async function readLimitedBody(
 
 function isTelegramResponse(
   value: unknown,
-): value is { ok: boolean; result: unknown } {
-  return Boolean(value && typeof value === "object" && "ok" in value);
+): value is { ok: boolean; result?: unknown; error_code?: number } {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "ok" in value &&
+      typeof (value as { ok?: unknown }).ok === "boolean",
+  );
 }

@@ -78,7 +78,7 @@ export class TelegramBotApiTransport implements TelegramBotOutboundTransport {
         externalIdentityScope: `telegram-thread:${context.externalThreadId}`,
       };
     } catch (error) {
-      return providerFailure(error);
+      return classifyTelegramSendFailure(error);
     }
   }
 
@@ -123,12 +123,14 @@ export class TelegramBotApiTransport implements TelegramBotOutboundTransport {
       }
       return { outcome: "confirmed" };
     } catch (error) {
-      const failed = providerFailure(error);
+      const failed = classifyTelegramSendFailure(error);
       return {
         outcome:
           failed.outcome === "transient_failure"
             ? "transient_failure"
-            : "permanent_failure",
+            : failed.outcome === "uncertain"
+              ? "uncertain"
+              : "permanent_failure",
         errorCode: failed.errorCode,
         retryAfterMs: failed.retryAfterMs,
       };
@@ -155,14 +157,27 @@ async function resolveContext(intent: {
       "telegram_bot_token",
     ),
     tenantDb
-      .selectFrom("conversations")
-      .select("external_thread_id")
-      .where("id", "=", intent.conversationId)
-      .where("channel_account_id", "=", intent.channelAccountId)
+      .selectFrom("conversations as conversation")
+      .innerJoin(
+        "channel_accounts as account",
+        "account.id",
+        "conversation.channel_account_id",
+      )
+      .select([
+        "conversation.external_thread_id",
+        "account.status as account_status",
+      ])
+      .where("conversation.id", "=", intent.conversationId)
+      .where("conversation.channel_account_id", "=", intent.channelAccountId)
+      .where("conversation.archived_at", "is", null)
+      .where("account.archived_at", "is", null)
       .executeTakeFirst(),
   ]);
   if (!token) throw new Error("telegram_credential_unavailable");
-  if (!conversation?.external_thread_id) {
+  if (
+    !conversation?.external_thread_id ||
+    conversation.account_status !== "connected"
+  ) {
     throw new Error("telegram_conversation_unavailable");
   }
   const match = /^(-?\d+)(?::thread:(\d+))?$/.exec(
@@ -177,35 +192,33 @@ async function resolveContext(intent: {
   };
 }
 
-function providerFailure(
+export function classifyTelegramSendFailure(
   error: unknown,
 ): Extract<
   ProviderSendResult,
   { outcome: "transient_failure" | "permanent_failure" | "uncertain" }
 > {
   const message = error instanceof Error ? error.message : "";
-  if (
-    message === "Telegram Bot API is unavailable" ||
-    message === "Telegram Bot API returned an invalid response"
-  ) {
-    return {
-      outcome: "transient_failure",
-      errorCode: "telegram_temporarily_unavailable",
-      retryAfterMs: 5_000,
-    };
-  }
-  const knownCodes = new Set([
+  const localFailureCodes = new Set([
     "telegram_credential_unavailable",
     "telegram_conversation_unavailable",
     "telegram_conversation_invalid",
     "telegram_attachment_missing",
-    "Telegram Bot API rejected the request",
   ]);
+  if (localFailureCodes.has(message)) {
+    return { outcome: "permanent_failure", errorCode: message };
+  }
+  if (message === "Telegram Bot API rejected the request") {
+    return {
+      outcome: "permanent_failure",
+      errorCode: "telegram_request_rejected",
+    };
+  }
+  // Telegram has no send idempotency key. Any other error may have happened
+  // after provider acceptance, so automatic retry could duplicate a message.
   return {
-    outcome: "permanent_failure",
-    errorCode: knownCodes.has(message)
-      ? message.toLowerCase().replaceAll(" ", "_")
-      : "telegram_send_failed",
+    outcome: "uncertain",
+    errorCode: "telegram_send_outcome_unknown",
   };
 }
 

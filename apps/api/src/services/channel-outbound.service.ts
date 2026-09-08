@@ -15,6 +15,8 @@ import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
 } from "./channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "./channel-spine-readiness.service.js";
+import { getMemberWithPermissions } from "./permission.service.js";
 import { getTenantConnection } from "./tenant.service.js";
 
 const logger = createLogger("ChannelOutbound");
@@ -40,6 +42,7 @@ export async function dispatchNextChannelOutbound(): Promise<number> {
     const authority = await getChannelSpineWorkspaceAuthority(company.id);
     if (authority.writeAuthority !== "neutral") continue;
     const tenantDb = await getTenantConnection(company.id);
+    if (!(await isChannelSpineTenantReady(tenantDb))) continue;
     const claim = await tenantDb.transaction().execute(async (trx) => {
       const row = await trx
         .selectFrom("outbound_message_intents as intent")
@@ -47,6 +50,11 @@ export async function dispatchNextChannelOutbound(): Promise<number> {
           "channel_accounts as account",
           "account.id",
           "intent.channel_account_id",
+        )
+        .innerJoin(
+          "conversations as conversation",
+          "conversation.id",
+          "intent.conversation_id",
         )
         .select([
           "intent.id",
@@ -64,6 +72,8 @@ export async function dispatchNextChannelOutbound(): Promise<number> {
         .where("intent.status", "=", "pending")
         .where("intent.next_attempt_at", "<=", new Date())
         .where("account.archived_at", "is", null)
+        .where("account.status", "=", "connected")
+        .where("conversation.archived_at", "is", null)
         .where("account.provider", "in", authority.enabledProviders)
         .orderBy("intent.next_attempt_at")
         .orderBy("intent.created_at")
@@ -107,6 +117,14 @@ export async function dispatchNextChannelOutbound(): Promise<number> {
     if (!claim) continue;
 
     let result: ProviderSendResult;
+    if (!(await isClaimStillAuthorized(claim))) {
+      result = {
+        outcome: "permanent_failure",
+        errorCode: "authorization_or_resource_state_revoked",
+      };
+      await completeClaim(company.id, claim, result);
+      return 1;
+    }
     try {
       // Capability resolution is part of the fail-closed dispatch path, not a
       // UI-only hint. Invalid provider capability state cannot send.
@@ -152,7 +170,9 @@ export async function dispatchNextChannelOutbound(): Promise<number> {
             outcome:
               actionFailure.outcome === "transient_failure"
                 ? "transient_failure"
-                : "permanent_failure",
+                : actionFailure.outcome === "uncertain"
+                  ? "uncertain"
+                  : "permanent_failure",
             errorCode: actionFailure.errorCode,
             retryAfterMs: actionFailure.retryAfterMs,
           };
@@ -172,6 +192,31 @@ export async function dispatchNextChannelOutbound(): Promise<number> {
     return 1;
   }
   return 0;
+}
+
+async function isClaimStillAuthorized(claim: ClaimedIntent): Promise<boolean> {
+  const actorUserId = claim.normalizedPayload.actorUserId;
+  if (typeof actorUserId !== "string" || !actorUserId) return false;
+  const member = await getMemberWithPermissions(claim.companyId, actorUserId);
+  if (!member?.permissions.can_send_messages) return false;
+  const tenantDb = await getTenantConnection(claim.companyId);
+  const conversation = await tenantDb
+    .selectFrom("conversations")
+    .select(["legacy_contact_id", "archived_at"])
+    .where("id", "=", claim.conversationId)
+    .where("channel_account_id", "=", claim.channelAccountId)
+    .executeTakeFirst();
+  if (!conversation || conversation.archived_at) return false;
+  if (member.permissions.can_view_all_chats) return true;
+  if (!conversation.legacy_contact_id) return false;
+  const assignment = await tenantDb
+    .selectFrom("contact_assignments")
+    .select("id")
+    .where("contact_id", "=", conversation.legacy_contact_id)
+    .where("assigned_to", "=", actorUserId)
+    .where("unassigned_at", "is", null)
+    .executeTakeFirst();
+  return Boolean(assignment);
 }
 
 async function completeClaim(
