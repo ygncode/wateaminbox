@@ -31,13 +31,6 @@ export function badRequest(
 }
 
 /**
- * Return a 401 Unauthorized response
- */
-export function unauthorized(c: Context, message: string = "Unauthorized") {
-  return c.json(createErrorResponse(message), 401 as ContentfulStatusCode);
-}
-
-/**
  * Return a 403 Forbidden response
  */
 export function forbidden(c: Context, message: string = "Forbidden") {
@@ -59,30 +52,6 @@ export function notFound(c: Context, resource: string = "Resource") {
  */
 export function conflict(c: Context, message: string = "Conflict") {
   return c.json(createErrorResponse(message), 409 as ContentfulStatusCode);
-}
-
-/**
- * Return a 422 Unprocessable Entity response
- */
-export function unprocessable(
-  c: Context,
-  message: string = "Unprocessable Entity",
-  details?: unknown,
-) {
-  return c.json(
-    createErrorResponse(message, details),
-    422 as ContentfulStatusCode,
-  );
-}
-
-/**
- * Return a 429 Too Many Requests response
- */
-export function tooManyRequests(
-  c: Context,
-  message: string = "Too many requests",
-) {
-  return c.json(createErrorResponse(message), 429 as ContentfulStatusCode);
 }
 
 /**
@@ -133,13 +102,6 @@ export class NotFoundError extends AppError {
   }
 }
 
-export class UnauthorizedError extends AppError {
-  constructor(message: string = "Unauthorized") {
-    super(message, 401);
-    this.name = "UnauthorizedError";
-  }
-}
-
 export class ForbiddenError extends AppError {
   constructor(message: string = "Forbidden") {
     super(message, 403);
@@ -151,13 +113,6 @@ export class ConflictError extends AppError {
   constructor(message: string = "Conflict") {
     super(message, 409);
     this.name = "ConflictError";
-  }
-}
-
-export class TableNotFoundError extends AppError {
-  constructor(tableName: string) {
-    super(`Table '${tableName}' does not exist`, 404);
-    this.name = "TableNotFoundError";
   }
 }
 
@@ -307,13 +262,6 @@ export class MediaObjectReclaimedError extends ConflictError {
   constructor() {
     super("This media attachment is no longer available - upload it again");
     this.name = "MediaObjectReclaimedError";
-  }
-}
-
-export class InvalidConnectionStateError extends ValidationError {
-  constructor(currentState: string, requiredState: string) {
-    super(`Connection is ${currentState}, but must be ${requiredState}`);
-    this.name = "InvalidConnectionStateError";
   }
 }
 

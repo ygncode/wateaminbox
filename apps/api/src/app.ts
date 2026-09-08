@@ -117,7 +117,7 @@ app.onError((err, c) => {
     );
   }
 
-  // Handle AppError and its subclasses (TableNotFoundError, ServiceUnavailableError, etc.)
+  // Handle AppError and its subclasses (ServiceUnavailableError, etc.)
   if (err instanceof AppError) {
     return c.json(
       err.details
