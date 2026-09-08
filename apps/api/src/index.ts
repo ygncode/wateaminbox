@@ -6,6 +6,10 @@ import { natsLifecycle } from "./lib/nats/index.js";
 import { rateLimitStore } from "./lib/rate-limit-store.js";
 import { runShutdown, type ShutdownStep } from "./lib/shutdown.js";
 import {
+  initializeChannelEventRetry,
+  shutdownChannelEventRetry,
+} from "./services/channel-event-retry.service.js";
+import {
   initializeChannelMessageDelivery,
   shutdownChannelMessageDelivery,
 } from "./services/channel-message-delivery.service.js";
@@ -77,6 +81,7 @@ if (!isTestEnvironment) {
 
   initializeCommandOutbox();
   initializeChannelOutbound();
+  initializeChannelEventRetry();
   initializeChannelMessageDelivery();
   initializeMessageSearch();
   initializeMessageDelivery();
@@ -127,6 +132,7 @@ function shutdownSteps(): ShutdownStep[] {
     },
     { name: "connection-email-alerts", run: shutdownConnectionEmailAlerts },
     { name: "channel-outbound", run: shutdownChannelOutbound },
+    { name: "channel-event-retry", run: shutdownChannelEventRetry },
     {
       name: "channel-message-delivery",
       run: shutdownChannelMessageDelivery,

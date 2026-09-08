@@ -1,5 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import {
+  isChannel,
+  isChannelProvider,
   REMOTE_HISTORY_RESPONSE_TIMEOUT_MS,
   toDbDate,
   toISOString,
@@ -467,8 +469,11 @@ messageRoutes.post(
       isChannelProviderEnabled(authority, neutralConversation.provider)
     ) {
       if (
-        neutralConversation.provider !== "telegram_bot" ||
-        neutralConversation.channel !== "telegram"
+        !isChannel(neutralConversation.channel) ||
+        !isChannelProvider(neutralConversation.provider) ||
+        !["telegram_bot", "whatsapp_linked_device"].includes(
+          neutralConversation.provider,
+        )
       ) {
         return c.json(
           { error: "The channel adapter is not available for neutral writes" },
@@ -484,8 +489,8 @@ messageRoutes.post(
       }
       const capabilities = await resolveAdapterCapabilities(
         channelAdapterRegistry,
-        "telegram",
-        "telegram_bot",
+        neutralConversation.channel,
+        neutralConversation.provider,
         {
           companyId,
           channelAccountId: neutralConversation.channel_account_id,
@@ -507,6 +512,7 @@ messageRoutes.post(
       const normalizedPayload = {
         messageType,
         textContent: content ?? "",
+        sentByUserId: user.id,
         replyToExternalMessageId: null as string | null,
         attachments: storedMediaReference
           ? [{ ordinal: 0, storageUri: storedMediaReference }]
