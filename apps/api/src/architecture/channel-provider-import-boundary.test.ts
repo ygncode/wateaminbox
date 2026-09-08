@@ -3,8 +3,10 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 const root = join(import.meta.dir, "../../../..");
 const protectedRoots = [
+  "apps/api/src/channel-spine/contracts",
   "apps/api/src/channel-spine/domain",
   "apps/api/src/channel-spine/inbox",
+  "apps/api/src/channel-spine/application",
   "packages/shared/src/channel-spine",
 ];
 const providerImport =
