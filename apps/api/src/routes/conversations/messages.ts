@@ -13,10 +13,12 @@ import {
   formatMessagesForConversation,
   type MessageDbRow,
 } from "../../lib/message-formatters.js";
+import { isConfirmedQuote } from "../../lib/message-quote.js";
 import { loadMessageReactions } from "../../lib/message-reactions.js";
 import {
   buildCommandSubject,
   buildSendMessageCommand,
+  MEDIA_MESSAGE_TYPES,
 } from "../../lib/nats/index.js";
 import { successData, successWithMessage } from "../../lib/response.js";
 import {
@@ -27,7 +29,6 @@ import {
   getPrivateMediaReference,
   resolveMediaKeyForCompany,
 } from "../../lib/storage.js";
-import { isConfirmedQuote } from "../../lib/message-quote.js";
 import { getRouteContext } from "../../middleware/context.js";
 import {
   markDeprecatedMessageSend,
@@ -39,6 +40,7 @@ import {
   enqueueCommand,
   enqueueSessionCommand,
 } from "../../services/command-outbox.service.js";
+import { validateGroupMentionJids } from "../../services/group-mention.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
 import { requireSendAccess } from "../../services/send-access.service.js";
 import {
@@ -46,7 +48,6 @@ import {
   getUserNames,
 } from "../../services/user.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
-import { validateGroupMentionJids } from "../../services/group-mention.service.js";
 
 export const messageRoutes = new Hono();
 
@@ -319,6 +320,16 @@ messageRoutes.post(
 
     if (!content && messageType === "text") {
       return badRequest(c, "content is required for text messages");
+    }
+    // Media types require a media object; text must not carry one. The
+    // explicit allow-list (not `!== "text"`) keeps the non-media
+    // location/contact types from being misclassified as media — the
+    // conversation schema uses the full messageType enum.
+    if (MEDIA_MESSAGE_TYPES.includes(messageType) && !mediaUrl) {
+      return badRequest(c, "mediaUrl is required for media messages");
+    }
+    if (messageType === "text" && mediaUrl) {
+      return badRequest(c, "mediaUrl is not allowed for text messages");
     }
 
     // Get contact JID and connection ID

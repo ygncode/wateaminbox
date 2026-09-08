@@ -373,3 +373,54 @@ integrationTest(
     });
   },
 );
+
+integrationTest(
+  "POST /api/messages rejects each media messageType without mediaUrl with 400 and does not queue a command",
+  async () => {
+    await withTenantAndUsers(async ({ ownerHeaders }) => {
+      for (const messageType of [
+        "image",
+        "video",
+        "audio",
+        "document",
+        "sticker",
+      ]) {
+        const response = await app.request("/api/messages", {
+          method: "POST",
+          headers: ownerHeaders,
+          body: JSON.stringify({
+            contactId: crypto.randomUUID(),
+            messageType,
+            content: "hello",
+          }),
+        });
+        expect(response.status).toBe(400);
+        expect(await response.text()).toContain(
+          "mediaUrl is required for media messages",
+        );
+      }
+    });
+  },
+);
+
+integrationTest(
+  "POST /api/messages rejects text messageType with mediaUrl with 400 and does not queue a command",
+  async () => {
+    await withTenantAndUsers(async ({ ownerHeaders }) => {
+      const response = await app.request("/api/messages", {
+        method: "POST",
+        headers: ownerHeaders,
+        body: JSON.stringify({
+          contactId: crypto.randomUUID(),
+          messageType: "text",
+          content: "hello",
+          mediaUrl: "https://example.com/image.png",
+        }),
+      });
+      expect(response.status).toBe(400);
+      expect(await response.text()).toContain(
+        "mediaUrl is not allowed for text messages",
+      );
+    });
+  },
+);
