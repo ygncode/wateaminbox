@@ -135,13 +135,14 @@ scheduledRoutes.post(
       .where("id", "=", contactId)
       .executeTakeFirst();
 
-    if (!contact || !contact.jid) {
-      return notFound(c, "Contact or JID");
+    if (!contact) {
+      return notFound(c, "Contact");
     }
 
-    // The connection is re-resolved at dispatch time; it only needs to exist
-    // now so the schedule isn't doomed from the start.
-    if (!contact.whatsapp_connection_id) {
+    const conversationId = await conversationIdForContact(tenantDb, contact.id);
+    if (!contact.jid) {
+      if (!conversationId) return notFound(c, "Contact or JID");
+    } else if (!contact.whatsapp_connection_id) {
       return badRequest(c, "The contact has no WhatsApp connection");
     }
 
@@ -150,7 +151,7 @@ scheduledRoutes.post(
         .selectFrom("messages")
         .select("id")
         .where("id", "=", body.replyToMessageId)
-        .where("contact_id", "=", body.contactId)
+        .where("contact_id", "=", contact.id)
         .executeTakeFirst();
       if (!quotedMessage) {
         return notFound(c, "Quoted message");

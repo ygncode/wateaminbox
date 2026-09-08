@@ -35,7 +35,9 @@ import {
   finalizeBulkJobIfComplete,
   markBulkJobRunning,
 } from "./bulk-job.service.js";
+import { insertNeutralOutboundSend } from "./channel-outbound.service.js";
 import { getChannelSpineWorkspaceAuthority } from "./channel-spine-authority.service.js";
+import { conversationIdForContact } from "./channel-workflow.service.js";
 import { enqueueCommand } from "./command-outbox.service.js";
 import { resolveActiveCaseIdForContact } from "./conversation-case.service.js";
 import {
@@ -234,8 +236,24 @@ async function sendScheduledMessage(
     }
   }
 
-  if (!contact || !contact.jid) {
+  if (!contact) {
     throw new PermanentDispatchError("Contact no longer exists");
+  }
+
+  const conversationId =
+    row.conversation_id ??
+    (await conversationIdForContact(tenantDb, row.contact_id));
+  if (!contact.jid || !contact.whatsapp_connection_id) {
+    if (!conversationId) {
+      throw new PermanentDispatchError("Contact no longer exists");
+    }
+    return sendScheduledChannelMessage(
+      tenantDb,
+      companyId,
+      row,
+      claimToken,
+      conversationId,
+    );
   }
 
   const connection = contact.whatsapp_connection_id
@@ -517,6 +535,110 @@ async function sendScheduledMessage(
   };
 
   return { messageId, formattedMessage, connectionId: connection.id };
+}
+
+async function sendScheduledChannelMessage(
+  tenantDb: Kysely<TenantDatabase>,
+  companyId: string,
+  row: ScheduledMessageRow,
+  claimToken: Date,
+  conversationId: string,
+): Promise<DispatchSuccess | null> {
+  const conversation = await tenantDb
+    .selectFrom("conversations")
+    .select("channel_account_id")
+    .where("id", "=", conversationId)
+    .where("archived_at", "is", null)
+    .executeTakeFirst();
+  if (!conversation) {
+    throw new PermanentDispatchError("Conversation is not ready for send");
+  }
+  if (row.media_url) {
+    try {
+      await getMediaObjectReference(row.media_url, companyId);
+    } catch (error) {
+      if (isMediaMissingError(error)) {
+        throw new PermanentDispatchError(
+          "The media attachment no longer exists",
+        );
+      }
+      throw error;
+    }
+  }
+  const createdAt = toDbDate();
+  const shouldBroadcast = await tenantDb.transaction().execute(async (trx) => {
+    let caseId: string | null;
+    try {
+      const access = await requireSendAccess(
+        trx,
+        row.contact_id,
+        row.created_by,
+        { claimUnassigned: false },
+      );
+      caseId = access.caseId;
+    } catch (error) {
+      if (
+        error instanceof ContactAssignedToOtherError ||
+        error instanceof NoActiveCaseError ||
+        error instanceof ContactBlockedError
+      ) {
+        throw new PermanentDispatchError(error.message);
+      }
+      throw error;
+    }
+    let replyToExternalMessageId: string | null = null;
+    if (row.reply_to_message_id) {
+      const quoted = await trx
+        .selectFrom("messages")
+        .select("external_message_id")
+        .where("id", "=", row.reply_to_message_id)
+        .where("conversation_id", "=", conversationId)
+        .executeTakeFirst();
+      replyToExternalMessageId = quoted?.external_message_id ?? null;
+    }
+    const inserted = await insertNeutralOutboundSend(trx, {
+      actorUserId: row.created_by,
+      contactId: row.contact_id,
+      conversationId,
+      channelAccountId: conversation.channel_account_id,
+      content: row.content,
+      messageType: row.message_type,
+      mediaUrl: row.media_url,
+      caseId,
+      replyToMessageId: row.reply_to_message_id,
+      replyToExternalMessageId,
+      idempotencyKey: `scheduled:${row.id}`,
+    });
+    const updated = await markDispatched(
+      trx,
+      row,
+      inserted.messageId,
+      claimToken,
+    );
+    if (!updated) {
+      throw new PermanentDispatchError(
+        "Scheduled message is no longer claimed",
+      );
+    }
+    return inserted.messageId;
+  });
+  if (!shouldBroadcast) return null;
+  return {
+    messageId: shouldBroadcast,
+    formattedMessage: {
+      id: shouldBroadcast,
+      conversationId,
+      contactId: row.contact_id,
+      senderId: row.created_by,
+      senderType: "user",
+      messageType: row.message_type,
+      content: row.content,
+      status: "pending",
+      createdAt,
+      updatedAt: createdAt,
+    },
+    connectionId: conversation.channel_account_id,
+  };
 }
 
 async function markDispatched(

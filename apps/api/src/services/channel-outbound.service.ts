@@ -2,11 +2,14 @@ import { db } from "@wateaminbox/database";
 import type {
   Channel,
   ChannelProvider,
+  MessageType,
   OutboundMessageIntent,
   ProviderActionResult,
   ProviderSendResult,
 } from "@wateaminbox/shared";
 import { isChannel, isChannelProvider } from "@wateaminbox/shared";
+import { createHash } from "node:crypto";
+import type { Transaction } from "kysely";
 import { sql } from "kysely";
 import { resolveAdapterCapabilities } from "../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../channel-spine/registry.js";
@@ -17,7 +20,7 @@ import {
 } from "./channel-spine-authority.service.js";
 import { isChannelSpineTenantReady } from "./channel-spine-readiness.service.js";
 import { getMemberWithPermissions } from "./permission.service.js";
-import { getTenantConnection } from "./tenant.service.js";
+import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 
 const logger = createLogger("ChannelOutbound");
 const LEASE_MS = 30_000;
@@ -29,6 +32,82 @@ interface ClaimedIntent extends OutboundMessageIntent {
   leaseToken: string;
   channel: Channel;
   provider: ChannelProvider;
+}
+
+export async function insertNeutralOutboundSend(
+  trx: Transaction<TenantDatabase>,
+  input: {
+    actorUserId: string;
+    contactId: string | null;
+    conversationId: string;
+    channelAccountId: string;
+    content: string;
+    messageType: string;
+    mediaUrl?: string | null;
+    caseId: string | null;
+    replyToMessageId?: string | null;
+    replyToExternalMessageId?: string | null;
+    idempotencyKey: string;
+  },
+): Promise<{ messageId: string }> {
+  const messageId = crypto.randomUUID();
+  const normalizedPayload = {
+    messageType: input.messageType,
+    textContent: input.content,
+    actorUserId: input.actorUserId,
+    sentByUserId: input.actorUserId,
+    replyToExternalMessageId: input.replyToExternalMessageId ?? null,
+    attachments: input.mediaUrl
+      ? [{ ordinal: 0, storageUri: input.mediaUrl }]
+      : [],
+  };
+  const requestFingerprint = createHash("sha256")
+    .update(JSON.stringify(normalizedPayload))
+    .digest("hex");
+  await trx
+    .insertInto("messages")
+    .values({
+      id: messageId,
+      whatsapp_connection_id: null,
+      contact_id: input.contactId,
+      message_id: null,
+      from_me: true,
+      message_type: input.messageType as MessageType,
+      content: input.content,
+      media_url: input.mediaUrl ?? null,
+      sent_by_user_id: input.actorUserId,
+      status: "pending",
+      metadata: {},
+      timestamp: new Date(),
+      case_id: input.caseId,
+      channel_account_id: input.channelAccountId,
+      conversation_id: input.conversationId,
+      client_idempotency_key: input.idempotencyKey,
+      direction: "outbound",
+      reply_to_message_id: input.replyToMessageId ?? null,
+      normalized_type: input.messageType,
+      text_content: input.content,
+      provider_metadata: {},
+    })
+    .execute();
+  await trx
+    .insertInto("outbound_message_intents")
+    .values({
+      channel_account_id: input.channelAccountId,
+      conversation_id: input.conversationId,
+      message_id: messageId,
+      scheduled_message_id: null,
+      operation: "send",
+      idempotency_key: input.idempotencyKey,
+      request_fingerprint: requestFingerprint,
+      normalized_payload: normalizedPayload,
+      lease_token: null,
+      lease_expires_at: null,
+      provider_request_id: null,
+      last_error_code: null,
+    })
+    .execute();
+  return { messageId };
 }
 
 export async function dispatchNextChannelOutbound(): Promise<number> {

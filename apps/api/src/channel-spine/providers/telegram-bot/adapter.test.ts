@@ -135,7 +135,7 @@ describe("Telegram Bot adapter", () => {
       templates: false,
       multipleRecipients: false,
       outboundInitiation: false,
-      scheduledMessages: false,
+      scheduledMessages: true,
       version: "telegram-bot:v1",
     });
   });

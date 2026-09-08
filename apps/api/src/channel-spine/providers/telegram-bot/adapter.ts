@@ -123,7 +123,7 @@ export function telegramBotCapabilities(): ResolvedCapabilities {
     groups: true,
     multipleRecipients: false,
     outboundInitiation: false,
-    scheduledMessages: false,
+    scheduledMessages: true,
     messageTypes: [
       { type: "text", enabled: true, maxTextLength: 4096 },
       {
@@ -183,10 +183,6 @@ export function telegramBotCapabilities(): ResolvedCapabilities {
       outboundInitiation: {
         code: "telegram_user_must_start_bot",
         message: "A bot cannot initiate a conversation with a user",
-      },
-      scheduledMessages: {
-        code: "telegram_scheduling_unsupported",
-        message: "Bot API does not provide server-side message scheduling",
       },
     },
     version: "telegram-bot:v1",
