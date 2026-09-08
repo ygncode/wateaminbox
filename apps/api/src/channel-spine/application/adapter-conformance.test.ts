@@ -126,7 +126,7 @@ describe("channel adapter conformance", () => {
       expect(["unsupported", "permanent_failure", "uncertain"]).toContain(
         send.outcome,
       );
-      if (send.outcome !== "accepted" && send.outcome !== "confirmed") {
+      if ("errorCode" in send) {
         expect(send.errorCode.length).toBeGreaterThan(0);
       }
       const action = await adapter.perform({

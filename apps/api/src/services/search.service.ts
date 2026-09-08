@@ -58,6 +58,7 @@ export interface SearchOptions {
   limit?: number;
   offset?: number;
   contactId?: string;
+  conversationId?: string;
   startDate?: Date;
   endDate?: Date;
   messageTypes?: string[];
@@ -77,6 +78,7 @@ export async function searchMessages(
     limit = 50,
     offset = 0,
     contactId,
+    conversationId,
     startDate,
     endDate,
     messageTypes,
@@ -97,6 +99,7 @@ export async function searchMessages(
       limit,
       offset,
       contactId,
+      conversationId,
       startDate,
       endDate,
       messageTypes,
@@ -142,12 +145,13 @@ export async function searchMessages(
   const schemaName = getSchemaName(companyId);
   const messagesTable = sql.table(`${schemaName}.messages`);
   const contactsTable = sql.table(`${schemaName}.contacts`);
+  const conversationsTable = sql.table(`${schemaName}.conversations`);
   const assignmentsTable = sql.table(`${schemaName}.contact_assignments`);
 
   // Build the search query using raw SQL for full-text search
   const result = await sql<{
     id: string;
-    contact_id: string;
+    contact_id: string | null;
     contact_name: string | null;
     contact_jid: string | null;
     is_group: boolean;
@@ -167,10 +171,11 @@ export async function searchMessages(
           c.custom_name,
           c.push_name,
           CASE WHEN c.username IS NOT NULL THEN '@' || c.username END,
-          c.phone_number
+          c.phone_number,
+          conv.subject
         ) as contact_name,
         c.jid as contact_jid,
-        c.is_group,
+        COALESCE(c.is_group, conv.kind <> 'direct') as is_group,
         m.message_id,
         m.content,
         m.message_type,
@@ -181,19 +186,24 @@ export async function searchMessages(
           plainto_tsquery('english', ${query})) as rank,
         COUNT(*) OVER() as total_count
       FROM ${messagesTable} m
-      INNER JOIN ${contactsTable} c ON c.id = m.contact_id
+      LEFT JOIN ${contactsTable} c ON c.id = m.contact_id
+      LEFT JOIN ${conversationsTable} conv ON conv.id = m.conversation_id
       ${
         assignedUserId
           ? sql`INNER JOIN ${assignmentsTable} ca
-              ON ca.contact_id = c.id
-              AND ca.assigned_to = ${assignedUserId}
-              AND ca.unassigned_at IS NULL`
+              ON ca.assigned_to = ${assignedUserId}
+              AND ca.unassigned_at IS NULL
+              AND (
+                ca.conversation_id = m.conversation_id
+                OR (m.contact_id IS NOT NULL AND ca.contact_id = m.contact_id)
+              )`
           : sql``
       }
       WHERE
         (m.search_vector @@ plainto_tsquery('english', ${query})
          OR m.content ILIKE '%' || ${query} || '%')
         ${contactId ? sql`AND m.contact_id = ${contactId}` : sql``}
+        ${conversationId ? sql`AND m.conversation_id = ${conversationId}` : sql``}
         ${startDate ? sql`AND m.timestamp >= ${startDate}` : sql``}
         ${endDate ? sql`AND m.timestamp <= ${endDate}` : sql``}
         ${messageTypes && messageTypes.length > 0 ? sql`AND m.message_type = ANY(${messageTypes}::text[])` : sql``}
@@ -208,7 +218,7 @@ export async function searchMessages(
 
   const results: SearchResult[] = result.rows.map((row) => ({
     id: row.id,
-    contactId: row.contact_id,
+    contactId: row.contact_id ?? "",
     contactName: row.contact_jid
       ? getContactDisplayName(
           { jid: row.contact_jid, name: row.contact_name },

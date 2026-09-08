@@ -80,15 +80,32 @@ export function requireMessageVisibility(paramName = "id") {
     }
     const message = await tenantDb
       .selectFrom("messages")
-      .select("contact_id")
+      .select(["contact_id", "conversation_id"])
       .where("id", "=", c.req.param(paramName)!)
       .executeTakeFirst();
-    if (
-      !message?.contact_id ||
-      !(await hasContactVisibility(c, message.contact_id))
-    ) {
+    if (!message) {
       throw new HTTPException(404, { message: "Message not found" });
     }
-    await next();
+    if (
+      message.contact_id &&
+      (await hasContactVisibility(c, message.contact_id))
+    ) {
+      await next();
+      return;
+    }
+    if (message.conversation_id) {
+      const assignment = await tenantDb
+        .selectFrom("contact_assignments")
+        .select("id")
+        .where("assigned_to", "=", getRouteContext(c).user.id)
+        .where("unassigned_at", "is", null)
+        .where("conversation_id", "=", message.conversation_id)
+        .executeTakeFirst();
+      if (assignment) {
+        await next();
+        return;
+      }
+    }
+    throw new HTTPException(404, { message: "Message not found" });
   };
 }

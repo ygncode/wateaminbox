@@ -71,12 +71,12 @@ searchRoutes.get("/messages", searchRateLimiter, async (c) => {
   const { companyId, user, permissions, tenantDb } = getRouteContext(c);
   const query = c.req.query("q");
   const { limit, offset } = extractPaginationParams(c);
-  const conversationId = c.req.query("conversationId");
+  const conversationId = c.req.query("conversationId") || undefined;
   const contactId =
     c.req.query("contactId") ||
-    (conversationId
-      ? await contactIdForConversation(tenantDb, conversationId)
-      : undefined);
+    (!conversationId
+      ? undefined
+      : await contactIdForConversation(tenantDb, conversationId));
   const startDateStr = c.req.query("startDate");
   const endDateStr = c.req.query("endDate");
   const messageTypesStr = c.req.query("messageTypes");
@@ -94,6 +94,7 @@ searchRoutes.get("/messages", searchRateLimiter, async (c) => {
     limit,
     offset,
     contactId: contactId || undefined,
+    conversationId,
     startDate: startDateStr ? toDbDate(startDateStr) : undefined,
     endDate: endDateStr ? toDbDate(endDateStr) : undefined,
     messageTypes: messageTypesStr
@@ -204,10 +205,11 @@ searchRoutes.post("/reindex", async (c) => {
     // Index all messages
     const messages = await trx
       .selectFrom("messages")
-      .innerJoin("contacts", "contacts.id", "messages.contact_id")
+      .leftJoin("contacts", "contacts.id", "messages.contact_id")
       .select([
         "messages.id",
         "messages.contact_id",
+        "messages.conversation_id",
         "contacts.custom_name",
         "contacts.push_name",
         "contacts.username",
@@ -222,12 +224,12 @@ searchRoutes.post("/reindex", async (c) => {
       ])
       .execute();
 
-    const messageDocuments: meilisearchService.MessageDocument[] = messages
-      .filter((m) => m.contact_id !== null)
-      .map((m) => ({
+    const messageDocuments: meilisearchService.MessageDocument[] = messages.map(
+      (m) => ({
         id: m.id,
         companyId,
-        contactId: m.contact_id!,
+        contactId: m.contact_id ?? "",
+        conversationId: m.conversation_id,
         contactName: getContactDisplayName(
           {
             jid: m.jid,
@@ -239,13 +241,14 @@ searchRoutes.post("/reindex", async (c) => {
           "Unknown",
         ),
         contactJid: m.jid,
-        isGroup: m.is_group,
+        isGroup: Boolean(m.is_group),
         messageId: m.message_id,
         content: m.content,
         messageType: m.message_type,
         timestamp: Math.floor(new Date(m.timestamp).getTime() / 1000),
         fromMe: m.from_me,
-      }));
+      }),
+    );
 
     await meilisearchService.indexMessages(companyId, messageDocuments);
 

@@ -57,8 +57,8 @@ release. Retirement is a later maintenance change after a documented window.
 
 Still incomplete before claiming the RFC finished:
 
-- Assignment/cases/SLA rows still have NOT NULL contact_id; conversation_id is
-  dual-written and uniquely indexed when present.
+- Assignment/cases/state `contact_id` is nullable (migration `098`) but most
+  WhatsApp paths still dual-write a bridge contact.
 - Database integration tests require `RUN_DB_INTEGRATION=1` and PostgreSQL.
 - Docker/Go worker validation is blocked until the daemon and vendored
   `whatsmeow` are available.
