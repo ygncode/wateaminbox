@@ -145,19 +145,6 @@ export async function verifyRefreshToken(
 }
 
 /**
- * Decode a token without verifying it (for debugging)
- * @param token - The JWT token to decode
- * @returns The decoded payload or null if invalid format
- */
-export function decodeToken(token: string): jose.JWTPayload | null {
-  try {
-    return jose.decodeJwt(token);
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Calculate the expiration date for a refresh token
  * @returns Date when the refresh token expires
  */
