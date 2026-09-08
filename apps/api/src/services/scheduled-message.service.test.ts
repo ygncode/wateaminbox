@@ -112,6 +112,7 @@ describe("formatScheduledMessage", () => {
     const row: ScheduledMessageRow = {
       id: "11111111-1111-4111-8111-111111111111",
       contact_id: "22222222-2222-4222-8222-222222222222",
+      conversation_id: null,
       content: "hello",
       message_type: "text",
       media_url: null,

@@ -312,6 +312,27 @@ export type ProductVisibility = "visible" | "hidden";
  */
 export interface TenantDatabase {
   whatsapp_connections: WhatsAppConnectionsTable;
+  channel_accounts: ChannelAccountsTable;
+  contact_endpoints: ContactEndpointsTable;
+  endpoint_account_states: EndpointAccountStatesTable;
+  endpoint_presence: EndpointPresenceTable;
+  contact_suppressions: ContactSuppressionsTable;
+  conversations: ConversationsTable;
+  conversation_sync_states: ConversationSyncStatesTable;
+  conversation_participants: ConversationParticipantsTable;
+  message_participants: MessageParticipantsTable;
+  message_attachments: MessageAttachmentsTable;
+  whatsapp_attachment_fetch_state: WhatsAppAttachmentFetchStateTable;
+  message_delivery_events: MessageDeliveryEventsTable;
+  channel_event_inbox: ChannelEventInboxTable;
+  outbound_message_intents: OutboundMessageIntentsTable;
+  outbound_intent_attachments: OutboundIntentAttachmentsTable;
+  channel_account_capabilities: ChannelAccountCapabilitiesTable;
+  conversation_tags: ConversationTagsTable;
+  contact_merge_events: ContactMergeEventsTable;
+  contact_endpoint_reassignment_events: ContactEndpointReassignmentEventsTable;
+  channel_spine_reconciliation_journal: ChannelSpineReconciliationJournalTable;
+  channel_spine_backfill_checkpoints: ChannelSpineBackfillCheckpointsTable;
   connection_email_alerts: ConnectionEmailAlertsTable;
   whatsapp_connection_sessions: WhatsAppConnectionSessionsTable;
   contacts: ContactsTable;
@@ -342,6 +363,300 @@ export interface TenantDatabase {
   bulk_jobs: BulkJobsTable;
   bulk_connection_budgets: BulkConnectionBudgetsTable;
   purge_cleanup_items: PurgeCleanupItemsTable;
+}
+
+export type ChannelAccountStatus =
+  | "connecting"
+  | "connected"
+  | "degraded"
+  | "disconnected"
+  | "disabled"
+  | "error"
+  | "archived";
+
+export interface ChannelAccountsTable {
+  id: Generated<string>;
+  channel: string;
+  provider: string;
+  display_name: string | null;
+  external_account_id: string | null;
+  external_scope_id: string | null;
+  status: Generated<ChannelAccountStatus>;
+  provider_status: string | null;
+  capabilities_revision: string | null;
+  provider_metadata: Generated<Record<string, unknown>>;
+  legacy_whatsapp_connection_id: string | null;
+  connected_by: string | null;
+  connected_at: Date | null;
+  last_sync_at: Date | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+  archived_at: Date | null;
+}
+
+export interface ContactEndpointsTable {
+  id: Generated<string>;
+  contact_id: string | null;
+  channel: string;
+  provider: string;
+  channel_account_id: string | null;
+  endpoint_kind: string;
+  external_id: string;
+  identity_scope: string;
+  normalized_address: string | null;
+  address_display: string | null;
+  display_name: string | null;
+  verification_state: Generated<
+    "unverified" | "provider_verified" | "user_verified" | "invalid"
+  >;
+  provider_metadata: Generated<Record<string, unknown>>;
+  first_seen_at: Generated<Date>;
+  last_seen_at: Generated<Date>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface EndpointAccountStatesTable {
+  channel_account_id: string;
+  contact_endpoint_id: string;
+  provider_block_state: Generated<"unknown" | "allowed" | "blocked">;
+  provider_status: string | null;
+  updated_at: Generated<Date>;
+}
+
+export interface EndpointPresenceTable {
+  channel_account_id: string;
+  contact_endpoint_id: string;
+  availability: Generated<
+    "unknown" | "offline" | "online" | "away" | "unavailable"
+  >;
+  last_seen_at: Date | null;
+  observed_at: Generated<Date>;
+  expires_at: Date | null;
+}
+
+export interface ContactSuppressionsTable {
+  id: Generated<string>;
+  contact_id: string;
+  scope: string;
+  reason: string;
+  created_by: string;
+  created_at: Generated<Date>;
+  revoked_at: Date | null;
+}
+
+export interface ConversationsTable {
+  id: Generated<string>;
+  channel_account_id: string;
+  external_thread_id: string | null;
+  client_thread_key: string;
+  kind: "direct" | "group" | "thread";
+  subject: string | null;
+  provider_status: string | null;
+  provider_metadata: Generated<Record<string, unknown>>;
+  legacy_contact_id: string | null;
+  first_message_at: Date | null;
+  last_message_at: Date | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+  archived_at: Date | null;
+}
+
+export interface ConversationSyncStatesTable {
+  conversation_id: string;
+  provider: string;
+  status: string;
+  cursor_or_anchor: string | null;
+  request_generation: Generated<string>;
+  last_requested_at: Date | null;
+  last_completed_at: Date | null;
+  error_code: string | null;
+  updated_at: Generated<Date>;
+}
+
+export interface ConversationParticipantsTable {
+  id: Generated<string>;
+  conversation_id: string;
+  contact_endpoint_id: string | null;
+  workspace_user_id: string | null;
+  participant_kind: "external" | "workspace_user" | "account";
+  role: string;
+  is_self: Generated<boolean>;
+  joined_at: Date | null;
+  left_at: Date | null;
+  provider_metadata: Generated<Record<string, unknown>>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface MessageParticipantsTable {
+  message_id: string;
+  ordinal: number;
+  role: "from" | "sender" | "reply_to" | "to" | "cc" | "bcc";
+  contact_endpoint_id: string | null;
+  address_snapshot: string;
+  display_name_snapshot: string | null;
+  provider_metadata: Generated<Record<string, unknown>>;
+}
+
+export interface MessageAttachmentsTable {
+  id: Generated<string>;
+  message_id: string;
+  ordinal: number;
+  kind: string;
+  provider_attachment_id: string | null;
+  file_name: string | null;
+  content_type: string | null;
+  byte_size: string | null;
+  storage_uri: string | null;
+  provider_locator: Record<string, unknown> | null;
+  content_id: string | null;
+  content_disposition: string | null;
+  status: Generated<"pending" | "available" | "failed" | "deleted">;
+  error_code: string | null;
+  provider_metadata: Generated<Record<string, unknown>>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface WhatsAppAttachmentFetchStateTable {
+  attachment_id: string;
+  direct_path: string | null;
+  media_key: string | null;
+  file_sha256: string | null;
+  file_enc_sha256: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface MessageDeliveryEventsTable {
+  id: Generated<string>;
+  channel_account_id: string;
+  message_id: string;
+  recipient_endpoint_id: string | null;
+  external_event_scope: string | null;
+  external_event_id: string | null;
+  status: string;
+  provider_occurred_at: Date | null;
+  ingested_at: Generated<Date>;
+  error_code: string | null;
+  error_detail: string | null;
+  provider_metadata: Generated<Record<string, unknown>>;
+}
+
+export interface ChannelEventInboxTable {
+  channel_account_id: string;
+  external_event_scope: string;
+  external_event_id: string;
+  kind: string;
+  payload_digest: string;
+  normalized_event: Record<string, unknown>;
+  status: Generated<"pending" | "applied" | "quarantined">;
+  attempts: Generated<number>;
+  next_attempt_at: Generated<Date>;
+  last_error_code: string | null;
+  received_at: Generated<Date>;
+  applied_at: Date | null;
+}
+
+export interface OutboundMessageIntentsTable {
+  id: Generated<string>;
+  channel_account_id: string;
+  conversation_id: string;
+  message_id: string | null;
+  scheduled_message_id: string | null;
+  operation: string;
+  idempotency_key: string;
+  request_fingerprint: string;
+  normalized_payload: Record<string, unknown>;
+  status: Generated<
+    | "pending"
+    | "dispatching"
+    | "handed_off"
+    | "confirmed"
+    | "failed"
+    | "uncertain"
+  >;
+  attempts: Generated<number>;
+  next_attempt_at: Generated<Date>;
+  lease_token: string | null;
+  lease_expires_at: Date | null;
+  provider_request_id: string | null;
+  last_error_code: string | null;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface OutboundIntentAttachmentsTable {
+  intent_id: string;
+  ordinal: number;
+  storage_uri: string;
+  file_name: string | null;
+  content_type: string | null;
+  byte_size: string | null;
+  provider_metadata: Generated<Record<string, unknown>>;
+}
+
+export interface ChannelAccountCapabilitiesTable {
+  channel_account_id: string;
+  capability_key: string;
+  support_state: "supported" | "unsupported" | "conditional";
+  configuration: Generated<Record<string, unknown>>;
+  revision: string;
+  observed_at: Date;
+  updated_at: Generated<Date>;
+}
+
+export interface ConversationTagsTable {
+  conversation_id: string;
+  tag_id: string;
+}
+
+export interface ContactMergeEventsTable {
+  id: Generated<string>;
+  source_contact_id: string;
+  target_contact_id: string;
+  actor_user_id: string;
+  reason: string;
+  endpoint_snapshot: unknown[];
+  created_at: Generated<Date>;
+}
+
+export interface ContactEndpointReassignmentEventsTable {
+  id: Generated<string>;
+  merge_event_id: string | null;
+  contact_endpoint_id: string;
+  previous_contact_id: string | null;
+  new_contact_id: string | null;
+  actor_user_id: string;
+  reason: string;
+  created_at: Generated<Date>;
+}
+
+export interface ChannelSpineReconciliationJournalTable {
+  id: Generated<string>;
+  kind: string;
+  legacy_table: string;
+  legacy_id: string;
+  error_code: string;
+  detail: Generated<Record<string, unknown>>;
+  status: Generated<"pending" | "repaired" | "quarantined">;
+  attempts: Generated<number>;
+  next_attempt_at: Generated<Date>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+}
+
+export interface ChannelSpineBackfillCheckpointsTable {
+  job_key: string;
+  phase: string;
+  cursor: Generated<Record<string, unknown>>;
+  rows_processed: Generated<string>;
+  status: Generated<"pending" | "running" | "complete" | "blocked">;
+  last_error_code: string | null;
+  started_at: Date | null;
+  completed_at: Date | null;
+  updated_at: Generated<Date>;
 }
 
 export interface ConnectionEmailAlertsTable {
@@ -419,6 +734,12 @@ export interface ContactsTable {
   profile_picture_url: string | null;
   remote_history_status: Generated<RemoteHistoryStatus>;
   remote_history_updated_at: Date | null;
+  display_name: string | null;
+  organization_name: string | null;
+  avatar_url: string | null;
+  record_kind: "customer" | "legacy_group_projection" | null;
+  merged_into_contact_id: string | null;
+  archived_at: Date | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
 }
@@ -490,6 +811,7 @@ export interface ContactTagsTable {
 export interface ContactAssignmentsTable {
   id: Generated<string>;
   contact_id: string;
+  conversation_id: string | null;
   assigned_to: string;
   assigned_by: string;
   assigned_at: Generated<Date>;
@@ -499,6 +821,7 @@ export interface ContactAssignmentsTable {
 export interface ContactNotesPrivateTable {
   id: Generated<string>;
   contact_id: string;
+  conversation_id: string | null;
   user_id: string;
   content: string | null;
   created_at: Generated<Date>;
@@ -508,6 +831,7 @@ export interface ContactNotesPrivateTable {
 export interface ContactNotesSharedTable {
   id: Generated<string>;
   contact_id: string;
+  conversation_id: string | null;
   user_id: string;
   author_name: string;
   content: string;
@@ -565,6 +889,20 @@ export interface TenantMessagesTable {
    * migration 061.
    */
   seq: Generated<string | null>;
+  channel_account_id: string | null;
+  conversation_id: string | null;
+  external_message_id: string | null;
+  external_identity_scope: string | null;
+  client_idempotency_key: string | null;
+  direction: "inbound" | "outbound" | "system" | null;
+  sender_participant_id: string | null;
+  reply_to_message_id: string | null;
+  provider_occurred_at: Date | null;
+  normalized_type: string | null;
+  subject: string | null;
+  text_content: string | null;
+  sanitized_html_content: string | null;
+  provider_metadata: Record<string, unknown> | null;
 }
 
 export interface MessageReactionsTable {
@@ -572,6 +910,12 @@ export interface MessageReactionsTable {
   message_id: string;
   reactor_jid: string;
   emoji: string;
+  reactor_endpoint_id: string | null;
+  channel_account_id: string | null;
+  external_reaction_id: string | null;
+  external_event_scope: string | null;
+  provider_occurred_at: Date | null;
+  provider_metadata: Record<string, unknown> | null;
   created_at: Generated<Date>;
 }
 
@@ -730,6 +1074,7 @@ export interface AutoReplySettingsTable {
 export interface ConversationStatesTable {
   id: Generated<string>;
   contact_id: string;
+  conversation_id: string | null;
   read_by_user_id: string | null;
   read_at: Date | null;
   last_message_at: Date | null;
@@ -766,6 +1111,8 @@ export type ConversationCaseResolutionOutcome =
 export interface ConversationCasesTable {
   id: Generated<string>;
   contact_id: string;
+  conversation_id: string | null;
+  company_id: string | null;
   kind: ConversationCaseKind;
   status: Generated<ConversationCaseStatus>;
   opened_at: Date;
@@ -791,6 +1138,7 @@ export interface ConversationCasesTable {
 export interface ScheduledMessagesTable {
   id: Generated<string>;
   contact_id: string;
+  conversation_id: string | null;
   content: string;
   message_type: Generated<MessageType>;
   media_url: string | null;
