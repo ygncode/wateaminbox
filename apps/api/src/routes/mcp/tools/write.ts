@@ -1,4 +1,3 @@
-import { settingsWriteTools } from "./settings.js";
 import { getContactDisplayName, toDbDate } from "@wateaminbox/shared";
 import type { Context } from "hono";
 import { z } from "zod";
@@ -7,10 +6,10 @@ import {
   buildSendMessageCommand,
 } from "../../../lib/nats/index.js";
 import {
-  rateLimitConfig,
   type RateLimitResult,
-  rateLimitStore,
   RateLimitStoreUnavailableError,
+  rateLimitConfig,
+  rateLimitStore,
 } from "../../../lib/rate-limit-store.js";
 import { broadcastToCompany } from "../../../lib/realtime.js";
 import {
@@ -25,8 +24,8 @@ import {
 import { getAssignmentNotificationInputs } from "../../../services/assignment-notification.service.js";
 import { decideContactAssignment } from "../../../services/assignment-policy.js";
 import {
-  createAuditLog,
   type CreateAuditLogInput,
+  createAuditLog,
   getClientIp,
 } from "../../../services/audit.service.js";
 import {
@@ -37,18 +36,18 @@ import {
 } from "../../../services/bulk-job.service.js";
 import { enqueueCommand } from "../../../services/command-outbox.service.js";
 import {
+  type FindOrCreateContactByPhoneResult,
+  findOrCreateContactByPhone,
+  getCurrentAssignment,
+  OutboundContactError,
+} from "../../../services/contact.service.js";
+import {
   ensureActiveCaseWithin,
   reopenAsNewCase,
   resolveActiveCase,
   resumePendingCase,
   setActiveCasePending,
 } from "../../../services/conversation-case.service.js";
-import {
-  type FindOrCreateContactByPhoneResult,
-  findOrCreateContactByPhone,
-  getCurrentAssignment,
-  OutboundContactError,
-} from "../../../services/contact.service.js";
 import { reserveMediaReferences } from "../../../services/media-reference-lock.js";
 import {
   broadcastNewMessageToViewers,
@@ -66,6 +65,7 @@ import { getActiveSessionId } from "../../../services/whatsapp/session.js";
 import { type McpToolDefinition, McpToolError } from "../tool-context.js";
 import { requireVisibleContact } from "./read.js";
 import { schedulingTools } from "./scheduling.js";
+import { settingsWriteTools } from "./settings.js";
 
 async function createMcpAuditLog(
   c: Context,
@@ -107,6 +107,36 @@ async function enforceBulkRateLimit(c: Context): Promise<void> {
   if (!result.allowed) {
     throw new McpToolError(
       `Broadcast rate limit exceeded; retry in ${result.retryAfter} seconds`,
+    );
+  }
+}
+
+async function enforceSendRateLimit(c: Context): Promise<void> {
+  if (!rateLimitConfig.enabled) return;
+
+  const { user } = getRouteContext(c);
+  const tier = rateLimitConfig.tiers.messaging.send;
+  let result: RateLimitResult;
+  try {
+    // Match the REST send limiter's key exactly so browser and MCP requests
+    // consume one per-user budget rather than separate per-token budgets.
+    result = await rateLimitStore.increment(
+      `messaging-send:user:${user.id}`,
+      tier.requests,
+      tier.windowSeconds,
+    );
+  } catch (error) {
+    if (error instanceof RateLimitStoreUnavailableError) {
+      throw new McpToolError(
+        "Send rate limiting is temporarily unavailable; retry shortly",
+      );
+    }
+    throw error;
+  }
+
+  if (!result.allowed) {
+    throw new McpToolError(
+      `Send rate limit exceeded; retry in ${result.retryAfter} seconds`,
     );
   }
 }
@@ -167,6 +197,7 @@ async function queueTextMessage(
   autoAssigned: boolean;
   note: string;
 }> {
+  await enforceSendRateLimit(c);
   const { tenantDb, user, companyId } = getRouteContext(c);
 
   const contact = await tenantDb
