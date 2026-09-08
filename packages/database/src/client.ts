@@ -34,6 +34,8 @@ export interface Database {
   sla_policies: SlaPoliciesTable;
   channel_spine_workspace_flags: ChannelSpineWorkspaceFlagsTable;
   channel_spine_workspace_flag_audit: ChannelSpineWorkspaceFlagAuditTable;
+  channel_ingress_routes: ChannelIngressRoutesTable;
+  channel_message_delivery_outbox: ChannelMessageDeliveryOutboxTable;
 }
 
 // Type alias for backward compatibility (deprecated - import from @wateaminbox/shared instead)
@@ -73,6 +75,34 @@ export interface ChannelSpineWorkspaceFlagAuditTable {
   changed_at: Generated<Date>;
   previous_flags: unknown | null;
   new_flags: unknown;
+}
+
+export type ChannelIngressRouteState = "pending" | "active" | "revoked";
+
+export interface ChannelIngressRoutesTable {
+  id: Generated<string>;
+  provider: string;
+  route_key_hash: string;
+  company_id: string;
+  channel_account_id: string;
+  state: Generated<ChannelIngressRouteState>;
+  created_at: Generated<Date>;
+  updated_at: Generated<Date>;
+  revoked_at: Date | null;
+}
+
+export type ChannelFanoutKind = "realtime" | "push";
+
+export interface ChannelMessageDeliveryOutboxTable {
+  company_id: string;
+  channel_account_id: string;
+  conversation_id: string;
+  message_id: string;
+  kind: ChannelFanoutKind;
+  case_event: unknown | null;
+  attempts: Generated<number>;
+  next_attempt_at: Generated<Date>;
+  created_at: Generated<Date>;
 }
 
 export interface CompaniesTable {
