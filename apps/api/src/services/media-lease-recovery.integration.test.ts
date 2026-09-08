@@ -351,6 +351,22 @@ function downloadResponse(
   };
 }
 
+function downloadFailedResponse(
+  fixture: Fixture,
+  messageId: string,
+  error: string,
+): DownloadResponseEvent {
+  return {
+    contractVersion: 1,
+    type: "download_response" as const,
+    companyId: fixture.companyId,
+    connectionId: fixture.connectionId,
+    sessionId: fixture.connectionId,
+    timestamp: new Date().toISOString(),
+    payload: { messageId, success: false, error },
+  };
+}
+
 /**
  * A claim whose lease expires while the worker is still running can be
  * re-claimed, so the same message can produce two download commands and
@@ -435,6 +451,94 @@ describe("download response is first-writer-wins", () => {
           "s3://whatsapp-media/retry.jpg",
         );
         expect(await statusOf(fixture, id)).toBe("completed");
+      });
+    },
+  );
+
+  integrationTest(
+    "a failure marks an in-flight download as failed",
+    async () => {
+      // The compare-and-set must still let a real failure settle a row that
+      // no earlier success has touched.
+      await withTenant(async (fixture) => {
+        const id = await insertMedia(fixture, {
+          status: "downloading",
+          claimedAt: fresh,
+        });
+
+        await handleDownloadResponseEvent(
+          downloadFailedResponse(fixture, id, "context deadline exceeded"),
+        );
+
+        expect(await mediaUrlOf(fixture, id)).toBeNull();
+        expect(await statusOf(fixture, id)).toBe("failed");
+      });
+    },
+  );
+
+  integrationTest(
+    "a late failure does not overwrite a completed download",
+    async () => {
+      // The symmetric case to late-success: a `success:false` that lands after
+      // a `success:true` must find nothing to do, leaving the settled row
+      // intact rather than flipping `media_download_status` back to "failed"
+      // while `media_url` stays populated.
+      await withTenant(async (fixture) => {
+        const id = await insertMedia(fixture, {
+          status: "downloading",
+          claimedAt: expired,
+        });
+
+        await handleDownloadResponseEvent(
+          downloadResponse(fixture, id, "s3://whatsapp-media/first.jpg"),
+        );
+        expect(await mediaUrlOf(fixture, id)).toBe(
+          "s3://whatsapp-media/first.jpg",
+        );
+        expect(await statusOf(fixture, id)).toBe("completed");
+
+        await handleDownloadResponseEvent(
+          downloadFailedResponse(fixture, id, "context deadline exceeded"),
+        );
+
+        expect(await mediaUrlOf(fixture, id)).toBe(
+          "s3://whatsapp-media/first.jpg",
+        );
+        expect(await statusOf(fixture, id)).toBe("completed");
+      });
+    },
+  );
+
+  integrationTest(
+    "a failure for an archived connection changes nothing",
+    async () => {
+      // The lifecycle fence the success branch honors (lockActiveConnection-
+      // ForEvent) must also gate the failure branch: once the connection is
+      // archived, no event may mutate its rows or broadcast.
+      await withTenant(async (fixture) => {
+        const id = await insertMedia(fixture, {
+          status: "downloading",
+          claimedAt: fresh,
+        });
+
+        await getTenantConnection(fixture.companyId)
+          .updateTable("whatsapp_connections")
+          .set({ archived_at: new Date() })
+          .where("id", "=", fixture.connectionId)
+          .execute();
+
+        await handleDownloadResponseEvent(
+          downloadFailedResponse(fixture, id, "context deadline exceeded"),
+        );
+
+        // Untouched: not flipped to "failed", no error recorded.
+        expect(await statusOf(fixture, id)).toBe("downloading");
+        const row = await getTenantConnection(fixture.companyId)
+          .selectFrom("messages")
+          .select("media_download_error")
+          .where("id", "=", id)
+          .executeTakeFirst();
+        expect(row?.media_download_error).toBeNull();
       });
     },
   );
