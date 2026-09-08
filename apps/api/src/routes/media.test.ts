@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { MEDIA_DOWNLOAD_LEASE_MS } from "../config/media.config.js";
+import { deriveDownloadRequestMedia } from "./media.js";
 
 /**
  * Mirrors the SQL predicate used to claim a deferred media download in
@@ -99,5 +100,61 @@ describe("deferred media download claim", () => {
   test("the lease is bounded and long enough to outlast a normal download", () => {
     expect(MEDIA_DOWNLOAD_LEASE_MS).toBeGreaterThanOrEqual(60_000);
     expect(MEDIA_DOWNLOAD_LEASE_MS).toBeLessThanOrEqual(30 * 60_000);
+  });
+});
+
+/**
+ * Pins the contract the API puts on the wire for an on-demand download request:
+ * the real DB `media_mime_type` must travel as `mimeType` (so the worker stores
+ * it as the S3 Content-Type) while the coarse `mediaType` category is still
+ * derived (so the worker can select the whatsmeow download path). The bug this
+ * guards against collapsed the real type into the category and stored an
+ * invalid subtype-less Content-Type on every on-demand download.
+ */
+describe("deriveDownloadRequestMedia", () => {
+  test("splits the real mime type and the category for audio", () => {
+    const got = deriveDownloadRequestMedia({ media_mime_type: "audio/ogg" });
+    expect(got.mediaType).toBe("audio");
+    expect(got.mimeType).toBe("audio/ogg");
+  });
+
+  test("preserves codec parameters on the mime type", () => {
+    const got = deriveDownloadRequestMedia({
+      media_mime_type: "audio/ogg; codecs=opus",
+    });
+    expect(got.mediaType).toBe("audio");
+    expect(got.mimeType).toBe("audio/ogg; codecs=opus");
+  });
+
+  test("derives image and video categories from the real mime type", () => {
+    expect(
+      deriveDownloadRequestMedia({ media_mime_type: "image/jpeg" }),
+    ).toEqual({ mediaType: "image", mimeType: "image/jpeg" });
+    expect(
+      deriveDownloadRequestMedia({ media_mime_type: "video/mp4" }),
+    ).toEqual({ mediaType: "video", mimeType: "video/mp4" });
+  });
+
+  test("defaults documents (and anything else) to the document category", () => {
+    const got = deriveDownloadRequestMedia({
+      media_mime_type: "application/pdf",
+    });
+    expect(got.mediaType).toBe("document");
+    expect(got.mimeType).toBe("application/pdf");
+  });
+
+  test("never collapses the mime type into the category", () => {
+    const cases = ["audio/ogg", "image/jpeg", "video/mp4", "application/pdf"];
+    for (const mt of cases) {
+      const got = deriveDownloadRequestMedia({ media_mime_type: mt });
+      expect(got.mimeType).toBe(mt);
+      expect(got.mimeType).not.toBe(got.mediaType);
+    }
+  });
+
+  test("handles a missing mime type without throwing", () => {
+    const got = deriveDownloadRequestMedia({ media_mime_type: null });
+    expect(got.mediaType).toBe("document");
+    expect(got.mimeType).toBe("");
   });
 });

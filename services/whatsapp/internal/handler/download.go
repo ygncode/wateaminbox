@@ -4,6 +4,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -146,32 +147,9 @@ func (dh *DownloadHandler) handleDownloadRequest(msg *nats.Msg) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	if dh.handler.config.Client == nil {
-		log.Printf("WhatsApp client not available for download")
-		dh.publishError(req.MessageID, "WhatsApp client not available")
-		return
-	}
-
-	// Get the underlying whatsmeow client to access DownloadMediaWithPath
-	client := dh.handler.config.Client.GetClient()
-	if client == nil {
-		log.Printf("WhatsApp client not initialized for download")
-		dh.publishError(req.MessageID, "WhatsApp client not initialized")
-		return
-	}
-
 	// Use DownloadMediaWithPath which takes raw parameters directly
 	// This avoids the type assertion issue with custom DownloadableMessage implementations.
-	data, err := client.DownloadMediaWithPath(
-		ctx,
-		req.DirectPath,
-		req.FileEncSHA256,
-		req.FileSHA256,
-		req.MediaKey,
-		mediaType,
-		mmsType,
-		true, // permit downloads when a message does not include a file hash
-	)
+	data, err := dh.downloadMedia(ctx, req, mediaType, mmsType)
 	if err != nil {
 		log.Printf("Failed to download media for message %s: %v", req.MessageID, err)
 		dh.publishError(req.MessageID, fmt.Sprintf("download failed: %v", err))
@@ -187,13 +165,25 @@ func (dh *DownloadHandler) handleDownloadRequest(msg *nats.Msg) {
 		return
 	}
 
+	// The request's MimeType is the real DB media type (e.g. "audio/ogg;
+	// codecs=opus") and is what gets stored as the S3 Content-Type. MediaType
+	// is only a coarse category used to drive the whatsmeow fetch above, so it
+	// must never be passed here as a Content-Type. A transitional request from
+	// an API that predates the MimeType field arrives with MimeType == ""; we
+	// fall back to a valid generic type instead of writing the invalid category
+	// or hard-failing the upload.
+	uploadMimeType := req.MimeType
+	if uploadMimeType == "" {
+		uploadMimeType = "application/octet-stream"
+	}
+
 	var mediaURL string
 	if req.FileName != "" {
 		mediaURL, err = dh.handler.config.Storage.UploadMediaWithFilename(
-			ctx, data, req.MediaType, dh.handler.config.CompanyID, req.FileName)
+			ctx, data, uploadMimeType, dh.handler.config.CompanyID, req.FileName)
 	} else {
 		mediaURL, err = dh.handler.config.Storage.UploadMedia(
-			ctx, data, req.MediaType, dh.handler.config.CompanyID)
+			ctx, data, uploadMimeType, dh.handler.config.CompanyID)
 	}
 
 	if err != nil {
@@ -205,15 +195,42 @@ func (dh *DownloadHandler) handleDownloadRequest(msg *nats.Msg) {
 	log.Printf("Uploaded media for message %s: %s", req.MessageID, mediaURL)
 
 	// Publish success response
-	if err := dh.handler.publisher.PublishDownloadResponse(
+	if err := dh.handler.publishDownloadResp(
 		req.MessageID, mediaURL, int64(len(data)), true, ""); err != nil {
 		log.Printf("Failed to publish download response: %v", err)
 	}
 }
 
+// downloadMedia fetches media bytes for an on-demand request. The
+// downloadMediaWithPathFn seam overrides the whatsmeow round trip in tests;
+// production falls through to the live WhatsApp client.
+func (dh *DownloadHandler) downloadMedia(ctx context.Context, req natsClient.DownloadRequest, mediaType whatsmeow.MediaType, mmsType string) ([]byte, error) {
+	if dh.handler.downloadMediaWithPathFn != nil {
+		return dh.handler.downloadMediaWithPathFn(ctx, req.DirectPath, req.FileEncSHA256, req.FileSHA256, req.MediaKey, mediaType, mmsType)
+	}
+
+	if dh.handler.config.Client == nil {
+		return nil, errors.New("WhatsApp client not available")
+	}
+	client := dh.handler.config.Client.GetClient()
+	if client == nil {
+		return nil, errors.New("WhatsApp client not initialized")
+	}
+	return client.DownloadMediaWithPath(
+		ctx,
+		req.DirectPath,
+		req.FileEncSHA256,
+		req.FileSHA256,
+		req.MediaKey,
+		mediaType,
+		mmsType,
+		true, // permit downloads when a message does not include a file hash
+	)
+}
+
 // publishError publishes an error response for a download request.
 func (dh *DownloadHandler) publishError(messageID, errMsg string) {
-	if err := dh.handler.publisher.PublishDownloadResponse(
+	if err := dh.handler.publishDownloadResp(
 		messageID, "", 0, false, errMsg); err != nil {
 		log.Printf("Failed to publish error response: %v", err)
 	}

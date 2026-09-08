@@ -1,6 +1,6 @@
 import { toDbDate } from "@wateaminbox/shared";
-import { MEDIA_DOWNLOAD_LEASE_MS } from "../config/media.config.js";
 import { Hono } from "hono";
+import { MEDIA_DOWNLOAD_LEASE_MS } from "../config/media.config.js";
 import {
   badRequest,
   notFound,
@@ -20,6 +20,27 @@ import { tenantMiddleware } from "../middleware/tenant.js";
 const logger = createLogger("MediaRoutes");
 
 export const mediaRoutes = new Hono();
+
+/**
+ * Derives the two distinct pieces of type information the on-demand download
+ * worker needs for a deferred media message.
+ *
+ * `mediaType` is a coarse category the worker maps to a whatsmeow download
+ * path; `mimeType` is the real DB `media_mime_type` (e.g. "audio/ogg;
+ * codecs=opus") the worker stores as the S3 object's Content-Type. Collapsing
+ * the latter into the former (as this used to do) wrote an invalid
+ * subtype-less Content-Type to S3 on every on-demand download.
+ */
+export function deriveDownloadRequestMedia(message: {
+  media_mime_type: string | null;
+}): { mediaType: string; mimeType: string } {
+  const mimeType = message.media_mime_type || "";
+  let mediaType = "document";
+  if (mimeType.startsWith("image/")) mediaType = "image";
+  else if (mimeType.startsWith("video/")) mediaType = "video";
+  else if (mimeType.startsWith("audio/")) mediaType = "audio";
+  return { mediaType, mimeType };
+}
 
 // All media routes require authentication and tenant context
 mediaRoutes.use("/*", authMiddleware);
@@ -172,11 +193,7 @@ mediaRoutes.post(
       }
 
       // Determine media type from mime type
-      const mimeType = message.media_mime_type || "";
-      let mediaType = "document";
-      if (mimeType.startsWith("image/")) mediaType = "image";
-      else if (mimeType.startsWith("video/")) mediaType = "video";
-      else if (mimeType.startsWith("audio/")) mediaType = "audio";
+      const { mediaType, mimeType } = deriveDownloadRequestMedia(message);
 
       const downloadRequest = {
         messageId: messageId,
@@ -185,6 +202,7 @@ mediaRoutes.post(
         fileSha256: message.media_file_sha256?.toString("base64") || "",
         fileEncSha256: message.media_file_enc_sha256?.toString("base64") || "",
         mediaType: mediaType,
+        mimeType: mimeType,
       };
 
       const subject = `WHATSAPP.download.${companyId}.${connection.id}.request`;

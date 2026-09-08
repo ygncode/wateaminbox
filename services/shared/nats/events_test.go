@@ -541,7 +541,8 @@ func TestDownloadRequestSerialization(t *testing.T) {
 		MediaKey:      []byte("mediakey"),
 		FileSHA256:    []byte("sha256hash"),
 		FileEncSHA256: []byte("encsha256hash"),
-		MediaType:     "image/jpeg",
+		MediaType:     "image",
+		MimeType:      "image/jpeg",
 		FileName:      "photo.jpg",
 	}
 
@@ -563,6 +564,52 @@ func TestDownloadRequestSerialization(t *testing.T) {
 	}
 	if parsed.MediaType != req.MediaType {
 		t.Errorf("MediaType = %v, want %v", parsed.MediaType, req.MediaType)
+	}
+	if parsed.MimeType != req.MimeType {
+		t.Errorf("MimeType = %v, want %v", parsed.MimeType, req.MimeType)
+	}
+	if parsed.FileName != req.FileName {
+		t.Errorf("FileName = %v, want %v", parsed.FileName, req.FileName)
+	}
+}
+
+// TestDownloadRequestMimeTypeJSONKey pins the cross-language JSON contract: the
+// real media type travels on the "mimeType" field and the category on
+// "mediaType". The TypeScript API builds this payload and the Go worker reads
+// it, so the keys must not drift silently.
+func TestDownloadRequestMimeTypeJSONKey(t *testing.T) {
+	req := DownloadRequest{
+		MessageID: "msg-voice",
+		MediaType: "audio",
+		MimeType:  "audio/ogg; codecs=opus",
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("Failed to unmarshal into map: %v", err)
+	}
+
+	if _, ok := raw["mimeType"]; !ok {
+		t.Fatal("missing \"mimeType\" JSON key; the worker reads req.MimeType as the S3 Content-Type")
+	}
+	if _, ok := raw["mediaType"]; !ok {
+		t.Fatal("missing \"mediaType\" JSON key; the worker maps it to a whatsmeow MediaType")
+	}
+
+	// omitempty must not drop a populated mimeType; a category-only payload
+	// (the bug shape) would leave mimeType absent.
+	emptyReq := DownloadRequest{MediaType: "audio"}
+	emptyData, _ := json.Marshal(emptyReq)
+	var emptyRaw map[string]json.RawMessage
+	if err := json.Unmarshal(emptyData, &emptyRaw); err != nil {
+		t.Fatalf("Failed to unmarshal empty-mime payload: %v", err)
+	}
+	if _, ok := emptyRaw["mimeType"]; ok {
+		t.Fatal("omitempty should drop an empty mimeType so an old-API payload round-trips cleanly")
 	}
 }
 
