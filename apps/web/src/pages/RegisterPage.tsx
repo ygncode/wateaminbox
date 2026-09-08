@@ -24,6 +24,7 @@ import { FormField } from "../components/ui/form-field";
 import { useAuth } from "../contexts/auth-context";
 import {
   buildAuthUrl,
+  buildPostRegistrationLoginUrl,
   getInvitationTokenFromRedirect,
   getSafeAuthRedirect,
 } from "../lib/auth-redirect";
@@ -249,7 +250,9 @@ export function RegisterPage() {
             size="lg"
             className="mt-7 h-12 w-full rounded-xl bg-[#075e54] text-white shadow-lg shadow-[#075e54]/15 hover:bg-[#064b43]"
           >
-            <Link to={buildAuthUrl("/login", redirectTo, registeredEmail)}>
+            <Link
+              to={buildPostRegistrationLoginUrl(redirectTo, registeredEmail)}
+            >
               {verificationEmailSent
                 ? t("auth.continueToSignIn", "Continue to sign in")
                 : t("auth.goToSignInRetry", "Go to sign in and retry")}
