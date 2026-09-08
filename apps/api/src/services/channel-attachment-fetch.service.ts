@@ -124,9 +124,13 @@ async function fetchClaim(claim: AttachmentClaim): Promise<void> {
       token,
       claim.providerAttachmentId,
     );
+    const contentType = storedContentType(
+      downloaded.contentType,
+      claim.contentType,
+    );
     const uploaded = await uploadMedia(
       downloaded.data,
-      claim.contentType ?? downloaded.contentType,
+      contentType,
       claim.companyId,
       claim.fileName ?? undefined,
     );
@@ -135,7 +139,7 @@ async function fetchClaim(claim: AttachmentClaim): Promise<void> {
         .updateTable("message_attachments")
         .set({
           storage_uri: uploaded.reference,
-          content_type: claim.contentType ?? downloaded.contentType,
+          content_type: contentType,
           byte_size: downloaded.data.byteLength.toString(),
           status: "available",
           error_code: null,
@@ -152,7 +156,7 @@ async function fetchClaim(claim: AttachmentClaim): Promise<void> {
         .updateTable("messages")
         .set({
           media_url: uploaded.reference,
-          media_mime_type: claim.contentType ?? downloaded.contentType,
+          media_mime_type: contentType,
           media_size: downloaded.data.byteLength,
           media_download_status: "completed",
           media_downloaded_at: new Date(),
@@ -224,6 +228,35 @@ async function poll(): Promise<void> {
     running = false;
     if (!stopping) timer = setTimeout(poll, processed ? 25 : 1_000);
   }
+}
+
+/** Persist only inert media types. Provider-declared HTML/SVG/script types are ignored. */
+export function storedContentType(
+  ...candidates: Array<string | null | undefined>
+): string {
+  for (const candidate of candidates) {
+    const type = candidate?.split(";")[0]?.trim().toLowerCase();
+    if (!type) continue;
+    if (
+      type === "image/svg+xml" ||
+      type.endsWith("+xml") ||
+      type.startsWith("text/") ||
+      type.includes("javascript") ||
+      type.includes("ecmascript")
+    ) {
+      continue;
+    }
+    if (
+      type.startsWith("image/") ||
+      type.startsWith("audio/") ||
+      type.startsWith("video/") ||
+      type === "application/pdf" ||
+      type === "application/octet-stream"
+    ) {
+      return type;
+    }
+  }
+  return "application/octet-stream";
 }
 
 export function initializeChannelAttachmentFetch(): void {
