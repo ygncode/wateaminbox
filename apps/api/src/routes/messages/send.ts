@@ -5,6 +5,7 @@
  */
 
 import { zValidator } from "@hono/zod-validator";
+import { shadowLinkedDeviceLegacyMutation } from "../../channel-spine/providers/whatsapp-linked-device/shadow.js";
 import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { sql } from "kysely";
@@ -30,6 +31,7 @@ import { requireMessageSendPermission } from "../../middleware/message-send-poli
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { requireMessageVisibility } from "../../middleware/resource-visibility.js";
 import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
+import { getChannelSpineWorkspaceAuthority } from "../../services/channel-spine-authority.service.js";
 import { toAuthUserResponse } from "../../services/auth.service.js";
 import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { validateGroupMentionJids } from "../../services/group-mention.service.js";
@@ -181,6 +183,7 @@ sendRoutes.post(
           resolveMediaKeyForCompany(body.mediaUrl, companyId),
         )
       : null;
+    const spineAuthority = await getChannelSpineWorkspaceAuthority(companyId);
     let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
       await reserveMediaReferences(trx, companyId, [storedMediaReference]);
@@ -212,6 +215,14 @@ sendRoutes.post(
         buildCommandSubject(companyId, sessionId),
         sendCommand,
       );
+      if (spineAuthority.dualWriteEnabled) {
+        await shadowLinkedDeviceLegacyMutation(
+          trx,
+          companyId,
+          body.contactId,
+          messageId,
+        );
+      }
     });
     if (autoAssigned) {
       await broadcastAutoAssignment(
@@ -379,6 +390,7 @@ sendRoutes.post(
       }),
     );
 
+    const spineAuthority = await getChannelSpineWorkspaceAuthority(companyId);
     let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
       // Forwarded copies reuse the source messages' objects. Reserve the full
@@ -420,6 +432,14 @@ sendRoutes.post(
           buildCommandSubject(companyId, sessionId),
           pending.sendCommand,
         );
+        if (spineAuthority.dualWriteEnabled) {
+          await shadowLinkedDeviceLegacyMutation(
+            trx,
+            companyId,
+            body.targetContactId,
+            pending.id,
+          );
+        }
       }
     });
     if (autoAssigned) {
@@ -537,6 +557,7 @@ sendRoutes.post(
       quotedSenderJid,
     );
 
+    const spineAuthority = await getChannelSpineWorkspaceAuthority(companyId);
     let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
       // The retry copy reuses the failed message's object.
@@ -568,6 +589,14 @@ sendRoutes.post(
         buildCommandSubject(companyId, sessionId),
         sendCommand,
       );
+      if (spineAuthority.dualWriteEnabled) {
+        await shadowLinkedDeviceLegacyMutation(
+          trx,
+          companyId,
+          contact.id,
+          newMessageId,
+        );
+      }
     });
     if (autoAssigned) {
       await broadcastAutoAssignment(tenantDb, companyId, contact.id, user.id);

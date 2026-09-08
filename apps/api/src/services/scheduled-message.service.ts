@@ -17,6 +17,7 @@ import type {
 import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely, Selectable, Transaction } from "kysely";
 import { sql } from "kysely";
+import { shadowLinkedDeviceLegacyMutation } from "../channel-spine/providers/whatsapp-linked-device/shadow.js";
 import { bulkConfig } from "../config/bulk.config.js";
 import { NoActiveCaseError } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
@@ -34,6 +35,7 @@ import {
   finalizeBulkJobIfComplete,
   markBulkJobRunning,
 } from "./bulk-job.service.js";
+import { getChannelSpineWorkspaceAuthority } from "./channel-spine-authority.service.js";
 import { enqueueCommand } from "./command-outbox.service.js";
 import { resolveActiveCaseIdForContact } from "./conversation-case.service.js";
 import {
@@ -303,6 +305,7 @@ async function sendScheduledMessage(
     quotedSenderJid,
   );
 
+  const spineAuthority = await getChannelSpineWorkspaceAuthority(companyId);
   const shouldBroadcast = await tenantDb.transaction().execute(async (trx) => {
     // Bulk/broadcast rows intentionally bypass both checks: a bulk job has
     // no single "assignee" concept (it's a company-wide broadcast, not one
@@ -472,6 +475,14 @@ async function sendScheduledMessage(
       // the transaction discards the message and command.
       throw new PermanentDispatchError(
         "Scheduled message is no longer claimed",
+      );
+    }
+    if (spineAuthority.dualWriteEnabled) {
+      await shadowLinkedDeviceLegacyMutation(
+        trx,
+        companyId,
+        row.contact_id,
+        messageId,
       );
     }
     return true;
