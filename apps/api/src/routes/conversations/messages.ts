@@ -51,7 +51,10 @@ import {
 import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
 import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
-import { requireSendAccess } from "../../services/send-access.service.js";
+import {
+  requireConversationSendAccess,
+  requireSendAccess,
+} from "../../services/send-access.service.js";
 import {
   getUserAvatarSources,
   getUserNames,
@@ -479,15 +482,12 @@ messageRoutes.post(
           202,
         );
       }
-      if (!neutralConversation.legacy_contact_id) {
-        return conflict(c, "Conversation is not ready for send");
-      }
       const messageId = crypto.randomUUID();
       await tenantDb.transaction().execute(async (trx) => {
         await reserveMediaReferences(trx, companyId, [storedMediaReference]);
-        const access = await requireSendAccess(
+        const access = await requireConversationSendAccess(
           trx,
-          neutralConversation.legacy_contact_id!,
+          neutralConversation.id,
           user.id,
         );
         await trx

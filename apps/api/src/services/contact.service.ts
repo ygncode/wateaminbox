@@ -421,6 +421,41 @@ export async function assignContactToUser(
 /**
  * Gets the current assignment for a contact
  */
+export async function assignConversationToUser(
+  tenantDb: Kysely<TenantDatabase>,
+  conversationId: string,
+  userId: string,
+  assignedByUserId: string,
+): Promise<void> {
+  await tenantDb
+    .updateTable("contact_assignments")
+    .set({ unassigned_at: toDbDate() })
+    .where("conversation_id", "=", conversationId)
+    .where("unassigned_at", "is", null)
+    .execute();
+  await tenantDb
+    .insertInto("contact_assignments")
+    .values({
+      contact_id: null,
+      conversation_id: conversationId,
+      assigned_to: userId,
+      assigned_by: assignedByUserId,
+    })
+    .execute();
+}
+
+export async function getCurrentConversationAssignment(
+  tenantDb: Kysely<TenantDatabase>,
+  conversationId: string,
+) {
+  return tenantDb
+    .selectFrom("contact_assignments")
+    .select(["id", "assigned_to", "assigned_by", "assigned_at"])
+    .where("conversation_id", "=", conversationId)
+    .where("unassigned_at", "is", null)
+    .executeTakeFirst();
+}
+
 export async function getCurrentAssignment(
   tenantDb: Kysely<TenantDatabase>,
   contactId: string,

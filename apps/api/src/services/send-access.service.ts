@@ -21,8 +21,16 @@ import {
   ContactBlockedError,
   NotFoundError,
 } from "../lib/errors.js";
-import { assignContactToUser, getCurrentAssignment } from "./contact.service.js";
-import { requireActiveCaseForSend } from "./conversation-case.service.js";
+import {
+  assignContactToUser,
+  assignConversationToUser,
+  getCurrentAssignment,
+  getCurrentConversationAssignment,
+} from "./contact.service.js";
+import {
+  requireActiveCaseForConversationSend,
+  requireActiveCaseForSend,
+} from "./conversation-case.service.js";
 import type { TenantDatabase } from "./tenant.service.js";
 
 export { ContactAssignedToOtherError, ContactBlockedError };
@@ -110,5 +118,49 @@ export async function requireSendAccess(
   }
 
   const caseId = await requireActiveCaseForSend(trx, contactId);
+  return { caseId, autoAssigned };
+}
+
+/** Same send invariants keyed by conversation when no contact exists. */
+export async function requireConversationSendAccess(
+  trx: Transaction<TenantDatabase>,
+  conversationId: string,
+  userId: string,
+  options: SendAccessOptions = {},
+): Promise<{ caseId: string; autoAssigned: boolean }> {
+  const conversation = await trx
+    .selectFrom("conversations")
+    .select(["id", "legacy_contact_id", "archived_at"])
+    .where("id", "=", conversationId)
+    .forUpdate()
+    .executeTakeFirst();
+  if (!conversation || conversation.archived_at) {
+    throw new NotFoundError("Conversation");
+  }
+  if (conversation.legacy_contact_id) {
+    return requireSendAccess(
+      trx,
+      conversation.legacy_contact_id,
+      userId,
+      options,
+    );
+  }
+  const claimUnassigned = options.claimUnassigned ?? true;
+  const assignment = await getCurrentConversationAssignment(
+    trx,
+    conversationId,
+  );
+  let autoAssigned = false;
+  if (assignment && assignment.assigned_to !== userId) {
+    throw new ContactAssignedToOtherError(assignment.assigned_to);
+  }
+  if (!assignment && claimUnassigned) {
+    await assignConversationToUser(trx, conversationId, userId, userId);
+    autoAssigned = true;
+  }
+  const caseId = await requireActiveCaseForConversationSend(
+    trx,
+    conversationId,
+  );
   return { caseId, autoAssigned };
 }

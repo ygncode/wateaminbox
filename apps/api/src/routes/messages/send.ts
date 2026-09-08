@@ -44,7 +44,10 @@ import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { validateGroupMentionJids } from "../../services/group-mention.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
 import { broadcastNewMessageToViewers } from "../../services/message-broadcast.service.js";
-import { requireSendAccess } from "../../services/send-access.service.js";
+import {
+  requireConversationSendAccess,
+  requireSendAccess,
+} from "../../services/send-access.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
 import {
   IncompleteForwardAlbumError,
@@ -88,7 +91,11 @@ async function sendChannelContactMessage(
   let messageId = "";
   await tenantDb.transaction().execute(async (trx) => {
     await reserveMediaReferences(trx, companyId, [storedMediaReference]);
-    const access = await requireSendAccess(trx, contact.id, user.id);
+    const access = await requireConversationSendAccess(
+      trx,
+      conversationId,
+      user.id,
+    );
     autoAssigned = access.autoAssigned;
     let replyToExternalMessageId: string | null = null;
     if (body.replyToMessageId) {

@@ -182,6 +182,21 @@ interface ConversationCaseRow {
  * never deleted in normal operation, but callers should never see a raw
  * constraint violation from a phantom row instead of a controlled error).
  */
+async function lockConversation(
+  trx: Transaction<TenantDatabase>,
+  conversationId: string,
+): Promise<void> {
+  const conversation = await trx
+    .selectFrom("conversations")
+    .select("id")
+    .where("id", "=", conversationId)
+    .forUpdate()
+    .executeTakeFirst();
+  if (!conversation) {
+    throw new NotFoundError("Conversation");
+  }
+}
+
 async function lockContact(
   trx: Transaction<TenantDatabase>,
   contactId: string,
@@ -337,6 +352,31 @@ export async function resolveActiveCaseIdForContact(
  * to enforce this invariant against; see scheduled-message.service.ts's own
  * doc comment.
  */
+export async function resolveActiveCaseIdForConversation(
+  trx: Transaction<TenantDatabase>,
+  conversationId: string,
+): Promise<string | null> {
+  await lockConversation(trx, conversationId);
+  const row = await trx
+    .selectFrom("conversation_cases")
+    .select("id")
+    .where("conversation_id", "=", conversationId)
+    .where("status", "in", ["open", "pending"])
+    .executeTakeFirst();
+  return row?.id ?? null;
+}
+
+export async function requireActiveCaseForConversationSend(
+  trx: Transaction<TenantDatabase>,
+  conversationId: string,
+): Promise<string> {
+  const caseId = await resolveActiveCaseIdForConversation(trx, conversationId);
+  if (!caseId) {
+    throw new NoActiveCaseError();
+  }
+  return caseId;
+}
+
 export async function requireActiveCaseForSend(
   trx: Transaction<TenantDatabase>,
   contactId: string,
