@@ -466,6 +466,24 @@ export async function ensureChannelSpineTenantSchema<Database>(
       );
     }
 
+    for (const workflowTable of [
+      "conversation_cases",
+      "conversation_states",
+      "contact_assignments",
+    ] as const) {
+      await sql`ALTER TABLE ${table(workflowTable)}
+        ALTER COLUMN contact_id DROP NOT NULL`.execute(db);
+      await addConstraintIfMissing(
+        db,
+        schemaName,
+        workflowTable,
+        `${workflowTable}_contact_or_conversation_check`,
+        sql`ALTER TABLE ${table(workflowTable)}
+          ADD CONSTRAINT ${sql.ref(`${workflowTable}_contact_or_conversation_check`)}
+          CHECK (contact_id IS NOT NULL OR conversation_id IS NOT NULL) NOT VALID`,
+      );
+    }
+
     await addConstraintIfMissing(
       db,
       schemaName,

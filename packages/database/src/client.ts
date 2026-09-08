@@ -839,7 +839,7 @@ export interface ContactTagsTable {
 
 export interface ContactAssignmentsTable {
   id: Generated<string>;
-  contact_id: string;
+  contact_id: string | null;
   conversation_id: string | null;
   assigned_to: string;
   assigned_by: string;
@@ -1102,7 +1102,7 @@ export interface AutoReplySettingsTable {
 
 export interface ConversationStatesTable {
   id: Generated<string>;
-  contact_id: string;
+  contact_id: string | null;
   conversation_id: string | null;
   read_by_user_id: string | null;
   read_at: Date | null;
@@ -1139,7 +1139,7 @@ export type ConversationCaseResolutionOutcome =
  */
 export interface ConversationCasesTable {
   id: Generated<string>;
-  contact_id: string;
+  contact_id: string | null;
   conversation_id: string | null;
   company_id: string | null;
   kind: ConversationCaseKind;

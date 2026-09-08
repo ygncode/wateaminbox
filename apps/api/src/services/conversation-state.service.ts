@@ -40,7 +40,7 @@ export async function getConversationState(
 
   return {
     id: state.id,
-    contactId: state.contact_id,
+    contactId: state.contact_id ?? contactId,
     status: state.status,
     resolvedAt: state.resolved_at,
     resolvedBy: state.resolved_by,

@@ -128,7 +128,9 @@ export async function resolveContactViewerIdsForContacts(
 
   const assignedTo = new Map<string, string>();
   for (const row of assignments) {
-    if (row.assigned_to) assignedTo.set(row.contact_id, row.assigned_to);
+    if (row.contact_id && row.assigned_to) {
+      assignedTo.set(row.contact_id, row.assigned_to);
+    }
   }
 
   const viewers = new Set<string>();
