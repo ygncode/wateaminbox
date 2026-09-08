@@ -1,6 +1,12 @@
 import { expect, test } from "bun:test";
-import { db } from "@wateaminbox/database";
-import type { NormalizedChannelEvent } from "@wateaminbox/shared";
+import {
+  db,
+  reconcileChannelSpineConcurrentIndexes,
+} from "@wateaminbox/database";
+import {
+  DEFAULT_SLA_WEEKLY_SCHEDULE,
+  type NormalizedChannelEvent,
+} from "@wateaminbox/shared";
 import { sql } from "kysely";
 import {
   clearTenantConnection,
@@ -31,7 +37,22 @@ integration(
           status: "active",
         })
         .execute();
+      await db
+        .insertInto("sla_policies")
+        .values({
+          company_id: companyId,
+          target_minutes: 60,
+          direct_resolution_target_minutes: 480,
+          group_response_target_minutes: 120,
+          group_resolution_target_minutes: 960,
+          timezone: "UTC",
+          weekly_schedule: JSON.stringify(DEFAULT_SLA_WEEKLY_SCHEDULE),
+          exceptions: JSON.stringify([]),
+          effective_from: new Date("1970-01-01T00:00:00Z"),
+        })
+        .execute();
       await createTenantSchema(companyId);
+      await reconcileChannelSpineConcurrentIndexes(db, schemaName);
       const tenantDb = await getTenantConnection(companyId);
       await tenantDb
         .insertInto("channel_accounts")
@@ -128,6 +149,10 @@ integration(
       await sql
         .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
         .execute(db);
+      await db
+        .deleteFrom("sla_policies")
+        .where("company_id", "=", companyId)
+        .execute();
       await db.deleteFrom("companies").where("id", "=", companyId).execute();
     }
   },

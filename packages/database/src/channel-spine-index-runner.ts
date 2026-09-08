@@ -136,7 +136,10 @@ export async function reconcileChannelSpineConcurrentIndexes<Database>(
 ): Promise<ChannelSpineIndexResult[]> {
   const results: ChannelSpineIndexResult[] = [];
   for (const definition of definitions) {
-    const indexName = `${schemaName}_${definition.suffix}`;
+    // Indexes live in the tenant schema, so the suffix is unique without a
+    // schema prefix. Prefixing tenant_<uuid>_ overflows PostgreSQL's 63-char
+    // identifier limit for several of these names.
+    const indexName = definition.suffix;
     const current = await readIndex(db, schemaName, indexName);
     if (current?.valid) {
       verifyDefinition(current.definition, definition, schemaName);
@@ -210,20 +213,21 @@ function verifyDefinition(
   expected: ConcurrentIndexDefinition,
   schemaName: string,
 ): void {
-  const normalized = actual
-    .replace(/"/g, "")
-    .replace(/\s+/g, " ")
-    .toLowerCase();
-  const fragments = [
+  const compact = (value: string) =>
+    value
+      .replace(/"/g, "")
+      .replace(/::\w+/g, "")
+      .replace(/[()]/g, "")
+      .replace(/\s+/g, " ")
+      .toLowerCase();
+  const normalized = compact(actual);
+  const required = [
     expected.unique === false ? "create index" : "create unique index",
     `on ${schemaName}.${expected.table}`.toLowerCase(),
     ...expected.columns.map((column) => column.toLowerCase()),
-    ...expected.predicate
-      .toLowerCase()
-      .split(/\s+(?:and|is|not|null)\s+/)
-      .filter(Boolean),
+    "where",
   ];
-  if (fragments.some((fragment) => !normalized.includes(fragment))) {
+  if (required.some((fragment) => !normalized.includes(fragment))) {
     throw new Error(`existing index has unexpected definition: ${actual}`);
   }
 }

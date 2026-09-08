@@ -449,10 +449,21 @@ export async function ensureChannelSpineTenantSchema<Database>(
         legacyTable,
         legacyTable === "conversation_cases"
           ? [
+              ["contact_id", "UUID"],
               ["conversation_id", "UUID"],
               ["company_id", "UUID"],
+              ["status", "TEXT"],
             ]
-          : [["conversation_id", "UUID"]],
+          : legacyTable === "contact_assignments"
+            ? [
+                ["contact_id", "UUID"],
+                ["conversation_id", "UUID"],
+                ["unassigned_at", "TIMESTAMPTZ"],
+              ]
+            : [
+                ["contact_id", "UUID"],
+                ["conversation_id", "UUID"],
+              ],
       );
       await addConstraintIfMissing(
         db,
@@ -471,6 +482,9 @@ export async function ensureChannelSpineTenantSchema<Database>(
       "conversation_states",
       "contact_assignments",
     ] as const) {
+      await addColumnsIfMissing(db, schemaName, workflowTable, [
+        ["contact_id", "UUID"],
+      ]);
       await sql`ALTER TABLE ${table(workflowTable)}
         ALTER COLUMN contact_id DROP NOT NULL`.execute(db);
       await addConstraintIfMissing(

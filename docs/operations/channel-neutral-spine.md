@@ -59,9 +59,9 @@ Still incomplete before claiming the RFC finished:
 
 - Assignment/cases/state `contact_id` is nullable (migration `098`) but most
   WhatsApp paths still dual-write a bridge contact.
-- Database integration tests require `RUN_DB_INTEGRATION=1` and PostgreSQL.
-- Docker/Go worker validation is blocked until the daemon and vendored
-  `whatsmeow` are available.
+- Database integration tests use `RUN_DB_INTEGRATION=1` against local Postgres
+  (`localhost:4447` in docker-compose).
+- Go lint/vet uses `vendor/whatsmeow` in this worktree.
 - Phase 9 must not drop legacy WhatsApp columns in this branch.
 
 ## Recovery notes
