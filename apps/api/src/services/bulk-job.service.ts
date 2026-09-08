@@ -27,7 +27,11 @@ import type {
 import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely, Selectable } from "kysely";
 import { bulkConfig } from "../config/bulk.config.js";
-import { ConflictError, ValidationError } from "../lib/errors.js";
+import {
+  ConflictError,
+  isUniqueViolation,
+  ValidationError,
+} from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import { broadcastToCompany } from "../lib/realtime.js";
 import { deleteMedia, resolveMediaKeyForCompany } from "../lib/storage.js";
@@ -322,14 +326,6 @@ export class BulkAudienceDriftError extends ConflictError {
   constructor(public readonly preview: BulkJobPreview) {
     super("The audience changed since the preview; please confirm again");
   }
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { code?: string }).code === "23505"
-  );
 }
 
 export interface CreateBulkJobResult {

@@ -359,6 +359,33 @@ export class AnalyticsRangeTooWideError extends ValidationError {
 }
 
 /**
+ * Detect a PostgreSQL `unique_violation` (SQLSTATE 23505).
+ *
+ * Kysely's `PostgresDialect` re-throws the underlying `node-postgres` error
+ * as-is, so the driver's `.code` (and optional `.constraint`) reach the caller
+ * intact — a transaction that loses an email-uniqueness race surfaces exactly
+ * `{ code: "23505", constraint: "users_email_key" }`. Pass `constraint` to
+ * narrow the match to a specific unique index; omit it to match any 23505,
+ * which is what the bulk-job idempotency path does.
+ */
+export function isUniqueViolation(
+  error: unknown,
+  constraint?: string,
+): boolean {
+  if (
+    typeof error !== "object" ||
+    error === null ||
+    (error as { code?: string }).code !== "23505"
+  ) {
+    return false;
+  }
+  if (constraint === undefined) {
+    return true;
+  }
+  return (error as { constraint?: string }).constraint === constraint;
+}
+
+/**
  * Check if an error is a PostgreSQL "relation does not exist" error
  * and extract the table name if so.
  */
