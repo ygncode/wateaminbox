@@ -12,7 +12,8 @@ interface ConcurrentIndexDefinition {
   table: string;
   columns: readonly string[];
   predicate: string;
-  duplicateGroupSql: (schemaName: string) => string;
+  unique?: boolean;
+  duplicateGroupSql?: (schemaName: string) => string;
 }
 
 const definitions: readonly ConcurrentIndexDefinition[] = [
@@ -52,6 +53,13 @@ const definitions: readonly ConcurrentIndexDefinition[] = [
         GROUP BY channel_account_id, client_idempotency_key
         HAVING count(*) > 1
       ) AS duplicates`,
+  },
+  {
+    suffix: "ma_fetch_due_idx",
+    table: "message_attachments",
+    columns: ["next_fetch_at", "created_at"],
+    predicate: "status = 'pending' AND provider_attachment_id IS NOT NULL",
+    unique: false,
   },
   {
     suffix: "mr_external_uidx",
@@ -102,9 +110,11 @@ export async function reconcileChannelSpineConcurrentIndexes<Database>(
         .execute(db);
     }
 
-    const duplicateResult = await sql
-      .raw<{ count: number }>(definition.duplicateGroupSql(schemaName))
-      .execute(db);
+    const duplicateResult = definition.duplicateGroupSql
+      ? await sql
+          .raw<{ count: number }>(definition.duplicateGroupSql(schemaName))
+          .execute(db)
+      : { rows: [{ count: 0 }] };
     const duplicateGroups = Number(duplicateResult.rows[0]?.count ?? 0);
     if (!Number.isSafeInteger(duplicateGroups) || duplicateGroups < 0) {
       throw new Error(`invalid duplicate preflight result for ${indexName}`);
@@ -118,7 +128,7 @@ export async function reconcileChannelSpineConcurrentIndexes<Database>(
     const columns = definition.columns.map(quoteIdentifier).join(", ");
     await sql
       .raw(
-        `CREATE UNIQUE INDEX CONCURRENTLY ${quoteIdentifier(indexName)} ON ${qualified(
+        `CREATE ${definition.unique === false ? "" : "UNIQUE "}INDEX CONCURRENTLY ${quoteIdentifier(indexName)} ON ${qualified(
           schemaName,
           definition.table,
         )} (${columns}) WHERE ${definition.predicate}`,
@@ -163,7 +173,7 @@ function verifyDefinition(
     .replace(/\s+/g, " ")
     .toLowerCase();
   const fragments = [
-    "create unique index",
+    expected.unique === false ? "create index" : "create unique index",
     `on ${schemaName}.${expected.table}`.toLowerCase(),
     ...expected.columns.map((column) => column.toLowerCase()),
     ...expected.predicate

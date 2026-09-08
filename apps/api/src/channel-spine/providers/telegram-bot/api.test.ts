@@ -21,7 +21,7 @@ describe("Telegram file retrieval", () => {
       return new Response(new Uint8Array([1, 2, 3]), {
         headers: { "content-type": "image/jpeg", "content-length": "3" },
       });
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     const file = await downloadTelegramFile(token, "provider-file-id", 3);
     expect([...file.data]).toEqual([1, 2, 3]);
     expect(file.contentType).toBe("image/jpeg");
@@ -36,7 +36,7 @@ describe("Telegram file retrieval", () => {
         ok: true,
         result: { file_path: "../secret", file_size: 1 },
       });
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     await expect(
       downloadTelegramFile(token, "provider-file-id"),
     ).rejects.toThrow("invalid file path");
@@ -54,7 +54,7 @@ describe("Telegram file retrieval", () => {
         });
       }
       throw new Error("file endpoint must not be called");
-    }) as typeof fetch;
+    }) as unknown as typeof fetch;
     await expect(
       downloadTelegramFile(token, "provider-file-id", 10),
     ).rejects.toThrow("download limit");

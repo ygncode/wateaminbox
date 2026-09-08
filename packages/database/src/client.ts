@@ -541,7 +541,7 @@ export interface MessageAttachmentsTable {
   error_code: string | null;
   provider_metadata: Generated<Record<string, unknown>>;
   fetch_attempts: Generated<number>;
-  next_fetch_at: Generated<Date>;
+  next_fetch_at: Generated<Date | null>;
   fetch_lease_token: string | null;
   fetch_lease_expires_at: Date | null;
   created_at: Generated<Date>;

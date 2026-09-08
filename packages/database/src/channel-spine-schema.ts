@@ -263,12 +263,6 @@ export async function ensureChannelSpineTenantSchema<Database>(
       ["fetch_lease_token", "UUID"],
       ["fetch_lease_expires_at", "TIMESTAMPTZ"],
     ]);
-    await sql`CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_ma_fetch_due_idx`)}
-      ON ${table("message_attachments")} (next_fetch_at, created_at)
-      WHERE status = 'pending' AND provider_attachment_id IS NOT NULL`.execute(
-      db,
-    );
-
     await sql`CREATE TABLE IF NOT EXISTS ${table("whatsapp_attachment_fetch_state")} (
       attachment_id UUID PRIMARY KEY REFERENCES ${table("message_attachments")}(id) ON DELETE CASCADE,
       direct_path TEXT,
