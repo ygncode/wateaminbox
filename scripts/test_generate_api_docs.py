@@ -131,6 +131,7 @@ class RenderedAccuracyTests(unittest.TestCase):
             "A-->>U: 201 {summary, results, connection}",
             "subscribe company:{companyId} + user:{companyId}:{userId} only",
             "503 only when core checks are unready",
+            "Workspace first-contact auto-reply settings live under `/auto-reply`.",
         ):
             with self.subTest(required=required):
                 self.assertIn(required, content)

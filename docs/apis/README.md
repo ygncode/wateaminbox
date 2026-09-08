@@ -80,7 +80,7 @@ Durable, state-changing WhatsApp actions persist state and enqueue a command in 
 | API tokens | [`api-tokens.md`](api-tokens.md) | 3 |
 | MCP | [`mcp.md`](mcp.md) | 3 |
 | Tags | [`tags.md`](tags.md) | 4 |
-| Quick Replies | [`quick-replies.md`](quick-replies.md) | 6 |
+| Quick Replies | [`quick-replies.md`](quick-replies.md) | 8 |
 | Search | [`search.md`](search.md) | 5 |
 | Status (Stories) | [`status.md`](status.md) | 6 |
 | Audit | [`audit.md`](audit.md) | 4 |
