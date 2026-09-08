@@ -636,6 +636,7 @@ function AcknowledgedMessageComposer({
         content: caption,
         messageType,
         mediaUrl: upload.mediaUrl,
+        replyToMessageId: replyToMessage?.id,
         scheduledAt: scheduledAtIso,
       });
       toast.success(
