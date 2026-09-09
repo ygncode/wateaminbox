@@ -279,3 +279,86 @@ integration(
   },
   30_000,
 );
+
+integration(
+  "journals an unrepairable sweep row once and stops re-sweeping it",
+  async () => {
+    const { companyId, schemaName, userId } = await setupWorkspace(
+      "Reconciler sweep failure",
+    );
+    try {
+      await enableDualWrite(companyId, userId);
+      const tenantDb = await getTenantConnection(companyId);
+      const connectionId = crypto.randomUUID();
+      const contactId = crypto.randomUUID();
+      const messageId = crypto.randomUUID();
+      await tenantDb
+        .insertInto("whatsapp_connections")
+        .values({
+          id: connectionId,
+          name: "Line",
+          phone_number: "60123456789",
+          jid: "60123456789@s.whatsapp.net",
+          status: "connected",
+        })
+        .execute();
+      // The contact carries no connection, so the bridge cannot resolve an
+      // account and the sweep can never repair this row.
+      await tenantDb
+        .insertInto("contacts")
+        .values({
+          id: contactId,
+          whatsapp_connection_id: null,
+          jid: "60126666666@s.whatsapp.net",
+          phone_number: "60126666666",
+        })
+        .execute();
+      await tenantDb
+        .insertInto("messages")
+        .values({
+          id: messageId,
+          whatsapp_connection_id: connectionId,
+          contact_id: contactId,
+          message_id: "3EBUNREPAIRABLE",
+          from_me: false,
+          message_type: "text",
+          content: "cannot bridge",
+          timestamp: new Date("2026-09-09T12:00:00Z"),
+        })
+        .execute();
+
+      const first = await reconcileWorkspace(companyId);
+      expect(first.swept).toBe(0);
+      const journalled = await tenantDb
+        .selectFrom("channel_spine_reconciliation_journal")
+        .select(["legacy_id", "error_code"])
+        .execute();
+      expect(journalled).toHaveLength(1);
+      expect(journalled[0]?.legacy_id).toBe(messageId);
+
+      // Second pass: the row is the journal's problem now. The sweep must not
+      // pick it up again, or an unrepairable row is retried at full rate for
+      // ever and the backlog never converges.
+      await tenantDb
+        .updateTable("channel_spine_reconciliation_journal")
+        .set({ next_attempt_at: new Date(Date.now() + 3_600_000) })
+        .execute();
+      const second = await reconcileWorkspace(companyId);
+      expect(second.swept).toBe(0);
+      expect(second.repaired).toBe(0);
+      expect(
+        Number(
+          (
+            await tenantDb
+              .selectFrom("channel_spine_reconciliation_journal")
+              .select((eb) => eb.fn.countAll<string>().as("count"))
+              .executeTakeFirstOrThrow()
+          ).count,
+        ),
+      ).toBe(1);
+    } finally {
+      await teardown(companyId, schemaName, userId);
+    }
+  },
+  30_000,
+);

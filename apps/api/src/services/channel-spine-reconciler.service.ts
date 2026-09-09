@@ -1,7 +1,8 @@
 import { db, type TenantDatabase } from "@wateaminbox/database";
-import type { Kysely } from "kysely";
+import { type Kysely, sql } from "kysely";
 import {
   ensureLinkedDeviceBridge,
+  journalLinkedDeviceShadowFailure,
   shadowLinkedDeviceMessage,
   shadowLinkedDeviceWorkflow,
 } from "../channel-spine/providers/whatsapp-linked-device/shadow.js";
@@ -29,7 +30,14 @@ const logger = createLogger("ChannelSpineReconciler");
 
 const CYCLE_INTERVAL_MS = 5 * 60_000;
 const JOURNAL_BATCH = 200;
-const SWEEP_BATCH = 500;
+/**
+ * Deliberately small. The sweep is a safety net for rows a writer dropped,
+ * not the bulk history path - that is the backfill script - and each row costs
+ * roughly ten statements. Nineteen workspaces at this batch is a few dozen
+ * statements a second, which the single production host absorbs without
+ * competing with live traffic.
+ */
+const SWEEP_BATCH = 100;
 const RETRY_BASE_MS = 60_000;
 const RETRY_CEILING_MS = 6 * 60 * 60_000;
 /**
@@ -172,11 +180,29 @@ async function sweepUnmirroredMessages(
 ): Promise<number> {
   const orphans = await tenantDb
     .selectFrom("messages")
-    .select("id")
-    .where("conversation_id", "is", null)
-    .where("contact_id", "is not", null)
-    .where("whatsapp_connection_id", "is not", null)
-    .orderBy("created_at", "desc")
+    .select("messages.id")
+    .where("messages.conversation_id", "is", null)
+    .where("messages.contact_id", "is not", null)
+    .where("messages.whatsapp_connection_id", "is not", null)
+    // A row the journal already tracks belongs to the drain path, which knows
+    // how to back it off and eventually quarantine it. Re-sweeping it here
+    // would retry it every cycle at full rate and never converge.
+    .where((eb) =>
+      eb.not(
+        eb.exists(
+          eb
+            .selectFrom("channel_spine_reconciliation_journal as journal")
+            .select("journal.id")
+            .whereRef(
+              "journal.legacy_id",
+              "=",
+              sql<string>`${eb.ref("messages.id")}::text`,
+            )
+            .where("journal.legacy_table", "=", "messages"),
+        ),
+      ),
+    )
+    .orderBy("messages.created_at", "desc")
     .limit(SWEEP_BATCH)
     .execute();
   if (orphans.length === 0) return 0;
@@ -203,7 +229,25 @@ async function sweepUnmirroredMessages(
         return true;
       })
       .catch(() => false);
-    if (ok) swept++;
+    if (ok) {
+      swept++;
+      continue;
+    }
+    // Journal the failure so the drain path's backoff and quarantine take
+    // over. Without this the same unrepairable rows sort to the top of every
+    // sweep forever, which is a hot loop that never makes progress.
+    await tenantDb
+      .transaction()
+      .execute((trx) =>
+        journalLinkedDeviceShadowFailure(
+          trx,
+          "message",
+          "messages",
+          orphan.id,
+          "sweep_repair_failed",
+        ),
+      )
+      .catch(() => undefined);
   }
   return swept;
 }
