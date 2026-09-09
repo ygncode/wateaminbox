@@ -17,6 +17,7 @@ import {
   enqueueConnectionCommand,
   enqueueSessionCommand,
 } from "../command-outbox.service.js";
+import { countUsedConnectionSlots } from "../connection-quota.service.js";
 import type { TenantDatabase } from "../tenant.service.js";
 import {
   createConnectionSession,
@@ -706,12 +707,8 @@ export async function spawnConnection(
       trx,
     );
 
-    const activeConnections = await trx
-      .selectFrom("whatsapp_connections")
-      .select(({ fn }) => [fn.count<number>("id").as("count")])
-      .where("status", "in", ["connected", "pending"])
-      .executeTakeFirst();
-    const currentCount = Number(activeConnections?.count ?? 0);
+    // Every channel occupies the same paid slot, so the count spans them all.
+    const currentCount = await countUsedConnectionSlots(trx);
     if (currentCount >= maxConnections) {
       throw new MaxConnectionsExceededError(currentCount, maxConnections);
     }
