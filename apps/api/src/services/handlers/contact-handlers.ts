@@ -330,11 +330,31 @@ export async function handleProfilePictureEvent(
 
       // Group participants may not have a standalone contact conversation. Cache
       // their avatar directly on existing messages so the chat can still render it.
+      //
+      // Locked in primary-key order rather than whatever order the scan
+      // reaches them in. This statement can touch every message a sender ever
+      // sent, and everything else that writes a message row - the shadow
+      // write, the reconciler, the backfill - does so one row at a time by id.
+      // Two writers taking the same rows in opposite orders deadlock, and
+      // PostgreSQL then picks a victim: when the victim was this handler, a
+      // real inbound message failed to process. Ordering both sides by id
+      // removes the cycle rather than relying on a retry to survive it.
       const messageResult = await trx
         .updateTable("messages")
         .set({ sender_avatar_url: profilePictureUrl })
-        .where("sender_jid", "=", contactJid)
-        .where("whatsapp_connection_id", "=", connectionId)
+        .where((eb) =>
+          eb(
+            "id",
+            "in",
+            eb
+              .selectFrom("messages")
+              .select("id")
+              .where("sender_jid", "=", contactJid)
+              .where("whatsapp_connection_id", "=", connectionId)
+              .orderBy("id")
+              .forUpdate(),
+          ),
+        )
         .executeTakeFirst();
       return { result, messageResult };
     });
