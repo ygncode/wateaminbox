@@ -173,6 +173,48 @@ through `MessageActionsProvider`: an action the adapter does not report is not
 passed to the thread at all, so no menu entry can invoke it. Legacy
 linked-device threads pass no descriptor and keep their existing behaviour.
 
+## Continuous reconciliation
+
+Dual write is best-effort: a shadow write that fails records a row in
+`channel_spine_reconciliation_journal` and returns, so it can never abort the
+legacy mutation that is still authoritative.
+
+`channel-spine-reconciler.service.ts` runs in the API every five minutes and
+converges the gap two ways:
+
+- it drains the journal with exponential backoff, quarantining a row after
+  eight failed attempts so a genuinely broken row cannot hide behind a
+  permanently non-empty backlog;
+- it sweeps legacy WhatsApp messages that still have no `conversation_id` and
+  were never journaled at all - rows predating dual write, written by an old
+  replica, or left by a writer that died between the two writes.
+
+Rows are claimed with `FOR UPDATE SKIP LOCKED`, so running it on every API
+replica divides the backlog rather than duplicating it.
+
+An empty pending backlog is the signal that a workspace's legacy and neutral
+data agree. Check it before widening any provider enablement:
+
+```sql
+SELECT count(*) FROM <tenant>.channel_spine_reconciliation_journal
+WHERE status = 'pending';
+```
+
+Quarantined rows need explicit repair; they are not retried.
+
+## Correcting a merge
+
+`POST /contacts/merges/:mergeEventId/unmerge` reverses one merge, behind the
+same admin/owner and neutral-authority gate as merging. It restores the
+endpoints that merge moved, revives the source customer, and leaves every
+conversation, message, assignment, case, note, and tag exactly where it is -
+none of them ever moved.
+
+Only the merge currently in effect can be reversed. An endpoint that has since
+been moved on by a later merge or a manual reassignment is skipped and counted
+in `skippedEndpoints` rather than dragged back, so a newer decision is never
+silently clobbered.
+
 ## Known remaining work
 
 Still incomplete before claiming the RFC finished:
@@ -180,11 +222,10 @@ Still incomplete before claiming the RFC finished:
 - Assignment/cases/state `contact_id` is nullable (migration `098`) but most
   WhatsApp paths still dual-write a bridge contact. That dual-write is the
   intended transitional state; RFC phase 9 retires it.
-- Contact merge has no unmerge path, and suggestions are never auto-applied;
-  every merge is operator-initiated.
 - Merge suggestions have no web UI; the endpoint is API-only.
 - Database integration tests use `RUN_DB_INTEGRATION=1` against local Postgres
-  (`localhost:4447` in docker-compose).
+  (`localhost:4447` in docker-compose) and run with a 30s timeout, because
+  building a tenant schema does not fit Bun's 5s default.
 - Go lint/vet uses `vendor/whatsmeow` in this worktree.
 - Phase 9 must not drop legacy WhatsApp columns in this branch.
 

@@ -10,11 +10,16 @@ import { isChannelSpineTenantReady } from "../../services/channel-spine-readines
 import {
   mergeContacts,
   suggestContactMerges,
+  unmergeContacts,
 } from "../../services/contact-merge.service.js";
 import * as meilisearchService from "../../services/meilisearch.service.js";
 
 const mergeSchema = z.object({
   sourceContactId: z.string().uuid(),
+  reason: z.string().trim().min(1).max(500),
+});
+
+const unmergeSchema = z.object({
   reason: z.string().trim().min(1).max(500),
 });
 
@@ -76,6 +81,60 @@ mergeRoutes.post("/:id/merge", zValidator("json", mergeSchema), async (c) => {
   });
   return successData(c, result);
 });
+
+/**
+ * Correct a merge. Addressed by merge event rather than by contact, because
+ * the correction has to name the specific decision being undone: a customer
+ * may have been merged more than once, and only the merge currently in effect
+ * can be reversed.
+ */
+mergeRoutes.post(
+  "/merges/:mergeEventId/unmerge",
+  zValidator("json", unmergeSchema),
+  async (c) => {
+    const { tenantDb, user, companyId, role } = getRouteContext(c);
+    if (role === "member") {
+      return c.json({ error: "Forbidden" }, 403);
+    }
+    // Same gate as executing a merge: a workspace that may not merge must not
+    // be able to reach into merge history either.
+    const authority = await getChannelSpineWorkspaceAuthority(companyId);
+    if (
+      authority.writeAuthority !== "neutral" ||
+      !(await isChannelSpineTenantReady(tenantDb, companyId))
+    ) {
+      return c.json(
+        { error: "Contact merge is not enabled for this workspace" },
+        409,
+      );
+    }
+    const result = await unmergeContacts(tenantDb, {
+      mergeEventId: c.req.param("mergeEventId")!,
+      actorUserId: user.id,
+      reason: c.req.valid("json").reason,
+    });
+    // The revived customer becomes its own search hit again, and the survivor
+    // must stop advertising the endpoints it just gave back.
+    await refreshMergeSearchProjection(tenantDb, companyId, {
+      sourceContactId: result.targetContactId,
+      targetContactId: result.sourceContactId,
+    });
+    await refreshMergeSearchProjection(tenantDb, companyId, {
+      sourceContactId: result.sourceContactId,
+      targetContactId: result.targetContactId,
+    });
+    await createAuditLog({
+      companyId,
+      userId: user.id,
+      action: "contact.unmerged",
+      entityType: "contact",
+      entityId: result.sourceContactId,
+      details: { ...result },
+      ipAddress: getClientIp(c),
+    });
+    return successData(c, result);
+  },
+);
 
 /**
  * The merged-away customer must stop being a separate search hit, and the

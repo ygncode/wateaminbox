@@ -11,6 +11,7 @@ import {
   mergeContacts,
   resolveCanonicalContactId,
   suggestContactMerges,
+  unmergeContacts,
 } from "./contact-merge.service.js";
 import {
   clearTenantConnection,
@@ -346,5 +347,205 @@ describe("mergeContacts", () => {
         await db.deleteFrom("users").where("id", "=", ownerId).execute();
       }
     },
+  );
+});
+
+describe("unmergeContacts", () => {
+  integrationTest(
+    "restores the endpoints a merge moved, revives the customer, and refuses a superseded or already-moved correction",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const schemaName = getSchemaName(companyId);
+      const ownerId = crypto.randomUUID();
+      try {
+        await db
+          .insertInto("users")
+          .values({
+            id: ownerId,
+            email: `contact-unmerge-${ownerId}@example.com`,
+            password_hash: "test",
+          })
+          .execute();
+        await db
+          .insertInto("companies")
+          .values({
+            id: companyId,
+            name: "Contact unmerge test",
+            schema_name: schemaName,
+            status: "active",
+          })
+          .execute();
+        await db
+          .insertInto("sla_policies")
+          .values({
+            company_id: companyId,
+            target_minutes: 60,
+            direct_resolution_target_minutes: 480,
+            group_response_target_minutes: 120,
+            group_resolution_target_minutes: 960,
+            timezone: "UTC",
+            weekly_schedule: JSON.stringify(DEFAULT_SLA_WEEKLY_SCHEDULE),
+            exceptions: JSON.stringify([]),
+            effective_from: new Date("1970-01-01T00:00:00Z"),
+            created_by: ownerId,
+          })
+          .execute();
+        await createTenantSchema(companyId);
+        await reconcileChannelSpineConcurrentIndexes(db, schemaName);
+        const tenantDb = getTenantConnection(companyId);
+
+        const account = crypto.randomUUID();
+        await tenantDb
+          .insertInto("channel_accounts")
+          .values({
+            id: account,
+            channel: "telegram",
+            provider: "telegram_bot",
+            display_name: "Bot",
+            status: "connected",
+          })
+          .execute();
+        const target = await tenantDb
+          .insertInto("contacts")
+          .values({ jid: "60123456789@s.whatsapp.net", push_name: "Ada" })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        const source = await tenantDb
+          .insertInto("contacts")
+          .values({ jid: null, push_name: "Ada (Telegram)" })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        const sourceEndpoint = await tenantDb
+          .insertInto("contact_endpoints")
+          .values({
+            contact_id: source.id,
+            channel: "telegram",
+            provider: "telegram_bot",
+            channel_account_id: account,
+            endpoint_kind: "person",
+            external_id: "tg-1",
+            identity_scope: "telegram:user",
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+
+        const merge = await mergeContacts(tenantDb, {
+          sourceContactId: source.id,
+          targetContactId: target.id,
+          actorUserId: ownerId,
+          reason: "same person",
+        });
+        expect(merge.movedEndpoints).toBe(1);
+
+        const undone = await unmergeContacts(tenantDb, {
+          mergeEventId: merge.mergeEventId,
+          actorUserId: ownerId,
+          reason: "wrong person after all",
+        });
+        expect(undone.restoredEndpoints).toBe(1);
+        expect(undone.skippedEndpoints).toBe(0);
+
+        // The endpoint is back on the revived customer, and the customer is a
+        // customer again rather than an alias of the survivor.
+        expect(
+          (
+            await tenantDb
+              .selectFrom("contact_endpoints")
+              .select("contact_id")
+              .where("id", "=", sourceEndpoint.id)
+              .executeTakeFirstOrThrow()
+          ).contact_id,
+        ).toBe(source.id);
+        const revived = await tenantDb
+          .selectFrom("contacts")
+          .select(["merged_into_contact_id", "archived_at"])
+          .where("id", "=", source.id)
+          .executeTakeFirstOrThrow();
+        expect(revived.merged_into_contact_id).toBeNull();
+        expect(revived.archived_at).toBeNull();
+        expect(await resolveCanonicalContactId(tenantDb, source.id)).toBe(
+          source.id,
+        );
+
+        // The reversal is audited without claiming to belong to the merge.
+        expect(
+          Number(
+            (
+              await tenantDb
+                .selectFrom("contact_endpoint_reassignment_events")
+                .select((eb) => eb.fn.countAll<string>().as("count"))
+                .where("merge_event_id", "is", null)
+                .where("new_contact_id", "=", source.id)
+                .executeTakeFirstOrThrow()
+            ).count,
+          ),
+        ).toBe(1);
+
+        // The same correction cannot be applied twice: the merge is no longer
+        // the one in effect.
+        await expect(
+          unmergeContacts(tenantDb, {
+            mergeEventId: merge.mergeEventId,
+            actorUserId: ownerId,
+            reason: "again",
+          }),
+        ).rejects.toBeInstanceOf(ValidationError);
+
+        // An endpoint that has since moved on is skipped rather than dragged
+        // back, so a newer decision is never silently clobbered.
+        const second = await mergeContacts(tenantDb, {
+          sourceContactId: source.id,
+          targetContactId: target.id,
+          actorUserId: ownerId,
+          reason: "merged again",
+        });
+        const elsewhere = await tenantDb
+          .insertInto("contacts")
+          .values({ jid: null, push_name: "Somewhere else" })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        await tenantDb
+          .updateTable("contact_endpoints")
+          .set({ contact_id: elsewhere.id })
+          .where("id", "=", sourceEndpoint.id)
+          .execute();
+        const partial = await unmergeContacts(tenantDb, {
+          mergeEventId: second.mergeEventId,
+          actorUserId: ownerId,
+          reason: "correct the second merge",
+        });
+        expect(partial.restoredEndpoints).toBe(0);
+        expect(partial.skippedEndpoints).toBe(1);
+        expect(
+          (
+            await tenantDb
+              .selectFrom("contact_endpoints")
+              .select("contact_id")
+              .where("id", "=", sourceEndpoint.id)
+              .executeTakeFirstOrThrow()
+          ).contact_id,
+        ).toBe(elsewhere.id);
+
+        await expect(
+          unmergeContacts(tenantDb, {
+            mergeEventId: crypto.randomUUID(),
+            actorUserId: ownerId,
+            reason: "no such event",
+          }),
+        ).rejects.toBeInstanceOf(ValidationError);
+      } finally {
+        clearTenantConnection(companyId);
+        await sql
+          .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
+          .execute(db);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
+        await db.deleteFrom("users").where("id", "=", ownerId).execute();
+      }
+    },
+    60_000,
   );
 });
