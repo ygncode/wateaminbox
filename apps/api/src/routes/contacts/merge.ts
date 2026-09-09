@@ -7,7 +7,10 @@ import { getRouteContext } from "../../middleware/context.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { getChannelSpineWorkspaceAuthority } from "../../services/channel-spine-authority.service.js";
 import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
-import { mergeContacts } from "../../services/contact-merge.service.js";
+import {
+  mergeContacts,
+  suggestContactMerges,
+} from "../../services/contact-merge.service.js";
 import * as meilisearchService from "../../services/meilisearch.service.js";
 
 const mergeSchema = z.object({
@@ -16,6 +19,25 @@ const mergeSchema = z.object({
 });
 
 export const mergeRoutes = new Hono();
+
+/**
+ * Merge *suggestions* are read-only evidence and are available regardless of
+ * the merge execution gate: an operator may review candidates long before the
+ * workspace is allowed to act on them.
+ */
+mergeRoutes.get("/:id/merge-suggestions", async (c) => {
+  const { tenantDb, role } = getRouteContext(c);
+  // These routes are mounted ahead of the contact-visibility middleware, so
+  // they carry their own gate. Suggestions name contacts a member may not be
+  // allowed to see, so they stay with the roles that can act on them.
+  if (role === "member") {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+  return successData(
+    c,
+    await suggestContactMerges(tenantDb, c.req.param("id")!),
+  );
+});
 
 mergeRoutes.post("/:id/merge", zValidator("json", mergeSchema), async (c) => {
   const { tenantDb, user, companyId, role } = getRouteContext(c);

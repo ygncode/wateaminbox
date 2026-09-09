@@ -78,6 +78,24 @@ export async function mergeContacts(
     if (source.merged_into_contact_id || target.merged_into_contact_id) {
       throw new ConflictError("One of the contacts has already been merged");
     }
+    // Group, bot, shared-mailbox, and organization endpoints are shared
+    // identities. Folding one into a person would silently reassign a whole
+    // audience, so a merge touching one is refused rather than partially
+    // applied.
+    const sharedIdentity = await trx
+      .selectFrom("contact_endpoints")
+      .select(["endpoint_kind"])
+      .where("contact_id", "in", [source.id, target.id])
+      .execute();
+    if (
+      sharedIdentity.some(
+        (endpoint) => !MERGEABLE_ENDPOINT_KINDS.has(endpoint.endpoint_kind),
+      )
+    ) {
+      throw new ValidationError(
+        "Contacts with a group, bot, or shared endpoint cannot be merged",
+      );
+    }
 
     const endpoints = await trx
       .selectFrom("contact_endpoints")
@@ -135,4 +153,105 @@ export async function mergeContacts(
       targetContactId: target.id,
     };
   });
+}
+
+/**
+ * Endpoint kinds a person merge may involve.
+ *
+ * An allowlist rather than a denylist: a future adapter that introduces a new
+ * shared identity kind must be considered explicitly instead of inheriting
+ * person-merge semantics by default. The RFC refuses group, bot,
+ * shared-mailbox, and organization endpoints outright.
+ */
+const MERGEABLE_ENDPOINT_KINDS = new Set(["person", "user", "phone", "email"]);
+
+export interface MergeSuggestion {
+  contactId: string;
+  /** The normalized phone/email both contacts were seen at. */
+  matchedAddress: string;
+  /** Channels the candidate's matching endpoints belong to. */
+  channels: string[];
+  /** True when every matching endpoint pair is on the same channel. */
+  sameChannel: boolean;
+  /**
+   * True when the candidate's matching endpoint is provider- or user-verified.
+   * Unverified evidence is a suggestion only and always needs a human decision.
+   */
+  verified: boolean;
+}
+
+/**
+ * Candidate contacts that share a normalized address with `contactId`.
+ *
+ * Evidence only. Names, avatars, and usernames are deliberately not matched:
+ * the RFC treats them as evidence, never as durable identity keys, and a
+ * display-name collision is the most common way two different people would be
+ * proposed as one. Nothing here executes a merge.
+ */
+export async function suggestContactMerges(
+  db: MergeDb,
+  contactId: string,
+  limit = 20,
+): Promise<MergeSuggestion[]> {
+  const own = await db
+    .selectFrom("contact_endpoints")
+    .select(["normalized_address", "channel", "endpoint_kind"])
+    .where("contact_id", "=", contactId)
+    .where("normalized_address", "is not", null)
+    .execute();
+  const addresses = [
+    ...new Set(
+      own
+        .filter((endpoint) =>
+          MERGEABLE_ENDPOINT_KINDS.has(endpoint.endpoint_kind),
+        )
+        .map((endpoint) => endpoint.normalized_address as string),
+    ),
+  ];
+  if (addresses.length === 0) return [];
+  const ownChannels = new Set(own.map((endpoint) => endpoint.channel));
+
+  const matches = await db
+    .selectFrom("contact_endpoints as endpoint")
+    .innerJoin("contacts as contact", "contact.id", "endpoint.contact_id")
+    .select([
+      "endpoint.contact_id",
+      "endpoint.normalized_address",
+      "endpoint.channel",
+      "endpoint.endpoint_kind",
+      "endpoint.verification_state",
+    ])
+    .where("endpoint.normalized_address", "in", addresses)
+    .where("endpoint.contact_id", "is not", null)
+    .where("endpoint.contact_id", "!=", contactId)
+    .where("contact.is_group", "=", false)
+    .where("contact.merged_into_contact_id", "is", null)
+    .execute();
+
+  const byContact = new Map<string, MergeSuggestion>();
+  for (const match of matches) {
+    if (!MERGEABLE_ENDPOINT_KINDS.has(match.endpoint_kind)) continue;
+    const id = match.contact_id as string;
+    const suggestion = byContact.get(id) ?? {
+      contactId: id,
+      matchedAddress: match.normalized_address as string,
+      channels: [],
+      sameChannel: true,
+      verified: false,
+    };
+    if (!suggestion.channels.includes(match.channel)) {
+      suggestion.channels.push(match.channel);
+    }
+    if (!ownChannels.has(match.channel)) suggestion.sameChannel = false;
+    if (
+      match.verification_state === "provider_verified" ||
+      match.verification_state === "user_verified"
+    ) {
+      suggestion.verified = true;
+    }
+    byContact.set(id, suggestion);
+  }
+  return [...byContact.values()]
+    .sort((a, b) => a.contactId.localeCompare(b.contactId))
+    .slice(0, limit);
 }

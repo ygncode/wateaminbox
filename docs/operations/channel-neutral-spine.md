@@ -72,6 +72,13 @@ Alias resolution is deliberately asymmetric:
 - conversation/workflow routes never follow merge aliases, so an old chat URL
   keeps resolving to its own conversation after its customer row was merged.
 
+`GET /contacts/:id/merge-suggestions` (admin/owner) returns read-only candidate
+evidence and is not behind the execution gate, so operators can review
+candidates before a workspace is allowed to act on them. Candidates come only
+from a shared normalized phone/email on person-like endpoints; names, avatars,
+and usernames are never matched, and group/bot/shared endpoints are excluded on
+both sides — a merge touching one is refused outright.
+
 Unmerge is not implemented. Correct a wrong merge by creating a new contact and
 reassigning the affected endpoints, which leaves the original audit trail
 intact.
@@ -94,8 +101,9 @@ Still incomplete before claiming the RFC finished:
 - Assignment/cases/state `contact_id` is nullable (migration `098`) but most
   WhatsApp paths still dual-write a bridge contact. That dual-write is the
   intended transitional state; RFC phase 9 retires it.
-- Contact merge has no unmerge path, and merge *suggestions* are not generated;
-  merges are operator-initiated only.
+- Contact merge has no unmerge path, and suggestions are never auto-applied;
+  every merge is operator-initiated.
+- Merge suggestions have no web UI; the endpoint is API-only.
 - Database integration tests use `RUN_DB_INTEGRATION=1` against local Postgres
   (`localhost:4447` in docker-compose).
 - Go lint/vet uses `vendor/whatsmeow` in this worktree.

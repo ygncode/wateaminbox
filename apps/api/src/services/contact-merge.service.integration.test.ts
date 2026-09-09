@@ -10,6 +10,7 @@ import { resolveWorkflowIdentity } from "./channel-workflow.service.js";
 import {
   mergeContacts,
   resolveCanonicalContactId,
+  suggestContactMerges,
 } from "./contact-merge.service.js";
 import {
   clearTenantConnection,
@@ -167,6 +168,47 @@ describe("mergeContacts", () => {
           .returning("id")
           .executeTakeFirstOrThrow();
 
+        // Suggestions come from shared normalized addresses, never from names.
+        await tenantDb
+          .updateTable("contact_endpoints")
+          .set({ normalized_address: "60123456789" })
+          .where("contact_id", "in", [target.id, source.id])
+          .execute();
+        const suggestions = await suggestContactMerges(tenantDb, target.id);
+        expect(suggestions).toHaveLength(1);
+        expect(suggestions[0]!.contactId).toBe(source.id);
+        expect(suggestions[0]!.matchedAddress).toBe("60123456789");
+        expect(suggestions[0]!.channels).toEqual(["telegram"]);
+        expect(suggestions[0]!.sameChannel).toBe(false);
+        expect(suggestions[0]!.verified).toBe(false);
+        // A group endpoint is a shared identity and is never a candidate.
+        await tenantDb
+          .insertInto("contact_endpoints")
+          .values({
+            contact_id: groupContact.id,
+            channel: "whatsapp",
+            provider: "whatsapp_linked_device",
+            channel_account_id: whatsappAccount,
+            endpoint_kind: "group",
+            external_id: "120@g.us",
+            identity_scope: "global",
+            normalized_address: "60123456789",
+          })
+          .execute();
+        expect(
+          (await suggestContactMerges(tenantDb, target.id)).map(
+            (suggestion) => suggestion.contactId,
+          ),
+        ).toEqual([source.id]);
+        await expect(
+          mergeContacts(tenantDb, {
+            sourceContactId: groupContact.id,
+            targetContactId: target.id,
+            actorUserId: ownerId,
+            reason: "shared identity",
+          }),
+        ).rejects.toBeInstanceOf(ValidationError);
+
         await expect(
           mergeContacts(tenantDb, {
             sourceContactId: source.id,
@@ -196,6 +238,7 @@ describe("mergeContacts", () => {
         const endpoints = await tenantDb
           .selectFrom("contact_endpoints")
           .select(["id", "contact_id"])
+          .where("id", "in", [targetEndpoint.id, sourceEndpoint.id])
           .orderBy("id")
           .execute();
         expect(
@@ -209,6 +252,7 @@ describe("mergeContacts", () => {
           .selectFrom("contact_endpoint_reassignment_events")
           .selectAll()
           .execute();
+
         expect(reassignments).toHaveLength(1);
         expect(reassignments[0]!.merge_event_id).toBe(result.mergeEventId);
         expect(reassignments[0]!.previous_contact_id).toBe(source.id);
@@ -255,6 +299,8 @@ describe("mergeContacts", () => {
         expect(keptAssignment.contact_id).toBe(source.id);
         expect(keptAssignment.conversation_id).toBe(sourceConversation.id);
         expect(keptAssignment.unassigned_at).toBeNull();
+
+        expect(await suggestContactMerges(tenantDb, target.id)).toEqual([]);
 
         // Contact-profile reads follow the alias; conversation identity never does.
         expect(await resolveCanonicalContactId(tenantDb, source.id)).toBe(
