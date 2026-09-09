@@ -19,6 +19,14 @@ export interface ChannelConversation {
     displayName: string | null;
     status: string;
   };
+  /**
+   * The other party, when the provider discloses one. Telegram supplies a
+   * username only if the person set one, and never a phone number.
+   */
+  counterpart?: {
+    displayName: string | null;
+    addressDisplay: string | null;
+  } | null;
 }
 
 export interface ChannelMessageAttachment {

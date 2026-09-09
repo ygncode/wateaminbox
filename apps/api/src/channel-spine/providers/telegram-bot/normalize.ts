@@ -59,7 +59,7 @@ interface TelegramMessage {
   animation?: TelegramFile;
   audio?: TelegramFile;
   document?: TelegramFile;
-  sticker?: TelegramFile;
+  sticker?: TelegramFile & { is_animated?: boolean; is_video?: boolean };
   video?: TelegramFile;
   video_note?: TelegramFile;
   voice?: TelegramFile;
@@ -441,7 +441,10 @@ function normalizeAttachments(
       kind,
       providerAttachmentId: file.file_id,
       fileName: file.file_name,
-      contentType: file.mime_type,
+      // A Telegram Sticker carries no `mime_type`, unlike every other file
+      // object, so without this it stored as application/octet-stream and the
+      // client had nothing it could render.
+      contentType: file.mime_type ?? stickerContentType(kind, message.sticker),
       byteSize:
         typeof file.file_size === "number" &&
         Number.isSafeInteger(file.file_size)
@@ -450,6 +453,21 @@ function normalizeAttachments(
       status: "pending",
     },
   ];
+}
+
+/**
+ * Telegram ships three sticker encodings behind one field. Only the static
+ * and video forms are renderable in a browser; the animated form is gzipped
+ * Lottie JSON, so it is left untyped rather than mislabelled as an image.
+ */
+function stickerContentType(
+  kind: string,
+  sticker: { is_animated?: boolean; is_video?: boolean } | undefined,
+): string | undefined {
+  if (kind !== "sticker" || !sticker) return undefined;
+  if (sticker.is_video) return "video/webm";
+  if (sticker.is_animated) return undefined;
+  return "image/webp";
 }
 
 function reactionKey(reaction: TelegramReactionType): string {

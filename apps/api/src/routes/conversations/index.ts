@@ -5,6 +5,7 @@ import { getRouteContext } from "../../middleware/context.js";
 import { requireConversationVisibility } from "../../middleware/resource-visibility.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import {
+  resolveConversationCounterpart,
   resolveConversationDisplayName,
   resolveConversationDisplayNames,
 } from "../../services/conversation-display-name.service.js";
@@ -203,6 +204,10 @@ conversationRoutes.get("/:id", requireConversationVisibility(), async (c) => {
       displayName: conversation.account_display_name,
       status: conversation.account_status,
     },
+    counterpart: await resolveConversationCounterpart(
+      tenantDb,
+      conversation.id,
+    ),
   });
 });
 

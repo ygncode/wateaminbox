@@ -178,7 +178,7 @@ function conversationProfileContact(
   return {
     id: conversation.id,
     jid: null,
-    phoneNumber: null,
+    phoneNumber: conversation.counterpart?.addressDisplay ?? null,
     pushName: null,
     customName: null,
     displayName: name,

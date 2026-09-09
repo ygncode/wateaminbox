@@ -54,6 +54,42 @@ export async function resolveConversationDisplayNames(
   return names;
 }
 
+export interface ConversationCounterpart {
+  displayName: string | null;
+  /** Provider-native handle, e.g. a Telegram "@username". */
+  addressDisplay: string | null;
+}
+
+/**
+ * The other party's identity for a direct conversation, for the profile pane.
+ *
+ * What a provider discloses varies: Telegram gives a username only when the
+ * person set one, and never a phone number - a bot cannot request one, so the
+ * absence here is a provider limit rather than missing data to backfill.
+ */
+export async function resolveConversationCounterpart(
+  db: ConversationDb,
+  conversationId: string,
+): Promise<ConversationCounterpart | null> {
+  const row = await db
+    .selectFrom("conversation_participants as participant")
+    .innerJoin(
+      "contact_endpoints as endpoint",
+      "endpoint.id",
+      "participant.contact_endpoint_id",
+    )
+    .select(["endpoint.display_name", "endpoint.address_display"])
+    .where("participant.conversation_id", "=", conversationId)
+    .where("participant.is_self", "=", false)
+    .orderBy("participant.contact_endpoint_id", "asc")
+    .executeTakeFirst();
+  if (!row) return null;
+  return {
+    displayName: row.display_name?.trim() || null,
+    addressDisplay: row.address_display?.trim() || null,
+  };
+}
+
 /** Single-conversation convenience over the batch lookup. */
 export async function resolveConversationDisplayName(
   db: ConversationDb,
