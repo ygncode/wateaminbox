@@ -11,3 +11,4 @@ export { TagsSection } from "./TagsSection";
 export { AssignmentSection } from "./AssignmentSection";
 export { AssignmentHistorySection } from "./AssignmentHistorySection";
 export { BlockStatusSection } from "./BlockStatusSection";
+export { MergeSuggestionsSection } from "./MergeSuggestionsSection";
