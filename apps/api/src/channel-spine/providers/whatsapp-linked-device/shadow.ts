@@ -396,7 +396,9 @@ export async function shadowLinkedDeviceMessage(
       reply_to_message_id: replyToMessageId,
       provider_occurred_at: message.timestamp,
       normalized_type: message.message_type,
-      text_content: message.content,
+      // NULL, not "", when a media message carries no caption: absence is the
+      // neutral model's representation and keeps the shadow comparison honest.
+      text_content: message.content || null,
       provider_metadata: {},
     })
     .where("id", "=", message.id)

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { zValidator } from "@hono/zod-validator";
 import {
   isChannel,
@@ -6,7 +7,6 @@ import {
   toDbDate,
   toISOString,
 } from "@wateaminbox/shared";
-import { createHash } from "node:crypto";
 import { Hono } from "hono";
 import { resolveAdapterCapabilities } from "../../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../../channel-spine/registry.js";
@@ -18,6 +18,7 @@ import {
   formatMessagesForConversation,
   type MessageDbRow,
 } from "../../lib/message-formatters.js";
+import { isConfirmedQuote } from "../../lib/message-quote.js";
 import { loadMessageReactions } from "../../lib/message-reactions.js";
 import {
   buildCommandSubject,
@@ -32,28 +33,28 @@ import {
   getPrivateMediaReference,
   resolveMediaKeyForCompany,
 } from "../../lib/storage.js";
-import { isConfirmedQuote } from "../../lib/message-quote.js";
 import { getRouteContext } from "../../middleware/context.js";
 import {
   markDeprecatedMessageSend,
   requireMessageSendPermission,
 } from "../../middleware/message-send-policy.js";
+import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
+import { toAuthUserResponse } from "../../services/auth.service.js";
 import {
   enqueueOutboundRealtimeFanout,
   recordOutboundConversationActivity,
 } from "../../services/channel-message-fanout.service.js";
-import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
-import { toAuthUserResponse } from "../../services/auth.service.js";
-import {
-  enqueueCommand,
-  enqueueSessionCommand,
-} from "../../services/command-outbox.service.js";
 import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
 } from "../../services/channel-spine-authority.service.js";
 import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
 import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
+import {
+  enqueueCommand,
+  enqueueSessionCommand,
+} from "../../services/command-outbox.service.js";
+import { validateGroupMentionJids } from "../../services/group-mention.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
 import {
   requireConversationSendAccess,
@@ -64,7 +65,6 @@ import {
   getUserNames,
 } from "../../services/user.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
-import { validateGroupMentionJids } from "../../services/group-mention.service.js";
 
 export const messageRoutes = new Hono();
 
@@ -423,6 +423,7 @@ messageRoutes.post(
         "conversation.external_thread_id",
         "account.channel",
         "account.provider",
+        "account.status as account_status",
       ])
       .where("conversation.id", "=", contactId)
       .where("conversation.archived_at", "is", null)
@@ -448,12 +449,17 @@ messageRoutes.post(
       if (!(await isChannelSpineTenantReady(tenantDb, companyId))) {
         return c.json({ error: "Channel storage indexes are not ready" }, 503);
       }
+      // The legacy path refuses a send to an inactive connection outright. The
+      // neutral path would instead accept it and retry the intent every
+      // fifteen minutes indefinitely, so the message sat "pending" in the
+      // inbox looking sent. Refusing here keeps the two paths honest with the
+      // sender about what happened.
+      if (neutralConversation.account_status !== "connected") {
+        return badRequest(c, "This channel account is not connected");
+      }
       const idempotencyKey = c.req.header("idempotency-key")?.trim();
       if (!idempotencyKey || idempotencyKey.length > 200) {
         return badRequest(c, "A valid Idempotency-Key header is required");
-      }
-      if (mentionedJids?.length) {
-        return badRequest(c, "Mentions are not supported by this channel");
       }
       const capabilities = await resolveAdapterCapabilities(
         channelAdapterRegistry,
@@ -472,6 +478,44 @@ messageRoutes.post(
       if (!descriptor?.enabled) {
         return badRequest(c, "Message type is not supported by this channel");
       }
+      // Group mentions are a capability, not a channel-wide prohibition.
+      // Rejecting them outright made the neutral path unusable for WhatsApp
+      // groups, which is where mentions are the whole point.
+      if (mentionedJids?.length && !capabilities.actions.groupMentions) {
+        return badRequest(c, "Mentions are not supported by this channel");
+      }
+      if (mentionedJids?.length && messageType !== "text") {
+        return badRequest(
+          c,
+          "Mentions are currently supported in text messages",
+        );
+      }
+      // The same participant check the legacy path runs. A JID that is not in
+      // the group must not reach the worker just because the request asked
+      // for it, and this route is the only place that knows the group.
+      if (mentionedJids?.length) {
+        const mentionTarget = await tenantDb
+          .selectFrom("contacts")
+          .select(["id", "jid", "is_group"])
+          .where("id", "=", neutralConversation.legacy_contact_id)
+          .executeTakeFirst();
+        if (!mentionTarget?.jid) {
+          return badRequest(c, "This conversation cannot carry mentions");
+        }
+        const mentionValidation = await validateGroupMentionJids(
+          tenantDb,
+          {
+            id: mentionTarget.id,
+            jid: mentionTarget.jid,
+            isGroup: mentionTarget.is_group,
+          },
+          content ?? "",
+          mentionedJids,
+        );
+        if (mentionValidation.error) {
+          return badRequest(c, mentionValidation.error);
+        }
+      }
       const storedMediaReference = mediaUrl
         ? getPrivateMediaReference(
             resolveMediaKeyForCompany(mediaUrl, companyId),
@@ -483,6 +527,7 @@ messageRoutes.post(
         actorUserId: user.id,
         sentByUserId: user.id,
         replyToExternalMessageId: null as string | null,
+        mentionedJids: mentionedJids?.length ? mentionedJids : undefined,
         attachments: storedMediaReference
           ? [{ ordinal: 0, storageUri: storedMediaReference }]
           : [],
@@ -522,6 +567,7 @@ messageRoutes.post(
         );
       }
       const messageId = crypto.randomUUID();
+      let neutralAutoAssigned = false;
       await tenantDb.transaction().execute(async (trx) => {
         await reserveMediaReferences(trx, companyId, [storedMediaReference]);
         const access = await requireConversationSendAccess(
@@ -529,6 +575,7 @@ messageRoutes.post(
           neutralConversation.id,
           user.id,
         );
+        neutralAutoAssigned = access.autoAssigned;
         await trx
           .insertInto("messages")
           .values({
@@ -609,6 +656,17 @@ messageRoutes.post(
           })
           .execute();
       });
+      // Sending claims an unassigned conversation. Without telling the rest of
+      // the team, their chat lists kept showing it unassigned until a reload,
+      // which is how two people end up answering the same customer.
+      if (neutralAutoAssigned && neutralConversation.legacy_contact_id) {
+        await broadcastAutoAssignment(
+          tenantDb,
+          companyId,
+          neutralConversation.legacy_contact_id,
+          user.id,
+        );
+      }
       return successData(c, { messageId, intentStatus: "pending" }, 202);
     }
 

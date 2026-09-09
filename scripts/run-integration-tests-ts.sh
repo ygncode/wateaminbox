@@ -43,7 +43,11 @@ export CENTRIFUGO_TOKEN_HMAC_SECRET="${CENTRIFUGO_TOKEN_HMAC_SECRET:-integration
 # process leaks those caches between otherwise isolated fixtures. Sequential
 # processes also prevent independent suites from mutating shared public tables
 # concurrently while retaining recursive discovery.
+# Integration suites build a tenant schema (and sometimes two) before they
+# assert anything, which does not fit Bun's 5s default. Tests were failing on
+# setup latency rather than on behaviour, which is a flake that costs a CI
+# round-trip to distinguish from a real regression.
 for f in "${files[@]}"; do
   echo "==> $f"
-  bun test "$ROOT/$f"
+  bun test --timeout 30000 "$ROOT/$f"
 done

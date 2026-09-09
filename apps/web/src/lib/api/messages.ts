@@ -5,9 +5,9 @@
 
 import type { CreateMessageInput, Message } from "@wateaminbox/shared";
 import {
-  fetchWithAuth,
-  fetchFormDataWithAuth,
   buildQueryString,
+  fetchFormDataWithAuth,
+  fetchWithAuth,
 } from "./client.js";
 import type {
   ApiResponse,
@@ -31,8 +31,13 @@ export async function sendMessage(
   conversationId: string,
   data: Omit<CreateMessageInput, "conversationId">,
 ): Promise<Message> {
+  // The neutral write path requires an idempotency key, and this client is
+  // what the inbox uses for linked-device WhatsApp. Sending one unconditionally
+  // means enabling that provider cannot start rejecting every send, and a
+  // retried request cannot deliver the same message twice.
   return fetchWithAuth<Message>(`/conversations/${conversationId}/messages`, {
     method: "POST",
+    headers: { "Idempotency-Key": crypto.randomUUID() },
     body: JSON.stringify(data),
   });
 }

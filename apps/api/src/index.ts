@@ -26,6 +26,10 @@ import {
   shutdownChannelOutbound,
 } from "./services/channel-outbound.service.js";
 import {
+  initializeChannelSpineReconciler,
+  shutdownChannelSpineReconciler,
+} from "./services/channel-spine-reconciler.service.js";
+import {
   initializeCommandOutbox,
   shutdownCommandOutbox,
 } from "./services/command-outbox.service.js";
@@ -41,11 +45,11 @@ import {
   initializeMessageCleanup,
   shutdownMessageCleanup,
 } from "./services/message-cleanup.service.js";
-import { initializeMessageHandler } from "./services/message-handler.js";
 import {
   initializeMessageDelivery,
   shutdownMessageDelivery,
 } from "./services/message-delivery-outbox.service.js";
+import { initializeMessageHandler } from "./services/message-handler.js";
 import {
   initializeMessageSearch,
   shutdownMessageSearch,
@@ -98,6 +102,7 @@ if (!isTestEnvironment) {
   initializeScheduledMessages();
   initializeConnectionPurgeCleanup();
   initializeConnectionEmailAlerts();
+  initializeChannelSpineReconciler();
 
   logger.info(
     { port },
@@ -157,6 +162,10 @@ function shutdownSteps(): ShutdownStep[] {
     },
     { name: "message-cleanup", run: shutdownMessageCleanup },
     { name: "connection-purge-cleanup", run: shutdownConnectionPurgeCleanup },
+    {
+      name: "channel-spine-reconciler",
+      run: shutdownChannelSpineReconciler,
+    },
     { name: "command-outbox", run: shutdownCommandOutbox },
     { name: "scheduled-messages", run: shutdownScheduledMessages },
     // Drains the event supervisor, then the NATS connection itself.

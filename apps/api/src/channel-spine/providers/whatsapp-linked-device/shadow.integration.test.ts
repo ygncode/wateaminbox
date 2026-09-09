@@ -132,6 +132,7 @@ integration(
       await db.deleteFrom("companies").where("id", "=", companyId).execute();
     }
   },
+  30_000,
 );
 
 integration(
@@ -247,6 +248,7 @@ integration(
       await db.deleteFrom("companies").where("id", "=", companyId).execute();
     }
   },
+  30_000,
 );
 
 integration(
@@ -323,4 +325,5 @@ integration(
       await db.deleteFrom("companies").where("id", "=", companyId).execute();
     }
   },
+  30_000,
 );

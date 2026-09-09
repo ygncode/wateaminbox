@@ -67,7 +67,11 @@ export async function compareLinkedDeviceMessageShadow(
   if (message.normalized_type !== event.payload.normalizedType) {
     mismatches.push("normalized_type");
   }
-  if ((message.text_content ?? undefined) !== event.payload.textContent) {
+  // Legacy stores "" for media that carries no caption; the normalized event
+  // collapses that to absent. Both mean "this message has no text", so
+  // comparing them raw reported a mismatch on every uncaptioned image, audio,
+  // and video while the stored data was in fact correct.
+  if (absentIfEmpty(message.text_content) !== event.payload.textContent) {
     mismatches.push("text_content");
   }
 
@@ -99,4 +103,9 @@ export async function compareLinkedDeviceMessageShadow(
     }
   }
   return [...new Set(mismatches)];
+}
+
+/** Treat legacy's empty-string "no text" and the neutral absent value alike. */
+function absentIfEmpty(value: string | null): string | undefined {
+  return value ? value : undefined;
 }

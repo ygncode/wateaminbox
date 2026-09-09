@@ -1,6 +1,6 @@
 import type { TenantDatabase } from "@wateaminbox/database";
-import { sql } from "kysely";
 import type { Kysely, Transaction } from "kysely";
+import { sql } from "kysely";
 import {
   ConflictError,
   NotFoundError,
@@ -151,6 +151,132 @@ export async function mergeContacts(
       movedEndpoints: endpoints.length,
       sourceContactId: source.id,
       targetContactId: target.id,
+    };
+  });
+}
+
+export interface UnmergeResult {
+  mergeEventId: string;
+  restoredEndpoints: number;
+  skippedEndpoints: number;
+  sourceContactId: string;
+  targetContactId: string;
+}
+
+export interface UnmergeInput {
+  mergeEventId: string;
+  actorUserId: string;
+  reason: string;
+}
+
+/**
+ * Reverse one merge.
+ *
+ * The RFC gates enabling merges on there being a correction path, because a
+ * merge is otherwise an irreversible answer to a guess about identity.
+ *
+ * This is a correction, not a rollback: it restores the endpoints this merge
+ * actually moved and revives the source customer, and it deliberately leaves
+ * every conversation, message, assignment, case, note, and tag exactly where
+ * it is - the same asymmetry the merge itself observes, since none of them
+ * ever moved.
+ *
+ * An endpoint is restored only when it is still where this merge left it. If
+ * a later merge or a manual reassignment moved it on, reversing this one
+ * would silently clobber that newer decision, so the endpoint is skipped and
+ * reported instead.
+ */
+export async function unmergeContacts(
+  tenantDb: Kysely<TenantDatabase>,
+  input: UnmergeInput,
+): Promise<UnmergeResult> {
+  return tenantDb.transaction().execute(async (trx) => {
+    const mergeEvent = await trx
+      .selectFrom("contact_merge_events")
+      .select(["id", "source_contact_id", "target_contact_id"])
+      .where("id", "=", input.mergeEventId)
+      .executeTakeFirst();
+    if (!mergeEvent) {
+      throw new ValidationError("No such merge event");
+    }
+    const source = await trx
+      .selectFrom("contacts")
+      .select(["id", "merged_into_contact_id"])
+      .where("id", "=", mergeEvent.source_contact_id)
+      .executeTakeFirst();
+    if (!source) {
+      throw new ValidationError("The merged-away contact no longer exists");
+    }
+    // Only the merge that is currently in effect can be corrected. If the
+    // source was merged again afterwards, undoing this older event would
+    // revive it into a state that no longer describes anything.
+    if (source.merged_into_contact_id !== mergeEvent.target_contact_id) {
+      throw new ValidationError(
+        "This merge has already been superseded and cannot be reversed",
+      );
+    }
+
+    const moved = await trx
+      .selectFrom("contact_endpoint_reassignment_events")
+      .select(["contact_endpoint_id", "previous_contact_id"])
+      .where("merge_event_id", "=", mergeEvent.id)
+      .execute();
+
+    let restoredEndpoints = 0;
+    let skippedEndpoints = 0;
+    for (const record of moved) {
+      const endpoint = await trx
+        .selectFrom("contact_endpoints")
+        .select(["id", "contact_id"])
+        .where("id", "=", record.contact_endpoint_id)
+        .forUpdate()
+        .executeTakeFirst();
+      // Still where this merge put it, or someone has since moved it on.
+      if (!endpoint || endpoint.contact_id !== mergeEvent.target_contact_id) {
+        skippedEndpoints++;
+        continue;
+      }
+      await trx
+        .updateTable("contact_endpoints")
+        .set({
+          contact_id: record.previous_contact_id,
+          updated_at: new Date(),
+        })
+        .where("id", "=", endpoint.id)
+        .execute();
+      // The reversal is itself audited, and carries no merge_event_id: it
+      // undoes a merge rather than belonging to one, and the original rows
+      // stay untouched so the history reads forwards.
+      await trx
+        .insertInto("contact_endpoint_reassignment_events")
+        .values({
+          merge_event_id: null,
+          contact_endpoint_id: endpoint.id,
+          previous_contact_id: mergeEvent.target_contact_id,
+          new_contact_id: record.previous_contact_id,
+          actor_user_id: input.actorUserId,
+          reason: input.reason,
+        })
+        .execute();
+      restoredEndpoints++;
+    }
+
+    await trx
+      .updateTable("contacts")
+      .set({
+        merged_into_contact_id: null,
+        archived_at: null,
+        updated_at: new Date(),
+      })
+      .where("id", "=", source.id)
+      .execute();
+
+    return {
+      mergeEventId: mergeEvent.id,
+      restoredEndpoints,
+      skippedEndpoints,
+      sourceContactId: mergeEvent.source_contact_id,
+      targetContactId: mergeEvent.target_contact_id,
     };
   });
 }
