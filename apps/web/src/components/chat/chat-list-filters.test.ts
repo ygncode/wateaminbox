@@ -3,6 +3,7 @@ import {
   CHAT_LIST_FILTERS_KEY,
   CONVERSATION_STATUS_OPTIONS,
   DEFAULT_CHAT_LIST_FILTERS,
+  dedupeInboxAccounts,
   readChatListFilters,
   resolveOwningAccountId,
   writeChatListFilters,
@@ -220,5 +221,43 @@ describe("resolveOwningAccountId", () => {
       );
     expect(scopedTo("connection-1")).toEqual([whatsappChat]);
     expect(scopedTo("account-telegram")).toEqual([telegramChat]);
+  });
+});
+
+describe("dedupeInboxAccounts", () => {
+  const connection = { id: "conn-1", status: "connected", name: "MMPhone" };
+  const telegram = { id: "tg-1", status: "connected" };
+
+  it("drops the spine's mirror of a WhatsApp connection", () => {
+    // The bridge carries the connection's own id, which is exactly why the
+    // picker listed every WhatsApp number twice.
+    const mirror = { id: "conn-1", status: "connected" };
+    const result = dedupeInboxAccounts([connection], [mirror, telegram]);
+
+    expect(result.connections).toEqual([connection]);
+    expect(result.channelAccounts).toEqual([telegram]);
+  });
+
+  it("keeps every account when nothing is mirrored", () => {
+    const result = dedupeInboxAccounts([connection], [telegram]);
+
+    expect(result.connections).toEqual([connection]);
+    expect(result.channelAccounts).toEqual([telegram]);
+  });
+
+  it("keeps two accounts that merely share a display name", () => {
+    // Deduplicating on label would hide a real second number: two WhatsApp
+    // connections can legitimately be named the same thing, and losing one
+    // from the selector is worse than the duplication being fixed here.
+    const second = { id: "conn-2", status: "connected", name: "MMPhone" };
+    const result = dedupeInboxAccounts([connection, second], []);
+
+    expect(result.connections).toHaveLength(2);
+  });
+
+  it("leaves a genuine channel account alone when there are no connections", () => {
+    expect(dedupeInboxAccounts([], [telegram]).channelAccounts).toEqual([
+      telegram,
+    ]);
   });
 });

@@ -19,12 +19,11 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
+import { catalogEntryForAccount } from "@/components/connections/channel-catalog";
+import { cn } from "@/lib/utils";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { type Tag, useTags } from "../../hooks/contact/useContactTags";
 import { useDebounce } from "../../hooks/ui";
-import { cn } from "@/lib/utils";
-import { BrandMark } from "../brand/BrandMark";
-import { catalogEntryForAccount } from "@/components/connections/channel-catalog";
 import { useChannelAccounts } from "../../hooks/useChannelAccounts";
 import { useChannelConversations } from "../../hooks/useChannelConversations";
 import {
@@ -37,6 +36,7 @@ import { useWhatsAppConnections } from "../../hooks/useWhatsAppConnections";
 import { mergeInboxChats } from "../../lib/api/transformers";
 import { workspacePath } from "../../lib/workspace-routes";
 import type { Chat, ChatListProps } from "../../types/chat";
+import { BrandMark } from "../brand/BrandMark";
 import { AddContactDialog } from "../contacts/AddContactDialog";
 import { TagSearchInput } from "../tags/TagSearchInput";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -52,6 +52,7 @@ import { ChatListSearch } from "./ChatListSearch";
 import { getConnectionLabel } from "./ConnectionIdentity";
 import {
   CONVERSATION_STATUS_OPTIONS,
+  dedupeInboxAccounts,
   readChatListFilters,
   resolveOwningAccountId,
   writeChatListFilters,
@@ -184,16 +185,20 @@ export const ChatList = memo(function ChatList({
    * one Telegram bot saw no selector at all, despite having two inboxes to
    * choose between.
    */
-  const inboxAccounts = useMemo(
-    () => [
-      ...connections.map((connection) => ({
+  const inboxAccounts = useMemo(() => {
+    // The spine mirrors each WhatsApp connection into a channel account under
+    // the same id, so the two sources overlap and must be reconciled before
+    // they are listed together.
+    const scoped = dedupeInboxAccounts(connections, channelAccounts);
+    return [
+      ...scoped.connections.map((connection) => ({
         id: connection.id,
         kind: "whatsapp" as const,
         label: getConnectionLabel(connection),
         offline: connection.status !== "connected",
         entry: catalogEntryForAccount("whatsapp", "whatsapp_linked_device"),
       })),
-      ...channelAccounts.map((account) => {
+      ...scoped.channelAccounts.map((account) => {
         const entry = catalogEntryForAccount(account.channel, account.provider);
         return {
           id: account.id,
@@ -203,9 +208,8 @@ export const ChatList = memo(function ChatList({
           entry,
         };
       }),
-    ],
-    [channelAccounts, connections],
-  );
+    ];
+  }, [channelAccounts, connections]);
 
   const owningAccountId = useCallback(
     (chat: Chat) => resolveOwningAccountId(chat, channelConversations),

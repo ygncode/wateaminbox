@@ -155,3 +155,35 @@ export function resolveOwningAccountId(
     )?.channelAccountId ?? null
   );
 }
+
+export interface InboxAccountSource {
+  id: string;
+  status: string;
+}
+
+/**
+ * The accounts the inbox scope selector offers, in one list.
+ *
+ * The spine mirrors every WhatsApp connection into a channel account under
+ * the same id, so concatenating the two sources listed each WhatsApp number
+ * twice - two rows with identical names and icons and no way to tell which
+ * was which. The connection is the entry that survives, because it is what
+ * the rest of the inbox attributes chats to (see `resolveOwningAccountId`);
+ * the spine's copy is internal.
+ *
+ * Deduplicating on id rather than on name is deliberate: two different
+ * numbers may legitimately share a label, and hiding one of those would be a
+ * worse bug than the one this fixes.
+ */
+export function dedupeInboxAccounts<
+  TWhatsApp extends InboxAccountSource,
+  TChannel extends InboxAccountSource,
+>(connections: readonly TWhatsApp[], channelAccounts: readonly TChannel[]) {
+  const owned = new Set(connections.map((connection) => connection.id));
+  return {
+    connections,
+    channelAccounts: channelAccounts.filter(
+      (account) => !owned.has(account.id),
+    ),
+  };
+}
