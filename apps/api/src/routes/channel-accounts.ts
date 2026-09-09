@@ -1,7 +1,7 @@
+import { randomBytes } from "node:crypto";
 import { zValidator } from "@hono/zod-validator";
 import { db, type TenantDatabase } from "@wateaminbox/database";
 import { isChannel, isChannelProvider } from "@wateaminbox/shared";
-import { randomBytes } from "node:crypto";
 import { Hono } from "hono";
 import type { Transaction } from "kysely";
 import { z } from "zod";
@@ -19,21 +19,21 @@ import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import {
-  getChannelSpineWorkspaceAuthority,
-  isChannelProviderEnabled,
-} from "../services/channel-spine-authority.service.js";
-import {
   ChannelAccountNotArchivedError,
   purgeArchivedChannelAccount,
 } from "../services/channel-account-purge.service.js";
-import { countUsedConnectionSlots } from "../services/connection-quota.service.js";
-import { getMaxConnections } from "../services/whatsapp/connection.js";
-import { isChannelSpineTenantReady } from "../services/channel-spine-readiness.service.js";
 import {
   canStoreChannelCredentials,
   readChannelCredential,
   storeChannelCredential,
 } from "../services/channel-credential.service.js";
+import {
+  getChannelSpineWorkspaceAuthority,
+  isChannelProviderEnabled,
+} from "../services/channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "../services/channel-spine-readiness.service.js";
+import { countUsedConnectionSlots } from "../services/connection-quota.service.js";
+import { getMaxConnections } from "../services/whatsapp/connection.js";
 
 export const channelAccountRoutes = new Hono();
 channelAccountRoutes.use("/*", authMiddleware);
@@ -63,6 +63,15 @@ channelAccountRoutes.get("/", async (c) => {
       "updated_at",
     ])
     .where("archived_at", "is", null)
+    // A linked-device WhatsApp account is a projection of a row in
+    // `whatsapp_connections`, created by dual write and the backfill so the
+    // spine has something to hang conversations off. The connections API
+    // already returns the same account, so listing it here too made every
+    // WhatsApp number appear twice in the inbox picker, the connections page,
+    // and the broadcast wizard - as two identical entries with no way to tell
+    // which was which. The spine's copy is the internal one, so it is the one
+    // that stays hidden.
+    .where("legacy_whatsapp_connection_id", "is", null)
     .orderBy("created_at", "asc")
     .execute();
   return successData(
