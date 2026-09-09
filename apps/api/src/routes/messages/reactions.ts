@@ -391,11 +391,16 @@ async function reactOnChannel(
   if (!message.external_message_id) {
     return badRequest(c, "Message has not been delivered yet");
   }
-  const normalizedPayload = {
+  // `actorUserId` is not decoration: the dispatcher re-verifies at send time
+  // that this user still has send permission, that the conversation is still
+  // live, and that assignment still allows it. An intent without it fails
+  // that check and is discarded as revoked before the adapter is ever called.
+  const normalizedPayload = buildChannelReactionPayload({
+    actorUserId: user.id,
     emoji,
     messageId: message.id,
     externalMessageId: message.external_message_id,
-  };
+  });
   const requestFingerprint = createHash("sha256")
     .update(JSON.stringify(normalizedPayload))
     .digest("hex");
@@ -461,4 +466,24 @@ async function reactOnChannel(
     reactorJid: `user:${user.id}`,
     isOwn: true,
   });
+}
+
+/** The stored payload for a channel reaction intent. */
+export function buildChannelReactionPayload(input: {
+  actorUserId: string;
+  emoji: string;
+  messageId: string;
+  externalMessageId: string;
+}): {
+  actorUserId: string;
+  emoji: string;
+  messageId: string;
+  externalMessageId: string;
+} {
+  return {
+    actorUserId: input.actorUserId,
+    emoji: input.emoji,
+    messageId: input.messageId,
+    externalMessageId: input.externalMessageId,
+  };
 }

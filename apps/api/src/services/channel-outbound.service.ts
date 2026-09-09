@@ -295,9 +295,24 @@ export async function dispatchNextChannelOutbound(): Promise<number> {
   return 0;
 }
 
+/**
+ * The user an intent is dispatched on behalf of.
+ *
+ * Every intent - a send or an action - must name one, because dispatch
+ * re-verifies that user's permission, the conversation's state, and the
+ * assignment before touching the provider. An intent that omits it is
+ * indistinguishable from one whose actor was revoked, and is dropped.
+ */
+export function intentActorUserId(
+  normalizedPayload: Record<string, unknown>,
+): string | null {
+  const actorUserId = normalizedPayload.actorUserId;
+  return typeof actorUserId === "string" && actorUserId ? actorUserId : null;
+}
+
 async function isClaimStillAuthorized(claim: ClaimedIntent): Promise<boolean> {
-  const actorUserId = claim.normalizedPayload.actorUserId;
-  if (typeof actorUserId !== "string" || !actorUserId) return false;
+  const actorUserId = intentActorUserId(claim.normalizedPayload);
+  if (!actorUserId) return false;
   const member = await getMemberWithPermissions(claim.companyId, actorUserId);
   if (!member?.permissions.can_send_messages) return false;
   const tenantDb = await getTenantConnection(claim.companyId);
