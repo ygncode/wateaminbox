@@ -147,6 +147,17 @@ interface MessageComposerProps {
   ) => Promise<boolean>;
   disabled?: boolean;
   connection?: WhatsAppConnectionIdentity | null;
+  /**
+   * The neutral channel account that owns this conversation, when it is not a
+   * WhatsApp linked device. Liveness has to come from whichever account
+   * actually routes the thread: without this, a Telegram conversation has no
+   * `connection`, so the composer read "disconnected" and refused every send.
+   */
+  channelAccount?: {
+    displayName: string | null;
+    channelName: string;
+    status: string;
+  } | null;
   currentUserName?: string;
   mentionParticipants?: GroupParticipant[];
 }
@@ -160,6 +171,7 @@ function AcknowledgedMessageComposer({
   onAttachFile,
   disabled = false,
   connection,
+  channelAccount,
   currentUserName,
   mentionParticipants = [],
 }: MessageComposerProps) {
@@ -169,8 +181,11 @@ function AcknowledgedMessageComposer({
   // The adapter contract, not the channel name, decides which controls exist.
   const features = useComposerFeatures();
 
-  // A conversation is permanently routed through the account that owns it.
-  const isDisconnected = !connection || connection.status !== "connected";
+  // A conversation is permanently routed through the account that owns it -
+  // a linked device or a neutral channel account, never both.
+  const isDisconnected = channelAccount
+    ? channelAccount.status !== "connected"
+    : !connection || connection.status !== "connected";
   // `disabled` is the in-flight send from ChatPage. Disabling the textarea for
   // it makes the browser blur the element, which drops the caret mid-typing and
   // forces the user back to the mouse - so only a real disconnect takes the
@@ -791,11 +806,9 @@ function AcknowledgedMessageComposer({
         {/* Disconnected banner */}
         {isDisconnected && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 dark:border-amber-800/30 dark:bg-amber-900/20 dark:text-amber-200">
-            {connection?.name ||
-              connection?.phoneNumber ||
-              "This WhatsApp account"}{" "}
-            is disconnected. This conversation cannot be rerouted to another
-            number.
+            {channelAccount
+              ? `${channelAccount.displayName?.trim() || `This ${channelAccount.channelName} account`} is disconnected. This conversation cannot be moved to another account.`
+              : `${connection?.name || connection?.phoneNumber || "This WhatsApp account"} is disconnected. This conversation cannot be rerouted to another number.`}
           </div>
         )}
 

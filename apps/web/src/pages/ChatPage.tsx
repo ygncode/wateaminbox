@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { ChatSidebar, type SidebarView } from "../components/chat/ChatSidebar";
+import { channelDisplayName } from "../components/connections/channel-catalog";
 import { ChannelComposerGate } from "../components/chat/ChannelComposerGate";
 import { ComposerLifecycleArea } from "../components/chat/ComposerLifecycleArea";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
@@ -389,6 +390,13 @@ export function ChatPage() {
                 highlightedMessageId={highlightedMessageId}
                 onOpenContactInfo={handleOpenProfile}
                 canRetry={canSend}
+                // Only an adapter that reports remote history can be asked
+                // for it; legacy linked-device threads keep the affordance.
+                canLoadRemoteHistory={
+                  channelConversation
+                    ? (channelCapabilities?.actions.remoteHistory ?? false)
+                    : true
+                }
               />
             </MessageActionsProvider>
           </div>
@@ -411,7 +419,14 @@ export function ChatPage() {
                   onSendMessage={handleChannelSendMessage}
                   onAttachFile={handleChannelAttachFile}
                   disabled={isSending}
-                  connection={selectedContact?.connection}
+                  connection={null}
+                  channelAccount={{
+                    displayName: channelConversation.account.displayName,
+                    channelName: channelDisplayName(
+                      channelConversation.channel,
+                    ),
+                    status: channelConversation.account.status,
+                  }}
                   currentUserName={user?.name}
                   mentionParticipants={selectedGroup?.participants}
                 />

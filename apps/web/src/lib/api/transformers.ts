@@ -6,6 +6,7 @@
  * across different hooks and components.
  */
 
+import { channelDisplayName } from "@/components/connections/channel-catalog";
 import { toDate } from "@wateaminbox/shared";
 import type {
   Chat,
@@ -163,7 +164,11 @@ export function transformChannelConversationToChat(conversation: {
   conversationStatus: ConversationLifecycleStatus;
   legacyContactId: string | null;
 }): Chat {
-  const name = conversation.subject?.trim() || conversation.channel;
+  // The server resolves a direct conversation's name from its counterpart's
+  // endpoint when the provider gave no subject. The channel's brand name is a
+  // last resort so a thread never renders under a raw enum like "telegram".
+  const name =
+    conversation.subject?.trim() || channelDisplayName(conversation.channel);
   return {
     id: conversation.legacyContactId ?? conversation.id,
     contact: {

@@ -4,6 +4,10 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireConversationVisibility } from "../../middleware/resource-visibility.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
+import {
+  resolveConversationDisplayName,
+  resolveConversationDisplayNames,
+} from "../../services/conversation-display-name.service.js";
 import { getChannelSpineWorkspaceAuthority } from "../../services/channel-spine-authority.service.js";
 import { neutralActionRoutes } from "./actions.js";
 import { analyticsRoutes } from "./analytics.js";
@@ -88,6 +92,14 @@ conversationRoutes.get("/", async (c) => {
     .orderBy("conversation.id", "desc")
     .limit(limit)
     .execute();
+  // A direct conversation usually carries no subject; its name is on the
+  // counterpart's endpoint. Resolved in one batch rather than per row.
+  const participantNames = await resolveConversationDisplayNames(
+    tenantDb,
+    conversations
+      .filter((conversation) => !conversation.subject?.trim())
+      .map((conversation) => conversation.id),
+  );
   return successData(
     c,
     conversations.map((conversation) => ({
@@ -96,7 +108,10 @@ conversationRoutes.get("/", async (c) => {
       channel: conversation.channel,
       provider: conversation.provider,
       kind: conversation.kind,
-      subject: conversation.subject,
+      subject:
+        conversation.subject?.trim() ||
+        participantNames.get(conversation.id) ||
+        null,
       externalThreadId: conversation.external_thread_id,
       firstMessageAt: conversation.first_message_at,
       lastMessageAt: conversation.last_message_at,
@@ -172,7 +187,11 @@ conversationRoutes.get("/:id", requireConversationVisibility(), async (c) => {
     channel: conversation.channel,
     provider: conversation.provider,
     kind: conversation.kind,
-    subject: conversation.subject,
+    subject: await resolveConversationDisplayName(
+      tenantDb,
+      conversation.id,
+      conversation.subject,
+    ),
     externalThreadId: conversation.external_thread_id,
     firstMessageAt: conversation.first_message_at,
     lastMessageAt: conversation.last_message_at,

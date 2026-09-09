@@ -134,3 +134,10 @@ export function channelUnavailableReason(
   if (record.available) return null;
   return record.unavailableReason ?? "Unavailable for this workspace";
 }
+
+/** Human name for a channel, for prose the user reads. */
+export function channelDisplayName(channel: string): string {
+  return (
+    CHANNEL_CATALOG.find((entry) => entry.channel === channel)?.name ?? channel
+  );
+}

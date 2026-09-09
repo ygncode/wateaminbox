@@ -38,6 +38,12 @@ interface VirtualMessageListProps {
   hasNextPage?: boolean;
   fetchNextPage?: () => void;
   remoteHistoryStatus: RemoteHistoryStatus;
+  /**
+   * Whether the adapter can fetch history the server has not already stored.
+   * Linked-device WhatsApp can ask the phone; a bot API has no such archive,
+   * so the affordance is hidden rather than offered and then failing.
+   */
+  canLoadRemoteHistory?: boolean;
   isRequestingRemoteHistory?: boolean;
   remoteHistoryError?: string | null;
   onRequestRemoteHistory?: () => void;
@@ -72,6 +78,7 @@ export function VirtualMessageList({
   hasNextPage,
   fetchNextPage,
   remoteHistoryStatus,
+  canLoadRemoteHistory = true,
   isRequestingRemoteHistory,
   remoteHistoryError,
   onRequestRemoteHistory,
@@ -113,18 +120,21 @@ export function VirtualMessageList({
         </div>
       )}
 
-      {!hasNextPage && remoteHistoryStatus === "requesting" && (
-        <div
-          className="mx-auto my-3 flex w-fit items-center gap-2 rounded-full border border-black/[0.06] bg-white/75 px-3.5 py-2 text-xs font-medium text-[#54656f] shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#202c33]/85 dark:text-dark-text-secondary"
-          role="status"
-          aria-live="polite"
-        >
-          <Loader2 className="size-3.5 animate-spin text-[#00a884]" />
-          {t("chat.waitingForHistory", "Waiting for WhatsApp history…")}
-        </div>
-      )}
+      {canLoadRemoteHistory &&
+        !hasNextPage &&
+        remoteHistoryStatus === "requesting" && (
+          <div
+            className="mx-auto my-3 flex w-fit items-center gap-2 rounded-full border border-black/[0.06] bg-white/75 px-3.5 py-2 text-xs font-medium text-[#54656f] shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#202c33]/85 dark:text-dark-text-secondary"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2 className="size-3.5 animate-spin text-[#00a884]" />
+            {t("chat.waitingForHistory", "Waiting for WhatsApp history…")}
+          </div>
+        )}
 
-      {!hasNextPage &&
+      {canLoadRemoteHistory &&
+        !hasNextPage &&
         ["unknown", "available", "failed"].includes(remoteHistoryStatus) && (
           <div className="mx-auto my-3 flex max-w-md flex-col items-center gap-2 px-4 text-center">
             <button
@@ -161,15 +171,17 @@ export function VirtualMessageList({
         </div>
       )}
 
-      {!hasNextPage && remoteHistoryStatus === "unavailable" && (
-        <div className="mx-auto my-3 flex max-w-sm items-center gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/85 px-3.5 py-2.5 text-left text-xs leading-5 text-amber-900 shadow-sm backdrop-blur dark:border-amber-300/10 dark:bg-amber-300/[0.07] dark:text-amber-100">
-          <Smartphone className="size-4 shrink-0 text-amber-600 dark:text-amber-300" />
-          {t(
-            "chat.earlierOnPrimaryPhone",
-            "WhatsApp says earlier messages are only available on the primary phone.",
-          )}
-        </div>
-      )}
+      {canLoadRemoteHistory &&
+        !hasNextPage &&
+        remoteHistoryStatus === "unavailable" && (
+          <div className="mx-auto my-3 flex max-w-sm items-center gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/85 px-3.5 py-2.5 text-left text-xs leading-5 text-amber-900 shadow-sm backdrop-blur dark:border-amber-300/10 dark:bg-amber-300/[0.07] dark:text-amber-100">
+            <Smartphone className="size-4 shrink-0 text-amber-600 dark:text-amber-300" />
+            {t(
+              "chat.earlierOnPrimaryPhone",
+              "WhatsApp says earlier messages are only available on the primary phone.",
+            )}
+          </div>
+        )}
 
       {/* Virtual list container */}
       <div
