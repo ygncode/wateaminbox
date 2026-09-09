@@ -26,6 +26,8 @@ import {
   ChannelAccountNotArchivedError,
   purgeArchivedChannelAccount,
 } from "../services/channel-account-purge.service.js";
+import { countUsedConnectionSlots } from "../services/connection-quota.service.js";
+import { getMaxConnections } from "../services/whatsapp/connection.js";
 import { isChannelSpineTenantReady } from "../services/channel-spine-readiness.service.js";
 import {
   canStoreChannelCredentials,
@@ -186,6 +188,26 @@ channelAccountRoutes.post(
       .executeTakeFirst();
     if (existingAccount?.status === "connected") {
       return c.json({ error: "Telegram bot is already connected" }, 409);
+    }
+
+    // The plan sells connection slots, not WhatsApp slots. Reusing the same
+    // ceiling here keeps a workspace from adding channel accounts outside the
+    // plan it pays for. Reconnecting an account that already exists does not
+    // consume a new slot, so only a genuinely new account is counted.
+    if (!existingAccount) {
+      const maxConnections = await getMaxConnections(companyId);
+      const used = await countUsedConnectionSlots(tenantDb);
+      if (used >= maxConnections) {
+        return c.json(
+          {
+            error: "Connection limit reached for this plan",
+            code: "MAX_CONNECTIONS_EXCEEDED",
+            used,
+            max: maxConnections,
+          },
+          402,
+        );
+      }
     }
 
     const company = await db
