@@ -440,6 +440,13 @@ async function completeClaim(
         // it was still pending. The provider result is what turns it into a
         // sent message, and nothing told the browser, so a delivered message
         // kept spinning in the sender's own thread until they reloaded.
+        //
+        // The outbox is keyed on (company, message, kind) and this insert is
+        // ON CONFLICT DO NOTHING, which is safe both ways round because the
+        // delivery worker re-reads the message when it runs: if the earlier
+        // row is still queued the insert is dropped and that row delivers the
+        // status set just above, and if the worker already holds it the
+        // insert waits on the key and lands once the delivered row is gone.
         await enqueueOutboundRealtimeFanout(
           trx,
           companyId,
