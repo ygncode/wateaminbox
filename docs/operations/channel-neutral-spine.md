@@ -202,6 +202,17 @@ WHERE status = 'pending';
 
 Quarantined rows need explicit repair; they are not retried.
 
+## Reviewing duplicates in the inbox
+
+The contact profile shows a "Possible duplicates" section to owners and
+admins, listing customers that share a normalized phone number or email with
+the one on screen. Names and avatars are never matched, so a display-name
+collision cannot produce a candidate.
+
+Merging from there names the surviving customer explicitly and reports the
+merge event id in the confirmation toast. That id is what the correction
+endpoint below needs, and it is the only place it is shown.
+
 ## Correcting a merge
 
 `POST /contacts/merges/:mergeEventId/unmerge` reverses one merge, behind the
@@ -289,7 +300,6 @@ Still incomplete before claiming the RFC finished:
 - Assignment/cases/state `contact_id` is nullable (migration `098`) but most
   WhatsApp paths still dual-write a bridge contact. That dual-write is the
   intended transitional state; RFC phase 9 retires it.
-- Merge suggestions have no web UI; the endpoint is API-only.
 - Database integration tests use `RUN_DB_INTEGRATION=1` against local Postgres
   (`localhost:4447` in docker-compose) and run with a 30s timeout, because
   building a tenant schema does not fit Bun's 5s default.
