@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { db } from "@wateaminbox/database";
 import type {
   Channel,
@@ -8,16 +9,15 @@ import type {
   ProviderSendResult,
 } from "@wateaminbox/shared";
 import { isChannel, isChannelProvider } from "@wateaminbox/shared";
-import { createHash } from "node:crypto";
 import type { Transaction } from "kysely";
 import { sql } from "kysely";
 import { resolveAdapterCapabilities } from "../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../channel-spine/registry.js";
+import { createLogger, formatError } from "../lib/logger.js";
 import {
   enqueueOutboundRealtimeFanout,
   recordOutboundConversationActivity,
 } from "./channel-message-fanout.service.js";
-import { createLogger, formatError } from "../lib/logger.js";
 import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
@@ -436,6 +436,24 @@ async function completeClaim(
           })
           .where("id", "=", fenced.message_id)
           .execute();
+        // The fanout queued when the message was inserted announced it while
+        // it was still pending. The provider result is what turns it into a
+        // sent message, and nothing told the browser, so a delivered message
+        // kept spinning in the sender's own thread until they reloaded.
+        //
+        // The outbox is keyed on (company, message, kind) and this insert is
+        // ON CONFLICT DO NOTHING, which is safe both ways round because the
+        // delivery worker re-reads the message when it runs: if the earlier
+        // row is still queued the insert is dropped and that row delivers the
+        // status set just above, and if the worker already holds it the
+        // insert waits on the key and lands once the delivered row is gone.
+        await enqueueOutboundRealtimeFanout(
+          trx,
+          companyId,
+          claim.channelAccountId,
+          claim.conversationId,
+          fenced.message_id,
+        );
       }
       return;
     }
@@ -478,6 +496,15 @@ async function completeClaim(
         .set({ status: "failed" })
         .where("id", "=", fenced.message_id)
         .execute();
+      // A send that failed must stop looking pending as well, or the sender
+      // waits on a message that is never going anywhere.
+      await enqueueOutboundRealtimeFanout(
+        trx,
+        companyId,
+        claim.channelAccountId,
+        claim.conversationId,
+        fenced.message_id,
+      );
     }
   });
 }
