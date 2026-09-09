@@ -1,25 +1,24 @@
-import { settingsReadTools } from "./settings.js";
 import { getContactDisplayName } from "@wateaminbox/shared";
 import type { Context } from "hono";
 import { z } from "zod";
 import { getRouteContext } from "../../../middleware/context.js";
 import { hasContactVisibility } from "../../../middleware/resource-visibility.js";
 import {
-  resolveWorkflowIdentity,
-  type WorkflowIdentity,
-} from "../../../services/channel-workflow.service.js";
-import {
   formatBulkJob,
   getBulkJobProgress,
   getBulkJobProgressMap,
 } from "../../../services/bulk-job.service.js";
+import { getChannelSpineWorkspaceAuthority } from "../../../services/channel-spine-authority.service.js";
+import {
+  resolveWorkflowIdentity,
+  type WorkflowIdentity,
+} from "../../../services/channel-workflow.service.js";
 import { getMembers } from "../../../services/company/index.js";
 import {
   type ContactWithLastMessage,
   getContactsWithLastMessage,
   getCurrentAssignment,
 } from "../../../services/contact.service.js";
-import { getChannelSpineWorkspaceAuthority } from "../../../services/channel-spine-authority.service.js";
 import { globalSearch } from "../../../services/search.service.js";
 import { getUserNames } from "../../../services/user.service.js";
 import {
@@ -29,6 +28,7 @@ import {
   McpToolError,
   truncateText,
 } from "../tool-context.js";
+import { settingsReadTools } from "./settings.js";
 
 const limitField = z
   .number()
@@ -774,6 +774,11 @@ export const readTools: McpToolDefinition[] = [
           "last_sync_at",
         ])
         .where("archived_at", "is", null)
+        // The spine mirrors each WhatsApp connection into a channel account,
+        // and this tool already lists `whatsapp_connections` above, so without
+        // this every WhatsApp number was reported twice - two entries with the
+        // same name and different ids, which an agent cannot tell apart.
+        .where("legacy_whatsapp_connection_id", "is", null)
         .$if(!args.includeDisconnected, (qb) =>
           qb.where("status", "=", "connected"),
         )
