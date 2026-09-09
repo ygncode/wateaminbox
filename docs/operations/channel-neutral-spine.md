@@ -305,6 +305,11 @@ Still incomplete before claiming the RFC finished:
   building a tenant schema does not fit Bun's 5s default.
 - Go lint/vet uses `vendor/whatsmeow` in this worktree.
 - Phase 9 must not drop legacy WhatsApp columns in this branch.
+- `repairNoGapRows` is not scoped to linked-device rows the way the backfill
+  phases are, so a contact with no WhatsApp connection or no JID would be
+  treated as an unrepairable blocked row and stop the sweep. No production
+  workspace has such a contact today, which is why the fleet run is unaffected,
+  but an imported contact could create one.
 
 ## Recovery notes
 
