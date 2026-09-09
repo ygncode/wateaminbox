@@ -475,6 +475,38 @@ messageRoutes.post(
       if (mentionedJids?.length && !capabilities.actions.groupMentions) {
         return badRequest(c, "Mentions are not supported by this channel");
       }
+      if (mentionedJids?.length && messageType !== "text") {
+        return badRequest(
+          c,
+          "Mentions are currently supported in text messages",
+        );
+      }
+      // The same participant check the legacy path runs. A JID that is not in
+      // the group must not reach the worker just because the request asked
+      // for it, and this route is the only place that knows the group.
+      if (mentionedJids?.length) {
+        const mentionTarget = await tenantDb
+          .selectFrom("contacts")
+          .select(["id", "jid", "is_group"])
+          .where("id", "=", neutralConversation.legacy_contact_id)
+          .executeTakeFirst();
+        if (!mentionTarget?.jid) {
+          return badRequest(c, "This conversation cannot carry mentions");
+        }
+        const mentionValidation = await validateGroupMentionJids(
+          tenantDb,
+          {
+            id: mentionTarget.id,
+            jid: mentionTarget.jid,
+            isGroup: mentionTarget.is_group,
+          },
+          content ?? "",
+          mentionedJids,
+        );
+        if (mentionValidation.error) {
+          return badRequest(c, mentionValidation.error);
+        }
+      }
       const storedMediaReference = mediaUrl
         ? getPrivateMediaReference(
             resolveMediaKeyForCompany(mediaUrl, companyId),
@@ -526,6 +558,7 @@ messageRoutes.post(
         );
       }
       const messageId = crypto.randomUUID();
+      let neutralAutoAssigned = false;
       await tenantDb.transaction().execute(async (trx) => {
         await reserveMediaReferences(trx, companyId, [storedMediaReference]);
         const access = await requireConversationSendAccess(
@@ -533,6 +566,7 @@ messageRoutes.post(
           neutralConversation.id,
           user.id,
         );
+        neutralAutoAssigned = access.autoAssigned;
         await trx
           .insertInto("messages")
           .values({
@@ -613,6 +647,17 @@ messageRoutes.post(
           })
           .execute();
       });
+      // Sending claims an unassigned conversation. Without telling the rest of
+      // the team, their chat lists kept showing it unassigned until a reload,
+      // which is how two people end up answering the same customer.
+      if (neutralAutoAssigned && neutralConversation.legacy_contact_id) {
+        await broadcastAutoAssignment(
+          tenantDb,
+          companyId,
+          neutralConversation.legacy_contact_id,
+          user.id,
+        );
+      }
       return successData(c, { messageId, intentStatus: "pending" }, 202);
     }
 

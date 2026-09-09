@@ -22,7 +22,11 @@ async function main(): Promise<void> {
   if (!all && requested.length === 0) {
     throw new Error("Select --company=<uuid> or explicitly pass --all");
   }
-  let query = db.selectFrom("companies").select("id").orderBy("id");
+  let query = db
+    .selectFrom("companies")
+    .select("id")
+    .where("status", "in", ["active", "suspended"])
+    .orderBy("id");
   if (!all) query = query.where("id", "in", requested);
   const companies = await query.execute();
   if (!apply) {
@@ -32,12 +36,22 @@ async function main(): Promise<void> {
     return;
   }
 
+  let skipped = 0;
   for (const company of companies) {
     const authority = await getChannelSpineWorkspaceAuthority(company.id);
     if (authority.source !== "configured" || !authority.dualWriteEnabled) {
-      throw new Error(
-        `Workspace ${company.id} is not configured for channel-spine dual write`,
-      );
+      // Naming a workspace explicitly and finding it unconfigured is an
+      // operator error worth stopping for. Sweeping every workspace and
+      // finding one that has simply not been enabled yet is not: skipping it
+      // keeps a fleet-wide run going instead of aborting partway through.
+      if (!all) {
+        throw new Error(
+          `Workspace ${company.id} is not configured for channel-spine dual write`,
+        );
+      }
+      console.log(`  skip ${company.id}: dual write is not enabled`);
+      skipped++;
+      continue;
     }
     const tenantDb = createTenantDatabase(
       process.env.DATABASE_URL || "",
@@ -61,6 +75,9 @@ async function main(): Promise<void> {
       await tenantDb.destroy();
     }
   }
+  console.log(
+    `Backfill complete: ${companies.length - skipped} workspace(s) processed, ${skipped} skipped.`,
+  );
 }
 
 try {
