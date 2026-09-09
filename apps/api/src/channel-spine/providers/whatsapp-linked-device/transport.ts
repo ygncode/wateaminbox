@@ -78,7 +78,7 @@ export class LinkedDeviceNatsTransport implements LinkedDeviceAdapterPort {
         mediaUrl,
         stringValue(payload.replyToExternalMessageId),
         undefined,
-        undefined,
+        stringArray(payload.mentionedJids),
       );
       await tenantDb.transaction().execute(async (trx) => {
         const message = await trx
@@ -126,6 +126,15 @@ function firstStorageUri(value: unknown): string | undefined {
     return undefined;
   }
   return stringValue((value[0] as Record<string, unknown>).storageUri);
+}
+
+/** Group mentions only reach the worker when every entry is a usable JID. */
+function stringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const entries = value.filter(
+    (entry): entry is string => typeof entry === "string" && entry.length > 0,
+  );
+  return entries.length > 0 ? entries : undefined;
 }
 
 function stringValue(value: unknown): string | undefined {

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { zValidator } from "@hono/zod-validator";
 import {
   isChannel,
@@ -6,7 +7,6 @@ import {
   toDbDate,
   toISOString,
 } from "@wateaminbox/shared";
-import { createHash } from "node:crypto";
 import { Hono } from "hono";
 import { resolveAdapterCapabilities } from "../../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../../channel-spine/registry.js";
@@ -18,6 +18,7 @@ import {
   formatMessagesForConversation,
   type MessageDbRow,
 } from "../../lib/message-formatters.js";
+import { isConfirmedQuote } from "../../lib/message-quote.js";
 import { loadMessageReactions } from "../../lib/message-reactions.js";
 import {
   buildCommandSubject,
@@ -32,28 +33,28 @@ import {
   getPrivateMediaReference,
   resolveMediaKeyForCompany,
 } from "../../lib/storage.js";
-import { isConfirmedQuote } from "../../lib/message-quote.js";
 import { getRouteContext } from "../../middleware/context.js";
 import {
   markDeprecatedMessageSend,
   requireMessageSendPermission,
 } from "../../middleware/message-send-policy.js";
+import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
+import { toAuthUserResponse } from "../../services/auth.service.js";
 import {
   enqueueOutboundRealtimeFanout,
   recordOutboundConversationActivity,
 } from "../../services/channel-message-fanout.service.js";
-import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
-import { toAuthUserResponse } from "../../services/auth.service.js";
-import {
-  enqueueCommand,
-  enqueueSessionCommand,
-} from "../../services/command-outbox.service.js";
 import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
 } from "../../services/channel-spine-authority.service.js";
 import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
 import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
+import {
+  enqueueCommand,
+  enqueueSessionCommand,
+} from "../../services/command-outbox.service.js";
+import { validateGroupMentionJids } from "../../services/group-mention.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
 import {
   requireConversationSendAccess,
@@ -64,7 +65,6 @@ import {
   getUserNames,
 } from "../../services/user.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
-import { validateGroupMentionJids } from "../../services/group-mention.service.js";
 
 export const messageRoutes = new Hono();
 
@@ -452,9 +452,6 @@ messageRoutes.post(
       if (!idempotencyKey || idempotencyKey.length > 200) {
         return badRequest(c, "A valid Idempotency-Key header is required");
       }
-      if (mentionedJids?.length) {
-        return badRequest(c, "Mentions are not supported by this channel");
-      }
       const capabilities = await resolveAdapterCapabilities(
         channelAdapterRegistry,
         neutralConversation.channel,
@@ -472,6 +469,12 @@ messageRoutes.post(
       if (!descriptor?.enabled) {
         return badRequest(c, "Message type is not supported by this channel");
       }
+      // Group mentions are a capability, not a channel-wide prohibition.
+      // Rejecting them outright made the neutral path unusable for WhatsApp
+      // groups, which is where mentions are the whole point.
+      if (mentionedJids?.length && !capabilities.actions.groupMentions) {
+        return badRequest(c, "Mentions are not supported by this channel");
+      }
       const storedMediaReference = mediaUrl
         ? getPrivateMediaReference(
             resolveMediaKeyForCompany(mediaUrl, companyId),
@@ -483,6 +486,7 @@ messageRoutes.post(
         actorUserId: user.id,
         sentByUserId: user.id,
         replyToExternalMessageId: null as string | null,
+        mentionedJids: mentionedJids?.length ? mentionedJids : undefined,
         attachments: storedMediaReference
           ? [{ ordinal: 0, storageUri: storedMediaReference }]
           : [],
