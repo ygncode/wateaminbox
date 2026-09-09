@@ -30,8 +30,17 @@ jobs:
             services/orchestrator/go.sum
             services/whatsapp/go.sum
 
+      # ripgrep comes from Ubuntu's own archive. The runner image also ships a
+      # Google Chrome apt source, and when that one serves a bad index
+      # `apt-get update` fails as a whole and takes this step - and the entire
+      # static job - with it. Dropping the third-party sources first keeps a
+      # broken Chrome mirror from reading as a failing build.
       - name: Install static test tools
-        run: sudo apt-get update && sudo apt-get install --no-install-recommends --yes ripgrep
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/google-chrome.list \
+            /etc/apt/sources.list.d/microsoft-prod.list
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes ripgrep
 
       - run: bun install --frozen-lockfile
       - run: bun run lint
