@@ -245,6 +245,29 @@ docker exec <api-container> /usr/local/bin/secret-entrypoint \
 `--all` skips workspaces that are not dual-writing rather than aborting.
 Naming a workspace explicitly that is not enabled is still an error.
 
+#### Batch size is a production safety setting, not a throughput knob
+
+Run the backfill with `--batch-size=25` against a workspace that is taking
+live traffic.
+
+At the default of 250 the batch holds its locks long enough to deadlock
+against the *live* inbound message handler, not merely against the
+reconciler. PostgreSQL then picks a victim, and when the victim is the live
+handler a real customer message fails to process. Observed on 2026-09-09:
+eighteen deadlocks in four minutes on the busiest workspace, all resolving to
+`MessageHandler` and `NatsLifecycle`.
+
+Nothing was lost - the handler's transaction rolls back whole and NATS
+redelivers, which is exactly what that design is for, and afterwards the
+consumers showed zero pending, zero ack-pending and zero redelivered. But the
+inbox was briefly failing to ingest messages, and neither load average nor
+request latency moved while it happened. **Only the error count showed it.**
+Watch `grep -c deadlock` on both API replicas, not the host metrics.
+
+At 25 the same workspace ran with no live deadlocks at roughly half the
+throughput. That trade is worth it: the backfill is never urgent, and the
+inbox always is.
+
 ### 2. Prove parity before trusting it
 
 Both must hold for every workspace before enabling the provider:
