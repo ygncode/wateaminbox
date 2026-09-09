@@ -5,6 +5,13 @@ export interface TelegramBotIdentity {
   id: number;
   username?: string;
   first_name: string;
+  /**
+   * False while BotFather privacy mode is on, which is the default. Such a
+   * bot receives only commands, replies to itself, and service messages in
+   * groups - never ordinary chatter - so a group inbox looks silently broken
+   * until the owner turns privacy off and re-adds the bot.
+   */
+  can_read_all_group_messages?: boolean;
 }
 
 export async function getTelegramBotIdentity(

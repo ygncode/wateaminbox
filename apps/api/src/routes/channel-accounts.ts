@@ -54,6 +54,7 @@ channelAccountRoutes.get("/", async (c) => {
       "external_account_id",
       "status",
       "provider_status",
+      "provider_metadata",
       "connected_at",
       "last_sync_at",
       "created_at",
@@ -72,6 +73,10 @@ channelAccountRoutes.get("/", async (c) => {
       externalAccountId: account.external_account_id,
       status: account.status,
       providerStatus: account.provider_status,
+      // A bot with privacy mode on receives no ordinary group messages, so
+      // its group inbox stays empty with nothing on screen to explain why.
+      canReadAllGroupMessages:
+        account.provider_metadata?.canReadAllGroupMessages === true,
       connectedAt: account.connected_at,
       lastSyncAt: account.last_sync_at,
       createdAt: account.created_at,
@@ -217,9 +222,11 @@ channelAccountRoutes.post(
             display_name: displayName ?? identity.first_name,
             status: "connecting",
             provider_status: null,
-            provider_metadata: identity.username
-              ? { username: identity.username }
-              : {},
+            provider_metadata: {
+              ...(identity.username ? { username: identity.username } : {}),
+              canReadAllGroupMessages:
+                identity.can_read_all_group_messages === true,
+            },
             updated_at: new Date(),
           })
           .where("id", "=", accountId)
@@ -237,9 +244,13 @@ channelAccountRoutes.post(
             status: "connecting",
             provider_status: null,
             capabilities_revision: "telegram-bot:v1",
-            provider_metadata: identity.username
-              ? { username: identity.username }
-              : {},
+            provider_metadata: {
+              ...(identity.username ? { username: identity.username } : {}),
+              // Recorded at connect so the UI can tell the operator their
+              // group inbox will stay empty until privacy mode is off.
+              canReadAllGroupMessages:
+                identity.can_read_all_group_messages === true,
+            },
             legacy_whatsapp_connection_id: null,
             connected_by: user.id,
             connected_at: null,

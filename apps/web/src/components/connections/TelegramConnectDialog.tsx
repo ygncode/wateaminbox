@@ -143,6 +143,29 @@ export function TelegramConnectDialog({
                 />
               </div>
 
+              {/* Stated before connecting, not after: a bot added to a group
+                  with privacy mode on receives nothing, and the resulting
+                  empty inbox looks like a product fault rather than a setting. */}
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/[0.06] dark:text-amber-200">
+                <p className="font-semibold">Planning to use group chats?</p>
+                <p className="mt-1">
+                  New bots start with privacy mode on, so they only receive
+                  commands and replies in groups — not ordinary messages. In
+                  @BotFather, send{" "}
+                  <code className="rounded bg-amber-900/10 px-1 py-0.5 font-mono text-xs dark:bg-amber-100/10">
+                    /setprivacy
+                  </code>
+                  , pick this bot, and choose{" "}
+                  <strong className="font-semibold">Disable</strong>. Then
+                  remove the bot from any group and add it again — the change
+                  only applies when it re-joins.
+                </p>
+                <p className="mt-1">
+                  Direct chats are unaffected. This is a Telegram account
+                  setting, so it cannot be changed from here.
+                </p>
+              </div>
+
               <a
                 href="https://t.me/BotFather"
                 target="_blank"

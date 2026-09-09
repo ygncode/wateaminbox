@@ -23,6 +23,11 @@ export interface ChannelAccount {
   externalAccountId: string | null;
   status: ChannelAccountStatus;
   providerStatus: string | null;
+  /**
+   * False while the provider withholds ordinary group messages from this
+   * account. Telegram's BotFather privacy mode does this by default.
+   */
+  canReadAllGroupMessages?: boolean;
   connectedAt: string | null;
   lastSyncAt: string | null;
   createdAt: string;
