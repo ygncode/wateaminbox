@@ -26,7 +26,7 @@ import { usePrefetchContact } from "../../hooks/usePrefetch";
 import { useWhatsAppConnections } from "../../hooks/useWhatsAppConnections";
 import { mergeInboxChats } from "../../lib/api/transformers";
 import { workspacePath } from "../../lib/workspace-routes";
-import type { ChatListProps } from "../../types/chat";
+import type { Chat, ChatListProps } from "../../types/chat";
 import { AddContactDialog } from "../contacts/AddContactDialog";
 import { TagSearchInput } from "../tags/TagSearchInput";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -43,6 +43,7 @@ import { getConnectionLabel } from "./ConnectionIdentity";
 import {
   CONVERSATION_STATUS_OPTIONS,
   readChatListFilters,
+  resolveOwningAccountId,
   writeChatListFilters,
 } from "./chat-list-filters";
 import { resolveInboxConnectionState } from "./inbox-connection-state";
@@ -194,6 +195,11 @@ export const ChatList = memo(function ChatList({
     [channelAccounts, connections],
   );
 
+  const owningAccountId = useCallback(
+    (chat: Chat) => resolveOwningAccountId(chat, channelConversations),
+    [channelConversations],
+  );
+
   // Filter archived chats for main view
   const visibleChats = useMemo(() => {
     const needle = searchQuery.trim().toLowerCase();
@@ -203,19 +209,8 @@ export const ChatList = memo(function ChatList({
         return false;
       }
       if (assignmentFilter === "unread" && chat.unreadCount <= 0) return false;
-      if (accountFilter !== "all") {
-        const selected = inboxAccounts.find(
-          (account) => account.id === accountFilter,
-        );
-        // A WhatsApp scope is already applied server-side by connection id;
-        // only the neutral accounts need matching here, against the channel
-        // account that owns the conversation.
-        if (selected?.kind === "channel") {
-          const conversation = channelConversations.find(
-            (candidate) => candidate.id === chat.contact.conversationId,
-          );
-          if (conversation?.channelAccountId !== accountFilter) return false;
-        }
+      if (accountFilter !== "all" && owningAccountId(chat) !== accountFilter) {
+        return false;
       }
       if (
         conversationStatusFilter !== "all" &&
@@ -231,7 +226,7 @@ export const ChatList = memo(function ChatList({
     channelConversations,
     chats,
     conversationStatusFilter,
-    inboxAccounts,
+    owningAccountId,
     searchQuery,
   ]);
   const connectionState = resolveInboxConnectionState({
