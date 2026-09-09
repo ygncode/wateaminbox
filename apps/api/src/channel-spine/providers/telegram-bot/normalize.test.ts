@@ -325,3 +325,49 @@ describe("Telegram sticker attachments", () => {
     });
   });
 });
+
+describe("Telegram service messages", () => {
+  const serviceMessage = (extra: Record<string, unknown>) =>
+    normalizeTelegramUpdate(
+      {
+        update_id: 9,
+        message: {
+          message_id: 30,
+          date: 1_757_332_800,
+          chat: { id: -100999, type: "group", title: "WATeamInboxTest" },
+          from: { id: 42, is_bot: false, first_name: "Ivar" },
+          ...extra,
+        },
+      },
+      {
+        companyId: "11111111-1111-4111-8111-111111111111",
+        channelAccountId: "22222222-2222-4222-8222-222222222222",
+        receivedAt: "2026-09-08T12:00:01.000Z",
+      },
+    ).find((event) => event.kind === "message.upsert")?.payload;
+
+  test("a membership change is described instead of arriving blank", () => {
+    // These carry no text at all, so the thread previously showed an empty
+    // bubble attributed to whoever triggered the event.
+    const payload = serviceMessage({
+      new_chat_members: [{ id: 7, is_bot: true, first_name: "WATeamInbox" }],
+    });
+    expect(payload?.normalizedType).toBe("system");
+    expect(payload?.textContent).toBe("WATeamInbox joined the group");
+  });
+
+  test("a rename and a departure read as events, not messages", () => {
+    expect(serviceMessage({ new_chat_title: "Support" })?.textContent).toBe(
+      'The group was renamed to "Support"',
+    );
+    expect(
+      serviceMessage({
+        left_chat_member: { id: 7, is_bot: false, first_name: "Ivar" },
+      })?.textContent,
+    ).toBe("Ivar left the group");
+  });
+
+  test("a real message keeps its own text", () => {
+    expect(serviceMessage({ text: "hello" })?.textContent).toBe("hello");
+  });
+});

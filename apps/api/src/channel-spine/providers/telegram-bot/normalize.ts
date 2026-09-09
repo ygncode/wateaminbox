@@ -70,6 +70,12 @@ interface TelegramMessage {
   location?: unknown;
   venue?: unknown;
   contact?: unknown;
+  new_chat_members?: TelegramUser[];
+  left_chat_member?: TelegramUser;
+  new_chat_title?: string;
+  group_chat_created?: boolean;
+  supergroup_chat_created?: boolean;
+  channel_chat_created?: boolean;
   poll?: unknown;
   dice?: unknown;
   [key: string]: unknown;
@@ -173,7 +179,8 @@ function normalizeMessage(
       conversation,
       externalMessageId: String(message.message_id),
       externalIdentityScope: identityScope,
-      textContent: message.text ?? message.caption,
+      textContent:
+        message.text ?? message.caption ?? serviceMessageText(message),
       providerMetadata: message.media_group_id
         ? { mediaGroupId: message.media_group_id }
         : undefined,
@@ -191,7 +198,8 @@ function normalizeMessage(
           ? chatEndpoint(message.sender_chat)
           : undefined,
       normalizedType: normalizedMessageType(message),
-      textContent: message.text ?? message.caption,
+      textContent:
+        message.text ?? message.caption ?? serviceMessageText(message),
       replyToExternalMessageId:
         typeof message.reply_to_message?.message_id === "number"
           ? String(message.reply_to_message.message_id)
@@ -472,6 +480,37 @@ function normalizeAttachments(
  * and video forms are renderable in a browser; the animated form is gzipped
  * Lottie JSON, so it is left untyped rather than mislabelled as an image.
  */
+/**
+ * A readable line for a Telegram service message.
+ *
+ * These arrive with no text at all - a membership change carries only the
+ * affected users - so without this the thread showed an empty bubble
+ * attributed to whoever triggered it, which reads as a failed message rather
+ * than a group event.
+ */
+function serviceMessageText(message: TelegramMessage): string | undefined {
+  if (message.new_chat_members?.length) {
+    const names = message.new_chat_members
+      .map((member) => displayName(member) ?? "someone")
+      .join(", ");
+    return `${names} joined the group`;
+  }
+  if (message.left_chat_member) {
+    return `${displayName(message.left_chat_member) ?? "someone"} left the group`;
+  }
+  if (message.new_chat_title) {
+    return `The group was renamed to "${message.new_chat_title}"`;
+  }
+  if (
+    message.group_chat_created ||
+    message.supergroup_chat_created ||
+    message.channel_chat_created
+  ) {
+    return "The group was created";
+  }
+  return undefined;
+}
+
 function stickerContentType(
   kind: string,
   sticker:

@@ -290,6 +290,21 @@ export const MessageBubble = memo(function MessageBubble({
   const hasInlineMeta = !message.isDeleted && message.messageType === "text";
   const meta = <MessageMeta message={message} isOwn={isOwn} variant="inline" />;
 
+  // A group event - someone joined, the title changed - is not anyone's
+  // message. Rendering it as a bubble attributed to whoever triggered it made
+  // an empty bubble that read as a failed send, so it gets the same centered
+  // treatment as a date divider.
+  if (message.metadata?.isSystemEvent) {
+    if (!message.content?.trim()) return null;
+    return (
+      <div className="flex justify-center py-1.5">
+        <span className="rounded-full bg-black/[0.06] px-3 py-1 text-center text-xs text-[#54656f] dark:bg-white/[0.08] dark:text-dark-text-secondary">
+          {message.content}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div
       className={cn(

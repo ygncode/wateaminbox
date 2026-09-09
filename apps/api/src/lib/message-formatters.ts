@@ -49,6 +49,8 @@ export interface MessageDbRow {
    * id at insert time and references the row it replies to directly.
    */
   reply_to_message_id: string | null;
+  /** Channel-neutral message type; `system` marks a provider event. */
+  normalized_type?: string | null;
   is_forwarded: boolean;
   is_starred: boolean;
   deleted_by_sender: boolean;
@@ -100,6 +102,8 @@ export interface MessageUserAvatarSources {
  * Message metadata object shared across formats
  */
 export interface MessageMetadata {
+  /** Marks a provider event, which the thread renders as a centered notice. */
+  isSystemEvent?: boolean;
   mediaUrl: string | null;
   mimeType: string | null;
   fileName: string | null;
@@ -283,6 +287,9 @@ function documentDownloadOverrides(
 export function buildMessageMetadata(msg: MessageDbRow): MessageMetadata {
   const contactCards = normalizeStoredContactCards(msg.metadata?.contactCards);
   return {
+    // The neutral pipeline records provider events as `system`; the legacy
+    // enum has no such value, so the flag is what the client can branch on.
+    isSystemEvent: msg.normalized_type === "system" || undefined,
     mediaUrl: msg.media_url,
     mimeType: msg.media_mime_type,
     // Same fallback as the download name, so the bubble and the saved file

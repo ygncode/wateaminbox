@@ -140,6 +140,14 @@ export type MediaDownloadStatus =
   | null;
 
 export interface MessageMetadata {
+  /**
+   * A provider event rather than someone's message - a group membership
+   * change, a rename. It has a description but no author, so the thread
+   * renders it as a centered notice instead of a bubble. Kept out of
+   * `MessageType` because that union is also the outbound wire contract, and
+   * a system event must never be sendable.
+   */
+  isSystemEvent?: boolean;
   groupMentions?: Array<{ jid: string; subject: string }>;
   mediaUrl?: string;
   mimeType?: string;
