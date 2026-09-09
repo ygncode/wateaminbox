@@ -74,6 +74,12 @@ export async function backfillLinkedDeviceTenant(
       tenantDb
         .selectFrom("contacts")
         .select("id")
+        // Linked-device rows only. A Telegram customer has no WhatsApp
+        // connection, so bridging it can only fail - and a failure is recorded
+        // as a blocked row, which aborts the whole sweep for a row that was
+        // never this backfill's to process.
+        .where("whatsapp_connection_id", "is not", null)
+        .where("jid", "is not", null)
         .$if(cursor !== null, (query) => query.where("id", ">", cursor!))
         .orderBy("id")
         .limit(limit)
@@ -102,6 +108,11 @@ export async function backfillLinkedDeviceTenant(
       tenantDb
         .selectFrom("messages")
         .select("id")
+        // Same scoping as the contact phases: a message that arrived through
+        // another provider already has its neutral rows and no legacy contact
+        // to bridge from.
+        .where("whatsapp_connection_id", "is not", null)
+        .where("contact_id", "is not", null)
         .$if(cursor !== null, (query) => query.where("id", ">", cursor!))
         .orderBy("id")
         .limit(limit)
@@ -130,6 +141,12 @@ export async function backfillLinkedDeviceTenant(
       tenantDb
         .selectFrom("contacts")
         .select("id")
+        // Linked-device rows only. A Telegram customer has no WhatsApp
+        // connection, so bridging it can only fail - and a failure is recorded
+        // as a blocked row, which aborts the whole sweep for a row that was
+        // never this backfill's to process.
+        .where("whatsapp_connection_id", "is not", null)
+        .where("jid", "is not", null)
         .$if(cursor !== null, (query) => query.where("id", ">", cursor!))
         .orderBy("id")
         .limit(limit)
