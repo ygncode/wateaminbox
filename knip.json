@@ -1,6 +1,10 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "workspaces": {
+    ".": {
+      "entry": ["scripts/*.ts"],
+      "project": ["scripts/*.ts"]
+    },
     "apps/api": {
       "entry": ["src/index.ts", "src/scripts/*.ts", "src/**/*.test.ts"],
       "project": ["src/**/*.ts"],
@@ -8,7 +12,7 @@
       "ignoreDependencies": ["pino-pretty"]
     },
     "apps/web": {
-      "entry": ["src/main.tsx", "src/**/*.test.ts"],
+      "entry": ["src/main.tsx", "src/**/*.test.{ts,tsx}"],
       "project": ["src/**/*.{ts,tsx}"],
       "ignore": ["e2e/**"]
     },
@@ -34,7 +38,7 @@
       "ignore": ["**/*.go"]
     }
   },
-  "ignoreDependencies": ["kysely", "pg", "ioredis"],
+  "ignoreDependencies": ["kysely", "pg", "ioredis", "nats"],
   "ignoreBinaries": ["go"],
   "ignoreExportsUsedInFile": true,
   "exclude": ["duplicates", "enumMembers", "exports", "types", "unresolved"]
