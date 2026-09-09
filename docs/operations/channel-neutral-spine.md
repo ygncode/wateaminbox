@@ -53,12 +53,49 @@ New clients should prefer conversation UUIDs for assign, state, send, search
 (`conversationId`), and merge. Do not remove contact-id routes in this
 release. Retirement is a later maintenance change after a documented window.
 
+## Contact merge (RFC phase 8)
+
+Merge is implemented and gated. `POST /contacts/:id/merge` requires an admin or
+owner role **and** a workspace whose channel-spine write authority is `neutral`
+with a reconciled tenant schema; missing, invalid, or unreadable flags return
+409 rather than merging against legacy contact-scoped workflow rows.
+
+A merge moves `contact_endpoints` to the surviving contact, writes an immutable
+`contact_merge_events` row plus per-endpoint reassignment audit rows, marks the
+source `merged_into_contact_id`, refreshes the contacts search projection, and
+leaves every conversation, message, assignment, case, state, note, and tag
+exactly where it was.
+
+Alias resolution is deliberately asymmetric:
+
+- contact-profile reads follow `merged_into_contact_id` to the canonical row;
+- conversation/workflow routes never follow merge aliases, so an old chat URL
+  keeps resolving to its own conversation after its customer row was merged.
+
+Unmerge is not implemented. Correct a wrong merge by creating a new contact and
+reassigning the affected endpoints, which leaves the original audit trail
+intact.
+
+## Capability-driven UI
+
+Neutral channel threads render inside `ChannelComposerGate`, which resolves the
+account's adapter contract into composer switches and publishes them through
+`ComposerFeaturesContext`. Text composition, attachments (and which attachment
+kinds), scheduling, typing indicators, group mentions, and the text length
+limit all come from that descriptor. Message actions are filtered the same way
+through `MessageActionsProvider`: an action the adapter does not report is not
+passed to the thread at all, so no menu entry can invoke it. Legacy
+linked-device threads pass no descriptor and keep their existing behaviour.
+
 ## Known remaining work
 
 Still incomplete before claiming the RFC finished:
 
 - Assignment/cases/state `contact_id` is nullable (migration `098`) but most
-  WhatsApp paths still dual-write a bridge contact.
+  WhatsApp paths still dual-write a bridge contact. That dual-write is the
+  intended transitional state; RFC phase 9 retires it.
+- Contact merge has no unmerge path, and merge *suggestions* are not generated;
+  merges are operator-initiated only.
 - Database integration tests use `RUN_DB_INTEGRATION=1` against local Postgres
   (`localhost:4447` in docker-compose).
 - Go lint/vet uses `vendor/whatsmeow` in this worktree.
