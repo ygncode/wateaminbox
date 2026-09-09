@@ -1,17 +1,17 @@
 import { Hono } from "hono";
 import { successData } from "../../lib/response.js";
+import { getAuthorizedMediaUrlOrNull } from "../../lib/storage.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireConversationVisibility } from "../../middleware/resource-visibility.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
-import { getAuthorizedMediaUrlOrNull } from "../../lib/storage.js";
+import { getChannelSpineWorkspaceAuthority } from "../../services/channel-spine-authority.service.js";
 import {
   type ConversationCounterpart,
   resolveConversationCounterpart,
   resolveConversationCounterparts,
   resolveConversationDisplayName,
 } from "../../services/conversation-display-name.service.js";
-import { getChannelSpineWorkspaceAuthority } from "../../services/channel-spine-authority.service.js";
 import { neutralActionRoutes } from "./actions.js";
 import { analyticsRoutes } from "./analytics.js";
 import { conversationAssignmentRoutes } from "./assignment.js";
@@ -66,6 +66,18 @@ conversationRoutes.get("/", async (c) => {
     ])
     .where("conversation.archived_at", "is", null)
     .where("account.archived_at", "is", null)
+    // A linked-device WhatsApp conversation is a mirror of a legacy contact
+    // thread, created by dual write and the backfill. The contacts and chats
+    // endpoints already serve those threads, so returning them here listed
+    // every WhatsApp chat a second time - with no preview, because the mirror
+    // carries no message text - and, far worse, buried the real channel
+    // conversations: one workspace ended up with 2,227 mirrors against 2
+    // Telegram threads, so Telegram fell outside the page entirely and its
+    // inbox looked empty.
+    //
+    // This surface stays channel-only until WhatsApp actually reads through
+    // the spine. Removing the filter is part of that switch, not before it.
+    .where("account.legacy_whatsapp_connection_id", "is", null)
     .$if(!permissions.can_view_all_chats, (qb) =>
       qb.where((eb) =>
         eb.exists(
@@ -191,6 +203,18 @@ conversationRoutes.get("/:id", requireConversationVisibility(), async (c) => {
     ])
     .where("conversation.archived_at", "is", null)
     .where("account.archived_at", "is", null)
+    // A linked-device WhatsApp conversation is a mirror of a legacy contact
+    // thread, created by dual write and the backfill. The contacts and chats
+    // endpoints already serve those threads, so returning them here listed
+    // every WhatsApp chat a second time - with no preview, because the mirror
+    // carries no message text - and, far worse, buried the real channel
+    // conversations: one workspace ended up with 2,227 mirrors against 2
+    // Telegram threads, so Telegram fell outside the page entirely and its
+    // inbox looked empty.
+    //
+    // This surface stays channel-only until WhatsApp actually reads through
+    // the spine. Removing the filter is part of that switch, not before it.
+    .where("account.legacy_whatsapp_connection_id", "is", null)
     .where((eb) =>
       eb.or([
         eb("conversation.id", "=", id),
