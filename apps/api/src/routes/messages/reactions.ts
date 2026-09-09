@@ -383,6 +383,18 @@ async function reactOnChannel(
   if (!capabilities.reactions) {
     return badRequest(c, "This channel does not support reactions");
   }
+  // Some providers accept only their own fixed set. Rejecting here keeps a
+  // reaction that cannot succeed from being stored locally and queued, which
+  // otherwise showed as applied in the inbox while the provider never had it.
+  if (
+    capabilities.reactionEmojis &&
+    !capabilities.reactionEmojis.includes(emoji) &&
+    // Telegram lists several reactions without the variation selector while
+    // clients send it; compare on the base sequence too.
+    !capabilities.reactionEmojis.includes(emoji.replace(/\uFE0F/g, ""))
+  ) {
+    return badRequest(c, "This channel does not support that reaction");
+  }
 
   // One intent per (message, reactor, emoji): re-sending the same reaction is
   // the same request, while changing it is a new one the provider must see.

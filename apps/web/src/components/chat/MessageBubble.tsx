@@ -140,7 +140,8 @@ export const MessageBubble = memo(function MessageBubble({
   groupPosition = "single",
 }: MessageBubbleProps) {
   // Get message actions from context (eliminates prop drilling)
-  const { onReply, onForward, onDelete, onStar, onReact } = useMessageActions();
+  const { onReply, onForward, onDelete, onStar, onReact, reactionEmojis } =
+    useMessageActions();
   const { t } = useTranslation();
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
@@ -448,6 +449,7 @@ export const MessageBubble = memo(function MessageBubble({
                 position={reactionPickerPosition}
                 onSelectReaction={handleSelectReaction}
                 onClose={() => setShowReactionPicker(false)}
+                allowedEmojis={reactionEmojis}
               />
             </Suspense>,
             document.body,

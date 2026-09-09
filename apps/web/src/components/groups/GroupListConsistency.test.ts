@@ -8,7 +8,13 @@ describe("inclusive chat list and group filtering", () => {
     const chatList = await readSource("../chat/ChatList.tsx");
     expect(chatList).toContain("useChats(");
     expect(chatList).toContain("true,\n    assignmentFilter,");
-    expect(chatList).toContain('connectionFilter === "all"');
+    // The inbox scope spans every channel, so it is no longer a WhatsApp
+    // connection id: only a WhatsApp account narrows the server-side contact
+    // query, while a channel account is matched against its conversations.
+    expect(chatList).toContain("accountFilter");
+    expect(chatList).toContain(
+      "connections.some((connection) => connection.id === accountFilter)",
+    );
     expect(chatList).not.toContain(
       "useChats(searchQuery, false, assignmentFilter)",
     );

@@ -14,6 +14,8 @@ import { Link } from "react-router";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { type Tag, useTags } from "../../hooks/contact/useContactTags";
 import { useDebounce } from "../../hooks/ui";
+import { catalogEntryForAccount } from "@/components/connections/channel-catalog";
+import { useChannelAccounts } from "../../hooks/useChannelAccounts";
 import { useChannelConversations } from "../../hooks/useChannelConversations";
 import {
   type AssignmentFilter,
@@ -70,7 +72,7 @@ export const ChatList = memo(function ChatList({
   const [conversationStatusFilter, setConversationStatusFilter] =
     useState<ConversationStatusFilter>(restoredFilters.status);
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
-  const [connectionFilter, setConnectionFilter] = useState("all");
+  const [accountFilter, setAccountFilter] = useState("all");
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
   const selectedTagIds = useMemo(
     () => selectedTags.map((tag) => tag.id),
@@ -88,15 +90,17 @@ export const ChatList = memo(function ChatList({
     isLoading: areConnectionsLoading,
     isError: areConnectionsUnavailable,
   } = useWhatsAppConnections();
+  const { data: channelAccounts = [] } = useChannelAccounts();
 
   useEffect(() => {
     if (
-      connectionFilter !== "all" &&
-      !connections.some((connection) => connection.id === connectionFilter)
+      accountFilter !== "all" &&
+      !connections.some((connection) => connection.id === accountFilter) &&
+      !channelAccounts.some((account) => account.id === accountFilter)
     ) {
-      setConnectionFilter("all");
+      setAccountFilter("all");
     }
-  }, [connectionFilter, connections]);
+  }, [accountFilter, channelAccounts, connections]);
 
   useEffect(() => {
     writeChatListFilters({
@@ -114,7 +118,10 @@ export const ChatList = memo(function ChatList({
     searchQuery,
     true,
     assignmentFilter,
-    connectionFilter === "all" ? undefined : connectionFilter,
+    accountFilter !== "all" &&
+      connections.some((connection) => connection.id === accountFilter)
+      ? accountFilter
+      : undefined,
     conversationStatusFilter,
     selectedTagIds,
   );
@@ -158,6 +165,35 @@ export const ChatList = memo(function ChatList({
   // Prefetch contact data on hover for faster navigation
   const prefetchContact = usePrefetchContact();
 
+  /**
+   * Everything that routes conversations into this inbox, on any channel.
+   *
+   * The scope selector used to list WhatsApp connections only, and only
+   * appeared past one of them - so a workspace with one WhatsApp number and
+   * one Telegram bot saw no selector at all, despite having two inboxes to
+   * choose between.
+   */
+  const inboxAccounts = useMemo(
+    () => [
+      ...connections.map((connection) => ({
+        id: connection.id,
+        kind: "whatsapp" as const,
+        label: getConnectionLabel(connection),
+        offline: connection.status !== "connected",
+      })),
+      ...channelAccounts.map((account) => ({
+        id: account.id,
+        kind: "channel" as const,
+        label:
+          account.displayName?.trim() ||
+          catalogEntryForAccount(account.channel, account.provider)?.name ||
+          account.channel,
+        offline: account.status !== "connected",
+      })),
+    ],
+    [channelAccounts, connections],
+  );
+
   // Filter archived chats for main view
   const visibleChats = useMemo(() => {
     const needle = searchQuery.trim().toLowerCase();
@@ -167,6 +203,20 @@ export const ChatList = memo(function ChatList({
         return false;
       }
       if (assignmentFilter === "unread" && chat.unreadCount <= 0) return false;
+      if (accountFilter !== "all") {
+        const selected = inboxAccounts.find(
+          (account) => account.id === accountFilter,
+        );
+        // A WhatsApp scope is already applied server-side by connection id;
+        // only the neutral accounts need matching here, against the channel
+        // account that owns the conversation.
+        if (selected?.kind === "channel") {
+          const conversation = channelConversations.find(
+            (candidate) => candidate.id === chat.contact.conversationId,
+          );
+          if (conversation?.channelAccountId !== accountFilter) return false;
+        }
+      }
       if (
         conversationStatusFilter !== "all" &&
         chat.conversationStatus !== conversationStatusFilter
@@ -176,10 +226,12 @@ export const ChatList = memo(function ChatList({
       return true;
     });
   }, [
+    accountFilter,
     assignmentFilter,
     channelConversations,
     chats,
     conversationStatusFilter,
+    inboxAccounts,
     searchQuery,
   ]);
   const connectionState = resolveInboxConnectionState({
@@ -227,7 +279,7 @@ export const ChatList = memo(function ChatList({
       </div>
 
       {/* Account scope makes the destination number explicit in multi-account inboxes. */}
-      {connections.length > 1 && (
+      {inboxAccounts.length > 1 && (
         <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-2 dark:border-dark-border dark:bg-dark-secondary">
           <Smartphone
             className="h-4 w-4 shrink-0 text-gray-400 dark:text-dark-text-tertiary"
@@ -236,29 +288,23 @@ export const ChatList = memo(function ChatList({
           <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-dark-text-secondary">
             {t("chat.inbox", "Inbox")}
           </span>
-          <Select value={connectionFilter} onValueChange={setConnectionFilter}>
+          <Select value={accountFilter} onValueChange={setAccountFilter}>
             <SelectTrigger
               className="ml-auto h-8 min-w-0 max-w-[190px] text-xs"
-              aria-label={t(
-                "chat.filterByAccount",
-                "Filter by WhatsApp account",
-              )}
+              aria-label={t("chat.filterByAccount", "Filter by account")}
             >
               <SelectValue
-                placeholder={t(
-                  "chat.allWhatsappNumbers",
-                  "All WhatsApp numbers",
-                )}
+                placeholder={t("chat.allAccounts", "All accounts")}
               />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">
-                {t("chat.allWhatsappNumbers", "All WhatsApp numbers")}
+                {t("chat.allAccounts", "All accounts")}
               </SelectItem>
-              {connections.map((connection) => (
-                <SelectItem key={connection.id} value={connection.id}>
-                  {getConnectionLabel(connection)}
-                  {connection.status !== "connected"
+              {inboxAccounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {account.label}
+                  {account.offline
                     ? ` · ${t("chat.offline", "Offline").toLowerCase()}`
                     : ""}
                 </SelectItem>

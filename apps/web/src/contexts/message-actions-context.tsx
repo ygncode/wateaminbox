@@ -22,6 +22,8 @@ export interface MessageActionsContextValue {
   onStar?: (message: Message) => void;
   /** React to a message with an emoji */
   onReact?: (message: Message, emoji: string) => void;
+  /** The only reactions this conversation's provider accepts, if limited. */
+  reactionEmojis?: readonly string[];
   /**
    * Open the profile of a group member whose identity was clicked in the
    * thread. Takes a resolved workspace contact ID: the bubble knows the
@@ -102,6 +104,7 @@ export function MessageActionsProvider({
         ? onStar
         : undefined,
       onReact: allows((resolved) => resolved.reactions) ? onReact : undefined,
+      reactionEmojis: capabilities?.reactionEmojis,
       onOpenParticipantProfile,
       onOpenSharedContact,
       onMessageSharedContact,

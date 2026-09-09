@@ -300,6 +300,13 @@ export interface ResolvedCapabilities extends ChannelCapabilities {
     maxCount?: number;
     acceptedContentTypes?: string[];
   };
+  /**
+   * The exact reactions this account accepts, when the provider allows only a
+   * fixed set. Absent means any emoji is acceptable. A provider that rejects
+   * everything outside its own list - Telegram does - must declare it, or the
+   * composer offers reactions that can only fail at the provider.
+   */
+  reactionEmojis?: readonly string[];
   constraints: Record<string, unknown>;
   unavailableReasons: Partial<
     Record<keyof ChannelCapabilities, { code: string; message: string }>

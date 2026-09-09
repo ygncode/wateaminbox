@@ -5,6 +5,13 @@ interface EmojiReactionPickerProps {
   onSelectReaction: (emoji: string) => void;
   onClose: () => void;
   position: { x: number; y: number };
+  /**
+   * The only reactions this conversation's provider accepts, when it accepts
+   * a fixed set. Undefined means anything goes, which is the WhatsApp case.
+   * Offering an emoji the provider rejects is worse than not offering it: the
+   * reaction appears applied locally and silently never arrives.
+   */
+  allowedEmojis?: readonly string[];
 }
 
 // Popular WhatsApp-style reactions
@@ -243,6 +250,7 @@ export function EmojiReactionPicker({
   onSelectReaction,
   onClose,
   position,
+  allowedEmojis,
 }: EmojiReactionPickerProps) {
   const { t } = useTranslation();
 
@@ -315,6 +323,19 @@ export function EmojiReactionPicker({
     onClose();
   };
 
+  // Providers list some reactions without the variation selector while
+  // clients type it, so both forms count as the same reaction.
+  const isAllowed = (emoji: string) =>
+    !allowedEmojis ||
+    allowedEmojis.includes(emoji) ||
+    allowedEmojis.includes(emoji.replace(/\uFE0F/g, ""));
+  const quickReactions = QUICK_REACTIONS.filter(isAllowed);
+  // A provider with a fixed set gets that set verbatim rather than a filtered
+  // general palette: its list is short, complete, and already ordered.
+  const extendedCategories: Record<string, string[]> = allowedEmojis
+    ? { Reactions: [...allowedEmojis] }
+    : EMOJI_CATEGORIES;
+
   return (
     <div
       ref={pickerRef}
@@ -333,7 +354,7 @@ export function EmojiReactionPicker({
           role="toolbar"
           aria-label={t("chat.quickReactions", "Quick reactions")}
         >
-          {QUICK_REACTIONS.map((emoji) => (
+          {quickReactions.map((emoji) => (
             <button
               key={emoji}
               onClick={() => handleReactionClick(emoji)}
@@ -418,7 +439,7 @@ export function EmojiReactionPicker({
 
           {/* Category tabs */}
           <div className="flex gap-1 px-2 py-2 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-secondary overflow-x-auto">
-            {Object.keys(EMOJI_CATEGORIES).map((category) => (
+            {Object.keys(extendedCategories).map((category) => (
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
@@ -436,9 +457,11 @@ export function EmojiReactionPicker({
           {/* Emoji grid */}
           <div className="p-3 max-h-64 overflow-y-auto">
             <div className="grid grid-cols-8 gap-1">
-              {EMOJI_CATEGORIES[
-                selectedCategory as keyof typeof EMOJI_CATEGORIES
-              ]?.map((emoji) => (
+              {(
+                extendedCategories[selectedCategory] ??
+                Object.values(extendedCategories)[0] ??
+                []
+              ).map((emoji) => (
                 <button
                   key={emoji}
                   onClick={() => handleReactionClick(emoji)}
