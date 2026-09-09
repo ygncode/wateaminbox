@@ -1,7 +1,10 @@
 import type { ResolvedCapabilities } from "@wateaminbox/shared";
 import { Lock } from "lucide-react";
 import type { ReactNode } from "react";
-import { resolveComposerFeatures } from "./composer-capabilities";
+import {
+  ComposerFeaturesContext,
+  resolveComposerFeatures,
+} from "./composer-capabilities";
 
 interface ChannelComposerGateProps {
   capabilities: ResolvedCapabilities | null | undefined;
@@ -39,5 +42,11 @@ export function ChannelComposerGate({
     );
   }
 
-  return children;
+  // Every control inside the composer reads the same resolved descriptor, so a
+  // capability the adapter does not report can never be offered.
+  return (
+    <ComposerFeaturesContext.Provider value={features}>
+      {children}
+    </ComposerFeaturesContext.Provider>
+  );
 }

@@ -430,7 +430,7 @@ export const MessageBubble = memo(function MessageBubble({
               onForward={onForward}
               onDelete={onDelete}
               onStar={onStar}
-              onReact={handleReactionClick}
+              onReact={onReact ? handleReactionClick : undefined}
               onClose={() => setShowContextMenu(false)}
             />,
             document.body,

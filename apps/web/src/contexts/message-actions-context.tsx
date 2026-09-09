@@ -1,4 +1,4 @@
-import type { Message } from "@wateaminbox/shared";
+import type { Message, ResolvedCapabilities } from "@wateaminbox/shared";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
 
 export type SharedContactCard = NonNullable<
@@ -57,6 +57,14 @@ export interface MessageActionsProviderProps {
   onOpenSharedContact?: (contact: SharedContactCard) => void;
   /** Start or open the inbox conversation for a shared vCard. */
   onMessageSharedContact?: (contact: SharedContactCard) => void;
+  /**
+   * Resolved adapter capabilities for the account owning this thread.
+   * `undefined` keeps the legacy WhatsApp behaviour, where every handler the
+   * page supplies is offered. A resolved descriptor is authoritative: an action
+   * the adapter does not report is not passed down at all, so no menu entry or
+   * gesture can invoke it.
+   */
+  capabilities?: ResolvedCapabilities | null;
 }
 
 export function MessageActionsProvider({
@@ -69,29 +77,46 @@ export function MessageActionsProvider({
   onOpenParticipantProfile,
   onOpenSharedContact,
   onMessageSharedContact,
+  capabilities,
 }: MessageActionsProviderProps) {
-  const value = useMemo<MessageActionsContextValue>(
-    () => ({
-      onReply,
-      onForward,
-      onDelete,
-      onStar,
-      onReact,
+  const value = useMemo<MessageActionsContextValue>(() => {
+    const allows = (
+      pick: (resolved: ResolvedCapabilities) => boolean,
+    ): boolean => (capabilities ? pick(capabilities) : true);
+    return {
+      onReply: allows((resolved) => resolved.actions.reply)
+        ? onReply
+        : undefined,
+      onForward: allows((resolved) => resolved.actions.forward)
+        ? onForward
+        : undefined,
+      onDelete: allows(
+        (resolved) =>
+          resolved.messageDeletion &&
+          (resolved.actions.deleteForEveryone ||
+            resolved.actions.deleteLocally),
+      )
+        ? onDelete
+        : undefined,
+      onStar: allows((resolved) => resolved.actions.starLocally)
+        ? onStar
+        : undefined,
+      onReact: allows((resolved) => resolved.reactions) ? onReact : undefined,
       onOpenParticipantProfile,
       onOpenSharedContact,
       onMessageSharedContact,
-    }),
-    [
-      onReply,
-      onForward,
-      onDelete,
-      onStar,
-      onReact,
-      onOpenParticipantProfile,
-      onOpenSharedContact,
-      onMessageSharedContact,
-    ],
-  );
+    };
+  }, [
+    capabilities,
+    onReply,
+    onForward,
+    onDelete,
+    onStar,
+    onReact,
+    onOpenParticipantProfile,
+    onOpenSharedContact,
+    onMessageSharedContact,
+  ]);
 
   return (
     <MessageActionsContext.Provider value={value}>

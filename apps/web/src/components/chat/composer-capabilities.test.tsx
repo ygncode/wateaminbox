@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 import type { ResolvedCapabilities } from "@wateaminbox/shared";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ChannelComposerGate } from "./ChannelComposerGate";
-import { resolveComposerFeatures } from "./composer-capabilities";
+import {
+  LEGACY_COMPOSER_FEATURES,
+  resolveComposerFeatures,
+  useComposerFeatures,
+} from "./composer-capabilities";
 
 const CAPABILITIES: ResolvedCapabilities = {
   typing: true,
@@ -100,5 +104,31 @@ describe("ChannelComposerGate", () => {
     );
     expect(html).toContain("Messaging is not available");
     expect(html).not.toContain("textarea");
+  });
+});
+
+function FeatureProbe() {
+  const features = useComposerFeatures();
+  return <pre>{JSON.stringify(features)}</pre>;
+}
+
+/** `renderToStaticMarkup` escapes the JSON quotes; undo that before parsing. */
+function readProbe(html: string): unknown {
+  return JSON.parse(html.replace(/<\/?pre>/g, "").replace(/&quot;/g, '"'));
+}
+
+describe("ComposerFeaturesContext", () => {
+  test("hands the resolved descriptor to every control inside the gate", () => {
+    const html = renderToStaticMarkup(
+      <ChannelComposerGate capabilities={CAPABILITIES}>
+        <FeatureProbe />
+      </ChannelComposerGate>,
+    );
+    expect(readProbe(html)).toEqual(resolveComposerFeatures(CAPABILITIES));
+  });
+
+  test("leaves the legacy linked-device composer unrestricted outside the gate", () => {
+    const html = renderToStaticMarkup(<FeatureProbe />);
+    expect(readProbe(html)).toEqual(LEGACY_COMPOSER_FEATURES);
   });
 });

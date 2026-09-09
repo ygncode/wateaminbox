@@ -374,6 +374,10 @@ export function ChatPage() {
               onOpenParticipantProfile={handleOpenParticipantProfile}
               onOpenSharedContact={handleOpenSharedContact}
               onMessageSharedContact={handleMessageSharedContact}
+              // Neutral channel threads are additionally bounded by their
+              // adapter contract; legacy linked-device threads pass undefined
+              // and keep their existing action set.
+              capabilities={channelConversation ? channelCapabilities : null}
             >
               <MessageThread
                 conversationId={selectedChatId}

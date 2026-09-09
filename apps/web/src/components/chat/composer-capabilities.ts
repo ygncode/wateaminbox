@@ -1,4 +1,5 @@
 import type { ResolvedCapabilities } from "@wateaminbox/shared";
+import { createContext, useContext } from "react";
 
 export interface ComposerFeatures {
   canComposeText: boolean;
@@ -36,4 +37,27 @@ export function resolveComposerFeatures(
     attachmentTypes,
     acceptedContentTypes: capabilities.attachment.acceptedContentTypes,
   };
+}
+
+/**
+ * Permissive defaults for the legacy WhatsApp linked-device composer, which
+ * predates the adapter contract. Neutral channel accounts always override this
+ * with a server-resolved descriptor through `ComposerFeaturesContext`.
+ */
+export const LEGACY_COMPOSER_FEATURES: ComposerFeatures = {
+  canComposeText: true,
+  canAttach: true,
+  canSchedule: true,
+  canSendTyping: true,
+  canMentionGroups: true,
+  attachmentTypes: ["image", "document"],
+};
+
+export const ComposerFeaturesContext = createContext<ComposerFeatures>(
+  LEGACY_COMPOSER_FEATURES,
+);
+
+/** The capability switches that apply to the composer being rendered. */
+export function useComposerFeatures(): ComposerFeatures {
+  return useContext(ComposerFeaturesContext);
 }
