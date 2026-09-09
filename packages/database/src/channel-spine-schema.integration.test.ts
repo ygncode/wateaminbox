@@ -64,6 +64,50 @@ integration(
 
       await ensureChannelSpineTenantSchema(database, schemaName);
       await ensureChannelSpineTenantSchema(database, schemaName);
+
+      // A second reconciliation must not take ACCESS EXCLUSIVE on a table that
+      // live traffic is writing to. `DROP NOT NULL` is a no-op once the column
+      // is nullable, but issuing it anyway locks out every writer until the 5s
+      // DDL lock_timeout cancels the run. A row lock on the busiest table is
+      // enough to catch that: a guarded run finishes, an unguarded one waits.
+      const writer = new Kysely<unknown>({
+        dialect: new PostgresDialect({
+          pool: new Pool({ connectionString: url.toString(), max: 1 }),
+        }),
+      });
+      try {
+        const messageId = crypto.randomUUID();
+        const contactId = crypto.randomUUID();
+        await sql
+          .raw(
+            `INSERT INTO "${schemaName}"."contacts" (id) VALUES ('${contactId}')`,
+          )
+          .execute(database);
+        await sql
+          .raw(
+            `INSERT INTO "${schemaName}"."messages" (id, contact_id) VALUES ('${messageId}', '${contactId}')`,
+          )
+          .execute(database);
+        let release!: () => void;
+        const released = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const held = writer.transaction().execute(async (trx) => {
+          await sql
+            .raw(
+              `SELECT id FROM "${schemaName}"."messages" WHERE id = '${messageId}' FOR UPDATE`,
+            )
+            .execute(trx);
+          await released;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        await ensureChannelSpineTenantSchema(database, schemaName);
+        release();
+        await held;
+      } finally {
+        await writer.destroy();
+      }
+
       const createdIndexes = await reconcileChannelSpineConcurrentIndexes(
         database,
         schemaName,
