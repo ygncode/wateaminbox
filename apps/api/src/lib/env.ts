@@ -101,6 +101,14 @@ export const env = {
   // policy; when configured, it asks the private control plane to admit the
   // authenticated WhatsApp identity before exposing the connected session.
   CONNECTION_ADMISSION_URL: getEnv("CONNECTION_ADMISSION_URL", ""),
+  // Providers a newly created workspace starts with, comma separated. Empty
+  // means new workspaces begin on legacy like every existing one, which is
+  // the safe default for self-hosted deployments.
+  CHANNEL_SPINE_DEFAULT_PROVIDERS: getEnv(
+    "CHANNEL_SPINE_DEFAULT_PROVIDERS",
+    "",
+  ),
+  CHANNEL_SPINE_DEFAULT_REVISION: getEnv("CHANNEL_SPINE_DEFAULT_REVISION", ""),
   // Comma-separated key-version:base64(32-byte) entries. Required only when
   // channel-provider credentials are provisioned or consumed.
   CHANNEL_CREDENTIAL_ENCRYPTION_KEYS: getEnv(
