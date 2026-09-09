@@ -314,3 +314,20 @@ Still incomplete before claiming the RFC finished:
   second live account.
 - Ambiguous Telegram send outcomes are `uncertain`, not retried.
 - Provider redelivery with a new `receivedAt` is a duplicate, not a collision.
+
+## Known CI flakes
+
+Two failures show up on unrelated pull requests and are not regressions:
+
+- `static` fails when the runner image's Google Chrome apt source serves a bad
+  index. `apt-get update` fails as a whole when any source does, which took the
+  ripgrep install and the entire job with it. The step now skips apt when
+  ripgrep is already present and otherwise drops third-party sources by what
+  they point at.
+- `go-race` fails intermittently on
+  `TestStop_CollectsEveryWorkerFailure`, where a healthy worker is reported as
+  neither stopped nor removed. The stop refuses to signal a PID whose
+  `/proc/<pid>/environ` does not identify the expected worker, which is real
+  protection against signalling a reused PID; under `-race` on a loaded runner
+  that check does not always resolve in time. Re-run it. Do not relax the
+  check to make the test pass - it guards a process signal.
