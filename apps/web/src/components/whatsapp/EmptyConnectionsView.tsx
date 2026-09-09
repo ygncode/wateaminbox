@@ -10,13 +10,13 @@ interface EmptyConnectionsViewProps {
 const setupSteps = [
   {
     icon: Smartphone,
-    labelKey: "connections.setup.nameDevice",
-    label: "Name the device",
+    labelKey: "connections.setup.pickChannel",
+    label: "Pick a channel",
   },
   {
     icon: QrCode,
-    labelKey: "connections.setup.scanQr",
-    label: "Scan a QR code",
+    labelKey: "connections.setup.authorize",
+    label: "Scan a code or paste a token",
   },
   {
     icon: MessageCircle,
@@ -25,7 +25,7 @@ const setupSteps = [
   },
 ];
 
-/** First-run state for workspaces without a WhatsApp device. */
+/** First-run state for a workspace with no connected account on any channel. */
 export function EmptyConnectionsView({
   onAdd,
   isCreating,
@@ -41,18 +41,18 @@ export function EmptyConnectionsView({
           </div>
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0b7a55] dark:text-emerald-300">
-              {t("connections.noDevices", "No devices linked")}
+              {t("connections.noDevices", "No accounts connected")}
             </p>
             <h3 className="mt-1 text-lg font-semibold tracking-tight text-[#10211b] dark:text-dark-text-primary">
               {t(
                 "connections.connectToWorkspace",
-                "Connect WhatsApp to your workspace",
+                "Connect a messaging account",
               )}
             </h3>
             <p className="mt-1 max-w-xl text-sm leading-6 text-[#65736d] dark:text-dark-text-secondary">
               {t(
                 "connections.connectToWorkspaceHint",
-                "Link a phone once, then your team can manage its conversations together from the shared inbox.",
+                "Connect WhatsApp or a Telegram bot once, then your team can manage its conversations together from the shared inbox.",
               )}
             </p>
           </div>

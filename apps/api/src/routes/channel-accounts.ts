@@ -79,6 +79,50 @@ channelAccountRoutes.get("/", async (c) => {
   );
 });
 
+/**
+ * What this workspace may connect right now, and why not when it may not.
+ *
+ * The picker in Settings needs this before a user commits to a provider: a
+ * grid that offers Telegram and then fails at submit reads as a broken
+ * product. Availability is derived from the same authority the connect route
+ * enforces, so the two can never disagree, and it fails closed - an
+ * unreadable or missing flag row reports every provider as unavailable.
+ */
+channelAccountRoutes.get("/providers", async (c) => {
+  const { tenantDb, companyId } = getRouteContext(c);
+  const authority = await getChannelSpineWorkspaceAuthority(companyId);
+  const neutralWrites = authority.writeAuthority === "neutral";
+  const storageReady = neutralWrites
+    ? await isChannelSpineTenantReady(tenantDb)
+    : false;
+  const providers = [
+    {
+      channel: "whatsapp" as const,
+      provider: "whatsapp_linked_device" as const,
+      // Linked device predates the spine and is connected through its own
+      // QR pairing flow, which does not depend on any channel-spine flag.
+      available: true,
+      unavailableReason: null as string | null,
+    },
+    {
+      channel: "telegram" as const,
+      provider: "telegram_bot" as const,
+      available:
+        neutralWrites &&
+        isChannelProviderEnabled(authority, "telegram_bot") &&
+        storageReady,
+      unavailableReason: !neutralWrites
+        ? "Channel-neutral writes are not enabled for this workspace"
+        : !isChannelProviderEnabled(authority, "telegram_bot")
+          ? "Telegram Bot is not enabled for this workspace"
+          : !storageReady
+            ? "Channel storage indexes are not ready"
+            : null,
+    },
+  ];
+  return successData(c, providers);
+});
+
 const connectTelegramSchema = z.object({
   botToken: z.string().regex(/^\d{5,16}:[A-Za-z0-9_-]{30,128}$/),
   displayName: z.string().trim().min(1).max(100).optional(),

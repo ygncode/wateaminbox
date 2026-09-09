@@ -383,10 +383,10 @@ function SettingsSectionContent({
     case "connections":
       return (
         <Panel
-          title={t("settings.connections.title", "WhatsApp connections")}
+          title={t("settings.connections.title", "Connections")}
           description={t(
             "settings.connections.description",
-            "Link and manage the WhatsApp devices that power this workspace inbox.",
+            "Connect and manage the accounts that deliver messages into this workspace inbox.",
           )}
         >
           <WhatsAppConnectionPanel multiConnection hideHeader />

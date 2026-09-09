@@ -40,3 +40,32 @@ export function getChannelAccountCapabilities(
     `/channel-accounts/${encodeURIComponent(channelAccountId)}/capabilities`,
   );
 }
+
+/** What this workspace may connect right now, and why not when it may not. */
+export interface ChannelProviderAvailability {
+  channel: Channel;
+  provider: ChannelProvider;
+  available: boolean;
+  unavailableReason: string | null;
+}
+
+export function getChannelProviderAvailability(): Promise<
+  ChannelProviderAvailability[]
+> {
+  return api.get<ChannelProviderAvailability[]>("/channel-accounts/providers");
+}
+
+export function connectTelegramBot(input: {
+  botToken: string;
+  displayName?: string;
+}): Promise<ChannelAccount> {
+  return api.post<ChannelAccount>("/channel-accounts/telegram-bot", input);
+}
+
+export function disconnectChannelAccount(
+  channelAccountId: string,
+): Promise<void> {
+  return api.delete(
+    `/channel-accounts/${encodeURIComponent(channelAccountId)}`,
+  );
+}
