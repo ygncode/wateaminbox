@@ -39,6 +39,7 @@ import { requireContactVisibility } from "../../middleware/resource-visibility.j
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
+import { resolveCanonicalContactId } from "../../services/contact-merge.service.js";
 import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
 import {
   type FindOrCreateContactByPhoneResult,
@@ -130,9 +131,15 @@ contactRoutes.get(
  */
 contactRoutes.get("/:id", async (c) => {
   const { tenantDb, companyId } = getRouteContext(c);
+  const requestedId = c.req.param("id")!;
+  const workflowContactId =
+    (await resolveWorkflowContactId(tenantDb, requestedId)) ?? requestedId;
+  // Contact-profile reads follow merge aliases to the surviving customer.
+  // Conversation routes deliberately do not, so an old chat URL keeps
+  // resolving to its own conversation after its customer row was merged.
   const contactId =
-    (await resolveWorkflowContactId(tenantDb, c.req.param("id")!)) ??
-    c.req.param("id")!;
+    (await resolveCanonicalContactId(tenantDb, workflowContactId)) ??
+    workflowContactId;
 
   const contact = await tenantDb
     .selectFrom("contacts")

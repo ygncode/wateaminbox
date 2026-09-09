@@ -1,10 +1,48 @@
 import type { TenantDatabase } from "@wateaminbox/database";
-import type { Kysely } from "kysely";
+import { sql } from "kysely";
+import type { Kysely, Transaction } from "kysely";
 import {
   ConflictError,
   NotFoundError,
   ValidationError,
 } from "../lib/errors.js";
+
+type MergeDb = Kysely<TenantDatabase> | Transaction<TenantDatabase>;
+
+/**
+ * Follow `merged_into_contact_id` to the surviving contact.
+ *
+ * Contact-profile reads may follow this alias. Conversation/workflow routes
+ * must not: the RFC keeps an old chat URL pointing at its own conversation
+ * even after its customer row was merged away.
+ */
+const MAX_MERGE_ALIAS_DEPTH = 8;
+
+export async function resolveCanonicalContactId(
+  db: MergeDb,
+  contactId: string,
+): Promise<string | null> {
+  let current = contactId;
+  for (let depth = 0; depth < MAX_MERGE_ALIAS_DEPTH; depth++) {
+    const row = await db
+      .selectFrom("contacts")
+      .select(["id", "merged_into_contact_id"])
+      .where("id", "=", current)
+      .executeTakeFirst();
+    if (!row) return null;
+    if (!row.merged_into_contact_id) return row.id;
+    current = row.merged_into_contact_id;
+  }
+  // A cycle or an unexpectedly deep chain must not resolve to a random row.
+  return null;
+}
+
+export interface MergeResult {
+  mergeEventId: string;
+  movedEndpoints: number;
+  sourceContactId: string;
+  targetContactId: string;
+}
 
 export async function mergeContacts(
   tenantDb: Kysely<TenantDatabase>,
@@ -14,7 +52,7 @@ export async function mergeContacts(
     actorUserId: string;
     reason: string;
   },
-): Promise<{ mergeEventId: string; movedEndpoints: number }> {
+): Promise<MergeResult> {
   if (input.sourceContactId === input.targetContactId) {
     throw new ValidationError("A contact cannot be merged into itself");
   }
@@ -54,7 +92,9 @@ export async function mergeContacts(
         target_contact_id: target.id,
         actor_user_id: input.actorUserId,
         reason: input.reason,
-        endpoint_snapshot: endpoints,
+        // node-postgres renders a JS array as a Postgres array literal, so the
+        // JSONB snapshot has to be serialized explicitly.
+        endpoint_snapshot: sql<unknown[]>`${JSON.stringify(endpoints)}::jsonb`,
       })
       .returning("id")
       .executeTakeFirstOrThrow();
@@ -91,6 +131,8 @@ export async function mergeContacts(
     return {
       mergeEventId: mergeEvent.id,
       movedEndpoints: endpoints.length,
+      sourceContactId: source.id,
+      targetContactId: target.id,
     };
   });
 }
