@@ -142,6 +142,25 @@ function configuredCipher(): ChannelCredentialCipher {
   );
 }
 
+/**
+ * Whether this process can encrypt a provider secret at all.
+ *
+ * Startup does not require a keyring, because a linked-device-only host never
+ * stores one. That leaves a real deployment state - keys unset or malformed -
+ * in which every provider connect attempt throws deep inside a transaction
+ * and surfaces as a bare 500. Callers use this to refuse the operation up
+ * front and say why, the same way they already do for workspace flags and
+ * missing indexes.
+ */
+export function canStoreChannelCredentials(): boolean {
+  try {
+    configuredCipher();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function associatedData(
   companyId: string,
   channelAccountId: string,

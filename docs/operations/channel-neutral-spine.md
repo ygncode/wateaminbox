@@ -93,7 +93,11 @@ server's own reason, from `GET /channel-accounts/providers`.
 To connect a Telegram bot in a local workspace:
 
 1. Set `CHANNEL_CREDENTIAL_ENCRYPTION_KEYS` and
-   `CHANNEL_CREDENTIAL_ACTIVE_KEY_VERSION` for the API process.
+   `CHANNEL_CREDENTIAL_ACTIVE_KEY_VERSION` for the API process. The keyring is
+   `<version>:<32 bytes base64>` (`openssl rand -base64 32`) and the active
+   version must name an entry in it. Both are blank in the checked-in example,
+   and a provider that stores a secret reports itself unavailable until they
+   are set.
 2. Point `APP_URL` at a publicly reachable HTTPS origin. Telegram registers a
    webhook against it, so `localhost` cannot work — use a tunnel.
 3. Enable the workspace flags:

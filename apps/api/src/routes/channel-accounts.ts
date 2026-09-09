@@ -28,6 +28,7 @@ import {
 } from "../services/channel-account-purge.service.js";
 import { isChannelSpineTenantReady } from "../services/channel-spine-readiness.service.js";
 import {
+  canStoreChannelCredentials,
   readChannelCredential,
   storeChannelCredential,
 } from "../services/channel-credential.service.js";
@@ -95,6 +96,9 @@ channelAccountRoutes.get("/providers", async (c) => {
   const storageReady = neutralWrites
     ? await isChannelSpineTenantReady(tenantDb, companyId)
     : false;
+  // A provider that keeps a secret cannot be connected by a process that
+  // cannot encrypt one, however the workspace is flagged.
+  const canStoreSecrets = canStoreChannelCredentials();
   const providers = [
     {
       channel: "whatsapp" as const,
@@ -110,14 +114,17 @@ channelAccountRoutes.get("/providers", async (c) => {
       available:
         neutralWrites &&
         isChannelProviderEnabled(authority, "telegram_bot") &&
-        storageReady,
+        storageReady &&
+        canStoreSecrets,
       unavailableReason: !neutralWrites
         ? "Channel-neutral writes are not enabled for this workspace"
         : !isChannelProviderEnabled(authority, "telegram_bot")
           ? "Telegram Bot is not enabled for this workspace"
           : !storageReady
             ? "Channel storage indexes are not ready"
-            : null,
+            : !canStoreSecrets
+              ? "This server has no channel credential encryption key configured"
+              : null,
     },
   ];
   return successData(c, providers);
@@ -143,6 +150,17 @@ channelAccountRoutes.post(
     }
     if (!(await isChannelSpineTenantReady(tenantDb, companyId))) {
       return c.json({ error: "Channel storage indexes are not ready" }, 503);
+    }
+    // Checked before Telegram is contacted, so a misconfigured server never
+    // registers a webhook it could not have stored the secret for.
+    if (!canStoreChannelCredentials()) {
+      return c.json(
+        {
+          error:
+            "This server has no channel credential encryption key configured",
+        },
+        503,
+      );
     }
     const { botToken, displayName } = c.req.valid("json");
     let identity;
