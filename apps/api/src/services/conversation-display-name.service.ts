@@ -20,8 +20,31 @@ export async function resolveConversationDisplayNames(
   db: ConversationDb,
   conversationIds: readonly string[],
 ): Promise<Map<string, string>> {
+  const counterparts = await resolveConversationCounterparts(
+    db,
+    conversationIds,
+  );
   const names = new Map<string, string>();
-  if (conversationIds.length === 0) return names;
+  for (const [conversationId, counterpart] of counterparts) {
+    if (counterpart.displayName)
+      names.set(conversationId, counterpart.displayName);
+  }
+  return names;
+}
+
+/**
+ * The other party of each conversation, in one query.
+ *
+ * Used by the inbox list, which needs a name and a picture per row; resolving
+ * these one conversation at a time would reintroduce an N+1 on the hottest
+ * read in the product.
+ */
+export async function resolveConversationCounterparts(
+  db: ConversationDb,
+  conversationIds: readonly string[],
+): Promise<Map<string, ConversationCounterpart>> {
+  const counterparts = new Map<string, ConversationCounterpart>();
+  if (conversationIds.length === 0) return counterparts;
   const rows = await db
     .selectFrom("conversation_participants as participant")
     .innerJoin(
@@ -35,6 +58,7 @@ export async function resolveConversationDisplayNames(
       "endpoint.address_display",
       "endpoint.normalized_address",
       "endpoint.external_id",
+      "endpoint.avatar_url",
     ])
     .where("participant.conversation_id", "in", [...conversationIds])
     .where("participant.is_self", "=", false)
@@ -43,15 +67,19 @@ export async function resolveConversationDisplayNames(
     .orderBy("participant.contact_endpoint_id", "asc")
     .execute();
   for (const row of rows) {
-    if (names.has(row.conversation_id)) continue;
-    const candidate =
-      row.display_name?.trim() ||
-      row.address_display?.trim() ||
-      row.normalized_address?.trim() ||
-      row.external_id.trim();
-    if (candidate) names.set(row.conversation_id, candidate);
+    if (counterparts.has(row.conversation_id)) continue;
+    counterparts.set(row.conversation_id, {
+      displayName:
+        row.display_name?.trim() ||
+        row.address_display?.trim() ||
+        row.normalized_address?.trim() ||
+        row.external_id.trim() ||
+        null,
+      addressDisplay: row.address_display?.trim() || null,
+      avatarUrl: row.avatar_url,
+    });
   }
-  return names;
+  return counterparts;
 }
 
 export interface ConversationCounterpart {

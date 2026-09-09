@@ -310,21 +310,18 @@ describe("Telegram sticker attachments", () => {
     });
   });
 
-  test("an animated sticker fetches its static thumbnail, not the Lottie payload", () => {
-    // A .tgs is gzipped Lottie JSON that no browser can draw. The thumbnail is
-    // the only renderable form, and its type comes from the download itself.
-    const attachment = normalizeSticker({
-      file_id: "animated-1",
-      is_animated: true,
-      thumbnail: { file_id: "thumb-1" },
-    });
-    expect(attachment).toMatchObject({ providerAttachmentId: "thumb-1" });
-    expect(attachment?.contentType).toBeUndefined();
-  });
-
-  test("an animated sticker with no thumbnail is left alone rather than mislabelled", () => {
+  test("an animated sticker keeps its Lottie payload, marked as an opaque archive", () => {
+    // A .tgs is gzipped Lottie JSON: not an image, and never to be labelled
+    // as one, or the client would hand it to an <img> and draw nothing.
     expect(
-      normalizeSticker({ file_id: "animated-2", is_animated: true }),
-    ).toMatchObject({ providerAttachmentId: "animated-2" });
+      normalizeSticker({
+        file_id: "animated-1",
+        is_animated: true,
+        thumbnail: { file_id: "thumb-1" },
+      }),
+    ).toMatchObject({
+      providerAttachmentId: "animated-1",
+      contentType: "application/gzip",
+    });
   });
 });

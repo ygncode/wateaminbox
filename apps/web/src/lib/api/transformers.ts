@@ -163,6 +163,11 @@ export function transformChannelConversationToChat(conversation: {
   unreadCount: number;
   conversationStatus: ConversationLifecycleStatus;
   legacyContactId: string | null;
+  counterpart?: {
+    displayName: string | null;
+    addressDisplay: string | null;
+    avatarUrl: string | null;
+  } | null;
 }): Chat {
   // The server resolves a direct conversation's name from its counterpart's
   // endpoint when the provider gave no subject. The channel's brand name is a
@@ -177,6 +182,9 @@ export function transformChannelConversationToChat(conversation: {
       phoneNumber: "",
       name,
       isGroup: conversation.kind !== "direct",
+      // The counterpart's picture is the conversation's picture for a direct
+      // thread, so the header and the chat list show what the profile shows.
+      avatarUrl: conversation.counterpart?.avatarUrl ?? undefined,
       conversationId: conversation.id,
       channel: conversation.channel,
       provider: conversation.provider,

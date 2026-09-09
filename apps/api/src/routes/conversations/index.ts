@@ -8,8 +8,8 @@ import { getAuthorizedMediaUrlOrNull } from "../../lib/storage.js";
 import {
   type ConversationCounterpart,
   resolveConversationCounterpart,
+  resolveConversationCounterparts,
   resolveConversationDisplayName,
-  resolveConversationDisplayNames,
 } from "../../services/conversation-display-name.service.js";
 import { getChannelSpineWorkspaceAuthority } from "../../services/channel-spine-authority.service.js";
 import { neutralActionRoutes } from "./actions.js";
@@ -97,11 +97,22 @@ conversationRoutes.get("/", async (c) => {
     .execute();
   // A direct conversation usually carries no subject; its name is on the
   // counterpart's endpoint. Resolved in one batch rather than per row.
-  const participantNames = await resolveConversationDisplayNames(
+  const counterparts = await resolveConversationCounterparts(
     tenantDb,
-    conversations
-      .filter((conversation) => !conversation.subject?.trim())
-      .map((conversation) => conversation.id),
+    conversations.map((conversation) => conversation.id),
+  );
+  // Signed in one pass; the list renders an avatar per row and the client is
+  // never handed a bucket path.
+  const avatarUrls = new Map<string, string | null>(
+    await Promise.all(
+      [...counterparts].map(
+        async ([conversationId, counterpart]) =>
+          [
+            conversationId,
+            await getAuthorizedMediaUrlOrNull(counterpart.avatarUrl, companyId),
+          ] as const,
+      ),
+    ),
   );
   return successData(
     c,
@@ -113,7 +124,7 @@ conversationRoutes.get("/", async (c) => {
       kind: conversation.kind,
       subject:
         conversation.subject?.trim() ||
-        participantNames.get(conversation.id) ||
+        counterparts.get(conversation.id)?.displayName ||
         null,
       externalThreadId: conversation.external_thread_id,
       firstMessageAt: conversation.first_message_at,
@@ -125,6 +136,12 @@ conversationRoutes.get("/", async (c) => {
       account: {
         displayName: conversation.account_display_name,
         status: conversation.account_status,
+      },
+      counterpart: {
+        displayName: counterparts.get(conversation.id)?.displayName ?? null,
+        addressDisplay:
+          counterparts.get(conversation.id)?.addressDisplay ?? null,
+        avatarUrl: avatarUrls.get(conversation.id) ?? null,
       },
     })),
   );
