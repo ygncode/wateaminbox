@@ -1,3 +1,4 @@
+import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
 import type { QueryClient } from "@tanstack/react-query";
 import type {
   BulkJobUpdatedPayload,
@@ -68,6 +69,7 @@ interface ChannelMessageNewPayload {
     id: string;
     conversationId: string;
     channelAccountId: string;
+    direction: "inbound" | "outbound" | "system";
   };
   conversation: {
     id: string;
@@ -143,9 +145,27 @@ export function registerRealtimeEventHandlers({
       const conversationId =
         data.payload.message.conversationId || data.payload.conversation.id;
       // Neutral projections have a different shape from the legacy WhatsApp
-      // cache, so use realtime only as an invalidation signal.
+      // cache, so use realtime only as an invalidation signal rather than
+      // writing the payload into the cache the way `message:new` can.
+      //
+      // These have to name the queries the screen actually reads. The thread
+      // is an infinite query keyed by conversation, and the sidebar is the
+      // chat list - invalidating only the channel-scoped keys refreshed
+      // neither, so a sent or received message sat invisible until a reload.
+      // Invalidate rather than refetch-active. The legacy path can refetch
+      // only mounted queries because it writes the payload into the cache
+      // first; this path has no such write, so a thread that is momentarily
+      // unmounted must still come back stale rather than silently keeping
+      // pre-message data.
+      qc.invalidateQueries({
+        queryKey: infiniteMessageKeys.list(conversationId),
+      });
+      invalidateChatList(qc);
       qc.invalidateQueries({
         queryKey: queryKeys.channelConversations.lists(),
+      });
+      qc.invalidateQueries({
+        queryKey: queryKeys.channelConversations.detail(conversationId),
       });
       qc.invalidateQueries({
         queryKey: queryKeys.channelMessages.lists(),
@@ -158,6 +178,17 @@ export function registerRealtimeEventHandlers({
               part.conversationId === conversationId,
           ),
       });
+
+      // An inbound message in the open thread is read the moment it lands,
+      // matching the legacy path; otherwise its unread badge would persist
+      // while the user is looking straight at it.
+      const selectedId = useChatStore.getState().selectedConversationId;
+      if (
+        selectedId === conversationId &&
+        data.payload.message.direction === "inbound"
+      ) {
+        markConversationAsRead(conversationId).catch(() => {});
+      }
     }),
     bindUserEvent<MessageStatusPayload>("message:status", (data) => {
       const payload = data.payload;

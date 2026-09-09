@@ -109,6 +109,7 @@ async function sendChannelContactMessage(
       replyToExternalMessageId = quoted.external_message_id;
     }
     const inserted = await insertNeutralOutboundSend(trx, {
+      companyId,
       actorUserId: user.id,
       contactId: contact.id,
       conversationId,

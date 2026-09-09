@@ -13,6 +13,7 @@ import type { Transaction } from "kysely";
 import { sql } from "kysely";
 import { resolveAdapterCapabilities } from "../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../channel-spine/registry.js";
+import { enqueueOutboundRealtimeFanout } from "./channel-message-fanout.service.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import {
   getChannelSpineWorkspaceAuthority,
@@ -37,6 +38,7 @@ interface ClaimedIntent extends OutboundMessageIntent {
 export async function insertNeutralOutboundSend(
   trx: Transaction<TenantDatabase>,
   input: {
+    companyId: string;
     actorUserId: string;
     contactId: string | null;
     conversationId: string;
@@ -90,6 +92,17 @@ export async function insertNeutralOutboundSend(
       provider_metadata: {},
     })
     .execute();
+  // Realtime fanout is queued with the message, in the same transaction. The
+  // inbound path has always done this; outbound never did, so a message the
+  // user had just sent stayed invisible in their own thread and chat list
+  // until they reloaded the page.
+  await enqueueOutboundRealtimeFanout(
+    trx,
+    input.companyId,
+    input.channelAccountId,
+    input.conversationId,
+    messageId,
+  );
   await trx
     .insertInto("outbound_message_intents")
     .values({
