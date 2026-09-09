@@ -481,8 +481,7 @@ export async function ensureChannelSpineTenantSchema<Database>(
       ["contact_id", "UUID"],
       ["conversation_id", "UUID"],
     ]);
-    await sql`ALTER TABLE ${table("messages")}
-      ALTER COLUMN contact_id DROP NOT NULL`.execute(db);
+    await dropNotNullIfNeeded(db, schemaName, "messages", "contact_id");
     await addConstraintIfMissing(
       db,
       schemaName,
@@ -493,8 +492,12 @@ export async function ensureChannelSpineTenantSchema<Database>(
         CHECK (contact_id IS NOT NULL OR conversation_id IS NOT NULL) NOT VALID`,
     );
 
-    await sql`ALTER TABLE ${table("scheduled_messages")}
-      ALTER COLUMN contact_id DROP NOT NULL`.execute(db);
+    await dropNotNullIfNeeded(
+      db,
+      schemaName,
+      "scheduled_messages",
+      "contact_id",
+    );
     await addConstraintIfMissing(
       db,
       schemaName,
@@ -513,8 +516,7 @@ export async function ensureChannelSpineTenantSchema<Database>(
       await addColumnsIfMissing(db, schemaName, workflowTable, [
         ["contact_id", "UUID"],
       ]);
-      await sql`ALTER TABLE ${table(workflowTable)}
-        ALTER COLUMN contact_id DROP NOT NULL`.execute(db);
+      await dropNotNullIfNeeded(db, schemaName, workflowTable, "contact_id");
       await addConstraintIfMissing(
         db,
         schemaName,
@@ -746,6 +748,31 @@ async function addColumnsIfMissing<Database>(
       `ALTER TABLE ${quoteIdentifier(schemaName)}.${quoteIdentifier(tableName)} ${additions}`,
     )
     .execute(db);
+}
+
+/**
+ * `ALTER TABLE ... DROP NOT NULL` takes ACCESS EXCLUSIVE on its target even
+ * when the column is already nullable and the statement is a no-op. Issuing it
+ * unconditionally made every reconciliation run queue behind - and then block -
+ * all traffic on `messages`, the busiest table in a tenant, until the 5s DDL
+ * `lock_timeout` cancelled the run. Decide from the catalog first.
+ */
+async function dropNotNullIfNeeded<Database>(
+  db: Kysely<Database>,
+  schemaName: string,
+  tableName: string,
+  columnName: string,
+): Promise<void> {
+  const result = await sql<{ is_nullable: string }>`
+    SELECT is_nullable FROM information_schema.columns
+    WHERE table_schema = ${schemaName}
+      AND table_name = ${tableName}
+      AND column_name = ${columnName}
+  `.execute(db);
+  const column = result.rows[0];
+  if (!column || column.is_nullable === "YES") return;
+  await sql`ALTER TABLE ${sql.raw(`${quoteIdentifier(schemaName)}.${quoteIdentifier(tableName)}`)}
+    ALTER COLUMN ${sql.ref(columnName)} DROP NOT NULL`.execute(db);
 }
 
 async function addConstraintIfMissing<Database>(

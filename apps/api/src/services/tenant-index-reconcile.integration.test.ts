@@ -299,17 +299,26 @@ describe("tenant index name normalization", () => {
           INSERT INTO ${sql.raw(`"${schemaName}"."whatsapp_connections"`)} (id)
           VALUES (${connectionId})
         `.execute(db);
+        // `messages_contact_or_conversation_check` means a message must be
+        // addressed to one of the two identities. Without a contact the
+        // duplicate below would be rejected by that check instead of the
+        // UNIQUE constraint under test.
+        const contactId = crypto.randomUUID();
         await sql`
-          INSERT INTO ${table} (whatsapp_connection_id, message_id, from_me, message_type, timestamp)
-          VALUES (${connectionId}, 'WA-DUP-1', false, 'text', now())
+          INSERT INTO ${sql.raw(`"${schemaName}"."contacts"`)} (id, jid, whatsapp_connection_id)
+          VALUES (${contactId}, '60123456789@s.whatsapp.net', ${connectionId})
+        `.execute(db);
+        await sql`
+          INSERT INTO ${table} (contact_id, whatsapp_connection_id, message_id, from_me, message_type, timestamp)
+          VALUES (${contactId}, ${connectionId}, 'WA-DUP-1', false, 'text', now())
         `.execute(db);
 
         // The constraint was renamed by reconcile; it must still be enforced.
         let rejected = false;
         try {
           await sql`
-            INSERT INTO ${table} (whatsapp_connection_id, message_id, from_me, message_type, timestamp)
-            VALUES (${connectionId}, 'WA-DUP-1', false, 'text', now())
+            INSERT INTO ${table} (contact_id, whatsapp_connection_id, message_id, from_me, message_type, timestamp)
+            VALUES (${contactId}, ${connectionId}, 'WA-DUP-1', false, 'text', now())
           `.execute(db);
         } catch {
           rejected = true;
@@ -381,15 +390,22 @@ describe("adopting a bare index for a constraint target", () => {
           INSERT INTO ${sql.raw(`"${schemaName}"."whatsapp_connections"`)} (id)
           VALUES (${connectionId})
         `.execute(db);
+        // Messages must address a contact or a conversation, or the duplicate
+        // below would be rejected by that check rather than by the index.
+        const contactId = crypto.randomUUID();
         await sql`
-          INSERT INTO ${messages} (whatsapp_connection_id, message_id, from_me, message_type, timestamp)
-          VALUES (${connectionId}, 'WA-ADOPT-1', false, 'text', now())
+          INSERT INTO ${sql.raw(`"${schemaName}"."contacts"`)} (id, jid, whatsapp_connection_id)
+          VALUES (${contactId}, '60123456789@s.whatsapp.net', ${connectionId})
+        `.execute(db);
+        await sql`
+          INSERT INTO ${messages} (contact_id, whatsapp_connection_id, message_id, from_me, message_type, timestamp)
+          VALUES (${contactId}, ${connectionId}, 'WA-ADOPT-1', false, 'text', now())
         `.execute(db);
         let rejected = false;
         try {
           await sql`
-            INSERT INTO ${messages} (whatsapp_connection_id, message_id, from_me, message_type, timestamp)
-            VALUES (${connectionId}, 'WA-ADOPT-1', false, 'text', now())
+            INSERT INTO ${messages} (contact_id, whatsapp_connection_id, message_id, from_me, message_type, timestamp)
+            VALUES (${contactId}, ${connectionId}, 'WA-ADOPT-1', false, 'text', now())
           `.execute(db);
         } catch {
           rejected = true;
@@ -1139,6 +1155,12 @@ describe("repeated reconciliation is a no-op", () => {
           INSERT INTO ${sql.raw(`"${schemaName}"."whatsapp_connections"`)} (id, status)
           VALUES (${connectionId}, 'connected')
         `.execute(db);
+        // Messages must address a contact or a conversation.
+        const contactId = crypto.randomUUID();
+        await sql`
+          INSERT INTO ${sql.raw(`"${schemaName}"."contacts"`)} (id, jid, whatsapp_connection_id)
+          VALUES (${contactId}, '60123456789@s.whatsapp.net', ${connectionId})
+        `.execute(db);
 
         let release!: () => void;
         const released = new Promise<void>((resolve) => {
@@ -1153,8 +1175,8 @@ describe("repeated reconciliation is a no-op", () => {
           `.execute(trx);
           await sql`
             INSERT INTO ${sql.raw(`"${schemaName}"."messages"`)}
-              (whatsapp_connection_id, message_id, from_me, message_type, timestamp)
-            VALUES (${connectionId}, 'WA-LOCK-1', false, 'text', now())
+              (contact_id, whatsapp_connection_id, message_id, from_me, message_type, timestamp)
+            VALUES (${contactId}, ${connectionId}, 'WA-LOCK-1', false, 'text', now())
           `.execute(trx);
           await released;
         });
