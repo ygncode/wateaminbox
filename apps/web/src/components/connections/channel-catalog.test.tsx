@@ -110,3 +110,19 @@ describe("channelUnavailableReason", () => {
     ).toBe("Planned");
   });
 });
+
+describe("inbox account marks", () => {
+  test("every account the scope selector can list resolves to a brand mark", () => {
+    // The selector previously listed accounts as bare text, so a WhatsApp
+    // number and a Telegram bot were indistinguishable. Each row needs an
+    // entry to draw, and the two live adapters must always have one.
+    expect(
+      catalogEntryForAccount("whatsapp", "whatsapp_linked_device"),
+    ).toBeDefined();
+    expect(catalogEntryForAccount("telegram", "telegram_bot")).toBeDefined();
+    for (const entry of CHANNEL_CATALOG) {
+      expect(typeof entry.Mark).toBe("function");
+      expect(entry.tileClassName.length).toBeGreaterThan(0);
+    }
+  });
+});

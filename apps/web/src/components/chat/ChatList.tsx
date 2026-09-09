@@ -1,5 +1,13 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowRight, Check, Smartphone, Tags, UserPlus, X } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  Inbox,
+  Smartphone,
+  Tags,
+  UserPlus,
+  X,
+} from "lucide-react";
 import {
   memo,
   useCallback,
@@ -14,6 +22,8 @@ import { Link } from "react-router";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { type Tag, useTags } from "../../hooks/contact/useContactTags";
 import { useDebounce } from "../../hooks/ui";
+import { cn } from "@/lib/utils";
+import { BrandMark } from "../brand/BrandMark";
 import { catalogEntryForAccount } from "@/components/connections/channel-catalog";
 import { useChannelAccounts } from "../../hooks/useChannelAccounts";
 import { useChannelConversations } from "../../hooks/useChannelConversations";
@@ -181,16 +191,18 @@ export const ChatList = memo(function ChatList({
         kind: "whatsapp" as const,
         label: getConnectionLabel(connection),
         offline: connection.status !== "connected",
+        entry: catalogEntryForAccount("whatsapp", "whatsapp_linked_device"),
       })),
-      ...channelAccounts.map((account) => ({
-        id: account.id,
-        kind: "channel" as const,
-        label:
-          account.displayName?.trim() ||
-          catalogEntryForAccount(account.channel, account.provider)?.name ||
-          account.channel,
-        offline: account.status !== "connected",
-      })),
+      ...channelAccounts.map((account) => {
+        const entry = catalogEntryForAccount(account.channel, account.provider);
+        return {
+          id: account.id,
+          kind: "channel" as const,
+          label: account.displayName?.trim() || entry?.name || account.channel,
+          offline: account.status !== "connected",
+          entry,
+        };
+      }),
     ],
     [channelAccounts, connections],
   );
@@ -276,7 +288,7 @@ export const ChatList = memo(function ChatList({
       {/* Account scope makes the destination number explicit in multi-account inboxes. */}
       {inboxAccounts.length > 1 && (
         <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-2 dark:border-dark-border dark:bg-dark-secondary">
-          <Smartphone
+          <Inbox
             className="h-4 w-4 shrink-0 text-gray-400 dark:text-dark-text-tertiary"
             aria-hidden="true"
           />
@@ -294,14 +306,31 @@ export const ChatList = memo(function ChatList({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">
-                {t("chat.allAccounts", "All accounts")}
+                <span className="flex items-center gap-2">
+                  <BrandMark className="size-4 shrink-0 rounded-[0.25rem] object-contain" />
+                  {t("chat.allAccounts", "All accounts")}
+                </span>
               </SelectItem>
               {inboxAccounts.map((account) => (
                 <SelectItem key={account.id} value={account.id}>
-                  {account.label}
-                  {account.offline
-                    ? ` · ${t("chat.offline", "Offline").toLowerCase()}`
-                    : ""}
+                  <span className="flex min-w-0 items-center gap-2">
+                    {account.entry ? (
+                      <span
+                        className={cn(
+                          "grid size-4 shrink-0 place-items-center rounded-[0.25rem]",
+                          account.entry.tileClassName,
+                        )}
+                      >
+                        <account.entry.Mark className="size-3" />
+                      </span>
+                    ) : null}
+                    <span className="truncate">
+                      {account.label}
+                      {account.offline
+                        ? ` · ${t("chat.offline", "Offline").toLowerCase()}`
+                        : ""}
+                    </span>
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
