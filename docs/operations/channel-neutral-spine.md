@@ -215,6 +215,73 @@ been moved on by a later merge or a manual reassignment is skipped and counted
 in `skippedEndpoints` rather than dragged back, so a newer decision is never
 silently clobbered.
 
+## Moving linked-device WhatsApp onto the spine
+
+The order matters. Each step is verifiable and the last one is a flag flip
+that reverses instantly.
+
+### 1. Backfill
+
+Neutral rows are created for new traffic by dual write, but history is not.
+Run the checkpointed backfill; it is idempotent and resumable, so an
+interrupted run is re-run rather than repaired.
+
+```sh
+docker exec <api-container> /usr/local/bin/secret-entrypoint \
+  bun run /app/apps/api/dist/scripts/backfill-channel-spine.js --all --apply
+```
+
+`--all` skips workspaces that are not dual-writing rather than aborting.
+Naming a workspace explicitly that is not enabled is still an error.
+
+### 2. Prove parity before trusting it
+
+Both must hold for every workspace before enabling the provider:
+
+```sql
+-- nothing left unmirrored
+SELECT count(*) FROM <tenant>.messages
+WHERE conversation_id IS NULL AND contact_id IS NOT NULL
+  AND whatsapp_connection_id IS NOT NULL;
+
+-- nothing stuck
+SELECT status, count(*) FROM <tenant>.channel_spine_reconciliation_journal
+GROUP BY status;
+```
+
+Then watch the API logs for `Linked-device normalization shadow mismatch`.
+A non-zero rate means legacy and neutral disagree about live traffic, and the
+provider must not be enabled until it is explained. This is RFC phase 4's exit
+criterion and it is the whole point of the shadow.
+
+### 3. Enable the provider
+
+```sh
+... set-channel-spine-flags.js --all --dual-write --shadow --reads \
+  --authority neutral --providers telegram_bot,whatsapp_linked_device
+```
+
+Outbound WhatsApp sends now go through the linked-device adapter: the route
+writes a message plus an outbound intent atomically, and the dispatcher claims
+the intent and emits the same NATS command the legacy path always sent.
+Inbound events deliberately stay on the legacy handler with dual write, which
+produces the same neutral rows without moving the ingest path.
+
+### 4. Rollback
+
+Drop the provider from the list. Sends return to the legacy path on the next
+request; nothing needs to be undone, because the neutral rows dual write
+created are still correct and still maintained.
+
+```sh
+... set-channel-spine-flags.js --all --dual-write --shadow --reads \
+  --authority neutral --providers telegram_bot
+```
+
+Intents already claimed finish on the adapter. Anything still pending is
+retried by the dispatcher only while its provider is enabled, so pending
+intents stop being claimed rather than failing.
+
 ## Known remaining work
 
 Still incomplete before claiming the RFC finished:
