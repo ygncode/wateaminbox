@@ -1,6 +1,6 @@
-import type { TenantDatabase } from "@wateaminbox/database";
 import { createHash } from "node:crypto";
-import type { Transaction } from "kysely";
+import type { TenantDatabase } from "@wateaminbox/database";
+import { sql, type Transaction } from "kysely";
 import { isChannelSpineTenantReady } from "../../../services/channel-spine-readiness.service.js";
 
 export interface LinkedDeviceBridge {
@@ -527,6 +527,15 @@ export async function shadowLinkedDeviceWorkflow(
   return result;
 }
 
+/**
+ * Shadow writes are best-effort: a failure must never abort the legacy
+ * mutation that is still authoritative. Kysely's `Transaction.transaction()`
+ * throws outright rather than nesting, so the isolation comes from a real
+ * PostgreSQL savepoint - roll back to it and the caller's transaction is
+ * still usable for the journal write and the legacy commit.
+ */
+let shadowSavepointCounter = 0;
+
 export async function shadowLinkedDeviceLegacyMutation(
   trx: Transaction<TenantDatabase>,
   companyId: string,
@@ -535,21 +544,38 @@ export async function shadowLinkedDeviceLegacyMutation(
 ): Promise<boolean> {
   if (!(await isChannelSpineTenantReady(trx, companyId))) return false;
   let errorCode: string | null = null;
+  // Unique per call so a caller that shadows twice in one transaction cannot
+  // release an outer savepoint of the same name.
+  shadowSavepointCounter = (shadowSavepointCounter + 1) % 1_000_000;
+  const savepointName = sql.id(
+    `channel_spine_shadow_${shadowSavepointCounter}`,
+  );
+  await sql`SAVEPOINT ${savepointName}`.execute(trx);
   try {
-    await trx.transaction().execute(async (savepoint) => {
-      if (messageId) {
-        const message = await shadowLinkedDeviceMessage(savepoint, messageId);
-        if (message.status === "unresolved") errorCode = message.errorCode;
-      }
-      const workflow = await shadowLinkedDeviceWorkflow(
-        savepoint,
-        companyId,
-        legacyContactId,
-      );
-      if (workflow.status === "unresolved") errorCode = workflow.errorCode;
-    });
+    if (messageId) {
+      const message = await shadowLinkedDeviceMessage(trx, messageId);
+      if (message.status === "unresolved") errorCode = message.errorCode;
+    }
+    const workflow = await shadowLinkedDeviceWorkflow(
+      trx,
+      companyId,
+      legacyContactId,
+    );
+    if (workflow.status === "unresolved") errorCode = workflow.errorCode;
+    await sql`RELEASE SAVEPOINT ${savepointName}`.execute(trx);
   } catch {
     errorCode = "shadow_write_failed";
+    try {
+      // Discards only the shadow writes; the legacy statements that ran
+      // before this call keep their effects and the transaction stays open,
+      // which is what lets the journal row below still be written.
+      await sql`ROLLBACK TO SAVEPOINT ${savepointName}`.execute(trx);
+      await sql`RELEASE SAVEPOINT ${savepointName}`.execute(trx);
+    } catch {
+      // The transaction is unusable, so the journal write would fail too.
+      // Report the shadow failure rather than failing the legacy mutation.
+      return false;
+    }
   }
   if (!errorCode) return true;
   await journalLinkedDeviceShadowFailure(

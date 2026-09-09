@@ -1,11 +1,11 @@
+import { createHash } from "node:crypto";
 import {
   assertNormalizedChannelEvent,
   type MessageUpsertEventPayload,
   type NormalizedChannelEvent,
+  normalizeJid,
 } from "@wateaminbox/shared";
-import { createHash } from "node:crypto";
 import type { MessageEvent } from "../../../lib/nats/index.js";
-import { normalizeJid } from "@wateaminbox/shared";
 
 export function normalizeLinkedDeviceMessageEvent(
   event: MessageEvent,
