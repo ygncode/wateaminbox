@@ -48,7 +48,17 @@ const RETRY_CEILING_MS = 6 * 60 * 60_000;
  */
 const MAX_ATTEMPTS = 8;
 
+/**
+ * Both API replicas start at the same moment during a deployment, and a cycle
+ * touches every workspace. Firing it immediately puts that burst on top of a
+ * cold cache while the replicas are also taking live traffic, on a host with
+ * four cores. Nothing here is urgent - the backlog is minutes old at worst -
+ * so the first cycle waits for the process to settle.
+ */
+const STARTUP_DELAY_MS = 90_000;
+
 let cycleTimer: ReturnType<typeof setInterval> | null = null;
+let startupTimer: ReturnType<typeof setTimeout> | null = null;
 let cycleInFlight: Promise<void> | null = null;
 
 export interface ReconcileResult {
@@ -305,18 +315,26 @@ export function initializeChannelSpineReconciler(): void {
         cycleInFlight = null;
       });
   };
-  run();
-  cycleTimer = setInterval(run, CYCLE_INTERVAL_MS);
+  startupTimer = setTimeout(() => {
+    startupTimer = null;
+    run();
+    cycleTimer = setInterval(run, CYCLE_INTERVAL_MS);
+  }, STARTUP_DELAY_MS);
+  // Never hold the process open just to reconcile.
+  startupTimer.unref?.();
 }
 
 export function shutdownChannelSpineReconciler(): void {
+  if (startupTimer) clearTimeout(startupTimer);
   if (cycleTimer) clearInterval(cycleTimer);
+  startupTimer = null;
   cycleTimer = null;
 }
 
 /** Exposed for the operator script and tests. */
 export const RECONCILER_PROTOCOL = {
   cycleIntervalMs: CYCLE_INTERVAL_MS,
+  startupDelayMs: STARTUP_DELAY_MS,
   maxAttempts: MAX_ATTEMPTS,
   backoffMs,
 } as const;
