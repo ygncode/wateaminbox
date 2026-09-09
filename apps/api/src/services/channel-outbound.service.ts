@@ -13,7 +13,10 @@ import type { Transaction } from "kysely";
 import { sql } from "kysely";
 import { resolveAdapterCapabilities } from "../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../channel-spine/registry.js";
-import { enqueueOutboundRealtimeFanout } from "./channel-message-fanout.service.js";
+import {
+  enqueueOutboundRealtimeFanout,
+  recordOutboundConversationActivity,
+} from "./channel-message-fanout.service.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import {
   getChannelSpineWorkspaceAuthority,
@@ -103,6 +106,12 @@ export async function insertNeutralOutboundSend(
     input.conversationId,
     messageId,
   );
+  await recordOutboundConversationActivity(trx, {
+    conversationId: input.conversationId,
+    contactId: input.contactId,
+    textContent: input.content,
+    occurredAt: new Date(),
+  });
   await trx
     .insertInto("outbound_message_intents")
     .values({

@@ -38,7 +38,10 @@ import {
   markDeprecatedMessageSend,
   requireMessageSendPermission,
 } from "../../middleware/message-send-policy.js";
-import { enqueueOutboundRealtimeFanout } from "../../services/channel-message-fanout.service.js";
+import {
+  enqueueOutboundRealtimeFanout,
+  recordOutboundConversationActivity,
+} from "../../services/channel-message-fanout.service.js";
 import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
 import { toAuthUserResponse } from "../../services/auth.service.js";
 import {
@@ -211,6 +214,41 @@ messageRoutes.get(
             buildQuotedMessageData(q as MessageDbRow, userNames),
           ]),
       );
+    }
+
+    // Channel-neutral replies reference the quoted row by its own id, not by
+    // a provider message id, and carry no WhatsApp connection to scope by.
+    // Resolved separately so a reply renders its quote on every channel.
+    const neutralQuotedIds = [
+      ...new Set(
+        messages
+          .map((message) => message.reply_to_message_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (neutralQuotedIds.length > 0) {
+      const neutralQuoted = await tenantDb
+        .selectFrom("messages")
+        .selectAll()
+        .where("id", "in", neutralQuotedIds)
+        // Scoped to this thread: a quote must never be resolved from a
+        // conversation the reader is not currently authorized to read.
+        .$if(Boolean(historyConversationId), (qb) =>
+          qb.where("conversation_id", "=", historyConversationId!),
+        )
+        .execute();
+      const neutralUserNames = await getUserNames(
+        neutralQuoted
+          .map((message) => message.sent_by_user_id)
+          .filter((id): id is string => Boolean(id)),
+      );
+      for (const [id, name] of neutralUserNames) userNames.set(id, name);
+      for (const quotedRow of neutralQuoted) {
+        quotedMessagesMap.set(
+          quotedRow.id,
+          buildQuotedMessageData(quotedRow as MessageDbRow, userNames),
+        );
+      }
     }
 
     const reactionsMap = await loadMessageReactions(
@@ -547,6 +585,12 @@ messageRoutes.post(
           neutralConversation.id,
           messageId,
         );
+        await recordOutboundConversationActivity(trx, {
+          conversationId: neutralConversation.id,
+          contactId: neutralConversation.legacy_contact_id,
+          textContent: content ?? null,
+          occurredAt: new Date(),
+        });
         await trx
           .insertInto("outbound_message_intents")
           .values({

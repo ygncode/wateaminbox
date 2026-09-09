@@ -43,6 +43,12 @@ export interface MessageDbRow {
   media_download_status: string | null;
   metadata: Record<string, unknown> | null;
   quoted_message_id: string | null;
+  /**
+   * Internal FK used by the channel-neutral path. Legacy WhatsApp rows quote
+   * by the provider's own id (`quoted_message_id`); a neutral send has no such
+   * id at insert time and references the row it replies to directly.
+   */
+  reply_to_message_id: string | null;
   is_forwarded: boolean;
   is_starred: boolean;
   deleted_by_sender: boolean;
@@ -357,10 +363,13 @@ export function formatMessageForConversation(
     content: msg.content || "",
     mediaUrl: msg.media_url,
     metadata: buildMessageMetadata(msg),
-    replyToMessageId: msg.quoted_message_id || undefined,
-    replyToMessage: msg.quoted_message_id
-      ? quotedMessagesMap.get(msg.quoted_message_id) || null
-      : undefined,
+    // Either key may carry the reference; the map is populated under both.
+    replyToMessageId:
+      msg.quoted_message_id || msg.reply_to_message_id || undefined,
+    replyToMessage: (() => {
+      const quotedKey = msg.quoted_message_id || msg.reply_to_message_id;
+      return quotedKey ? quotedMessagesMap.get(quotedKey) || null : undefined;
+    })(),
     isForwarded: msg.is_forwarded,
     isStarred: msg.is_starred,
     isDeleted: msg.deleted_by_sender || !!msg.deleted_at,

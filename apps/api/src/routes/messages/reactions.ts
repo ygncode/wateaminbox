@@ -4,6 +4,18 @@
  * Routes for adding and removing reactions from messages.
  */
 
+import { isChannel, isChannelProvider } from "@wateaminbox/shared";
+import { createHash } from "node:crypto";
+import type { Context } from "hono";
+import { resolveAdapterCapabilities } from "../../channel-spine/application/adapter-registry.js";
+import { channelAdapterRegistry } from "../../channel-spine/registry.js";
+import {
+  getChannelSpineWorkspaceAuthority,
+  isChannelProviderEnabled,
+} from "../../services/channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
+import { requireConversationSendAccess } from "../../services/send-access.service.js";
+import { broadcastToConversationViewers } from "../../services/message-broadcast.service.js";
 import { zValidator } from "@hono/zod-validator";
 import { nowMs } from "@wateaminbox/shared";
 import { Hono } from "hono";
@@ -52,12 +64,23 @@ reactionRoutes.post(
         "sender_jid",
         "metadata",
         "whatsapp_connection_id",
+        "channel_account_id",
+        "conversation_id",
+        "external_message_id",
       ])
       .where("id", "=", messageId)
       .executeTakeFirst();
 
     if (!message) {
       return notFound(c, "Message");
+    }
+
+    // A message on a neutral channel account has no WhatsApp id, JID, or
+    // connection to react through. Its reaction is an outbound action intent
+    // the adapter performs, so it is handled before the WhatsApp checks below
+    // rather than failing them.
+    if (message.channel_account_id && !message.whatsapp_connection_id) {
+      return reactOnChannel(c, message, body.emoji);
     }
 
     if (!message.contact_id) {
@@ -303,3 +326,139 @@ reactionRoutes.delete("/:id/reaction", async (c) => {
     isOwn: true,
   });
 });
+
+/**
+ * React to a message on a channel-neutral account.
+ *
+ * The reaction is persisted locally and queued as an outbound action intent;
+ * the adapter performs it and the dispatcher fences it exactly like a send.
+ * Reacting never claims an unassigned conversation, matching the WhatsApp
+ * path: a reaction is a light gesture, not a decision to own the thread.
+ */
+async function reactOnChannel(
+  c: Context,
+  message: {
+    id: string;
+    contact_id: string | null;
+    channel_account_id: string | null;
+    conversation_id: string | null;
+    external_message_id: string | null;
+  },
+  emoji: string,
+) {
+  const { tenantDb, user, companyId } = getRouteContext(c);
+  if (!message.conversation_id || !message.channel_account_id) {
+    return badRequest(c, "Message is not on a channel conversation");
+  }
+  const account = await tenantDb
+    .selectFrom("channel_accounts")
+    .select(["id", "channel", "provider", "status"])
+    .where("id", "=", message.channel_account_id)
+    .where("archived_at", "is", null)
+    .executeTakeFirst();
+  if (!account) return notFound(c, "Channel account");
+
+  const authority = await getChannelSpineWorkspaceAuthority(companyId);
+  if (
+    authority.writeAuthority !== "neutral" ||
+    !isChannelProviderEnabled(authority, account.provider) ||
+    !(await isChannelSpineTenantReady(tenantDb, companyId))
+  ) {
+    return badRequest(c, "Neutral channel writes are not enabled");
+  }
+  if (!isChannel(account.channel) || !isChannelProvider(account.provider)) {
+    return badRequest(c, "The channel adapter is not available");
+  }
+  const capabilities = await resolveAdapterCapabilities(
+    channelAdapterRegistry,
+    account.channel,
+    account.provider,
+    {
+      companyId,
+      channelAccountId: account.id,
+      conversationId: message.conversation_id,
+      now: new Date().toISOString(),
+    },
+  );
+  if (!capabilities.reactions) {
+    return badRequest(c, "This channel does not support reactions");
+  }
+
+  // One intent per (message, reactor, emoji): re-sending the same reaction is
+  // the same request, while changing it is a new one the provider must see.
+  const idempotencyKey = `reaction:${message.id}:${user.id}:${emoji}`;
+  // The adapter addresses the provider's own message, not ours.
+  if (!message.external_message_id) {
+    return badRequest(c, "Message has not been delivered yet");
+  }
+  const normalizedPayload = {
+    emoji,
+    messageId: message.id,
+    externalMessageId: message.external_message_id,
+  };
+  const requestFingerprint = createHash("sha256")
+    .update(JSON.stringify(normalizedPayload))
+    .digest("hex");
+
+  await tenantDb.transaction().execute(async (trx) => {
+    await requireConversationSendAccess(
+      trx,
+      message.conversation_id as string,
+      user.id,
+      { claimUnassigned: false },
+    );
+    await trx
+      .insertInto("message_reactions")
+      .values({
+        message_id: message.id,
+        reactor_jid: `user:${user.id}`,
+        emoji,
+        channel_account_id: account.id,
+      })
+      .onConflict((oc) =>
+        oc.columns(["message_id", "reactor_jid"]).doUpdateSet({ emoji }),
+      )
+      .execute();
+    await trx
+      .insertInto("outbound_message_intents")
+      .values({
+        channel_account_id: account.id,
+        conversation_id: message.conversation_id as string,
+        // Names the message being reacted to. Allowed alongside that
+        // message's own send intent: the one-send-per-message unique index
+        // excludes `action:` operations.
+        message_id: message.id,
+        scheduled_message_id: null,
+        operation: "action:reaction",
+        idempotency_key: idempotencyKey,
+        request_fingerprint: requestFingerprint,
+        normalized_payload: normalizedPayload,
+        lease_token: null,
+        lease_expires_at: null,
+        provider_request_id: null,
+        last_error_code: null,
+      })
+      .onConflict((oc) => oc.doNothing())
+      .execute();
+  });
+
+  await broadcastToConversationViewers(
+    companyId,
+    message.conversation_id,
+    "message:reaction",
+    {
+      messageId: message.id,
+      contactId: message.contact_id,
+      conversationId: message.conversation_id,
+      from: `user:${user.id}`,
+      emoji,
+      isOwn: true,
+      timestamp: nowMs(),
+    },
+  );
+  return successData(c, {
+    emoji,
+    reactorJid: `user:${user.id}`,
+    isOwn: true,
+  });
+}

@@ -322,7 +322,7 @@ export async function ensureChannelSpineTenantSchema<Database>(
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       channel_account_id UUID NOT NULL REFERENCES ${table("channel_accounts")}(id) ON DELETE RESTRICT,
       conversation_id UUID NOT NULL REFERENCES ${table("conversations")}(id) ON DELETE RESTRICT,
-      message_id UUID UNIQUE REFERENCES ${table("messages")}(id) ON DELETE RESTRICT,
+      message_id UUID REFERENCES ${table("messages")}(id) ON DELETE RESTRICT,
       scheduled_message_id UUID REFERENCES ${table("scheduled_messages")}(id) ON DELETE RESTRICT,
       operation TEXT NOT NULL,
       idempotency_key TEXT NOT NULL,
@@ -638,6 +638,15 @@ async function ensureIndexes<Database>(
   const definitions: ReadonlyArray<readonly [string, ReturnType<typeof sql>]> =
     [
       [
+        // One send intent per message. Actions (reactions, edits, deletes)
+        // target a message that may already own its send intent, so they are
+        // excluded here and bounded by the operation/idempotency-key UNIQUE.
+        "outbound_intents_send_message_uidx",
+        sql`CREATE UNIQUE INDEX ${sql.ref(`${schemaName}_omi_send_msg_uidx`)}
+        ON ${table("outbound_message_intents")} (message_id)
+        WHERE message_id IS NOT NULL AND operation NOT LIKE 'action:%'`,
+      ],
+      [
         "channel_accounts_external_uidx",
         sql`CREATE UNIQUE INDEX ${sql.ref(`${schemaName}_ca_external_uidx`)}
         ON ${table("channel_accounts")} (channel, provider, external_scope_id, external_account_id)
@@ -718,6 +727,7 @@ function indexNameFor(logicalName: string, schemaName: string): string {
     message_delivery_events_external_uidx: "mde_external_uidx",
     channel_event_inbox_due_idx: "cei_due_idx",
     outbound_message_intents_due_idx: "omi_due_idx",
+    outbound_intents_send_message_uidx: "omi_send_msg_uidx",
     contact_suppressions_active_idx: "csup_active_idx",
     channel_spine_reconciliation_due_idx: "csrj_due_idx",
   };

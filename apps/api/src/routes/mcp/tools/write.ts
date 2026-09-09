@@ -30,7 +30,10 @@ import {
   broadcastAutoAssignment,
   broadcastContactAssignmentEvent,
 } from "../../../services/assignment-broadcast.service.js";
-import { enqueueOutboundRealtimeFanout } from "../../../services/channel-message-fanout.service.js";
+import {
+  enqueueOutboundRealtimeFanout,
+  recordOutboundConversationActivity,
+} from "../../../services/channel-message-fanout.service.js";
 import { getAssignmentNotificationInputs } from "../../../services/assignment-notification.service.js";
 import { decideContactAssignment } from "../../../services/assignment-policy.js";
 import {
@@ -333,6 +336,12 @@ async function queueNeutralTextMessage(
       conversation.id,
       messageId,
     );
+    await recordOutboundConversationActivity(trx, {
+      conversationId: conversation.id,
+      contactId,
+      textContent: content,
+      occurredAt: new Date(),
+    });
     await trx
       .insertInto("outbound_message_intents")
       .values({
