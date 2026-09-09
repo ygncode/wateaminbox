@@ -164,6 +164,18 @@ services:
       APP_URL: https://${APP_DOMAIN:?set APP_DOMAIN}
       CORS_ORIGINS: https://${APP_DOMAIN:?set APP_DOMAIN}
       JWT_SECRET_FILE: /run/secrets/jwt_secret
+      # Envelope key for provider credentials (a Telegram bot token, and any
+      # future token-based adapter). Optional: a linked-device-only host stores
+      # no provider secrets, so the mount falls back to /dev/null and the
+      # entrypoint simply leaves the variable unset. Providers that need it
+      # report themselves unavailable rather than failing at connect time.
+      # `:+` so the variable exists only when a key file is configured. The
+      # entrypoint treats a named-but-empty secret as a fatal misconfiguration,
+      # so pointing this at an unset /dev/null mount would refuse to boot.
+      CHANNEL_CREDENTIAL_ENCRYPTION_KEYS_FILE: ${CHANNEL_CREDENTIAL_ENCRYPTION_KEYS_FILE:+/run/secrets/channel_credential_encryption_keys}
+      # The key version to encrypt with. Not a secret - it names which key in
+      # the ring is active, and old versions stay readable during rotation.
+      CHANNEL_CREDENTIAL_ACTIVE_KEY_VERSION: ${CHANNEL_CREDENTIAL_ACTIVE_KEY_VERSION:-}
       JWT_ACCESS_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 7d
       MAIL_DRIVER: ${MAIL_DRIVER:?set MAIL_DRIVER}
@@ -205,6 +217,7 @@ services:
       - s3_access_key
       - s3_secret_key
       - jwt_secret
+      - channel_credential_encryption_keys
       - mail_api_key
       - meilisearch_master_key
       - centrifugo_api_key
@@ -484,6 +497,12 @@ secrets:
     file: ${S3_SECRET_KEY_FILE:?set S3_SECRET_KEY_FILE}
   jwt_secret:
     file: ${JWT_SECRET_FILE:?set JWT_SECRET_FILE}
+  # Optional, like the lifecycle-email token below: a deployment that connects
+  # no token-based provider never needs a key, and /dev/null keeps the mount
+  # valid while leaving the variable unset.
+  channel_credential_encryption_keys:
+    file: ${CHANNEL_CREDENTIAL_ENCRYPTION_KEYS_FILE:-/dev/null}
+
   centrifugo_api_key:
     file: ${CENTRIFUGO_API_KEY_FILE:?set CENTRIFUGO_API_KEY_FILE}
   centrifugo_token_secret:
