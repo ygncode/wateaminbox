@@ -30,6 +30,7 @@ import {
   broadcastAutoAssignment,
   broadcastContactAssignmentEvent,
 } from "../../../services/assignment-broadcast.service.js";
+import { enqueueOutboundRealtimeFanout } from "../../../services/channel-message-fanout.service.js";
 import { getAssignmentNotificationInputs } from "../../../services/assignment-notification.service.js";
 import { decideContactAssignment } from "../../../services/assignment-policy.js";
 import {
@@ -323,6 +324,15 @@ async function queueNeutralTextMessage(
         provider_metadata: {},
       })
       .execute();
+    // Same transaction as the message: an MCP send has to reach every open
+    // inbox the way a send from the web app does.
+    await enqueueOutboundRealtimeFanout(
+      trx,
+      companyId,
+      conversation.channel_account_id,
+      conversation.id,
+      messageId,
+    );
     await trx
       .insertInto("outbound_message_intents")
       .values({

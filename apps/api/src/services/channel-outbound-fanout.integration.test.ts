@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
 import { sql } from "kysely";
+import { dispatchChannelMessageDelivery } from "./channel-message-delivery.service.js";
 import { insertNeutralOutboundSend } from "./channel-outbound.service.js";
 import {
   clearTenantConnection,
@@ -111,6 +112,17 @@ describe("insertNeutralOutboundSend", () => {
             .where("id", "=", messageId)
             .executeTakeFirst(),
         ).toEqual({ direction: "outbound" });
+
+        // The worker has to be able to actually deliver it. A job that is
+        // enqueued but always fails would leave the sender's thread just as
+        // stale, only with a growing outbox behind it.
+        expect(await dispatchChannelMessageDelivery("realtime")).toBe(1);
+        const remaining = await sql<{ count: string }>`
+          SELECT count(*)::text AS count
+          FROM public.channel_message_delivery_outbox
+          WHERE company_id = ${companyId}::uuid
+        `.execute(db);
+        expect(remaining.rows[0]!.count).toBe("0");
       } finally {
         await clearTenantConnection(companyId);
         await sql

@@ -38,6 +38,7 @@ import {
   markDeprecatedMessageSend,
   requireMessageSendPermission,
 } from "../../middleware/message-send-policy.js";
+import { enqueueOutboundRealtimeFanout } from "../../services/channel-message-fanout.service.js";
 import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
 import { toAuthUserResponse } from "../../services/auth.service.js";
 import {
@@ -535,6 +536,17 @@ messageRoutes.post(
             provider_metadata: {},
           })
           .execute();
+        // Queued with the message, in the same transaction, so the sender's
+        // own thread and chat list update without a reload. Without this the
+        // message reached the provider and the recipient but no client was
+        // ever told it existed.
+        await enqueueOutboundRealtimeFanout(
+          trx,
+          companyId,
+          neutralConversation.channel_account_id,
+          neutralConversation.id,
+          messageId,
+        );
         await trx
           .insertInto("outbound_message_intents")
           .values({
