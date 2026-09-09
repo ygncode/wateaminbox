@@ -316,6 +316,22 @@ Intents already claimed finish on the adapter. Anything still pending is
 retried by the dispatcher only while its provider is enabled, so pending
 intents stop being claimed rather than failing.
 
+## Current production state
+
+As of 2026-09-09 every active workspace runs linked-device WhatsApp through
+the spine: `write_authority = neutral` with both `telegram_bot` and
+`whatsapp_linked_device` enabled, history backfilled to zero unmirrored rows,
+and an empty reconciliation journal.
+
+The two workspaces that still show unmirrored messages are `deleted` and carry
+no flags, so the backfill skips them by design. That is not a gap.
+
+Sending diverges by client and it is worth knowing which is which. The inbox
+posts to `/conversations/:id/messages`, which honours the flags and therefore
+takes the neutral path. The MCP `send_message` tool routes a WhatsApp contact
+down the legacy path unconditionally and never consults them. Both end in the
+same NATS command, so both work; only the route differs.
+
 ## Known remaining work
 
 Still incomplete before claiming the RFC finished:
