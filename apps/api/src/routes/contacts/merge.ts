@@ -51,7 +51,7 @@ mergeRoutes.post("/:id/merge", zValidator("json", mergeSchema), async (c) => {
   const authority = await getChannelSpineWorkspaceAuthority(companyId);
   if (
     authority.writeAuthority !== "neutral" ||
-    !(await isChannelSpineTenantReady(tenantDb))
+    !(await isChannelSpineTenantReady(tenantDb, companyId))
   ) {
     return c.json(
       { error: "Contact merge is not enabled for this workspace" },

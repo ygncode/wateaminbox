@@ -121,7 +121,7 @@ export async function dispatchNextChannelOutbound(): Promise<number> {
     const authority = await getChannelSpineWorkspaceAuthority(company.id);
     if (authority.writeAuthority !== "neutral") continue;
     const tenantDb = await getTenantConnection(company.id);
-    if (!(await isChannelSpineTenantReady(tenantDb))) continue;
+    if (!(await isChannelSpineTenantReady(tenantDb, company.id))) continue;
     const claim = await tenantDb.transaction().execute(async (trx) => {
       const row = await trx
         .selectFrom("outbound_message_intents as intent")

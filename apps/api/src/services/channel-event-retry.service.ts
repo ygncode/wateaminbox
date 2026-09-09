@@ -28,7 +28,7 @@ export async function dispatchNextChannelEventRetry(): Promise<number> {
     const authority = await getChannelSpineWorkspaceAuthority(company.id);
     if (authority.writeAuthority !== "neutral") continue;
     const tenantDb = await getTenantConnection(company.id);
-    if (!(await isChannelSpineTenantReady(tenantDb))) continue;
+    if (!(await isChannelSpineTenantReady(tenantDb, company.id))) continue;
     const row = await tenantDb
       .selectFrom("channel_event_inbox")
       .select([

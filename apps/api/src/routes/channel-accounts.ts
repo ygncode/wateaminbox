@@ -93,7 +93,7 @@ channelAccountRoutes.get("/providers", async (c) => {
   const authority = await getChannelSpineWorkspaceAuthority(companyId);
   const neutralWrites = authority.writeAuthority === "neutral";
   const storageReady = neutralWrites
-    ? await isChannelSpineTenantReady(tenantDb)
+    ? await isChannelSpineTenantReady(tenantDb, companyId)
     : false;
   const providers = [
     {
@@ -141,7 +141,7 @@ channelAccountRoutes.post(
     ) {
       return notFound(c, "Telegram Bot is not enabled for this workspace");
     }
-    if (!(await isChannelSpineTenantReady(tenantDb))) {
+    if (!(await isChannelSpineTenantReady(tenantDb, companyId))) {
       return c.json({ error: "Channel storage indexes are not ready" }, 503);
     }
     const { botToken, displayName } = c.req.valid("json");

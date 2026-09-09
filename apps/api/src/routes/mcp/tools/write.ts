@@ -247,7 +247,7 @@ async function queueNeutralTextMessage(
   if (
     authority.writeAuthority !== "neutral" ||
     !isChannelProviderEnabled(authority, conversation.provider) ||
-    !(await isChannelSpineTenantReady(tenantDb))
+    !(await isChannelSpineTenantReady(tenantDb, companyId))
   ) {
     throw new McpToolError("Neutral channel writes are not enabled");
   }

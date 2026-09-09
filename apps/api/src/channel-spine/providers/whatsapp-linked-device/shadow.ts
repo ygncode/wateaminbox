@@ -533,7 +533,7 @@ export async function shadowLinkedDeviceLegacyMutation(
   legacyContactId: string,
   messageId?: string,
 ): Promise<boolean> {
-  if (!(await isChannelSpineTenantReady(trx))) return false;
+  if (!(await isChannelSpineTenantReady(trx, companyId))) return false;
   let errorCode: string | null = null;
   try {
     await trx.transaction().execute(async (savepoint) => {

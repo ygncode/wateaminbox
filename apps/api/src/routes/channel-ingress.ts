@@ -63,7 +63,7 @@ channelIngressRoutes.post("/:provider/:routeKey", async (c) => {
   }
 
   const tenantDb = await getTenantConnection(route.company_id);
-  if (!(await isChannelSpineTenantReady(tenantDb))) {
+  if (!(await isChannelSpineTenantReady(tenantDb, route.company_id))) {
     throw new HTTPException(503, { message: "Channel ingress is not ready" });
   }
   const account = await tenantDb

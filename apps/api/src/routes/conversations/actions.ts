@@ -76,7 +76,7 @@ neutralActionRoutes.post(
     ) {
       return notFound(c, "Conversation");
     }
-    if (!(await isChannelSpineTenantReady(tenantDb))) {
+    if (!(await isChannelSpineTenantReady(tenantDb, companyId))) {
       return c.json({ error: "Channel storage indexes are not ready" }, 503);
     }
     const body = c.req.valid("json");

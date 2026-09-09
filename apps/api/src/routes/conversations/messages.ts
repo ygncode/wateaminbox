@@ -406,7 +406,7 @@ messageRoutes.post(
           503,
         );
       }
-      if (!(await isChannelSpineTenantReady(tenantDb))) {
+      if (!(await isChannelSpineTenantReady(tenantDb, companyId))) {
         return c.json({ error: "Channel storage indexes are not ready" }, 503);
       }
       const idempotencyKey = c.req.header("idempotency-key")?.trim();
