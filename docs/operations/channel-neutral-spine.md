@@ -83,6 +83,36 @@ Unmerge is not implemented. Correct a wrong merge by creating a new contact and
 reassigning the affected endpoints, which leaves the original audit trail
 intact.
 
+## Connecting a channel locally
+
+Settings → Connections is channel-neutral. "Add connection" opens a provider
+picker; WhatsApp continues into QR pairing, Telegram asks for a BotFather
+token. A provider the workspace may not connect is shown disabled with the
+server's own reason, from `GET /channel-accounts/providers`.
+
+To connect a Telegram bot in a local workspace:
+
+1. Set `CHANNEL_CREDENTIAL_ENCRYPTION_KEYS` and
+   `CHANNEL_CREDENTIAL_ACTIVE_KEY_VERSION` for the API process.
+2. Point `APP_URL` at a publicly reachable HTTPS origin. Telegram registers a
+   webhook against it, so `localhost` cannot work — use a tunnel.
+3. Enable the workspace flags:
+
+   ```sh
+   bun run apps/api/src/scripts/set-channel-spine-flags.ts \
+     --company <workspace uuid> --dual-write --shadow --reads \
+     --authority neutral --providers telegram_bot
+   ```
+
+4. Build the concurrent indexes, which provisioning fails closed without:
+
+   ```sh
+   bun run apps/api/src/scripts/reconcile-channel-spine-indexes.ts --apply
+   ```
+
+The flag script is an operator tool, not an API. Rollout order and approval
+for anything beyond a local workspace are unchanged.
+
 ## Capability-driven UI
 
 Neutral channel threads render inside `ChannelComposerGate`, which resolves the
