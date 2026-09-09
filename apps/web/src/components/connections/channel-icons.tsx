@@ -57,9 +57,15 @@ export function MessengerMark({ className }: ChannelMarkProps) {
 export function LineMark({ className }: ChannelMarkProps) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      {/*
+        The brand mark sets the letters LINE inside the bubble. At the size a
+        picker tile gives it those letters collapse into an illegible smudge,
+        so this draws the bubble alone - recognizable at 24px, which is the
+        only thing the tile has to achieve.
+      */}
       <path
         fill="currentColor"
-        d="M12 3c5.24 0 9.5 3.44 9.5 7.68 0 1.7-.66 3.23-2.03 4.74-1.98 2.28-6.4 5.06-7.4 5.48-.98.42-.85-.26-.8-.5l.13-.79c.03-.24.06-.6-.03-.83-.1-.25-.5-.38-.79-.44C6.4 17.79 3 14.6 3 10.68 3 6.44 7.26 3 12 3ZM8.2 8.63a.36.36 0 0 0-.36.36v4.02c0 .2.16.36.36.36h.6c.2 0 .36-.16.36-.36V8.99a.36.36 0 0 0-.36-.36h-.6Zm8.86 0a.36.36 0 0 0-.36.36v2.32L15 8.8a.36.36 0 0 0-.3-.17h-.6a.36.36 0 0 0-.36.36v4.02c0 .2.16.36.36.36h.6c.2 0 .36-.16.36-.36v-2.33l1.72 2.53c.06.1.17.16.29.16h.6c.2 0 .36-.16.36-.36V8.99a.36.36 0 0 0-.36-.36h-.6Zm-6.2 0a.36.36 0 0 0-.36.36v4.02c0 .2.16.36.36.36h2.6c.2 0 .36-.16.36-.36v-.6a.36.36 0 0 0-.36-.36h-1.64V8.99a.36.36 0 0 0-.36-.36h-.6Zm9.1 0a.36.36 0 0 0-.36.36v4.02c0 .2.16.36.36.36h2.6c.2 0 .36-.16.36-.36v-.6a.36.36 0 0 0-.36-.36h-1.64v-.68h1.64c.2 0 .36-.16.36-.36v-.6a.36.36 0 0 0-.36-.36h-1.64v-.68h1.64c.2 0 .36-.16.36-.36v-.6a.36.36 0 0 0-.36-.36h-2.6Z"
+        d="M12 3c5.24 0 9.5 3.44 9.5 7.68 0 1.7-.66 3.23-2.03 4.74-1.98 2.28-6.4 5.06-7.4 5.48-.98.42-.85-.26-.8-.5l.13-.79c.03-.24.06-.6-.03-.83-.1-.25-.5-.38-.79-.44C6.4 17.79 3 14.6 3 10.68 3 6.44 7.26 3 12 3Z"
       />
     </svg>
   );
