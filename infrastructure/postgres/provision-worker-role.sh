@@ -83,11 +83,31 @@ BEGIN
     RAISE EXCEPTION 'worker roles have unsafe role attributes';
   END IF;
 
+  -- `wateaminbox_worker_runtime` is a grant role, and a multi-host deployment
+  -- gives each node its own login role that inherits it, so the set of members
+  -- is not just `wateaminbox_worker`. A per-node member is accepted only when
+  -- it is named for that purpose, holds no ADMIN OPTION (so it cannot widen
+  -- the grant), and carries none of the unsafe attributes asserted above for
+  -- the shared roles. Every other assertion is unchanged: the runtime role is
+  -- still a member of nothing, and no worker role may grant anything.
   IF EXISTS (
     SELECT 1 FROM pg_auth_members membership
     WHERE membership.member = runtime_oid
        OR (membership.roleid = runtime_oid AND (
-         worker_oid IS NULL OR membership.member <> worker_oid OR membership.admin_option
+         membership.admin_option
+         OR NOT (
+           (worker_oid IS NOT NULL AND membership.member = worker_oid)
+           OR EXISTS (
+             SELECT 1 FROM pg_roles node_role
+             WHERE node_role.oid = membership.member
+               AND node_role.rolname LIKE 'wti\_w\_%'
+               AND NOT (
+                 node_role.rolsuper OR node_role.rolcreatedb
+                 OR node_role.rolcreaterole OR node_role.rolreplication
+                 OR node_role.rolbypassrls OR NOT node_role.rolinherit
+               )
+           )
+         )
        ))
        OR (worker_oid IS NOT NULL AND membership.roleid = worker_oid)
        OR (worker_oid IS NOT NULL AND membership.member = worker_oid AND membership.roleid <> runtime_oid)
