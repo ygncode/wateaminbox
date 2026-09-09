@@ -38,9 +38,9 @@ import { useQuickReplySuggestions } from "../../hooks/useQuickReplies";
 import { uploadMedia } from "../../lib/api";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 import { ConnectionRoute } from "./ConnectionIdentity";
+import { useComposerFeatures } from "./composer-capabilities";
 import { shouldSendMessageOnEnter } from "./composer-keyboard";
 import { pickPastedAttachment } from "./composer-paste";
-import { useComposerFeatures } from "./composer-capabilities";
 import { canScheduleMessage } from "./composer-schedule";
 import { GroupMentionPicker } from "./GroupMentionPicker";
 import {
