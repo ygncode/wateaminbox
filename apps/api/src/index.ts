@@ -10,6 +10,10 @@ import {
   shutdownChannelAttachmentFetch,
 } from "./services/channel-attachment-fetch.service.js";
 import {
+  initializeChannelEndpointAvatars,
+  shutdownChannelEndpointAvatars,
+} from "./services/channel-endpoint-avatar.service.js";
+import {
   initializeChannelEventRetry,
   shutdownChannelEventRetry,
 } from "./services/channel-event-retry.service.js";
@@ -87,6 +91,7 @@ if (!isTestEnvironment) {
   initializeChannelOutbound();
   initializeChannelEventRetry();
   initializeChannelAttachmentFetch();
+  initializeChannelEndpointAvatars();
   initializeChannelMessageDelivery();
   initializeMessageSearch();
   initializeMessageDelivery();
@@ -141,6 +146,10 @@ function shutdownSteps(): ShutdownStep[] {
     {
       name: "channel-attachment-fetch",
       run: shutdownChannelAttachmentFetch,
+    },
+    {
+      name: "channel-endpoint-avatars",
+      run: shutdownChannelEndpointAvatars,
     },
     {
       name: "channel-message-delivery",

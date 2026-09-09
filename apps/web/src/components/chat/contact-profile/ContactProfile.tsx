@@ -186,7 +186,7 @@ function conversationProfileContact(
     isBlocked: false,
     isOnline: false,
     lastSeen: null,
-    profilePictureUrl: null,
+    profilePictureUrl: conversation.counterpart?.avatarUrl ?? null,
     notesShared: null,
     createdAt: conversation.firstMessageAt ?? new Date().toISOString(),
     updatedAt: conversation.lastMessageAt ?? new Date().toISOString(),

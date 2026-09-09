@@ -55,6 +55,8 @@ describe("Telegram Bot update normalization", () => {
           identityScope: "telegram-user",
           endpointKind: "person",
           displayName: "Ada",
+          addressDisplay: "@ada_private",
+          normalizedAddress: "ada_private",
         },
         verificationState: "provider_verified",
       },
@@ -104,7 +106,10 @@ describe("Telegram Bot update normalization", () => {
       },
     });
     const serialized = JSON.stringify(events);
-    expect(serialized).not.toContain("ada_private");
+    // The username is retained on purpose: it is the only handle the Bot API
+    // discloses, and the inbox needs something a teammate can identify a
+    // Telegram contact by. Everything else below stays minimized.
+    expect(serialized).toContain("@ada_private");
     expect(serialized).not.toContain("private quoted body");
     expect(serialized).not.toContain("file_unique_id");
     expect(serialized).not.toContain("entities");

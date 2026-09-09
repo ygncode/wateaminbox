@@ -421,6 +421,8 @@ export interface ContactEndpointsTable {
   normalized_address: string | null;
   address_display: string | null;
   display_name: string | null;
+  avatar_url: string | null;
+  avatar_fetched_at: Date | null;
   verification_state: Generated<
     "unverified" | "provider_verified" | "user_verified" | "invalid"
   >;

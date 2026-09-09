@@ -58,6 +58,8 @@ export interface ConversationCounterpart {
   displayName: string | null;
   /** Provider-native handle, e.g. a Telegram "@username". */
   addressDisplay: string | null;
+  /** Storage reference, not a URL; the route signs it before returning. */
+  avatarUrl: string | null;
 }
 
 /**
@@ -78,7 +80,11 @@ export async function resolveConversationCounterpart(
       "endpoint.id",
       "participant.contact_endpoint_id",
     )
-    .select(["endpoint.display_name", "endpoint.address_display"])
+    .select([
+      "endpoint.display_name",
+      "endpoint.address_display",
+      "endpoint.avatar_url",
+    ])
     .where("participant.conversation_id", "=", conversationId)
     .where("participant.is_self", "=", false)
     .orderBy("participant.contact_endpoint_id", "asc")
@@ -87,6 +93,7 @@ export async function resolveConversationCounterpart(
   return {
     displayName: row.display_name?.trim() || null,
     addressDisplay: row.address_display?.trim() || null,
+    avatarUrl: row.avatar_url,
   };
 }
 

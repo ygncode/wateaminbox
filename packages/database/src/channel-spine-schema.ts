@@ -78,6 +78,8 @@ export async function ensureChannelSpineTenantSchema<Database>(
       normalized_address TEXT,
       address_display TEXT,
       display_name TEXT,
+      avatar_url TEXT,
+      avatar_fetched_at TIMESTAMPTZ,
       verification_state TEXT NOT NULL DEFAULT 'unverified' CHECK (
         verification_state IN ('unverified', 'provider_verified', 'user_verified', 'invalid')
       ),
@@ -93,6 +95,12 @@ export async function ensureChannelSpineTenantSchema<Database>(
       CHECK (length(trim(identity_scope)) > 0),
       CHECK (jsonb_typeof(provider_metadata) = 'object')
     )`.execute(db);
+
+    // Additive for schemas created before endpoints carried an avatar.
+    await addColumnsIfMissing(db, schemaName, "contact_endpoints", [
+      ["avatar_url", "TEXT"],
+      ["avatar_fetched_at", "TIMESTAMPTZ"],
+    ]);
 
     await sql`CREATE TABLE IF NOT EXISTS ${table("endpoint_account_states")} (
       channel_account_id UUID NOT NULL REFERENCES ${table("channel_accounts")}(id) ON DELETE CASCADE,

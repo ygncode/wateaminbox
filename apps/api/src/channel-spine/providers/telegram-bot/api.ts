@@ -47,6 +47,24 @@ export async function configureTelegramWebhook(
   });
 }
 
+/**
+ * The file id of a user's current profile photo, if they have one and it is
+ * visible to this bot. Telegram returns photos newest-first in several sizes;
+ * the last entry of the first set is the largest.
+ */
+export async function getTelegramProfilePhotoFileId(
+  token: string,
+  userId: string,
+): Promise<string | null> {
+  if (!/^-?\d{1,20}$/.test(userId)) throw new Error("invalid Telegram user ID");
+  const result = await telegramBotRequest<{
+    total_count?: number;
+    photos?: Array<Array<{ file_id?: string }>>;
+  }>(token, "getUserProfilePhotos", { user_id: Number(userId), limit: 1 });
+  const largest = result.photos?.[0]?.at(-1)?.file_id;
+  return typeof largest === "string" && largest.length > 0 ? largest : null;
+}
+
 export async function downloadTelegramFile(
   token: string,
   fileId: string,

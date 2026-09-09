@@ -361,6 +361,12 @@ function userEndpoint(user: TelegramUser): ExternalEndpointReference {
     identityScope: "telegram-user",
     endpointKind: user.is_bot ? "bot" : "person",
     displayName: displayName(user),
+    // The username is the only human-addressable handle the Bot API gives us:
+    // a phone number is never in an update and cannot be requested, so without
+    // this a Telegram contact has no identifier a teammate can act on.
+    // Retained deliberately; quoted bodies, file ids and entities still are not.
+    addressDisplay: user.username ? `@${user.username}` : undefined,
+    normalizedAddress: user.username?.toLowerCase(),
   };
 }
 
@@ -371,6 +377,8 @@ function chatEndpoint(chat: TelegramChat): ExternalEndpointReference {
     identityScope: "telegram-chat",
     endpointKind: chat.type === "channel" ? "channel" : "group",
     displayName: chat.title ?? displayName(chat),
+    addressDisplay: chat.username ? `@${chat.username}` : undefined,
+    normalizedAddress: chat.username?.toLowerCase(),
   };
 }
 

@@ -96,6 +96,8 @@ export const TENANT_SCHEMA_CONTRACT = {
     "normalized_address",
     "address_display",
     "display_name",
+    "avatar_url",
+    "avatar_fetched_at",
     "verification_state",
     "provider_metadata",
     "first_seen_at",

@@ -26,6 +26,7 @@ export interface ChannelConversation {
   counterpart?: {
     displayName: string | null;
     addressDisplay: string | null;
+    avatarUrl: string | null;
   } | null;
 }
 

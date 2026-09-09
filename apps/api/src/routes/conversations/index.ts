@@ -4,7 +4,9 @@ import { authMiddleware } from "../../middleware/auth.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireConversationVisibility } from "../../middleware/resource-visibility.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
+import { getAuthorizedMediaUrlOrNull } from "../../lib/storage.js";
 import {
+  type ConversationCounterpart,
   resolveConversationCounterpart,
   resolveConversationDisplayName,
   resolveConversationDisplayNames,
@@ -204,12 +206,30 @@ conversationRoutes.get("/:id", requireConversationVisibility(), async (c) => {
       displayName: conversation.account_display_name,
       status: conversation.account_status,
     },
-    counterpart: await resolveConversationCounterpart(
-      tenantDb,
-      conversation.id,
+    counterpart: await authorizeCounterpartAvatar(
+      companyId,
+      await resolveConversationCounterpart(tenantDb, conversation.id),
     ),
   });
 });
+
+/**
+ * Avatars are stored as private object references. The client is handed a
+ * short-lived signed URL, never the bucket path.
+ */
+async function authorizeCounterpartAvatar(
+  companyId: string,
+  counterpart: ConversationCounterpart | null,
+): Promise<ConversationCounterpart | null> {
+  if (!counterpart) return null;
+  return {
+    ...counterpart,
+    avatarUrl: await getAuthorizedMediaUrlOrNull(
+      counterpart.avatarUrl,
+      companyId,
+    ),
+  };
+}
 
 // Resource routes below this point address a real contact ID.
 conversationRoutes.use("/:id/*", requireConversationVisibility());
