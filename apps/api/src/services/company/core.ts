@@ -8,6 +8,7 @@ import type { Database } from "@wateaminbox/database";
 import { db } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
 import type { Transaction } from "kysely";
+import { seedChannelSpineFlags } from "../channel-spine-provisioning.service.js";
 import { CompanyNotFoundError } from "../../lib/errors.js";
 import {
   deleteMedia,
@@ -98,6 +99,10 @@ export async function createCompany(
           updated_at: toDbDate(),
         })
         .execute();
+
+      // New workspaces inherit the deployment's channel defaults, when it
+      // configures any. Existing workspaces are never touched by this.
+      await seedChannelSpineFlags(trx, companyId, ownerId);
 
       // Add the owner as a member
       await trx

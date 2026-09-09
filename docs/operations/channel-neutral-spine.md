@@ -117,6 +117,51 @@ To connect a Telegram bot in a local workspace:
 The flag script is an operator tool, not an API. Rollout order and approval
 for anything beyond a local workspace are unchanged.
 
+## Rolling a channel out to workspaces
+
+Flags are per workspace and fail closed when absent, so a workspace with no
+row stays on the legacy path. Nothing enables itself.
+
+Set them with the shipped script rather than by hand; it advances the revision
+the table's own trigger audits:
+
+```sh
+# One workspace, then watch it.
+bun run apps/api/src/scripts/set-channel-spine-flags.ts \
+  --company <uuid> --dual-write --shadow --reads \
+  --authority neutral --providers telegram_bot
+
+# Widen once it looks right. --dry-run prints what would change.
+bun run apps/api/src/scripts/set-channel-spine-flags.ts \
+  --all --dry-run --dual-write --shadow --reads \
+  --authority neutral --providers telegram_bot
+```
+
+In a deployed image the script is at
+`/app/apps/api/dist/scripts/set-channel-spine-flags.js` and must be run
+through the secret entrypoint so it inherits `DATABASE_URL`:
+
+```sh
+docker exec <api-container> /usr/local/bin/secret-entrypoint \
+  bun run /app/apps/api/dist/scripts/set-channel-spine-flags.js --all --dry-run ...
+```
+
+`--all` skips a workspace with no owner rather than aborting the run, because
+the flag row records who made the change.
+
+### New workspaces
+
+`CHANNEL_SPINE_DEFAULT_PROVIDERS` names the providers a newly created
+workspace starts with; `CHANNEL_SPINE_DEFAULT_REVISION` is recorded on the row
+it writes. Empty means new workspaces begin on legacy, which is the default
+and the right one for self-hosted deployments.
+
+Seeding writes a real per-workspace row rather than making absence mean
+"enabled", so the fail-closed rule still holds, every workspace remains
+individually revocable, and the audit trail shows when each was enabled. A
+seeding failure is logged and never blocks the signup that triggered it; that
+workspace simply starts on legacy.
+
 ## Capability-driven UI
 
 Neutral channel threads render inside `ChannelComposerGate`, which resolves the
