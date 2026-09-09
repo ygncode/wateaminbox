@@ -410,6 +410,12 @@ export function MessageContent({
         );
       }
       const mediaUrl = message.metadata?.mediaUrl;
+      // Telegram ships stickers as static WebP or as WebM video. A video
+      // sticker in an <img> renders as a broken image, so it needs a looping,
+      // muted <video> - the same silent autoplay the provider's own clients
+      // use. Static stickers keep the image path.
+      const isVideoSticker =
+        message.metadata?.mimeType?.startsWith("video/") ?? false;
 
       return (
         <div className="max-w-[200px]">
@@ -430,14 +436,28 @@ export function MessageContent({
                 aria-label={t("chat.openSticker", "Open sticker")}
                 tabIndex={enableMediaPreview ? 0 : -1}
               >
-                <img
-                  src={mediaUrl}
-                  alt={t("chat.mediaTypes.sticker", "Sticker")}
-                  width={200}
-                  height={200}
-                  className="h-auto w-full transition-transform duration-200 group-hover/media:scale-[1.025]"
-                  loading="lazy"
-                />
+                {isVideoSticker ? (
+                  <video
+                    src={mediaUrl}
+                    width={200}
+                    height={200}
+                    className="h-auto w-full transition-transform duration-200 group-hover/media:scale-[1.025]"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    aria-label={t("chat.mediaTypes.sticker", "Sticker")}
+                  />
+                ) : (
+                  <img
+                    src={mediaUrl}
+                    alt={t("chat.mediaTypes.sticker", "Sticker")}
+                    width={200}
+                    height={200}
+                    className="h-auto w-full transition-transform duration-200 group-hover/media:scale-[1.025]"
+                    loading="lazy"
+                  />
+                )}
               </button>
               <MediaLightbox
                 open={mediaPreviewOpen}

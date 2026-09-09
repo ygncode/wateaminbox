@@ -178,8 +178,13 @@ function conversationProfileContact(
   return {
     id: conversation.id,
     jid: null,
-    phoneNumber: conversation.counterpart?.addressDisplay ?? null,
+    // A Telegram handle is not a phone number and must not sit in a field
+    // other code treats as dialable. The header renders `username` and adds
+    // its own "@", so the stored display form is trimmed here.
+    phoneNumber: null,
     pushName: null,
+    username:
+      conversation.counterpart?.addressDisplay?.replace(/^@/, "") ?? null,
     customName: null,
     displayName: name,
     isGroup: conversation.kind !== "direct",

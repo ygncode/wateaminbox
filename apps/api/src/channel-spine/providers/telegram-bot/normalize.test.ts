@@ -266,3 +266,65 @@ describe("Telegram Bot update normalization", () => {
     ).toThrow("Invalid Telegram text");
   });
 });
+
+describe("Telegram sticker attachments", () => {
+  const base = {
+    update_id: 1,
+    message: {
+      message_id: 1,
+      date: 1_757_332_800,
+      chat: { id: 42, type: "private" as const },
+      from: { id: 42, is_bot: false, first_name: "Ada" },
+    },
+  };
+  const normalizeSticker = (sticker: Record<string, unknown>) =>
+    normalizeTelegramUpdate(
+      {
+        ...base,
+        message: { ...base.message, sticker },
+      },
+      {
+        companyId: "11111111-1111-4111-8111-111111111111",
+        channelAccountId: "22222222-2222-4222-8222-222222222222",
+        receivedAt: "2026-09-08T12:00:01.000Z",
+      },
+    ).find((event) => event.kind === "message.upsert")?.payload
+      .attachments?.[0];
+
+  test("a static sticker is typed as WebP, which Telegram never declares itself", () => {
+    // The Sticker object is the only Telegram file with no `mime_type`, so
+    // without this it stored as octet-stream and rendered as a broken image.
+    expect(normalizeSticker({ file_id: "static-1" })).toMatchObject({
+      kind: "sticker",
+      providerAttachmentId: "static-1",
+      contentType: "image/webp",
+    });
+  });
+
+  test("a video sticker is typed as WebM so the client uses a video element", () => {
+    expect(
+      normalizeSticker({ file_id: "video-1", is_video: true }),
+    ).toMatchObject({
+      providerAttachmentId: "video-1",
+      contentType: "video/webm",
+    });
+  });
+
+  test("an animated sticker fetches its static thumbnail, not the Lottie payload", () => {
+    // A .tgs is gzipped Lottie JSON that no browser can draw. The thumbnail is
+    // the only renderable form, and its type comes from the download itself.
+    const attachment = normalizeSticker({
+      file_id: "animated-1",
+      is_animated: true,
+      thumbnail: { file_id: "thumb-1" },
+    });
+    expect(attachment).toMatchObject({ providerAttachmentId: "thumb-1" });
+    expect(attachment?.contentType).toBeUndefined();
+  });
+
+  test("an animated sticker with no thumbnail is left alone rather than mislabelled", () => {
+    expect(
+      normalizeSticker({ file_id: "animated-2", is_animated: true }),
+    ).toMatchObject({ providerAttachmentId: "animated-2" });
+  });
+});

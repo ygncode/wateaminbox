@@ -59,7 +59,11 @@ interface TelegramMessage {
   animation?: TelegramFile;
   audio?: TelegramFile;
   document?: TelegramFile;
-  sticker?: TelegramFile & { is_animated?: boolean; is_video?: boolean };
+  sticker?: TelegramFile & {
+    is_animated?: boolean;
+    is_video?: boolean;
+    thumbnail?: TelegramFile;
+  };
   video?: TelegramFile;
   video_note?: TelegramFile;
   voice?: TelegramFile;
@@ -428,7 +432,19 @@ function normalizeAttachments(
   ];
   const selected = candidates.find(([, file]) => file !== undefined);
   if (!selected) return undefined;
-  const [kind, file] = selected;
+  let [kind, file] = selected;
+  // An animated sticker is a .tgs: gzipped Lottie JSON that no browser can
+  // render. Telegram ships a static WEBP/JPEG thumbnail of the same sticker,
+  // which is the only form we can actually display, so fetch that instead of
+  // storing bytes nothing will ever draw.
+  if (
+    kind === "sticker" &&
+    message.sticker?.is_animated &&
+    !message.sticker.is_video &&
+    message.sticker.thumbnail
+  ) {
+    file = message.sticker.thumbnail;
+  }
   if (
     !isRecord(file) ||
     typeof file.file_id !== "string" ||
@@ -470,10 +486,14 @@ function normalizeAttachments(
  */
 function stickerContentType(
   kind: string,
-  sticker: { is_animated?: boolean; is_video?: boolean } | undefined,
+  sticker:
+    | { is_animated?: boolean; is_video?: boolean; thumbnail?: unknown }
+    | undefined,
 ): string | undefined {
   if (kind !== "sticker" || !sticker) return undefined;
   if (sticker.is_video) return "video/webm";
+  // Animated stickers are fetched as their static thumbnail, whose real type
+  // comes from the download response; declaring one here would override it.
   if (sticker.is_animated) return undefined;
   return "image/webp";
 }
