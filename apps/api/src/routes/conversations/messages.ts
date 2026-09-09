@@ -423,6 +423,7 @@ messageRoutes.post(
         "conversation.external_thread_id",
         "account.channel",
         "account.provider",
+        "account.status as account_status",
       ])
       .where("conversation.id", "=", contactId)
       .where("conversation.archived_at", "is", null)
@@ -447,6 +448,14 @@ messageRoutes.post(
       }
       if (!(await isChannelSpineTenantReady(tenantDb, companyId))) {
         return c.json({ error: "Channel storage indexes are not ready" }, 503);
+      }
+      // The legacy path refuses a send to an inactive connection outright. The
+      // neutral path would instead accept it and retry the intent every
+      // fifteen minutes indefinitely, so the message sat "pending" in the
+      // inbox looking sent. Refusing here keeps the two paths honest with the
+      // sender about what happened.
+      if (neutralConversation.account_status !== "connected") {
+        return badRequest(c, "This channel account is not connected");
       }
       const idempotencyKey = c.req.header("idempotency-key")?.trim();
       if (!idempotencyKey || idempotencyKey.length > 200) {
