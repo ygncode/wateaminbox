@@ -1,6 +1,6 @@
 import type { Channel, ChannelProvider } from "@wateaminbox/shared";
-import type { ChannelProviderAvailability } from "@/lib/api/channel-accounts";
 import type { ComponentType } from "react";
+import type { ChannelProviderAvailability } from "@/lib/api/channel-accounts";
 import {
   EmailMark,
   InstagramMark,
@@ -39,8 +39,12 @@ export interface ChannelCatalogEntry {
  */
 export const CHANNEL_CATALOG: ChannelCatalogEntry[] = [
   {
+    // Named for how it connects, not for the app. A workspace links a phone
+    // the way WhatsApp Web does, which is a different product decision from
+    // the official Business API below - and the difference matters enough
+    // (one phone, no template messaging) that the picker should not blur it.
     key: "whatsapp_linked_device",
-    name: "WhatsApp",
+    name: "WhatsApp Web",
     channel: "whatsapp",
     provider: "whatsapp_linked_device",
     Mark: WhatsAppMark,
@@ -48,8 +52,21 @@ export const CHANNEL_CATALOG: ChannelCatalogEntry[] = [
     implemented: true,
   },
   {
+    key: "whatsapp_cloud_api",
+    name: "WhatsApp Business",
+    channel: "whatsapp",
+    provider: null,
+    Mark: WhatsAppMark,
+    tileClassName: "bg-[#128C7E] text-white",
+    implemented: false,
+    note: "Coming soon",
+  },
+  {
+    // Telegram offers bots and user accounts; this connects a bot, and a bot
+    // cannot see ordinary group messages unless privacy mode is turned off.
+    // Saying so on the tile is cheaper than explaining an empty group inbox.
     key: "telegram_bot",
-    name: "Telegram",
+    name: "Telegram Bot",
     channel: "telegram",
     provider: "telegram_bot",
     Mark: TelegramMark,
@@ -99,15 +116,27 @@ export const CHANNEL_CATALOG: ChannelCatalogEntry[] = [
   },
 ];
 
-/** The catalog entry that owns a connected account, for list rendering. */
+/**
+ * The catalog entry that owns a connected account, for list rendering.
+ *
+ * Exact provider first. Falling back to the channel is for an adapter this
+ * build does not list yet, and a channel can hold more than one entry - a
+ * WhatsApp account may be linked-device or the Business API - so the fallback
+ * prefers an entry that is actually implemented rather than whichever happens
+ * to come first. An account that exists was connected through something real.
+ */
 export function catalogEntryForAccount(
   channel: string,
   provider: string,
 ): ChannelCatalogEntry | undefined {
-  return (
-    CHANNEL_CATALOG.find((entry) => entry.provider === provider) ??
-    CHANNEL_CATALOG.find((entry) => entry.channel === channel)
+  const byProvider = CHANNEL_CATALOG.find(
+    (entry) => entry.provider === provider,
   );
+  if (byProvider) return byProvider;
+  const sameChannel = CHANNEL_CATALOG.filter(
+    (entry) => entry.channel === channel,
+  );
+  return sameChannel.find((entry) => entry.implemented) ?? sameChannel[0];
 }
 
 /**

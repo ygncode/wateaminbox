@@ -45,11 +45,17 @@ describe("channel catalog", () => {
 
   test("matches a connected account to its brand, by provider then channel", () => {
     expect(catalogEntryForAccount("telegram", "telegram_bot")?.name).toBe(
-      "Telegram",
+      "Telegram Bot",
     );
-    // An adapter this build does not list still renders under its channel.
+    expect(
+      catalogEntryForAccount("whatsapp", "whatsapp_linked_device")?.name,
+    ).toBe("WhatsApp Web");
+    // An adapter this build does not list still renders under its channel,
+    // and WhatsApp now holds two entries. The fallback has to land on the one
+    // that can actually be connected: an account that exists was connected
+    // through something real, never through a coming-soon tile.
     expect(catalogEntryForAccount("whatsapp", "meta_cloud")?.name).toBe(
-      "WhatsApp",
+      "WhatsApp Web",
     );
     expect(catalogEntryForAccount("sms", "twilio")).toBeUndefined();
   });
