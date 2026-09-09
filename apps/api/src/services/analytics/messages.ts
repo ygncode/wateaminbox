@@ -91,6 +91,49 @@ export async function getMessageTypeStats(
   }));
 }
 
+export async function getChannelMessageStats(
+  companyId: string,
+  startDate?: Date,
+  endDate?: Date,
+): Promise<
+  Array<{ channel: string; provider: string; sent: number; received: number }>
+> {
+  const tenantDb = getTenantConnection(companyId);
+  let query = tenantDb
+    .selectFrom("messages as message")
+    .leftJoin(
+      "channel_accounts as account",
+      "account.id",
+      "message.channel_account_id",
+    )
+    .select((eb) => [
+      eb.fn.coalesce("account.channel", eb.val("whatsapp")).as("channel"),
+      eb.fn
+        .coalesce("account.provider", eb.val("whatsapp_linked_device"))
+        .as("provider"),
+      eb.fn
+        .count("message.id")
+        .filterWhere("message.from_me", "=", true)
+        .as("sent"),
+      eb.fn
+        .count("message.id")
+        .filterWhere("message.from_me", "=", false)
+        .as("received"),
+    ])
+    .groupBy(["channel", "provider"])
+    .orderBy("channel")
+    .orderBy("provider");
+  if (startDate) query = query.where("message.timestamp", ">=", startDate);
+  if (endDate) query = query.where("message.timestamp", "<=", endDate);
+  const rows = await query.execute();
+  return rows.map((row) => ({
+    channel: row.channel,
+    provider: row.provider,
+    sent: Number(row.sent),
+    received: Number(row.received),
+  }));
+}
+
 /**
  * Get hourly message distribution
  */

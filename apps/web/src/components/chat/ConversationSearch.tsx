@@ -4,13 +4,15 @@ import { useConversationSearch } from "../../hooks/useSearch";
 import { useTranslation } from "react-i18next";
 
 interface ConversationSearchProps {
-  contactId: string;
+  contactId?: string;
+  conversationId?: string;
   onClose: () => void;
   onNavigateToMessage: (messageId: string) => void;
 }
 
 export function ConversationSearch({
   contactId,
+  conversationId,
   onClose,
   onNavigateToMessage,
 }: ConversationSearchProps) {
@@ -42,7 +44,7 @@ export function ConversationSearch({
   // Search hook
   const { data, isLoading } = useConversationSearch(
     debouncedQuery,
-    contactId,
+    { contactId, conversationId },
     debouncedQuery.length >= 2,
   );
 

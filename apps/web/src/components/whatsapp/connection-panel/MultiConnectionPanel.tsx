@@ -1,12 +1,22 @@
 import { Loader2, Plus, RefreshCw, Smartphone } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  useChannelAccounts,
+  useChannelProviderAvailability,
+  useConnectTelegramBot,
+  useDisconnectChannelAccount,
+} from "@/hooks/useChannelAccounts";
 import { useWhatsAppConnections } from "@/hooks/useWhatsAppConnections";
 import { useArchivedWhatsAppConnections } from "@/hooks/whatsapp/useArchivedWhatsAppConnections";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { getWorkspaceBillingUrl } from "@/lib/billing-url";
 import { cn } from "@/lib/utils";
+import { ChannelAccountCard } from "@/components/connections/ChannelAccountCard";
+import { ChannelPickerDialog } from "@/components/connections/ChannelPickerDialog";
+import type { ChannelCatalogEntry } from "@/components/connections/channel-catalog";
+import { TelegramConnectDialog } from "@/components/connections/TelegramConnectDialog";
 import { injectAnimationStyles, removeAnimationStyles } from "../animations";
 import { ConnectionCard } from "../ConnectionCard";
 import { EmptyConnectionsView } from "../EmptyConnectionsView";
@@ -58,6 +68,24 @@ export function MultiConnectionPanel({
     purgingId,
   } = useArchivedWhatsAppConnections();
 
+  // Channel accounts are the neutral, non-linked-device connections. They are
+  // fetched alongside the WhatsApp list rather than replacing it: linked
+  // device connections stay authoritative in their own table until the RFC's
+  // legacy retirement phase.
+  const { data: channelAccounts = [] } = useChannelAccounts();
+  const { data: providerAvailability, isLoading: isLoadingAvailability } =
+    useChannelProviderAvailability();
+  const connectTelegram = useConnectTelegramBot();
+  const disconnectChannelAccount = useDisconnectChannelAccount();
+
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [telegramOpen, setTelegramOpen] = useState(false);
+  const [connectedTelegramName, setConnectedTelegramName] = useState<
+    string | null
+  >(null);
+  const [disconnectingAccountId, setDisconnectingAccountId] = useState<
+    string | null
+  >(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [setupConnectionId, setSetupConnectionId] = useState<string | null>(
     null,
@@ -79,13 +107,57 @@ export function MultiConnectionPanel({
       null)
     : null;
 
-  const openNewConnection = useCallback(() => {
+  /** Start the WhatsApp linked-device flow (naming, then QR pairing). */
+  const openWhatsAppSetup = useCallback(() => {
     clearGlobalError();
     clearPendingConnection();
     setSetupConnectionId(null);
     setNewConnectionName("");
     setShowAddDialog(true);
   }, [clearGlobalError, clearPendingConnection]);
+
+  /** "Add connection" now asks which channel before starting any flow. */
+  const openChannelPicker = useCallback(() => {
+    clearGlobalError();
+    setPickerOpen(true);
+  }, [clearGlobalError]);
+
+  const handleChannelSelected = useCallback(
+    (entry: ChannelCatalogEntry) => {
+      setPickerOpen(false);
+      if (entry.provider === "whatsapp_linked_device") {
+        openWhatsAppSetup();
+        return;
+      }
+      if (entry.provider === "telegram_bot") {
+        connectTelegram.reset();
+        setConnectedTelegramName(null);
+        setTelegramOpen(true);
+      }
+    },
+    [connectTelegram, openWhatsAppSetup],
+  );
+
+  // The header counts every channel, not just linked devices.
+  const connectedChannelAccounts = channelAccounts.filter(
+    (account) => account.status === "connected",
+  ).length;
+  const totalConnected = connectedCount + connectedChannelAccounts;
+  const totalAccounts = totalCount + channelAccounts.length;
+  const channelsInUse = new Set([
+    ...(connections.length > 0 ? ["whatsapp"] : []),
+    ...channelAccounts.map((account) => account.channel),
+  ]).size;
+
+  const connectedCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      whatsapp_linked_device: connections.length,
+    };
+    for (const account of channelAccounts) {
+      counts[account.provider] = (counts[account.provider] ?? 0) + 1;
+    }
+    return counts;
+  }, [channelAccounts, connections.length]);
 
   const closeSetup = useCallback(() => {
     setShowAddDialog(false);
@@ -215,10 +287,10 @@ export function MultiConnectionPanel({
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary">
-                {t("connections.panelTitle", "WhatsApp Connections")}
+                {t("connections.panelTitle", "Connections")}
               </h2>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
-                {connectedCount} of {totalCount} connections active
+                {totalConnected} of {totalAccounts} connections active
               </p>
             </div>
           </div>
@@ -228,7 +300,7 @@ export function MultiConnectionPanel({
             </Button>
             <Button
               size="sm"
-              onClick={openNewConnection}
+              onClick={openChannelPicker}
               disabled={isCreating}
               className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
             >
@@ -246,7 +318,7 @@ export function MultiConnectionPanel({
       )}
 
       {/* Workspace connection summary and actions. */}
-      {hideHeader && connections.length > 0 && (
+      {hideHeader && totalAccounts > 0 && (
         <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[#dce3de] bg-[#f8faf8] p-3.5 dark:border-white/[0.08] dark:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-[#315348] shadow-sm ring-1 ring-[#e2e8e3] dark:bg-white/[0.06] dark:text-[#c9d8d2] dark:ring-white/[0.08]">
@@ -260,12 +332,12 @@ export function MultiConnectionPanel({
             </div>
             <div>
               <p className="text-sm font-semibold text-[#10211b] dark:text-[#eef8f3]">
-                {connectedCount} active connection
-                {connectedCount === 1 ? "" : "s"}
+                {totalConnected} active connection
+                {totalConnected === 1 ? "" : "s"}
               </p>
               <p className="text-xs text-[#65736d] dark:text-[#a9bab4]">
-                {totalCount} device{totalCount === 1 ? "" : "s"} linked to this
-                workspace
+                {totalAccounts} account{totalAccounts === 1 ? "" : "s"} across{" "}
+                {channelsInUse} channel{channelsInUse === 1 ? "" : "s"}
               </p>
             </div>
           </div>
@@ -282,7 +354,7 @@ export function MultiConnectionPanel({
             </Button>
             <Button
               size="sm"
-              onClick={openNewConnection}
+              onClick={openChannelPicker}
               disabled={isCreating}
               className="h-9 gap-2 bg-[#087a5c] px-3.5 font-semibold text-white hover:bg-[#06674e] dark:bg-[#159b73] dark:hover:bg-[#20ad83]"
             >
@@ -303,6 +375,43 @@ export function MultiConnectionPanel({
           error={globalError}
           onDismiss={clearGlobalError}
           billingUrl={billingUrl}
+        />
+      )}
+
+      {pickerOpen && (
+        <ChannelPickerDialog
+          availability={providerAvailability}
+          isLoadingAvailability={isLoadingAvailability}
+          connectedCounts={connectedCounts}
+          onSelect={handleChannelSelected}
+          onCancel={() => setPickerOpen(false)}
+        />
+      )}
+
+      {telegramOpen && (
+        <TelegramConnectDialog
+          isConnecting={connectTelegram.isPending}
+          error={
+            connectTelegram.error
+              ? ((connectTelegram.error as Error).message ??
+                "Could not connect the bot")
+              : null
+          }
+          connectedName={connectedTelegramName}
+          onSubmit={(input) => {
+            connectTelegram.mutate(input, {
+              onSuccess: (account) => {
+                setConnectedTelegramName(
+                  account.displayName?.trim() || "Your Telegram bot",
+                );
+              },
+            });
+          }}
+          onCancel={() => {
+            setTelegramOpen(false);
+            setConnectedTelegramName(null);
+            connectTelegram.reset();
+          }}
         />
       )}
 
@@ -342,10 +451,29 @@ export function MultiConnectionPanel({
         />
       )}
 
+      {/* Non-linked-device channel accounts, in the same list as WhatsApp. */}
+      {channelAccounts.length > 0 && (
+        <div className="mb-3 space-y-3">
+          {channelAccounts.map((account) => (
+            <ChannelAccountCard
+              key={account.id}
+              account={account}
+              isDisconnecting={disconnectingAccountId === account.id}
+              onDisconnect={() => {
+                setDisconnectingAccountId(account.id);
+                disconnectChannelAccount.mutate(account.id, {
+                  onSettled: () => setDisconnectingAccountId(null),
+                });
+              }}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Connections List */}
-      {connections.length === 0 ? (
+      {connections.length === 0 && channelAccounts.length === 0 ? (
         <EmptyConnectionsView
-          onAdd={openNewConnection}
+          onAdd={openChannelPicker}
           isCreating={isCreating}
         />
       ) : (

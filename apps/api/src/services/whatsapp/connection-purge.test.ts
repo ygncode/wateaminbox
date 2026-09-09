@@ -69,6 +69,30 @@ function fakeTenantDb(rows: {
     insertInto: (table: string) => writeBuilder(`insert ${table}`),
     deleteFrom: (table: string) => writeBuilder(`delete ${table}`),
     updateTable: (table: string) => writeBuilder(`update ${table}`),
+    getExecutor: () => {
+      const executor = {
+        transformQuery: (node: unknown) => node,
+        compileQuery: (node: unknown) => ({
+          query: node,
+          sql: JSON.stringify(node),
+          parameters: [],
+        }),
+        executeQuery: async (compiled: { sql: string }) => {
+          statements.push(
+            compiled.sql.includes("channel_message_delivery_outbox")
+              ? "delete channel_message_delivery_outbox"
+              : compiled.sql.includes("channel_ingress_routes")
+                ? "delete channel_ingress_routes"
+                : "sql",
+          );
+          return { rows: [] };
+        },
+        withPlugins() {
+          return executor;
+        },
+      };
+      return executor;
+    },
   };
 
   return {
@@ -137,6 +161,7 @@ describe("permanent connection purge", () => {
       "insert purge_cleanup_items",
       "insert purge_cleanup_items",
       "insert purge_cleanup_items",
+      "insert purge_cleanup_items",
       "update bulk_jobs",
       "delete message_reactions",
       "delete conversation_cases",
@@ -151,7 +176,14 @@ describe("permanent connection purge", () => {
       "delete group_join_requests",
       "delete group_participants",
       "delete groups",
+      "delete outbound_message_intents",
+      "delete channel_event_inbox",
+      "delete contact_endpoint_reassignment_events",
       "delete messages",
+      "delete channel_message_delivery_outbox",
+      "delete channel_ingress_routes",
+      "delete conversations",
+      "delete channel_accounts",
       "delete contacts",
       "delete status_updates",
       "delete catalog_products",

@@ -53,6 +53,7 @@ describe("realtime channel classification", () => {
     // reveals which conversations exist and when they are active.
     expect([...CONVERSATION_EVENTS].sort()).toEqual(
       [
+        "channel_message:new",
         "contact:profile_picture",
         "contact:updated",
         "conversation:read",

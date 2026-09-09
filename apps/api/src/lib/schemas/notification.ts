@@ -51,9 +51,26 @@ export type UpdatePreferencesInput = z.infer<typeof updatePreferencesSchema>;
 /**
  * Schema for muting a contact
  */
-export const muteContactSchema = z.object({
-  contactJid: z.string().trim().min(1).max(255),
-});
+export const muteContactSchema = z
+  .object({
+    contactJid: z.string().trim().min(1).max(255).optional(),
+    conversationId: z.string().uuid().optional(),
+    contactId: z.string().uuid().optional(),
+  })
+  .superRefine((value, ctx) => {
+    const provided = [
+      value.contactJid,
+      value.conversationId,
+      value.contactId,
+    ].filter(Boolean).length;
+    if (provided !== 1) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Provide exactly one of contactJid, conversationId, or contactId",
+      });
+    }
+  });
 
 export type MuteContactInput = z.infer<typeof muteContactSchema>;
 

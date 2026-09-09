@@ -139,6 +139,7 @@ describe("conversation events are bound to the user channel", () => {
     try {
       for (const eventType of [
         "message:new",
+        "channel_message:new",
         "message:status",
         "message:failed",
         "message:deleted",
@@ -163,6 +164,70 @@ describe("conversation events are bound to the user channel", () => {
     } finally {
       cleanup();
     }
+  });
+
+  test("channel messages invalidate neutral conversation and matching message queries", () => {
+    setCompanyId("company-a");
+    const client = new QueryClient();
+    const conversationKey = queryKeys.channelConversations.list({ limit: 50 });
+    const matchingMessageKey = queryKeys.channelMessages.list({
+      conversationId: "conversation-1",
+      limit: 50,
+    });
+    const otherMessageKey = queryKeys.channelMessages.list({
+      conversationId: "conversation-2",
+      limit: 50,
+    });
+    client.setQueryData(conversationKey, []);
+    client.setQueryData(matchingMessageKey, { messages: [] });
+    client.setQueryData(otherMessageKey, { messages: [] });
+    const cleanup = register(client);
+
+    emit("channel_message:new", {
+      message: {
+        id: "message-1",
+        conversationId: "conversation-1",
+        channelAccountId: "account-1",
+      },
+      conversation: { id: "conversation-1" },
+    });
+
+    expect(client.getQueryState(conversationKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(matchingMessageKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(otherMessageKey)?.isInvalidated).toBe(false);
+    cleanup();
+  });
+
+  test("a channel message refreshes the open thread and the chat list", () => {
+    setCompanyId("company-a");
+    const client = new QueryClient();
+    // What the screen actually renders: the thread is an infinite query keyed
+    // by conversation, and the sidebar is the chat list. Invalidating only the
+    // channel-scoped keys left a sent or received message invisible until the
+    // page was reloaded.
+    const threadKey = infiniteMessageKeys.list("conversation-1");
+    const chatListKey = chatKeys.lists();
+    const otherThreadKey = infiniteMessageKeys.list("conversation-2");
+    client.setQueryData(threadKey, { pages: [], pageParams: [] });
+    client.setQueryData(chatListKey, []);
+    client.setQueryData(otherThreadKey, { pages: [], pageParams: [] });
+    const cleanup = register(client);
+
+    emit("channel_message:new", {
+      message: {
+        id: "message-1",
+        conversationId: "conversation-1",
+        channelAccountId: "account-1",
+        direction: "outbound",
+      },
+      conversation: { id: "conversation-1" },
+    });
+
+    expect(client.getQueryState(threadKey)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(chatListKey)?.isInvalidated).toBe(true);
+    // An unrelated conversation's thread is left alone.
+    expect(client.getQueryState(otherThreadKey)?.isInvalidated).toBe(false);
+    cleanup();
   });
 
   test("workspace control events stay on the company channel", () => {

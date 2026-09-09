@@ -26,11 +26,17 @@ import { actionsRoutes } from "./actions/index.js";
 import { apiTokenRoutes } from "./api-tokens.js";
 import { oauthRoutes } from "./oauth.js";
 import { mcpRoutes } from "./mcp/index.js";
+import { channelAccountRoutes } from "./channel-accounts.js";
+import { channelIngressRoutes } from "./channel-ingress.js";
 
 export const routes = new Hono();
 
 // Health check routes
 routes.route("/health", healthRoutes);
+
+// Public provider ingress. Opaque route keys and provider verification are
+// required; this route intentionally has no user-session middleware.
+routes.route("/channel-ingress", channelIngressRoutes);
 
 // Authentication routes
 routes.route("/auth", authRoutes);
@@ -39,8 +45,9 @@ routes.route("/auth", authRoutes);
 routes.route("/companies", companyRoutes);
 routes.route("/invitations", invitationRoutes);
 
-// WhatsApp routes
+// WhatsApp compatibility and channel-neutral account routes
 routes.route("/whatsapp", whatsappRoutes);
+routes.route("/channel-accounts", channelAccountRoutes);
 
 // Contact routes
 routes.route("/contacts", contactRoutes);

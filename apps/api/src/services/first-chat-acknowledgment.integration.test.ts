@@ -101,6 +101,7 @@ import {
   FIRST_CHAT_NOTICE_VERSION,
 } from "./first-chat-acknowledgment.service.js";
 import { firstChatAcknowledgmentSchema } from "../routes/contacts/first-chat-acknowledgment.js";
+import { NotFoundError } from "../lib/errors.js";
 
 test("requires an explicit checked box and the displayed notice version", () => {
   expect(
@@ -233,5 +234,55 @@ describe("first chat acknowledgment", () => {
         true,
       );
     }),
+  );
+
+  integrationTest(
+    "does not gate a non-WhatsApp conversation behind the WhatsApp notice",
+    () =>
+      withTenantFixture(async ({ userId, tenantDb }) => {
+        const accountId = crypto.randomUUID();
+        await tenantDb
+          .insertInto("channel_accounts")
+          .values({
+            id: accountId,
+            channel: "telegram",
+            provider: "telegram_bot",
+            display_name: "Support bot",
+            status: "connected",
+          })
+          .execute();
+        const conversation = await tenantDb
+          .insertInto("conversations")
+          .values({
+            channel_account_id: accountId,
+            client_thread_key: `telegram:${crypto.randomUUID()}`,
+            kind: "direct",
+            subject: null,
+            legacy_contact_id: null,
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+
+        // The notice states WhatsApp policy, so it cannot apply here. Before
+        // this, the missing contact row raised and the composer surfaced an
+        // error the user had no way to clear, blocking every send.
+        expect(
+          await needsFirstChatAcknowledgment(tenantDb, conversation.id),
+        ).toBe(false);
+        // Acknowledging is a no-op rather than a throw, and writes nothing.
+        await acknowledgeFirstChat(tenantDb, conversation.id, userId);
+        expect(
+          await tenantDb
+            .selectFrom("audit_logs")
+            .select("id")
+            .where("action", "=", FIRST_CHAT_ACTION)
+            .executeTakeFirst(),
+        ).toBeUndefined();
+
+        // An id that names nothing at all is still a 404.
+        await expect(
+          needsFirstChatAcknowledgment(tenantDb, crypto.randomUUID()),
+        ).rejects.toBeInstanceOf(NotFoundError);
+      }),
   );
 });

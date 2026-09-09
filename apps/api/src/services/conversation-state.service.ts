@@ -33,14 +33,19 @@ export async function getConversationState(
   const state = await tenantDb
     .selectFrom("conversation_states")
     .selectAll()
-    .where("contact_id", "=", contactId)
+    .where((eb) =>
+      eb.or([
+        eb("contact_id", "=", contactId),
+        eb("conversation_id", "=", contactId),
+      ]),
+    )
     .executeTakeFirst();
 
   if (!state) return null;
 
   return {
     id: state.id,
-    contactId: state.contact_id,
+    contactId: state.contact_id ?? contactId,
     status: state.status,
     resolvedAt: state.resolved_at,
     resolvedBy: state.resolved_by,

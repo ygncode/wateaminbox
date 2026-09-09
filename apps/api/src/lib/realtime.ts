@@ -50,6 +50,7 @@ export type CompanyRealtimeEventType =
  */
 export const CONVERSATION_REALTIME_EVENT_TYPES = [
   "message:new",
+  "channel_message:new",
   "message:status",
   "message:deleted",
   "message:reaction",

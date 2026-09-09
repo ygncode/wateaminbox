@@ -26,6 +26,7 @@ const baseMessage = (overrides: Partial<MessageDbRow>): MessageDbRow => ({
   media_download_status: null,
   metadata: null,
   quoted_message_id: null,
+  reply_to_message_id: null,
   is_forwarded: false,
   is_starred: false,
   deleted_by_sender: false,

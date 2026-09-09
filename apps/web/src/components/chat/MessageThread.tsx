@@ -56,6 +56,8 @@ interface MessageThreadProps {
    * 403/409 server-side while looking actionable.
    */
   canRetry?: boolean;
+  /** Passed through to the message list; see VirtualMessageList. */
+  canLoadRemoteHistory?: boolean;
 }
 
 export function MessageThread({
@@ -68,6 +70,7 @@ export function MessageThread({
   highlightedMessageId,
   onOpenContactInfo,
   canRetry = true,
+  canLoadRemoteHistory = true,
 }: MessageThreadProps) {
   const { t } = useTranslation();
 
@@ -405,6 +408,7 @@ export function MessageThread({
         hasNextPage={hasNextPage}
         fetchNextPage={fetchNextPage}
         remoteHistoryStatus={remoteHistoryStatus}
+        canLoadRemoteHistory={canLoadRemoteHistory}
         isRequestingRemoteHistory={isRequestingRemoteHistory}
         remoteHistoryError={remoteHistoryError}
         onRequestRemoteHistory={requestRemoteHistory}

@@ -9,6 +9,9 @@ import {
   toDbDate,
 } from "@wateaminbox/shared";
 import { sql } from "kysely";
+import { normalizeLinkedDeviceMessageEvent } from "../../channel-spine/providers/whatsapp-linked-device/normalize.js";
+import { compareLinkedDeviceMessageShadow } from "../../channel-spine/providers/whatsapp-linked-device/shadow-compare.js";
+import { shadowLinkedDeviceLegacyMutation } from "../../channel-spine/providers/whatsapp-linked-device/shadow.js";
 import { formatError } from "../../lib/logger.js";
 import { buildInboundMessageMetadata } from "../../lib/message-formatters.js";
 import {
@@ -26,6 +29,7 @@ import {
   getAutoReplyCandidate,
   scheduleFirstContactAutoReply,
 } from "../auto-reply.service.js";
+import { getChannelSpineWorkspaceAuthority } from "../channel-spine-authority.service.js";
 import {
   openOrReopenCaseForInboundMessage,
   resolveActiveCaseIdForContact,
@@ -293,6 +297,20 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       !payload.fromMe && !payload.isHistorySync && !isGroupMessage
         ? await getAutoReplyCandidate(companyId, toDbDate())
         : null;
+    const spineAuthority = await getChannelSpineWorkspaceAuthority(companyId);
+    const normalizedShadowEvent = spineAuthority.shadowNormalizationEnabled
+      ? (() => {
+          try {
+            return normalizeLinkedDeviceMessageEvent(event);
+          } catch (error) {
+            logger.warn(
+              { companyId, connectionId, error: formatError(error) },
+              "Linked-device normalization shadow rejected an event",
+            );
+            return null;
+          }
+        })()
+      : null;
 
     // The message insert, unread-count/last-message projection update, and
     // conversation-case open/reopen must succeed or fail together: a case
@@ -543,6 +561,14 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           connection.id,
           insertResult.id,
         );
+        if (spineAuthority.dualWriteEnabled) {
+          await shadowLinkedDeviceLegacyMutation(
+            trx,
+            companyId,
+            contact.id,
+            insertResult.id,
+          );
+        }
         return { insertResult, caseResult };
       });
 
@@ -553,6 +579,31 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         "Skipped duplicate message",
       );
       return;
+    }
+
+    if (normalizedShadowEvent) {
+      try {
+        const mismatches = await compareLinkedDeviceMessageShadow(
+          tenantDb,
+          normalizedShadowEvent,
+        );
+        if (mismatches.length > 0) {
+          logger.warn(
+            {
+              companyId,
+              connectionId,
+              eventId: normalizedShadowEvent.eventId,
+              mismatches,
+            },
+            "Linked-device normalization shadow mismatch",
+          );
+        }
+      } catch (error) {
+        logger.warn(
+          { companyId, connectionId, error: formatError(error) },
+          "Linked-device normalization shadow comparison failed",
+        );
+      }
     }
 
     const profilePictureRequestJid = getProfilePictureRequestJid({

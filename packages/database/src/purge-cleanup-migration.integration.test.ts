@@ -118,17 +118,24 @@ describe("connection purge recovery migration 066", () => {
         ).rejects.toThrow();
 
         // Connection ownership is enforced in the database itself, so a worker
-        // event can no longer leave a row behind a deleted connection.
+        // event can no longer leave a row behind a deleted connection. The
+        // contact is what satisfies `messages_contact_or_conversation_check`,
+        // so the rejection below is about the connection FK and nothing else.
+        const contactId = crypto.randomUUID();
+        await sql
+          .raw(`INSERT INTO "${schema}".contacts (id, jid, whatsapp_connection_id)
+            VALUES ('${contactId}', '60123456789@s.whatsapp.net', '${connectionId}')`)
+          .execute(database);
         await sql
           .raw(`INSERT INTO "${schema}".messages
-            (whatsapp_connection_id, message_id, from_me, message_type, timestamp)
-            VALUES ('${connectionId}', 'WA-FK-1', false, 'text', now())`)
+            (contact_id, whatsapp_connection_id, message_id, from_me, message_type, timestamp)
+            VALUES ('${contactId}', '${connectionId}', 'WA-FK-1', false, 'text', now())`)
           .execute(database);
         await expect(
           sql
             .raw(`INSERT INTO "${schema}".messages
-              (whatsapp_connection_id, message_id, from_me, message_type, timestamp)
-              VALUES ('${crypto.randomUUID()}', 'WA-FK-2', false, 'text', now())`)
+              (contact_id, whatsapp_connection_id, message_id, from_me, message_type, timestamp)
+              VALUES ('${contactId}', '${crypto.randomUUID()}', 'WA-FK-2', false, 'text', now())`)
             .execute(database),
         ).rejects.toThrow();
         await sql

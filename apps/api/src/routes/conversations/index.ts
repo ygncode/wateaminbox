@@ -1,9 +1,22 @@
 import { Hono } from "hono";
+import { successData } from "../../lib/response.js";
 import { authMiddleware } from "../../middleware/auth.js";
-import { requireContactVisibility } from "../../middleware/resource-visibility.js";
+import { getRouteContext } from "../../middleware/context.js";
+import { requireConversationVisibility } from "../../middleware/resource-visibility.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
+import { getAuthorizedMediaUrlOrNull } from "../../lib/storage.js";
+import {
+  type ConversationCounterpart,
+  resolveConversationCounterpart,
+  resolveConversationCounterparts,
+  resolveConversationDisplayName,
+} from "../../services/conversation-display-name.service.js";
+import { getChannelSpineWorkspaceAuthority } from "../../services/channel-spine-authority.service.js";
+import { neutralActionRoutes } from "./actions.js";
 import { analyticsRoutes } from "./analytics.js";
+import { conversationAssignmentRoutes } from "./assignment.js";
 import { messageRoutes } from "./messages.js";
+import { metadataRoutes } from "./metadata.js";
 import { stateRoutes } from "./state.js";
 
 export const conversationRoutes = new Hono();
@@ -12,13 +25,233 @@ export const conversationRoutes = new Hono();
 conversationRoutes.use("/*", authMiddleware);
 conversationRoutes.use("/*", tenantMiddleware());
 
+conversationRoutes.get("/", async (c) => {
+  const { tenantDb, companyId, user, permissions } = getRouteContext(c);
+  const authority = await getChannelSpineWorkspaceAuthority(companyId);
+  if (!authority.neutralReadsEnabled) {
+    return c.json({ error: "Neutral conversations are not enabled" }, 404);
+  }
+  const requestedLimit = Number(c.req.query("limit") ?? "50");
+  const limit = Number.isSafeInteger(requestedLimit)
+    ? Math.min(100, Math.max(1, requestedLimit))
+    : 50;
+  const conversations = await tenantDb
+    .selectFrom("conversations as conversation")
+    .innerJoin(
+      "channel_accounts as account",
+      "account.id",
+      "conversation.channel_account_id",
+    )
+    .leftJoin(
+      "conversation_states as state",
+      "state.conversation_id",
+      "conversation.id",
+    )
+    .select([
+      "conversation.id",
+      "conversation.channel_account_id",
+      "conversation.kind",
+      "conversation.subject",
+      "conversation.external_thread_id",
+      "conversation.first_message_at",
+      "conversation.last_message_at",
+      "conversation.legacy_contact_id",
+      "account.channel",
+      "account.provider",
+      "account.display_name as account_display_name",
+      "account.status as account_status",
+      "state.unread_count",
+      "state.last_message_preview",
+      "state.status as conversation_status",
+    ])
+    .where("conversation.archived_at", "is", null)
+    .where("account.archived_at", "is", null)
+    .$if(!permissions.can_view_all_chats, (qb) =>
+      qb.where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom("contact_assignments as assignment")
+            .select("assignment.id")
+            .where("assignment.assigned_to", "=", user.id)
+            .where("assignment.unassigned_at", "is", null)
+            .where((inner) =>
+              inner.or([
+                inner(
+                  "assignment.conversation_id",
+                  "=",
+                  eb.ref("conversation.id"),
+                ),
+                inner(
+                  "assignment.contact_id",
+                  "=",
+                  eb.ref("conversation.legacy_contact_id"),
+                ),
+              ]),
+            ),
+        ),
+      ),
+    )
+    .orderBy("conversation.last_message_at", "desc")
+    .orderBy("conversation.id", "desc")
+    .limit(limit)
+    .execute();
+  // A direct conversation usually carries no subject; its name is on the
+  // counterpart's endpoint. Resolved in one batch rather than per row.
+  const counterparts = await resolveConversationCounterparts(
+    tenantDb,
+    conversations.map((conversation) => conversation.id),
+  );
+  // Signed in one pass; the list renders an avatar per row and the client is
+  // never handed a bucket path.
+  const avatarUrls = new Map<string, string | null>(
+    await Promise.all(
+      [...counterparts].map(
+        async ([conversationId, counterpart]) =>
+          [
+            conversationId,
+            await getAuthorizedMediaUrlOrNull(counterpart.avatarUrl, companyId),
+          ] as const,
+      ),
+    ),
+  );
+  return successData(
+    c,
+    conversations.map((conversation) => ({
+      id: conversation.id,
+      channelAccountId: conversation.channel_account_id,
+      channel: conversation.channel,
+      provider: conversation.provider,
+      kind: conversation.kind,
+      subject:
+        conversation.subject?.trim() ||
+        counterparts.get(conversation.id)?.displayName ||
+        null,
+      externalThreadId: conversation.external_thread_id,
+      firstMessageAt: conversation.first_message_at,
+      lastMessageAt: conversation.last_message_at,
+      lastMessagePreview: conversation.last_message_preview,
+      unreadCount: Number(conversation.unread_count ?? 0),
+      conversationStatus: conversation.conversation_status ?? "open",
+      legacyContactId: conversation.legacy_contact_id,
+      account: {
+        displayName: conversation.account_display_name,
+        status: conversation.account_status,
+      },
+      counterpart: {
+        displayName: counterparts.get(conversation.id)?.displayName ?? null,
+        addressDisplay:
+          counterparts.get(conversation.id)?.addressDisplay ?? null,
+        avatarUrl: avatarUrls.get(conversation.id) ?? null,
+      },
+    })),
+  );
+});
+
 // Analytics paths begin with `/stats`, which Hono also matches as `/:id/*` with
 // `id = "stats"`. Mount them before the per-contact visibility middleware so
 // aggregate analytics are governed by their dashboard permission instead of a
 // bogus contact lookup.
 conversationRoutes.route("/", analyticsRoutes);
 
+conversationRoutes.get("/:id", requireConversationVisibility(), async (c) => {
+  const { tenantDb, companyId } = getRouteContext(c);
+  const authority = await getChannelSpineWorkspaceAuthority(companyId);
+  if (!authority.neutralReadsEnabled) {
+    return c.json({ error: "Neutral conversations are not enabled" }, 404);
+  }
+  const id = c.req.param("id")!;
+  const conversation = await tenantDb
+    .selectFrom("conversations as conversation")
+    .innerJoin(
+      "channel_accounts as account",
+      "account.id",
+      "conversation.channel_account_id",
+    )
+    .leftJoin(
+      "conversation_states as state",
+      "state.conversation_id",
+      "conversation.id",
+    )
+    .select([
+      "conversation.id",
+      "conversation.channel_account_id",
+      "conversation.kind",
+      "conversation.subject",
+      "conversation.external_thread_id",
+      "conversation.first_message_at",
+      "conversation.last_message_at",
+      "conversation.legacy_contact_id",
+      "account.channel",
+      "account.provider",
+      "account.display_name as account_display_name",
+      "account.status as account_status",
+      "state.unread_count",
+      "state.last_message_preview",
+      "state.status as conversation_status",
+    ])
+    .where("conversation.archived_at", "is", null)
+    .where("account.archived_at", "is", null)
+    .where((eb) =>
+      eb.or([
+        eb("conversation.id", "=", id),
+        eb("conversation.legacy_contact_id", "=", id),
+      ]),
+    )
+    .executeTakeFirst();
+  if (!conversation) {
+    return c.json({ error: "Conversation not found" }, 404);
+  }
+  return successData(c, {
+    id: conversation.id,
+    channelAccountId: conversation.channel_account_id,
+    channel: conversation.channel,
+    provider: conversation.provider,
+    kind: conversation.kind,
+    subject: await resolveConversationDisplayName(
+      tenantDb,
+      conversation.id,
+      conversation.subject,
+    ),
+    externalThreadId: conversation.external_thread_id,
+    firstMessageAt: conversation.first_message_at,
+    lastMessageAt: conversation.last_message_at,
+    lastMessagePreview: conversation.last_message_preview,
+    unreadCount: Number(conversation.unread_count ?? 0),
+    conversationStatus: conversation.conversation_status ?? "open",
+    legacyContactId: conversation.legacy_contact_id,
+    account: {
+      displayName: conversation.account_display_name,
+      status: conversation.account_status,
+    },
+    counterpart: await authorizeCounterpartAvatar(
+      companyId,
+      await resolveConversationCounterpart(tenantDb, conversation.id),
+    ),
+  });
+});
+
+/**
+ * Avatars are stored as private object references. The client is handed a
+ * short-lived signed URL, never the bucket path.
+ */
+async function authorizeCounterpartAvatar(
+  companyId: string,
+  counterpart: ConversationCounterpart | null,
+): Promise<ConversationCounterpart | null> {
+  if (!counterpart) return null;
+  return {
+    ...counterpart,
+    avatarUrl: await getAuthorizedMediaUrlOrNull(
+      counterpart.avatarUrl,
+      companyId,
+    ),
+  };
+}
+
 // Resource routes below this point address a real contact ID.
-conversationRoutes.use("/:id/*", requireContactVisibility());
+conversationRoutes.use("/:id/*", requireConversationVisibility());
 conversationRoutes.route("/", stateRoutes);
+conversationRoutes.route("/", conversationAssignmentRoutes);
 conversationRoutes.route("/", messageRoutes);
+conversationRoutes.route("/", metadataRoutes);
+conversationRoutes.route("/", neutralActionRoutes);

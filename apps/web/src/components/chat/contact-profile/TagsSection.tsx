@@ -9,6 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/ui";
 import {
+  useConversationTagMutations,
+  useConversationTags,
+} from "@/hooks/useConversationMetadata";
+import {
   useAddContactTag,
   useCreateTag,
   useRemoveContactTag,
@@ -19,13 +23,14 @@ import type { ContactData } from "./types";
 import { useTranslation } from "react-i18next";
 
 interface TagsSectionProps {
-  contact: ContactData;
+  contact?: ContactData;
+  conversationId?: string;
 }
 
 /**
- * Tags section - display and manage contact tags
+ * Tags section - display and manage contact or conversation tags
  */
-export function TagsSection({ contact }: TagsSectionProps) {
+export function TagsSection({ contact, conversationId }: TagsSectionProps) {
   const { t } = useTranslation();
 
   const [showTagPicker, setShowTagPicker] = useState(false);
@@ -37,21 +42,35 @@ export function TagsSection({ contact }: TagsSectionProps) {
     search: debouncedTagSearch || undefined,
     limit: 100,
   });
-  const addTag = useAddContactTag();
-  const removeTag = useRemoveContactTag();
+  const addContactTag = useAddContactTag();
+  const removeContactTag = useRemoveContactTag();
+  const conversationTags = useConversationTags(conversationId ?? null);
+  const conversationTagMutations = useConversationTagMutations(
+    conversationId ?? "",
+  );
   const createTag = useCreateTag();
-
-  const contactTagIds = new Set(contact.tags.map((t) => t.id));
+  const selectedTags = conversationId
+    ? (conversationTags.data ?? [])
+    : (contact?.tags ?? []);
+  const contactTagIds = new Set(selectedTags.map((tag) => tag.id));
   const availableTags = allTags?.filter((t) => !contactTagIds.has(t.id)) || [];
 
   const handleAddTag = async (tagId: string) => {
-    await addTag.mutateAsync({ contactId: contact.id, tagId });
+    if (conversationId) {
+      await conversationTagMutations.addTag.mutateAsync(tagId);
+    } else if (contact) {
+      await addContactTag.mutateAsync({ contactId: contact.id, tagId });
+    }
     setTagSearch("");
     setShowTagPicker(false);
   };
 
   const handleRemoveTag = async (tagId: string) => {
-    await removeTag.mutateAsync({ contactId: contact.id, tagId });
+    if (conversationId) {
+      await conversationTagMutations.removeTag.mutateAsync(tagId);
+    } else if (contact) {
+      await removeContactTag.mutateAsync({ contactId: contact.id, tagId });
+    }
   };
 
   const handleCreateTag = async () => {
@@ -61,8 +80,7 @@ export function TagsSection({ contact }: TagsSectionProps) {
       const newTag = await createTag.mutateAsync({ name: newTagName.trim() });
       setNewTagName("");
       setShowCreateTag(false);
-      // Automatically add the newly created tag to the contact
-      await addTag.mutateAsync({ contactId: contact.id, tagId: newTag.id });
+      await handleAddTag(newTag.id);
       setTagSearch("");
       setShowTagPicker(false);
     } catch (error) {
@@ -86,7 +104,7 @@ export function TagsSection({ contact }: TagsSectionProps) {
         <Tag className="mt-0.5 h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
         <div className="flex-1">
           <div className="flex flex-wrap gap-2">
-            {contact.tags.map((tag) => (
+            {selectedTags.map((tag) => (
               <Badge
                 key={tag.id}
                 variant="secondary"

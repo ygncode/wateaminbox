@@ -4,6 +4,7 @@ import {
   CONVERSATION_STATUS_OPTIONS,
   DEFAULT_CHAT_LIST_FILTERS,
   readChatListFilters,
+  resolveOwningAccountId,
   writeChatListFilters,
 } from "./chat-list-filters";
 
@@ -152,5 +153,72 @@ describe("writeChatListFilters", () => {
     expect(() =>
       writeChatListFilters(DEFAULT_CHAT_LIST_FILTERS, null),
     ).not.toThrow();
+  });
+});
+
+describe("resolveOwningAccountId", () => {
+  const conversations = [
+    { id: "conv-telegram", channelAccountId: "account-telegram" },
+    { id: "conv-whatsapp", channelAccountId: "account-whatsapp-bridge" },
+  ];
+
+  it("a linked-device chat is owned by its WhatsApp connection", () => {
+    expect(
+      resolveOwningAccountId(
+        { contact: { connection: { id: "connection-1" } } },
+        conversations,
+      ),
+    ).toBe("connection-1");
+  });
+
+  it("a channel chat is owned by the account behind its conversation", () => {
+    expect(
+      resolveOwningAccountId(
+        { contact: { connection: null, conversationId: "conv-telegram" } },
+        conversations,
+      ),
+    ).toBe("account-telegram");
+  });
+
+  it("the connection wins over a bridged conversation row", () => {
+    // A WhatsApp chat gains a conversation row during the migration. The
+    // scope selector names connections, so the connection has to answer, or
+    // choosing a WhatsApp number would hide its own chats.
+    expect(
+      resolveOwningAccountId(
+        {
+          contact: {
+            connection: { id: "connection-1" },
+            conversationId: "conv-whatsapp",
+          },
+        },
+        conversations,
+      ),
+    ).toBe("connection-1");
+  });
+
+  it("an unattributable chat belongs only to the unscoped view", () => {
+    expect(
+      resolveOwningAccountId({ contact: { connection: null } }, conversations),
+    ).toBeNull();
+    expect(
+      resolveOwningAccountId(
+        { contact: { connection: null, conversationId: "conv-missing" } },
+        conversations,
+      ),
+    ).toBeNull();
+  });
+
+  it("scoping to one account excludes every chat on the other, both ways", () => {
+    const telegramChat = {
+      contact: { connection: null, conversationId: "conv-telegram" },
+    };
+    const whatsappChat = { contact: { connection: { id: "connection-1" } } };
+    const scopedTo = (accountId: string) =>
+      [telegramChat, whatsappChat].filter(
+        (chat) => resolveOwningAccountId(chat, conversations) === accountId,
+      );
+    expect(scopedTo("connection-1")).toEqual([whatsappChat]);
+    expect(scopedTo("account-telegram")).toEqual([telegramChat]);
   });
 });

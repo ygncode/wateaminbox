@@ -128,7 +128,9 @@ export async function resolveContactViewerIdsForContacts(
 
   const assignedTo = new Map<string, string>();
   for (const row of assignments) {
-    if (row.assigned_to) assignedTo.set(row.contact_id, row.assigned_to);
+    if (row.contact_id && row.assigned_to) {
+      assignedTo.set(row.contact_id, row.assigned_to);
+    }
   }
 
   const viewers = new Set<string>();
@@ -171,6 +173,49 @@ export function mergeFanOutRecipients(
  * broadcast) is the safe direction - it costs a delayed UI update, never a
  * disclosure. Durable delivery callers set requireDelivery to retain failed work.
  */
+export async function resolveConversationViewerIds(
+  companyId: string,
+  conversationId: string,
+  executor: TenantExecutor = getTenantConnection(companyId),
+): Promise<string[]> {
+  const [members, assignment] = await Promise.all([
+    getCompanyMemberPermissions(companyId),
+    executor
+      .selectFrom("contact_assignments")
+      .select("assigned_to")
+      .where("conversation_id", "=", conversationId)
+      .where("unassigned_at", "is", null)
+      .executeTakeFirst(),
+  ]);
+  return selectContactViewerIds({
+    assignedTo: assignment?.assigned_to ?? null,
+    candidates: members,
+  });
+}
+
+export async function broadcastToConversationViewers(
+  companyId: string,
+  conversationId: string | null | undefined,
+  eventType: ConversationRealtimeEventType,
+  payload: unknown,
+  options: ContactFanOutOptions = {},
+): Promise<void> {
+  if (!conversationId) return;
+  try {
+    const recipients = mergeFanOutRecipients(
+      await resolveConversationViewerIds(companyId, conversationId),
+      options.alsoNotifyUserIds,
+    );
+    await broadcastToUsers(companyId, recipients, eventType, payload, options);
+  } catch (error) {
+    if (options.requireDelivery) throw error;
+    logger.error(
+      { err: formatError(error), companyId, conversationId, eventType },
+      "Failed to fan out conversation event to authorized viewers",
+    );
+  }
+}
+
 export async function broadcastToContactViewers(
   companyId: string,
   contactId: string | null | undefined,

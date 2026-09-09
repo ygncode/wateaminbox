@@ -68,6 +68,25 @@ describe("incoming message notification recipients", () => {
     expect(recipients).toEqual(["eligible"]);
   });
 
+  test("honors muted conversation and contact ids", () => {
+    const conversationId = "11111111-1111-4111-8111-111111111111";
+    const recipients = selectIncomingMessageRecipientIds({
+      contactJid: "",
+      conversationId,
+      fromMe: false,
+      isHistorySync: false,
+      candidates: [
+        candidate({
+          userId: "muted",
+          isAssignee: true,
+          mutedContacts: [conversationId],
+        }),
+        candidate({ userId: "eligible", isAssignee: true }),
+      ],
+    });
+    expect(recipients).toEqual(["eligible"]);
+  });
+
   test("never selects own or history-sync message recipients", () => {
     const candidates = [candidate({ userId: "assigned", isAssignee: true })];
     expect(

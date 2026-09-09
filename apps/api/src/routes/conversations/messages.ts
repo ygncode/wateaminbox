@@ -1,11 +1,16 @@
 import { zValidator } from "@hono/zod-validator";
 import {
+  isChannel,
+  isChannelProvider,
   REMOTE_HISTORY_RESPONSE_TIMEOUT_MS,
   toDbDate,
   toISOString,
 } from "@wateaminbox/shared";
+import { createHash } from "node:crypto";
 import { Hono } from "hono";
-import { badRequest, notFound } from "../../lib/errors.js";
+import { resolveAdapterCapabilities } from "../../channel-spine/application/adapter-registry.js";
+import { channelAdapterRegistry } from "../../channel-spine/registry.js";
+import { badRequest, conflict, notFound } from "../../lib/errors.js";
 import {
   authorizeMessageMedia,
   buildOutboundMediaColumns,
@@ -33,14 +38,27 @@ import {
   markDeprecatedMessageSend,
   requireMessageSendPermission,
 } from "../../middleware/message-send-policy.js";
+import {
+  enqueueOutboundRealtimeFanout,
+  recordOutboundConversationActivity,
+} from "../../services/channel-message-fanout.service.js";
 import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
 import { toAuthUserResponse } from "../../services/auth.service.js";
 import {
   enqueueCommand,
   enqueueSessionCommand,
 } from "../../services/command-outbox.service.js";
+import {
+  getChannelSpineWorkspaceAuthority,
+  isChannelProviderEnabled,
+} from "../../services/channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
+import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
-import { requireSendAccess } from "../../services/send-access.service.js";
+import {
+  requireConversationSendAccess,
+  requireSendAccess,
+} from "../../services/send-access.service.js";
 import {
   getUserAvatarSources,
   getUserNames,
@@ -59,18 +77,35 @@ messageRoutes.get(
   zValidator("query", listConversationMessagesQuerySchema),
   async (c) => {
     const { tenantDb, companyId } = getRouteContext(c);
-    const contactId = c.req.param("id");
+    let contactId = c.req.param("id")!;
     const { limit, cursor } = c.req.valid("query");
+    const authority = await getChannelSpineWorkspaceAuthority(companyId);
+    const neutralConversation = authority.neutralReadsEnabled
+      ? await tenantDb
+          .selectFrom("conversations")
+          .select(["id", "provider_status", "legacy_contact_id"])
+          .where("id", "=", contactId)
+          .where("archived_at", "is", null)
+          .executeTakeFirst()
+      : undefined;
+    const historyConversationId = neutralConversation?.id;
+    if (neutralConversation?.legacy_contact_id) {
+      contactId = neutralConversation.legacy_contact_id;
+    } else if (!historyConversationId) {
+      contactId =
+        (await resolveWorkflowContactId(tenantDb, contactId)) ?? contactId;
+    }
     const contact = await tenantDb
       .selectFrom("contacts")
       .select(["remote_history_status", "remote_history_updated_at"])
       .where("id", "=", contactId)
       .executeTakeFirst();
-    if (!contact) {
+    if (!contact && !historyConversationId) {
       return notFound(c, "Contact");
     }
-    let remoteHistoryStatus = contact.remote_history_status;
+    let remoteHistoryStatus = contact?.remote_history_status ?? "unknown";
     if (
+      contact &&
       remoteHistoryStatus === "requesting" &&
       (!contact.remote_history_updated_at ||
         contact.remote_history_updated_at.getTime() <=
@@ -90,7 +125,12 @@ messageRoutes.get(
     let query = tenantDb
       .selectFrom("messages")
       .selectAll()
-      .where("contact_id", "=", contactId)
+      .$if(Boolean(historyConversationId), (qb) =>
+        qb.where("conversation_id", "=", historyConversationId!),
+      )
+      .$if(!historyConversationId, (qb) =>
+        qb.where("contact_id", "=", contactId),
+      )
       .orderBy("timestamp", "desc")
       .orderBy("id", "desc")
       .limit(limit);
@@ -100,7 +140,12 @@ messageRoutes.get(
         .selectFrom("messages")
         .select(["timestamp", "id"])
         .where("id", "=", cursor)
-        .where("contact_id", "=", contactId)
+        .$if(Boolean(historyConversationId), (qb) =>
+          qb.where("conversation_id", "=", historyConversationId!),
+        )
+        .$if(!historyConversationId, (qb) =>
+          qb.where("contact_id", "=", contactId),
+        )
         .executeTakeFirst();
 
       if (!cursorMessage) {
@@ -138,14 +183,21 @@ messageRoutes.get(
     >();
     if (quotedIds.length > 0) {
       const connectionIds = [
-        ...new Set(messages.map((message) => message.whatsapp_connection_id)),
+        ...new Set(
+          messages
+            .map((message) => message.whatsapp_connection_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
       ];
-      const quoted = await tenantDb
-        .selectFrom("messages")
-        .selectAll()
-        .where("message_id", "in", quotedIds)
-        .where("whatsapp_connection_id", "in", connectionIds)
-        .execute();
+      const quoted =
+        connectionIds.length > 0
+          ? await tenantDb
+              .selectFrom("messages")
+              .selectAll()
+              .where("message_id", "in", quotedIds)
+              .where("whatsapp_connection_id", "in", connectionIds)
+              .execute()
+          : [];
 
       const quotedUserNames = await getUserNames(
         quoted
@@ -162,6 +214,41 @@ messageRoutes.get(
             buildQuotedMessageData(q as MessageDbRow, userNames),
           ]),
       );
+    }
+
+    // Channel-neutral replies reference the quoted row by its own id, not by
+    // a provider message id, and carry no WhatsApp connection to scope by.
+    // Resolved separately so a reply renders its quote on every channel.
+    const neutralQuotedIds = [
+      ...new Set(
+        messages
+          .map((message) => message.reply_to_message_id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    if (neutralQuotedIds.length > 0) {
+      const neutralQuoted = await tenantDb
+        .selectFrom("messages")
+        .selectAll()
+        .where("id", "in", neutralQuotedIds)
+        // Scoped to this thread: a quote must never be resolved from a
+        // conversation the reader is not currently authorized to read.
+        .$if(Boolean(historyConversationId), (qb) =>
+          qb.where("conversation_id", "=", historyConversationId!),
+        )
+        .execute();
+      const neutralUserNames = await getUserNames(
+        neutralQuoted
+          .map((message) => message.sent_by_user_id)
+          .filter((id): id is string => Boolean(id)),
+      );
+      for (const [id, name] of neutralUserNames) userNames.set(id, name);
+      for (const quotedRow of neutralQuoted) {
+        quotedMessagesMap.set(
+          quotedRow.id,
+          buildQuotedMessageData(quotedRow as MessageDbRow, userNames),
+        );
+      }
     }
 
     const reactionsMap = await loadMessageReactions(
@@ -319,6 +406,210 @@ messageRoutes.post(
 
     if (!content && messageType === "text") {
       return badRequest(c, "content is required for text messages");
+    }
+
+    const authority = await getChannelSpineWorkspaceAuthority(companyId);
+    const neutralConversation = await tenantDb
+      .selectFrom("conversations as conversation")
+      .innerJoin(
+        "channel_accounts as account",
+        "account.id",
+        "conversation.channel_account_id",
+      )
+      .select([
+        "conversation.id",
+        "conversation.channel_account_id",
+        "conversation.legacy_contact_id",
+        "conversation.external_thread_id",
+        "account.channel",
+        "account.provider",
+      ])
+      .where("conversation.id", "=", contactId)
+      .where("conversation.archived_at", "is", null)
+      .where("account.archived_at", "is", null)
+      .executeTakeFirst();
+    if (
+      neutralConversation &&
+      authority.writeAuthority === "neutral" &&
+      isChannelProviderEnabled(authority, neutralConversation.provider)
+    ) {
+      if (
+        !isChannel(neutralConversation.channel) ||
+        !isChannelProvider(neutralConversation.provider) ||
+        !["telegram_bot", "whatsapp_linked_device"].includes(
+          neutralConversation.provider,
+        )
+      ) {
+        return c.json(
+          { error: "The channel adapter is not available for neutral writes" },
+          503,
+        );
+      }
+      if (!(await isChannelSpineTenantReady(tenantDb, companyId))) {
+        return c.json({ error: "Channel storage indexes are not ready" }, 503);
+      }
+      const idempotencyKey = c.req.header("idempotency-key")?.trim();
+      if (!idempotencyKey || idempotencyKey.length > 200) {
+        return badRequest(c, "A valid Idempotency-Key header is required");
+      }
+      if (mentionedJids?.length) {
+        return badRequest(c, "Mentions are not supported by this channel");
+      }
+      const capabilities = await resolveAdapterCapabilities(
+        channelAdapterRegistry,
+        neutralConversation.channel,
+        neutralConversation.provider,
+        {
+          companyId,
+          channelAccountId: neutralConversation.channel_account_id,
+          conversationId: neutralConversation.id,
+          now: new Date().toISOString(),
+        },
+      );
+      const descriptor = capabilities.messageTypes.find(
+        ({ type }) => type === messageType,
+      );
+      if (!descriptor?.enabled) {
+        return badRequest(c, "Message type is not supported by this channel");
+      }
+      const storedMediaReference = mediaUrl
+        ? getPrivateMediaReference(
+            resolveMediaKeyForCompany(mediaUrl, companyId),
+          )
+        : null;
+      const normalizedPayload = {
+        messageType,
+        textContent: content ?? "",
+        actorUserId: user.id,
+        sentByUserId: user.id,
+        replyToExternalMessageId: null as string | null,
+        attachments: storedMediaReference
+          ? [{ ordinal: 0, storageUri: storedMediaReference }]
+          : [],
+      };
+      if (replyToMessageId) {
+        const quoted = await tenantDb
+          .selectFrom("messages")
+          .select("external_message_id")
+          .where("id", "=", replyToMessageId)
+          .where("conversation_id", "=", neutralConversation.id)
+          .executeTakeFirst();
+        if (!quoted?.external_message_id) return notFound(c, "Quoted message");
+        normalizedPayload.replyToExternalMessageId = quoted.external_message_id;
+      }
+      const requestFingerprint = createHash("sha256")
+        .update(JSON.stringify(normalizedPayload))
+        .digest("hex");
+      const previous = await tenantDb
+        .selectFrom("outbound_message_intents")
+        .select(["message_id", "request_fingerprint", "status"])
+        .where(
+          "channel_account_id",
+          "=",
+          neutralConversation.channel_account_id,
+        )
+        .where("operation", "=", "send")
+        .where("idempotency_key", "=", idempotencyKey)
+        .executeTakeFirst();
+      if (previous) {
+        if (previous.request_fingerprint !== requestFingerprint) {
+          return conflict(c, "Idempotency-Key was reused with another request");
+        }
+        return successData(
+          c,
+          { messageId: previous.message_id, intentStatus: previous.status },
+          202,
+        );
+      }
+      const messageId = crypto.randomUUID();
+      await tenantDb.transaction().execute(async (trx) => {
+        await reserveMediaReferences(trx, companyId, [storedMediaReference]);
+        const access = await requireConversationSendAccess(
+          trx,
+          neutralConversation.id,
+          user.id,
+        );
+        await trx
+          .insertInto("messages")
+          .values({
+            id: messageId,
+            whatsapp_connection_id: null,
+            contact_id: neutralConversation.legacy_contact_id,
+            message_id: null,
+            from_me: true,
+            sender_jid: null,
+            sender_name: user.name,
+            sender_avatar_url: null,
+            message_type: messageType,
+            content: content ?? "",
+            media_url: storedMediaReference,
+            media_mime_type: null,
+            media_size: null,
+            media_direct_path: null,
+            media_key: null,
+            media_file_sha256: null,
+            media_file_enc_sha256: null,
+            media_download_status: null,
+            media_download_error: null,
+            media_downloaded_at: null,
+            quoted_message_id: null,
+            sent_by_user_id: user.id,
+            status: "pending",
+            metadata: {},
+            timestamp: new Date(),
+            case_id: access.caseId,
+            channel_account_id: neutralConversation.channel_account_id,
+            conversation_id: neutralConversation.id,
+            external_message_id: null,
+            external_identity_scope: null,
+            client_idempotency_key: idempotencyKey,
+            direction: "outbound",
+            sender_participant_id: null,
+            reply_to_message_id: replyToMessageId ?? null,
+            provider_occurred_at: null,
+            normalized_type: messageType,
+            subject: null,
+            text_content: content ?? null,
+            sanitized_html_content: null,
+            provider_metadata: {},
+          })
+          .execute();
+        // Queued with the message, in the same transaction, so the sender's
+        // own thread and chat list update without a reload. Without this the
+        // message reached the provider and the recipient but no client was
+        // ever told it existed.
+        await enqueueOutboundRealtimeFanout(
+          trx,
+          companyId,
+          neutralConversation.channel_account_id,
+          neutralConversation.id,
+          messageId,
+        );
+        await recordOutboundConversationActivity(trx, {
+          conversationId: neutralConversation.id,
+          contactId: neutralConversation.legacy_contact_id,
+          textContent: content ?? null,
+          occurredAt: new Date(),
+        });
+        await trx
+          .insertInto("outbound_message_intents")
+          .values({
+            channel_account_id: neutralConversation.channel_account_id,
+            conversation_id: neutralConversation.id,
+            message_id: messageId,
+            scheduled_message_id: null,
+            operation: "send",
+            idempotency_key: idempotencyKey,
+            request_fingerprint: requestFingerprint,
+            normalized_payload: normalizedPayload,
+            lease_token: null,
+            lease_expires_at: null,
+            provider_request_id: null,
+            last_error_code: null,
+          })
+          .execute();
+      });
+      return successData(c, { messageId, intentStatus: "pending" }, 202);
     }
 
     // Get contact JID and connection ID

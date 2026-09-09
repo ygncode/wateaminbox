@@ -43,6 +43,14 @@ export interface MessageDbRow {
   media_download_status: string | null;
   metadata: Record<string, unknown> | null;
   quoted_message_id: string | null;
+  /**
+   * Internal FK used by the channel-neutral path. Legacy WhatsApp rows quote
+   * by the provider's own id (`quoted_message_id`); a neutral send has no such
+   * id at insert time and references the row it replies to directly.
+   */
+  reply_to_message_id: string | null;
+  /** Channel-neutral message type; `system` marks a provider event. */
+  normalized_type?: string | null;
   is_forwarded: boolean;
   is_starred: boolean;
   deleted_by_sender: boolean;
@@ -94,6 +102,8 @@ export interface MessageUserAvatarSources {
  * Message metadata object shared across formats
  */
 export interface MessageMetadata {
+  /** Marks a provider event, which the thread renders as a centered notice. */
+  isSystemEvent?: boolean;
   mediaUrl: string | null;
   mimeType: string | null;
   fileName: string | null;
@@ -277,6 +287,9 @@ function documentDownloadOverrides(
 export function buildMessageMetadata(msg: MessageDbRow): MessageMetadata {
   const contactCards = normalizeStoredContactCards(msg.metadata?.contactCards);
   return {
+    // The neutral pipeline records provider events as `system`; the legacy
+    // enum has no such value, so the flag is what the client can branch on.
+    isSystemEvent: msg.normalized_type === "system" || undefined,
     mediaUrl: msg.media_url,
     mimeType: msg.media_mime_type,
     // Same fallback as the download name, so the bubble and the saved file
@@ -357,10 +370,13 @@ export function formatMessageForConversation(
     content: msg.content || "",
     mediaUrl: msg.media_url,
     metadata: buildMessageMetadata(msg),
-    replyToMessageId: msg.quoted_message_id || undefined,
-    replyToMessage: msg.quoted_message_id
-      ? quotedMessagesMap.get(msg.quoted_message_id) || null
-      : undefined,
+    // Either key may carry the reference; the map is populated under both.
+    replyToMessageId:
+      msg.quoted_message_id || msg.reply_to_message_id || undefined,
+    replyToMessage: (() => {
+      const quotedKey = msg.quoted_message_id || msg.reply_to_message_id;
+      return quotedKey ? quotedMessagesMap.get(quotedKey) || null : undefined;
+    })(),
     isForwarded: msg.is_forwarded,
     isStarred: msg.is_starred,
     isDeleted: msg.deleted_by_sender || !!msg.deleted_at,

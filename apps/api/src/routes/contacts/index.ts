@@ -38,6 +38,8 @@ import { getRouteContext } from "../../middleware/context.js";
 import { requireContactVisibility } from "../../middleware/resource-visibility.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
+import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
+import { resolveCanonicalContactId } from "../../services/contact-merge.service.js";
 import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
 import {
   type FindOrCreateContactByPhoneResult,
@@ -47,6 +49,7 @@ import {
 } from "../../services/contact.service.js";
 import { firstChatAcknowledgmentRoutes } from "./first-chat-acknowledgment.js";
 import { assignmentRoutes } from "./assignment.js";
+import { mergeRoutes } from "./merge.js";
 import { importRoutes } from "./import.js";
 // Import sub-routes
 import { notesRoutes } from "./notes.js";
@@ -64,6 +67,7 @@ contactRoutes.route("/", importRoutes);
 contactRoutes.route("/", notesRoutes);
 contactRoutes.route("/", tagsRoutes);
 contactRoutes.route("/", assignmentRoutes);
+contactRoutes.route("/", mergeRoutes);
 contactRoutes.route("/", firstChatAcknowledgmentRoutes);
 
 // Direct contact resources must honor assignment visibility.
@@ -127,7 +131,15 @@ contactRoutes.get(
  */
 contactRoutes.get("/:id", async (c) => {
   const { tenantDb, companyId } = getRouteContext(c);
-  const contactId = c.req.param("id");
+  const requestedId = c.req.param("id")!;
+  const workflowContactId =
+    (await resolveWorkflowContactId(tenantDb, requestedId)) ?? requestedId;
+  // Contact-profile reads follow merge aliases to the surviving customer.
+  // Conversation routes deliberately do not, so an old chat URL keeps
+  // resolving to its own conversation after its customer row was merged.
+  const contactId =
+    (await resolveCanonicalContactId(tenantDb, workflowContactId)) ??
+    workflowContactId;
 
   const contact = await tenantDb
     .selectFrom("contacts")
@@ -138,6 +150,22 @@ contactRoutes.get("/:id", async (c) => {
   if (!contact) {
     return notFound(c, "Contact");
   }
+
+  const conversation = await tenantDb
+    .selectFrom("conversations as conversation")
+    .leftJoin(
+      "channel_accounts as account",
+      "account.id",
+      "conversation.channel_account_id",
+    )
+    .select([
+      "conversation.id as conversation_id",
+      "account.channel as channel",
+      "account.provider as provider",
+    ])
+    .where("conversation.legacy_contact_id", "=", contact.id)
+    .where("conversation.archived_at", "is", null)
+    .executeTakeFirst();
 
   const connection = contact.whatsapp_connection_id
     ? await tenantDb
@@ -257,6 +285,13 @@ contactRoutes.get("/:id", async (c) => {
           status: connection.status,
         }
       : null,
+    conversationId: conversation?.conversation_id ?? null,
+    channel:
+      conversation?.channel ??
+      (contact.whatsapp_connection_id ? "whatsapp" : null),
+    provider:
+      conversation?.provider ??
+      (contact.whatsapp_connection_id ? "whatsapp_linked_device" : null),
     assignment: assignmentWithNames,
     tags,
   });

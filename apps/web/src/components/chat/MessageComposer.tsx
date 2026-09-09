@@ -38,6 +38,7 @@ import { useQuickReplySuggestions } from "../../hooks/useQuickReplies";
 import { uploadMedia } from "../../lib/api";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
 import { ConnectionRoute } from "./ConnectionIdentity";
+import { useComposerFeatures } from "./composer-capabilities";
 import { shouldSendMessageOnEnter } from "./composer-keyboard";
 import { pickPastedAttachment } from "./composer-paste";
 import { canScheduleMessage } from "./composer-schedule";
@@ -146,6 +147,17 @@ interface MessageComposerProps {
   ) => Promise<boolean>;
   disabled?: boolean;
   connection?: WhatsAppConnectionIdentity | null;
+  /**
+   * The neutral channel account that owns this conversation, when it is not a
+   * WhatsApp linked device. Liveness has to come from whichever account
+   * actually routes the thread: without this, a Telegram conversation has no
+   * `connection`, so the composer read "disconnected" and refused every send.
+   */
+  channelAccount?: {
+    displayName: string | null;
+    channelName: string;
+    status: string;
+  } | null;
   currentUserName?: string;
   mentionParticipants?: GroupParticipant[];
 }
@@ -159,15 +171,21 @@ function AcknowledgedMessageComposer({
   onAttachFile,
   disabled = false,
   connection,
+  channelAccount,
   currentUserName,
   mentionParticipants = [],
 }: MessageComposerProps) {
   const { t } = useTranslation();
   const isMobile = useIsMobile();
   const acknowledgment = useFirstChatAcknowledgment(contactId);
+  // The adapter contract, not the channel name, decides which controls exist.
+  const features = useComposerFeatures();
 
-  // A conversation is permanently routed through the account that owns it.
-  const isDisconnected = !connection || connection.status !== "connected";
+  // A conversation is permanently routed through the account that owns it -
+  // a linked device or a neutral channel account, never both.
+  const isDisconnected = channelAccount
+    ? channelAccount.status !== "connected"
+    : !connection || connection.status !== "connected";
   // `disabled` is the in-flight send from ChatPage. Disabling the textarea for
   // it makes the browser blur the element, which drops the caret mid-typing and
   // forces the user back to the mouse - so only a real disconnect takes the
@@ -220,10 +238,15 @@ function AcknowledgedMessageComposer({
     !isTextareaDisabled;
   const activeMentionToken = useMemo(
     () =>
-      mentionParticipants.length > 0
+      features.canMentionGroups && mentionParticipants.length > 0
         ? getActiveMentionToken(message, caretPosition)
         : null,
-    [caretPosition, mentionParticipants.length, message],
+    [
+      caretPosition,
+      features.canMentionGroups,
+      mentionParticipants.length,
+      message,
+    ],
   );
   const mentionSuggestions = useMemo(
     () =>
@@ -273,6 +296,7 @@ function AcknowledgedMessageComposer({
   // The schedule control is rendered only when it can actually do something -
   // see composer-schedule.ts for why hiding beats a permanently greyed icon.
   const canSchedule =
+    features.canSchedule &&
     serializedMentionPayload.mentionedJids.length === 0 &&
     canScheduleMessage({
       text: message,
@@ -359,8 +383,13 @@ function AcknowledgedMessageComposer({
     setIsQuickReplyPickerDismissed(false);
     setIsMentionPickerDismissed(false);
 
-    // Only emit typing if we have a conversationId and content
-    if (!conversationId || !contactId || !newValue.trim()) {
+    // Only emit typing if the adapter supports it and we have content
+    if (
+      !features.canSendTyping ||
+      !conversationId ||
+      !contactId ||
+      !newValue.trim()
+    ) {
       // User cleared input - just clear state (don't send typing:stop to avoid cooldown)
       if (currentTypingJidRef.current) {
         clearTypingState();
@@ -695,6 +724,8 @@ function AcknowledgedMessageComposer({
   const handlePaste = useCallback(
     (event: ClipboardEvent) => {
       if (isTextareaDisabled || !conversationId) return;
+      // Pasting media into an adapter that cannot carry it must stay text.
+      if (!features.canAttach) return;
       // The preview dialog owns its own caption field; a paste there is text.
       if (pendingAttachments.length > 0) return;
 
@@ -717,7 +748,12 @@ function AcknowledgedMessageComposer({
       setShowEmojiPicker(false);
       setPendingAttachments([attachment]);
     },
-    [conversationId, isTextareaDisabled, pendingAttachments.length],
+    [
+      conversationId,
+      features.canAttach,
+      isTextareaDisabled,
+      pendingAttachments.length,
+    ],
   );
 
   useEffect(() => {
@@ -770,11 +806,9 @@ function AcknowledgedMessageComposer({
         {/* Disconnected banner */}
         {isDisconnected && (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 dark:border-amber-800/30 dark:bg-amber-900/20 dark:text-amber-200">
-            {connection?.name ||
-              connection?.phoneNumber ||
-              "This WhatsApp account"}{" "}
-            is disconnected. This conversation cannot be rerouted to another
-            number.
+            {channelAccount
+              ? `${channelAccount.displayName?.trim() || `This ${channelAccount.channelName} account`} is disconnected. This conversation cannot be moved to another account.`
+              : `${connection?.name || connection?.phoneNumber || "This WhatsApp account"} is disconnected. This conversation cannot be rerouted to another number.`}
           </div>
         )}
 
@@ -901,81 +935,90 @@ function AcknowledgedMessageComposer({
               )}
             </div>
 
-            {/* Attachment button */}
-            <div className="relative" ref={attachmentMenuRef}>
-              <button
-                type="button"
-                disabled={isInputDisabled}
-                className={`grid size-9 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 ${
-                  isInputDisabled
-                    ? "cursor-not-allowed text-[#aebac1] dark:text-dark-text-tertiary"
-                    : showAttachmentMenu
-                      ? "rotate-45 bg-black/[0.07] text-[#008069] dark:bg-white/[0.08] dark:text-emerald-300"
-                      : "text-[#54656f] hover:bg-black/[0.055] active:bg-black/10 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
-                }`}
-                onClick={() => {
-                  setShowAttachmentMenu(!showAttachmentMenu);
-                  setShowEmojiPicker(false);
-                }}
-                aria-label={t("chat.attachFile", "Attach file")}
-                aria-expanded={showAttachmentMenu}
-                aria-controls="message-attachment-menu"
-              >
-                <Paperclip
-                  className="size-5.5"
-                  strokeWidth={1.8}
-                  aria-hidden="true"
-                />
-              </button>
-
-              {/* Attachment menu */}
-              {showAttachmentMenu && (
-                <div
-                  id="message-attachment-menu"
-                  className="absolute bottom-full left-0 z-30 mb-3 w-52 origin-bottom-left animate-in rounded-2xl border border-black/[0.07] bg-white p-2 shadow-[0_12px_36px_rgba(11,20,26,0.18)] fade-in-0 zoom-in-95 duration-150 dark:border-white/[0.08] dark:bg-dark-elevated dark:shadow-black/40"
+            {/* Attachment button. Hidden when the adapter cannot carry media. */}
+            {features.canAttach && (
+              <div className="relative" ref={attachmentMenuRef}>
+                <button
+                  type="button"
+                  disabled={isInputDisabled}
+                  className={`grid size-9 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 ${
+                    isInputDisabled
+                      ? "cursor-not-allowed text-[#aebac1] dark:text-dark-text-tertiary"
+                      : showAttachmentMenu
+                        ? "rotate-45 bg-black/[0.07] text-[#008069] dark:bg-white/[0.08] dark:text-emerald-300"
+                        : "text-[#54656f] hover:bg-black/[0.055] active:bg-black/10 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
+                  }`}
+                  onClick={() => {
+                    setShowAttachmentMenu(!showAttachmentMenu);
+                    setShowEmojiPicker(false);
+                  }}
+                  aria-label={t("chat.attachFile", "Attach file")}
+                  aria-expanded={showAttachmentMenu}
+                  aria-controls="message-attachment-menu"
                 >
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
-                    onClick={() => triggerFileInput("image")}
-                  >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#bf59cf] text-white">
-                      <ImageIcon className="size-4.5" aria-hidden="true" />
-                    </span>
-                    <span>{t("chat.photosAndVideos", "Photos & Videos")}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="mt-0.5 flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
-                    onClick={() => triggerFileInput("document")}
-                  >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#5157ae] text-white">
-                      <FileText className="size-4.5" aria-hidden="true" />
-                    </span>
-                    <span>{t("chat.mediaTypes.document", "Document")}</span>
-                  </button>
-                </div>
-              )}
+                  <Paperclip
+                    className="size-5.5"
+                    strokeWidth={1.8}
+                    aria-hidden="true"
+                  />
+                </button>
 
-              {/* Hidden file inputs */}
-              <input
-                ref={imageInputRef}
-                type="file"
-                accept="image/*,video/*"
-                multiple
-                disabled={isInputDisabled}
-                className="hidden"
-                onChange={(e) => handleFileSelect(e, "image")}
-              />
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
-                disabled={isInputDisabled}
-                className="hidden"
-                onChange={(e) => handleFileSelect(e, "document")}
-              />
-            </div>
+                {/* Attachment menu */}
+                {showAttachmentMenu && (
+                  <div
+                    id="message-attachment-menu"
+                    className="absolute bottom-full left-0 z-30 mb-3 w-52 origin-bottom-left animate-in rounded-2xl border border-black/[0.07] bg-white p-2 shadow-[0_12px_36px_rgba(11,20,26,0.18)] fade-in-0 zoom-in-95 duration-150 dark:border-white/[0.08] dark:bg-dark-elevated dark:shadow-black/40"
+                  >
+                    {(features.attachmentTypes.includes("image") ||
+                      features.attachmentTypes.includes("video")) && (
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
+                        onClick={() => triggerFileInput("image")}
+                      >
+                        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#bf59cf] text-white">
+                          <ImageIcon className="size-4.5" aria-hidden="true" />
+                        </span>
+                        <span>
+                          {t("chat.photosAndVideos", "Photos & Videos")}
+                        </span>
+                      </button>
+                    )}
+                    {features.attachmentTypes.includes("document") && (
+                      <button
+                        type="button"
+                        className="mt-0.5 flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
+                        onClick={() => triggerFileInput("document")}
+                      >
+                        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#5157ae] text-white">
+                          <FileText className="size-4.5" aria-hidden="true" />
+                        </span>
+                        <span>{t("chat.mediaTypes.document", "Document")}</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Hidden file inputs */}
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  disabled={isInputDisabled}
+                  className="hidden"
+                  onChange={(e) => handleFileSelect(e, "image")}
+                />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+                  disabled={isInputDisabled}
+                  className="hidden"
+                  onChange={(e) => handleFileSelect(e, "document")}
+                />
+              </div>
+            )}
 
             {/* Text input */}
             <div className="relative min-w-0 flex-1">
@@ -1013,6 +1056,7 @@ function AcknowledgedMessageComposer({
                         )
                   }
                   disabled={isTextareaDisabled}
+                  maxLength={features.maxTextLength}
                   rows={1}
                   enterKeyHint="enter"
                   aria-label={t("chat.messageInput", "Message input")}

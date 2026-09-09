@@ -11,9 +11,13 @@ export function NotificationMuteSection({ contact }: { contact: ContactData }) {
 
   const { isContactMuted, muteContact, unmuteContact, isSyncing } =
     useNotifications();
-  const jid = normalizeJid(contact.jid);
-  if (!jid) return null;
-  const muted = isContactMuted(jid);
+  const jid = contact.jid ? normalizeJid(contact.jid) : null;
+  const token = jid ?? contact.conversationId ?? contact.id;
+  if (!token) return null;
+  const muted =
+    isContactMuted(token) ||
+    (contact.conversationId ? isContactMuted(contact.conversationId) : false) ||
+    isContactMuted(contact.id);
 
   return (
     <RightPanelSection title={t("contacts.notifications", "Notifications")}>
@@ -42,7 +46,7 @@ export function NotificationMuteSection({ contact }: { contact: ContactData }) {
           size="sm"
           variant="outline"
           disabled={isSyncing}
-          onClick={() => (muted ? unmuteContact(jid) : muteContact(jid))}
+          onClick={() => (muted ? unmuteContact(token) : muteContact(token))}
         >
           {muted ? "Unmute" : "Mute"}
         </Button>

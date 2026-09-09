@@ -32,6 +32,7 @@ export type ServerToClientEventType =
   // Message events
   | "message"
   | "message:new"
+  | "channel_message:new"
   | "message:status"
   | "message:deleted"
   | "message:reaction"
@@ -392,6 +393,7 @@ export function isServerToClientEventType(
     "connection:status",
     "message",
     "message:new",
+    "channel_message:new",
     "message:status",
     "message:deleted",
     "message:reaction",

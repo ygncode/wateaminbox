@@ -2,6 +2,7 @@ import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { normalizePhoneNumber } from "../lib/schemas.js";
+import { conversationIdForContact } from "./channel-workflow.service.js";
 import { buildContactWhereClause } from "./helpers/contact-query-builder.js";
 import { getSchemaName, type TenantDatabase } from "./tenant.service.js";
 import { getUserNames } from "./user.service.js";
@@ -63,6 +64,9 @@ export interface ContactWithLastMessage {
   connection_name: string | null;
   connection_phone_number: string | null;
   connection_status: string | null;
+  conversation_id: string | null;
+  channel: string | null;
+  provider: string | null;
   last_message: {
     id: string;
     messageId: string | null;
@@ -165,6 +169,9 @@ export async function getContactsWithLastMessage(
     connection_name: string | null;
     connection_phone_number: string | null;
     connection_status: string | null;
+    conversation_id: string | null;
+    channel: string | null;
+    provider: string | null;
     last_message_sent_by_user_id: string | null;
     conversation_status: "open" | "pending" | "resolved";
     active_case_id: string | null;
@@ -184,6 +191,9 @@ export async function getContactsWithLastMessage(
       c.is_online,
       c.last_seen,
       c.whatsapp_connection_id as connection_id,
+      conv.id as conversation_id,
+      COALESCE(acc.channel, CASE WHEN c.whatsapp_connection_id IS NOT NULL THEN 'whatsapp' END) as channel,
+      COALESCE(acc.provider, CASE WHEN c.whatsapp_connection_id IS NOT NULL THEN 'whatsapp_linked_device' END) as provider,
       wc.name as connection_name,
       wc.phone_number as connection_phone_number,
       wc.status::text as connection_status,
@@ -203,6 +213,11 @@ export async function getContactsWithLastMessage(
     FROM ${schema}.${sql.ref("contacts")} c
     LEFT JOIN ${schema}.${sql.ref("whatsapp_connections")} wc
       ON wc.id = c.whatsapp_connection_id
+    LEFT JOIN ${schema}.${sql.ref("conversations")} conv
+      ON conv.legacy_contact_id = c.id
+      AND conv.archived_at IS NULL
+    LEFT JOIN ${schema}.${sql.ref("channel_accounts")} acc
+      ON acc.id = conv.channel_account_id
     LEFT JOIN ${schema}.${sql.ref("contact_assignments")} ca
       ON ca.contact_id = c.id
       AND ca.unassigned_at IS NULL
@@ -269,6 +284,9 @@ export async function getContactsWithLastMessage(
       connection_name: contact.connection_name,
       connection_phone_number: contact.connection_phone_number,
       connection_status: contact.connection_status,
+      conversation_id: contact.conversation_id,
+      channel: contact.channel,
+      provider: contact.provider,
       conversation_status: contact.conversation_status,
       active_case_id: contact.active_case_id,
       last_message: lastMessage,
@@ -380,10 +398,12 @@ export async function assignContactToUser(
     .execute();
 
   // Create new assignment
+  const conversationId = await conversationIdForContact(tenantDb, contactId);
   const assignment = await tenantDb
     .insertInto("contact_assignments")
     .values({
       contact_id: contactId,
+      conversation_id: conversationId,
       assigned_to: userId,
       assigned_by: assignedByUserId,
     })
@@ -401,21 +421,76 @@ export async function assignContactToUser(
 /**
  * Gets the current assignment for a contact
  */
+export async function assignConversationToUser(
+  tenantDb: Kysely<TenantDatabase>,
+  conversationId: string,
+  userId: string,
+  assignedByUserId: string,
+): Promise<void> {
+  await tenantDb
+    .updateTable("contact_assignments")
+    .set({ unassigned_at: toDbDate() })
+    .where("conversation_id", "=", conversationId)
+    .where("unassigned_at", "is", null)
+    .execute();
+  await tenantDb
+    .insertInto("contact_assignments")
+    .values({
+      contact_id: null,
+      conversation_id: conversationId,
+      assigned_to: userId,
+      assigned_by: assignedByUserId,
+    })
+    .execute();
+}
+
+export async function getCurrentConversationAssignment(
+  tenantDb: Kysely<TenantDatabase>,
+  conversationId: string,
+) {
+  return tenantDb
+    .selectFrom("contact_assignments")
+    .select(["id", "assigned_to", "assigned_by", "assigned_at"])
+    .where("conversation_id", "=", conversationId)
+    .where("unassigned_at", "is", null)
+    .executeTakeFirst();
+}
+
 export async function getCurrentAssignment(
   tenantDb: Kysely<TenantDatabase>,
   contactId: string,
+  conversationId?: string | null,
 ) {
   return await tenantDb
     .selectFrom("contact_assignments")
     .select(["id", "assigned_to", "assigned_by", "assigned_at"])
-    .where("contact_id", "=", contactId)
     .where("unassigned_at", "is", null)
+    .where((eb) =>
+      conversationId
+        ? eb.or([
+            eb("contact_id", "=", contactId),
+            eb("conversation_id", "=", conversationId),
+          ])
+        : eb("contact_id", "=", contactId),
+    )
     .executeTakeFirst();
 }
 
 /**
  * Unassigns a contact
  */
+export async function unassignConversation(
+  tenantDb: Kysely<TenantDatabase>,
+  conversationId: string,
+): Promise<void> {
+  await tenantDb
+    .updateTable("contact_assignments")
+    .set({ unassigned_at: toDbDate() })
+    .where("conversation_id", "=", conversationId)
+    .where("unassigned_at", "is", null)
+    .execute();
+}
+
 export async function unassignContact(
   tenantDb: Kysely<TenantDatabase>,
   contactId: string,

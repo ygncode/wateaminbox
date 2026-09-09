@@ -1,7 +1,15 @@
 import { settingsWriteTools } from "./settings.js";
-import { getContactDisplayName, toDbDate } from "@wateaminbox/shared";
+import {
+  getContactDisplayName,
+  isChannel,
+  isChannelProvider,
+  toDbDate,
+} from "@wateaminbox/shared";
+import { createHash } from "node:crypto";
 import type { Context } from "hono";
 import { z } from "zod";
+import { resolveAdapterCapabilities } from "../../../channel-spine/application/adapter-registry.js";
+import { channelAdapterRegistry } from "../../../channel-spine/registry.js";
 import {
   buildCommandSubject,
   buildSendMessageCommand,
@@ -22,6 +30,10 @@ import {
   broadcastAutoAssignment,
   broadcastContactAssignmentEvent,
 } from "../../../services/assignment-broadcast.service.js";
+import {
+  enqueueOutboundRealtimeFanout,
+  recordOutboundConversationActivity,
+} from "../../../services/channel-message-fanout.service.js";
 import { getAssignmentNotificationInputs } from "../../../services/assignment-notification.service.js";
 import { decideContactAssignment } from "../../../services/assignment-policy.js";
 import {
@@ -39,20 +51,28 @@ import { enqueueCommand } from "../../../services/command-outbox.service.js";
 import {
   ensureActiveCaseWithin,
   reopenAsNewCase,
+  reopenAsNewCaseForConversation,
   resolveActiveCase,
+  resolveActiveCaseForConversation,
   resumePendingCase,
+  resumePendingCaseForConversation,
   setActiveCasePending,
+  setActiveCasePendingForConversation,
 } from "../../../services/conversation-case.service.js";
 import {
   type FindOrCreateContactByPhoneResult,
   findOrCreateContactByPhone,
+  assignConversationToUser,
   getCurrentAssignment,
+  getCurrentConversationAssignment,
   OutboundContactError,
+  unassignConversation,
 } from "../../../services/contact.service.js";
 import { reserveMediaReferences } from "../../../services/media-reference-lock.js";
 import {
   broadcastNewMessageToViewers,
   broadcastToContactViewers,
+  broadcastToConversationViewers,
 } from "../../../services/message-broadcast.service.js";
 import {
   getAuthorName,
@@ -61,10 +81,22 @@ import {
 } from "../../../services/note.service.js";
 import { createAndPublishNotifications } from "../../../services/notification-delivery.service.js";
 import { getMemberWithPermissions } from "../../../services/permission.service.js";
-import { requireSendAccess } from "../../../services/send-access.service.js";
+import {
+  getChannelSpineWorkspaceAuthority,
+  isChannelProviderEnabled,
+} from "../../../services/channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "../../../services/channel-spine-readiness.service.js";
+import {
+  conversationIdForContact,
+  resolveWorkflowIdentity,
+} from "../../../services/channel-workflow.service.js";
+import {
+  requireConversationSendAccess,
+  requireSendAccess,
+} from "../../../services/send-access.service.js";
 import { getActiveSessionId } from "../../../services/whatsapp/session.js";
 import { type McpToolDefinition, McpToolError } from "../tool-context.js";
-import { requireVisibleContact } from "./read.js";
+import { requireVisibleContact, requireVisibleWorkflow } from "./read.js";
 import { schedulingTools } from "./scheduling.js";
 
 async function createMcpAuditLog(
@@ -149,6 +181,194 @@ async function loadContactForCase(
   return contact;
 }
 
+async function broadcastMcpLifecycle(
+  companyId: string,
+  identity: { contactId: string | null; conversationId: string | null },
+  payload: Record<string, unknown>,
+): Promise<void> {
+  if (identity.contactId) {
+    await broadcastToContactViewers(
+      companyId,
+      identity.contactId,
+      "conversation:updated",
+      payload,
+    );
+    return;
+  }
+  await broadcastToConversationViewers(
+    companyId,
+    identity.conversationId,
+    "conversation:updated",
+    payload,
+  );
+}
+
+async function queueNeutralTextMessage(
+  c: Context,
+  targetId: string,
+  content: string,
+  options: { openCaseIfMissing?: boolean } = {},
+): Promise<{
+  messageId: string;
+  contactId: string;
+  status: "queued";
+  autoAssigned: boolean;
+  note: string;
+}> {
+  const { tenantDb, user, companyId } = getRouteContext(c);
+  const identity = await resolveWorkflowIdentity(tenantDb, targetId);
+  const conversationId =
+    identity?.conversationId ??
+    (await conversationIdForContact(tenantDb, targetId));
+  if (!conversationId) {
+    throw new McpToolError("Conversation is not ready for send");
+  }
+  const contactId = identity?.contactId ?? null;
+  const conversation = await tenantDb
+    .selectFrom("conversations as conversation")
+    .innerJoin(
+      "channel_accounts as account",
+      "account.id",
+      "conversation.channel_account_id",
+    )
+    .select([
+      "conversation.id",
+      "conversation.channel_account_id",
+      "account.channel",
+      "account.provider",
+    ])
+    .where("conversation.id", "=", conversationId)
+    .where("conversation.archived_at", "is", null)
+    .executeTakeFirst();
+  if (
+    !conversation ||
+    !isChannel(conversation.channel) ||
+    !isChannelProvider(conversation.provider)
+  ) {
+    throw new McpToolError("The channel adapter is not available");
+  }
+  const authority = await getChannelSpineWorkspaceAuthority(companyId);
+  if (
+    authority.writeAuthority !== "neutral" ||
+    !isChannelProviderEnabled(authority, conversation.provider) ||
+    !(await isChannelSpineTenantReady(tenantDb, companyId))
+  ) {
+    throw new McpToolError("Neutral channel writes are not enabled");
+  }
+  const capabilities = await resolveAdapterCapabilities(
+    channelAdapterRegistry,
+    conversation.channel,
+    conversation.provider,
+    {
+      companyId,
+      channelAccountId: conversation.channel_account_id,
+      conversationId,
+      now: new Date().toISOString(),
+    },
+  );
+  if (
+    !capabilities.messageTypes.some(
+      (type) => type.type === "text" && type.enabled,
+    )
+  ) {
+    throw new McpToolError("Text messages are not supported by this channel");
+  }
+  const messageId = crypto.randomUUID();
+  const idempotencyKey = `mcp:${messageId}`;
+  const normalizedPayload = {
+    messageType: "text",
+    textContent: content,
+    actorUserId: user.id,
+    sentByUserId: user.id,
+    replyToExternalMessageId: null as string | null,
+    attachments: [] as Array<Record<string, unknown>>,
+  };
+  const requestFingerprint = createHash("sha256")
+    .update(JSON.stringify(normalizedPayload))
+    .digest("hex");
+  let autoAssigned = false;
+  await tenantDb.transaction().execute(async (trx) => {
+    if (options.openCaseIfMissing && contactId) {
+      await ensureActiveCaseWithin(
+        trx,
+        { id: contactId, isGroup: identity?.isGroup ?? false },
+        {
+          companyId,
+          openedBy: user.id,
+          reason: "Outbound conversation started from the API",
+        },
+      );
+    }
+    const access = contactId
+      ? await requireSendAccess(trx, contactId, user.id)
+      : await requireConversationSendAccess(trx, conversationId, user.id);
+    autoAssigned = access.autoAssigned;
+    await trx
+      .insertInto("messages")
+      .values({
+        id: messageId,
+        whatsapp_connection_id: null,
+        contact_id: contactId,
+        message_id: null,
+        from_me: true,
+        message_type: "text",
+        content,
+        sent_by_user_id: user.id,
+        status: "pending",
+        metadata: {},
+        timestamp: new Date(),
+        case_id: access.caseId,
+        channel_account_id: conversation.channel_account_id,
+        conversation_id: conversation.id,
+        client_idempotency_key: idempotencyKey,
+        direction: "outbound",
+        normalized_type: "text",
+        text_content: content,
+        provider_metadata: {},
+      })
+      .execute();
+    // Same transaction as the message: an MCP send has to reach every open
+    // inbox the way a send from the web app does.
+    await enqueueOutboundRealtimeFanout(
+      trx,
+      companyId,
+      conversation.channel_account_id,
+      conversation.id,
+      messageId,
+    );
+    await recordOutboundConversationActivity(trx, {
+      conversationId: conversation.id,
+      contactId,
+      textContent: content,
+      occurredAt: new Date(),
+    });
+    await trx
+      .insertInto("outbound_message_intents")
+      .values({
+        channel_account_id: conversation.channel_account_id,
+        conversation_id: conversation.id,
+        message_id: messageId,
+        scheduled_message_id: null,
+        operation: "send",
+        idempotency_key: idempotencyKey,
+        request_fingerprint: requestFingerprint,
+        normalized_payload: normalizedPayload,
+        lease_token: null,
+        lease_expires_at: null,
+        provider_request_id: null,
+        last_error_code: null,
+      })
+      .execute();
+  });
+  return {
+    messageId,
+    contactId: contactId ?? conversationId,
+    status: "queued",
+    autoAssigned,
+    note: "Queued on the channel-neutral outbound path",
+  };
+}
+
 /**
  * Queue an outbound text message on an existing contact.
  *
@@ -174,8 +394,11 @@ async function queueTextMessage(
     .select(["id", "jid", "is_group", "whatsapp_connection_id"])
     .where("id", "=", contactId)
     .executeTakeFirst();
-  if (!contact || !contact.jid) {
-    throw new McpToolError("Contact not found");
+  if (!contact) {
+    return queueNeutralTextMessage(c, contactId, content, options);
+  }
+  if (!contact.jid || !contact.whatsapp_connection_id) {
+    return queueNeutralTextMessage(c, contact.id, content, options);
   }
   const connection = contact.whatsapp_connection_id
     ? await tenantDb
@@ -290,15 +513,25 @@ export const writeTools: McpToolDefinition[] = [
   {
     name: "send_message",
     description:
-      "Send a text WhatsApp message to a contact that already exists. The message is queued for delivery (status 'pending'); delivery happens asynchronously. Sending to an unassigned contact may auto-assign it to the token owner. To message a number that is not a contact yet, use start_conversation.",
+      "Send a text message to an existing conversation. Pass contactId or conversationId. The message is queued for delivery (status 'pending'); delivery happens asynchronously. Sending to an unassigned conversation may auto-assign it to the token owner. To message a number that is not a contact yet, use start_conversation.",
     scope: "write",
     permission: "can_send_messages",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       content: z.string().min(1).max(65536),
     },
-    handler: async (args: { contactId: string; content: string }, c) =>
-      queueTextMessage(c, args.contactId, args.content),
+    handler: async (
+      args: { contactId?: string; conversationId?: string; content: string },
+      c,
+    ) => {
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      await requireVisibleWorkflow(c, targetId);
+      return queueTextMessage(c, targetId, args.content);
+    },
   },
   {
     name: "start_conversation",
@@ -375,7 +608,8 @@ export const writeTools: McpToolDefinition[] = [
     scope: "write",
     permission: "can_send_messages",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       action: z.enum(["resolve", "open", "reopen", "pending", "resume"]),
       outcome: z
         .enum(["handled", "no_reply_needed", "spam", "duplicate", "other"])
@@ -386,7 +620,8 @@ export const writeTools: McpToolDefinition[] = [
     },
     handler: async (
       args: {
-        contactId: string;
+        contactId?: string;
+        conversationId?: string;
         action: "resolve" | "open" | "reopen" | "pending" | "resume";
         outcome?:
           | "handled"
@@ -400,9 +635,18 @@ export const writeTools: McpToolDefinition[] = [
       c,
     ) => {
       const { tenantDb, user, companyId } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
-      const contact = await loadContactForCase(tenantDb, args.contactId);
-      const contactName = getContactDisplayName(contact, "Unknown");
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      const identity = await requireVisibleWorkflow(c, targetId);
+      const contact = identity.contactId
+        ? await loadContactForCase(tenantDb, identity.contactId)
+        : undefined;
+      const contactName = contact
+        ? getContactDisplayName(contact, "Unknown")
+        : identity.subject?.trim() || "Conversation";
+      const entityId = identity.contactId ?? identity.conversationId!;
 
       if (args.action === "resolve") {
         if (!args.outcome) {
@@ -411,19 +655,30 @@ export const writeTools: McpToolDefinition[] = [
         if (args.outcome === "other" && !args.notes) {
           throw new McpToolError("notes are required for outcome 'other'");
         }
-        const resolvedCase = await resolveActiveCase(tenantDb, args.contactId, {
-          outcome: args.outcome,
-          notes: args.notes,
-          resolvedBy: user.id,
-        });
+        const resolvedCase = identity.contactId
+          ? await resolveActiveCase(tenantDb, identity.contactId, {
+              outcome: args.outcome,
+              notes: args.notes,
+              resolvedBy: user.id,
+            })
+          : await resolveActiveCaseForConversation(
+              tenantDb,
+              identity.conversationId!,
+              {
+                outcome: args.outcome,
+                notes: args.notes,
+                resolvedBy: user.id,
+              },
+            );
         await createMcpAuditLog(c, {
           companyId,
           userId: user.id,
           action: "conversation.resolved",
           entityType: "conversation",
-          entityId: args.contactId,
+          entityId,
           details: {
-            contactId: args.contactId,
+            contactId: identity.contactId,
+            conversationId: identity.conversationId,
             contactName,
             caseId: resolvedCase.id,
             outcome: args.outcome,
@@ -431,41 +686,52 @@ export const writeTools: McpToolDefinition[] = [
           },
           ipAddress: getClientIp(c),
         });
-        await broadcastToContactViewers(
-          companyId,
-          args.contactId,
-          "conversation:updated",
-          {
-            event: "resolved",
-            contactId: args.contactId,
-            caseId: resolvedCase.id,
-            resolvedBy: user.id,
-            resolvedAt: resolvedCase.resolvedAt?.toISOString(),
-          },
-        );
+        await broadcastMcpLifecycle(companyId, identity, {
+          event: "resolved",
+          contactId: identity.contactId,
+          conversationId: identity.conversationId,
+          caseId: resolvedCase.id,
+          resolvedBy: user.id,
+          resolvedAt: resolvedCase.resolvedAt?.toISOString(),
+        });
         return { status: "resolved", caseId: resolvedCase.id };
       }
 
       if (args.action === "open" || args.action === "reopen") {
-        const newCase = await reopenAsNewCase(
-          tenantDb,
-          { id: args.contactId, isGroup: contact.is_group },
-          {
-            companyId,
-            openedBy: user.id,
-            reason: args.reason,
-            expectedMode: args.action,
-          },
-        );
+        const newCase = identity.contactId
+          ? await reopenAsNewCase(
+              tenantDb,
+              { id: identity.contactId, isGroup: contact?.is_group ?? false },
+              {
+                companyId,
+                openedBy: user.id,
+                reason: args.reason,
+                expectedMode: args.action,
+              },
+            )
+          : await reopenAsNewCaseForConversation(
+              tenantDb,
+              {
+                id: identity.conversationId!,
+                isGroup: identity.isGroup,
+              },
+              {
+                companyId,
+                openedBy: user.id,
+                reason: args.reason,
+                expectedMode: args.action,
+              },
+            );
         const wasReopen = Boolean(newCase.reopenedFromCaseId);
         await createMcpAuditLog(c, {
           companyId,
           userId: user.id,
           action: wasReopen ? "conversation.reopened" : "conversation.opened",
           entityType: "conversation",
-          entityId: args.contactId,
+          entityId,
           details: {
-            contactId: args.contactId,
+            contactId: identity.contactId,
+            conversationId: identity.conversationId,
             contactName,
             caseId: newCase.id,
             reopenedFromCaseId: newCase.reopenedFromCaseId,
@@ -473,25 +739,21 @@ export const writeTools: McpToolDefinition[] = [
           },
           ipAddress: getClientIp(c),
         });
-        await broadcastToContactViewers(
-          companyId,
-          args.contactId,
-          "conversation:updated",
-          {
-            event: wasReopen ? "reopened" : "opened",
-            contactId: args.contactId,
-            caseId: newCase.id,
-            ...(wasReopen
-              ? {
-                  reopenedBy: user.id,
-                  reopenedAt: newCase.openedAt.toISOString(),
-                }
-              : {
-                  openedBy: user.id,
-                  openedAt: newCase.openedAt.toISOString(),
-                }),
-          },
-        );
+        await broadcastMcpLifecycle(companyId, identity, {
+          event: wasReopen ? "reopened" : "opened",
+          contactId: identity.contactId,
+          conversationId: identity.conversationId,
+          caseId: newCase.id,
+          ...(wasReopen
+            ? {
+                reopenedBy: user.id,
+                reopenedAt: newCase.openedAt.toISOString(),
+              }
+            : {
+                openedBy: user.id,
+                openedAt: newCase.openedAt.toISOString(),
+              }),
+        });
         return {
           status: wasReopen ? "reopened" : "opened",
           caseId: newCase.id,
@@ -499,83 +761,94 @@ export const writeTools: McpToolDefinition[] = [
       }
 
       if (args.action === "pending") {
-        const pendingCase = await setActiveCasePending(
-          tenantDb,
-          args.contactId,
-          user.id,
-        );
+        const pendingCase = identity.contactId
+          ? await setActiveCasePending(tenantDb, identity.contactId, user.id)
+          : await setActiveCasePendingForConversation(
+              tenantDb,
+              identity.conversationId!,
+              user.id,
+            );
         await createMcpAuditLog(c, {
           companyId,
           userId: user.id,
           action: "conversation.pending",
           entityType: "conversation",
-          entityId: args.contactId,
+          entityId,
           details: {
-            contactId: args.contactId,
+            contactId: identity.contactId,
+            conversationId: identity.conversationId,
             contactName,
             caseId: pendingCase.id,
           },
           ipAddress: getClientIp(c),
         });
-        await broadcastToContactViewers(
-          companyId,
-          args.contactId,
-          "conversation:updated",
-          {
-            event: "pending",
-            contactId: args.contactId,
-            caseId: pendingCase.id,
-          },
-        );
+        await broadcastMcpLifecycle(companyId, identity, {
+          event: "pending",
+          contactId: identity.contactId,
+          conversationId: identity.conversationId,
+          caseId: pendingCase.id,
+        });
         return { status: "pending", caseId: pendingCase.id };
       }
 
-      const resumedCase = await resumePendingCase(
-        tenantDb,
-        args.contactId,
-        user.id,
-      );
+      const resumedCase = identity.contactId
+        ? await resumePendingCase(tenantDb, identity.contactId, user.id)
+        : await resumePendingCaseForConversation(
+            tenantDb,
+            identity.conversationId!,
+            user.id,
+          );
       await createMcpAuditLog(c, {
         companyId,
         userId: user.id,
         action: "conversation.resumed",
         entityType: "conversation",
-        entityId: args.contactId,
+        entityId,
         details: {
-          contactId: args.contactId,
+          contactId: identity.contactId,
+          conversationId: identity.conversationId,
           contactName,
           caseId: resumedCase.id,
         },
         ipAddress: getClientIp(c),
       });
-      await broadcastToContactViewers(
-        companyId,
-        args.contactId,
-        "conversation:updated",
-        {
-          event: "resumed",
-          contactId: args.contactId,
-          caseId: resumedCase.id,
-        },
-      );
+      await broadcastMcpLifecycle(companyId, identity, {
+        event: "resumed",
+        contactId: identity.contactId,
+        conversationId: identity.conversationId,
+        caseId: resumedCase.id,
+      });
       return { status: "open", caseId: resumedCase.id };
     },
   },
   {
     name: "assign_contact",
     description:
-      "Assign a conversation's contact to a workspace member (defaults to the token owner). Reassigning a contact away from another member requires the can_assign_contacts permission.",
+      "Assign a conversation to a workspace member (defaults to the token owner). Pass contactId or conversationId. Reassigning away from another member requires the can_assign_contacts permission.",
     scope: "write",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       targetUserId: z
         .string()
         .uuid()
         .optional()
         .describe("Member to assign to; defaults to the token owner"),
     },
-    handler: async (args: { contactId: string; targetUserId?: string }, c) => {
+    handler: async (
+      args: {
+        contactId?: string;
+        conversationId?: string;
+        targetUserId?: string;
+      },
+      c,
+    ) => {
       const { tenantDb, user, companyId, permissions } = getRouteContext(c);
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      const identity = await requireVisibleWorkflow(c, targetId);
       const targetUserId = args.targetUserId ?? user.id;
 
       const targetMember = await getMemberWithPermissions(
@@ -598,19 +871,61 @@ export const writeTools: McpToolDefinition[] = [
         );
       }
 
+      if (!identity.contactId && identity.conversationId) {
+        const previousAssignment = await getCurrentConversationAssignment(
+          tenantDb,
+          identity.conversationId,
+        );
+        const previousAssigneeId = previousAssignment?.assigned_to;
+        if (
+          decideContactAssignment({
+            actorUserId: user.id,
+            targetUserId,
+            currentAssigneeId: previousAssigneeId,
+            targetIsCompanyMember: true,
+            canAssignContacts: permissions.can_assign_contacts,
+          }) === "permission_denied"
+        ) {
+          throw new McpToolError(
+            "can_assign_contacts is required to reassign an assigned contact",
+          );
+        }
+        const isNoop = previousAssignment?.assigned_to === targetUserId;
+        if (!isNoop) {
+          await assignConversationToUser(
+            tenantDb,
+            identity.conversationId,
+            targetUserId,
+            user.id,
+          );
+        }
+        return {
+          contactId: null,
+          conversationId: identity.conversationId,
+          assignedTo: targetUserId,
+          wasTakeover: Boolean(
+            previousAssigneeId && previousAssigneeId !== targetUserId,
+          ),
+          previousAssignee: previousAssigneeId ?? null,
+          wasNoop: isNoop,
+        };
+      }
+
+      const contactId = identity.contactId;
+      if (!contactId) {
+        throw new McpToolError("Contact not found");
+      }
+
       const result = await tenantDb.transaction().execute(async (trx) => {
         const contact = await trx
           .selectFrom("contacts")
           .select(["id", "custom_name", "push_name", "phone_number", "jid"])
-          .where("id", "=", args.contactId)
+          .where("id", "=", contactId)
           .forUpdate()
           .executeTakeFirst();
         if (!contact) return null;
 
-        const previousAssignment = await getCurrentAssignment(
-          trx,
-          args.contactId,
-        );
+        const previousAssignment = await getCurrentAssignment(trx, contactId);
         const previousAssigneeId = previousAssignment?.assigned_to;
         const isTakeover = Boolean(
           previousAssigneeId && previousAssigneeId !== targetUserId,
@@ -638,13 +953,13 @@ export const writeTools: McpToolDefinition[] = [
         await trx
           .updateTable("contact_assignments")
           .set({ unassigned_at: toDbDate() })
-          .where("contact_id", "=", args.contactId)
+          .where("contact_id", "=", contactId)
           .where("unassigned_at", "is", null)
           .execute();
         const assignment = await trx
           .insertInto("contact_assignments")
           .values({
-            contact_id: args.contactId,
+            contact_id: contactId,
             assigned_to: targetUserId,
             assigned_by: user.id,
           })
@@ -677,7 +992,7 @@ export const writeTools: McpToolDefinition[] = [
         actorUserId: user.id,
         targetUserId,
         previousAssigneeId,
-        contactId: args.contactId,
+        contactId,
         contactName: contactDisplayName,
         isNoop,
       });
@@ -685,7 +1000,7 @@ export const writeTools: McpToolDefinition[] = [
       if (!isNoop) {
         await broadcastContactAssignmentEvent(companyId, {
           event: isTakeover ? "reassigned" : "assigned",
-          contactId: args.contactId,
+          contactId,
           contactName: contactDisplayName,
           previousAssignee: previousAssigneeId ?? null,
           newAssignee: targetUserId,
@@ -697,7 +1012,7 @@ export const writeTools: McpToolDefinition[] = [
         userId: user.id,
         action: "contact.assigned",
         entityType: "contact",
-        entityId: args.contactId,
+        entityId: contactId,
         details: isTakeover
           ? {
               previousAssignee: previousAssigneeId,
@@ -714,7 +1029,7 @@ export const writeTools: McpToolDefinition[] = [
       });
 
       return {
-        contactId: args.contactId,
+        contactId,
         assignedTo: targetUserId,
         wasTakeover: isTakeover,
         previousAssignee: previousAssigneeId ?? null,
@@ -724,33 +1039,58 @@ export const writeTools: McpToolDefinition[] = [
   },
   {
     name: "unassign_contact",
-    description: "Remove a contact's current assignment.",
+    description:
+      "Remove a conversation's current assignment. Pass contactId or conversationId.",
     scope: "write",
     permission: "can_assign_contacts",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
     },
-    handler: async (args: { contactId: string }, c) => {
+    handler: async (
+      args: { contactId?: string; conversationId?: string },
+      c,
+    ) => {
       const { tenantDb, user, companyId } = getRouteContext(c);
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      const identity = await requireVisibleWorkflow(c, targetId);
+      if (!identity.contactId && identity.conversationId) {
+        const previousAssignment = await getCurrentConversationAssignment(
+          tenantDb,
+          identity.conversationId,
+        );
+        if (previousAssignment) {
+          await unassignConversation(tenantDb, identity.conversationId);
+        }
+        return {
+          contactId: null,
+          conversationId: identity.conversationId,
+          unassigned: true,
+        };
+      }
+      const contactId = identity.contactId;
+      if (!contactId) {
+        throw new McpToolError("Contact not found");
+      }
       const result = await tenantDb.transaction().execute(async (trx) => {
         const contact = await trx
           .selectFrom("contacts")
           .select(["id", "custom_name", "push_name", "phone_number"])
-          .where("id", "=", args.contactId)
+          .where("id", "=", contactId)
           .forUpdate()
           .executeTakeFirst();
         if (!contact) return null;
-        const previousAssignment = await getCurrentAssignment(
-          trx,
-          args.contactId,
-        );
+        const previousAssignment = await getCurrentAssignment(trx, contactId);
         if (!previousAssignment) {
           return { contact, previousAssignment: null };
         }
         await trx
           .updateTable("contact_assignments")
           .set({ unassigned_at: toDbDate() })
-          .where("contact_id", "=", args.contactId)
+          .where("contact_id", "=", contactId)
           .where("unassigned_at", "is", null)
           .execute();
         return { contact, previousAssignment };
@@ -765,7 +1105,7 @@ export const writeTools: McpToolDefinition[] = [
         );
         await broadcastContactAssignmentEvent(companyId, {
           event: "unassigned",
-          contactId: args.contactId,
+          contactId,
           contactName: contactDisplayName,
           previousAssignee: result.previousAssignment.assigned_to,
           newAssignee: null,
@@ -776,7 +1116,7 @@ export const writeTools: McpToolDefinition[] = [
           userId: user.id,
           action: "contact.unassigned",
           entityType: "contact",
-          entityId: args.contactId,
+          entityId: contactId,
           details: {
             previousAssignee: result.previousAssignment.assigned_to,
             contactName: contactDisplayName,
@@ -784,7 +1124,7 @@ export const writeTools: McpToolDefinition[] = [
           ipAddress: getClientIp(c),
         });
       }
-      return { contactId: args.contactId, unassigned: true };
+      return { contactId, unassigned: true };
     },
   },
   {
@@ -815,7 +1155,7 @@ export const writeTools: McpToolDefinition[] = [
       c,
     ) => {
       const { tenantDb } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      args.contactId = await requireVisibleContact(c, args.contactId);
 
       if (args.customName === undefined && args.notesShared === undefined) {
         throw new McpToolError(
@@ -868,20 +1208,54 @@ export const writeTools: McpToolDefinition[] = [
   {
     name: "add_contact_note",
     description:
-      "Add a note to a contact. Shared notes are visible to the whole team; private notes only to the token owner.",
+      "Add a note to a contact or conversation. Shared notes are visible to the whole team; private notes only to the token owner. Pass contactId or conversationId.",
     scope: "write",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       content: z.string().min(1).max(10000),
       private: z.boolean().optional().describe("Default false (shared note)"),
     },
     handler: async (
-      args: { contactId: string; content: string; private?: boolean },
+      args: {
+        contactId?: string;
+        conversationId?: string;
+        content: string;
+        private?: boolean;
+      },
       c,
     ) => {
       const { tenantDb, user, companyId } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      const identity = await requireVisibleWorkflow(c, targetId);
       const content = args.content.trim();
+      if (!identity.contactId && identity.conversationId) {
+        const note = await tenantDb
+          .insertInto("conversation_notes")
+          .values({
+            conversation_id: identity.conversationId,
+            author_user_id: user.id,
+            visibility: args.private ? "private" : "shared",
+            content,
+          })
+          .returningAll()
+          .executeTakeFirstOrThrow();
+        return {
+          id: note.id,
+          conversationId: note.conversation_id,
+          visibility: note.visibility,
+          content: note.content,
+          createdAt: note.created_at,
+          updatedAt: note.updated_at,
+        };
+      }
+      args.contactId = identity.contactId ?? undefined;
+      if (!args.contactId) {
+        throw new McpToolError("Contact not found");
+      }
 
       if (args.private) {
         const note = await tenantDb
@@ -976,15 +1350,49 @@ export const writeTools: McpToolDefinition[] = [
   },
   {
     name: "tag_contact",
-    description: "Add an existing tag to a contact.",
+    description:
+      "Add an existing tag to a contact or conversation. Pass contactId or conversationId.",
     scope: "write",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       tagId: z.string().uuid(),
     },
-    handler: async (args: { contactId: string; tagId: string }, c) => {
+    handler: async (
+      args: { contactId?: string; conversationId?: string; tagId: string },
+      c,
+    ) => {
       const { tenantDb } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      const identity = await requireVisibleWorkflow(c, targetId);
+      if (!identity.contactId && identity.conversationId) {
+        const tag = await tenantDb
+          .selectFrom("tags")
+          .select(["id", "name", "color"])
+          .where("id", "=", args.tagId)
+          .executeTakeFirst();
+        if (!tag) throw new McpToolError("Tag not found");
+        await tenantDb
+          .insertInto("conversation_tags")
+          .values({
+            conversation_id: identity.conversationId,
+            tag_id: args.tagId,
+          })
+          .onConflict((oc) => oc.doNothing())
+          .execute();
+        return {
+          conversationId: identity.conversationId,
+          tag,
+          alreadyTagged: false,
+        };
+      }
+      args.contactId = identity.contactId ?? undefined;
+      if (!args.contactId) {
+        throw new McpToolError("Contact not found");
+      }
       const tag = await tenantDb
         .selectFrom("tags")
         .select(["id", "name", "color"])
@@ -1011,21 +1419,42 @@ export const writeTools: McpToolDefinition[] = [
   },
   {
     name: "untag_contact",
-    description: "Remove a tag from a contact.",
+    description:
+      "Remove a tag from a contact or conversation. Pass contactId or conversationId.",
     scope: "write",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       tagId: z.string().uuid(),
     },
-    handler: async (args: { contactId: string; tagId: string }, c) => {
+    handler: async (
+      args: { contactId?: string; conversationId?: string; tagId: string },
+      c,
+    ) => {
       const { tenantDb } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId) {
+        throw new McpToolError("contactId or conversationId is required");
+      }
+      const identity = await requireVisibleWorkflow(c, targetId);
+      if (!identity.contactId && identity.conversationId) {
+        await tenantDb
+          .deleteFrom("conversation_tags")
+          .where("conversation_id", "=", identity.conversationId)
+          .where("tag_id", "=", args.tagId)
+          .execute();
+        return { conversationId: identity.conversationId, removed: true };
+      }
+      const contactId = identity.contactId;
+      if (!contactId) {
+        throw new McpToolError("Contact not found");
+      }
       await tenantDb
         .deleteFrom("contact_tags")
-        .where("contact_id", "=", args.contactId)
+        .where("contact_id", "=", contactId)
         .where("tag_id", "=", args.tagId)
         .execute();
-      return { contactId: args.contactId, removed: true };
+      return { contactId, removed: true };
     },
   },
   {

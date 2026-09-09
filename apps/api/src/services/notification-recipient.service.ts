@@ -1,5 +1,6 @@
 import { db } from "@wateaminbox/database";
 import { normalizeJid } from "@wateaminbox/shared";
+import { isMuteUuid } from "./notification-preferences.service.js";
 import {
   getEffectivePermissions,
   type MemberPermissions,
@@ -53,13 +54,18 @@ export function isWithinQuietHours(input: {
 export function selectIncomingMessageRecipientIds(input: {
   candidates: NotificationRecipientCandidate[];
   contactJid: string;
+  contactId?: string | null;
+  conversationId?: string | null;
   fromMe: boolean;
   isHistorySync: boolean;
   now?: Date;
 }): string[] {
   if (input.fromMe || input.isHistorySync) return [];
-  const normalizedContactJid =
-    normalizeJid(input.contactJid) ?? input.contactJid;
+  const muteKeys = [
+    normalizeJid(input.contactJid) ?? input.contactJid,
+    input.contactId,
+    input.conversationId,
+  ].filter((value): value is string => Boolean(value));
   const now = input.now ?? new Date();
   const recipients = new Set<string>();
 
@@ -68,8 +74,8 @@ export function selectIncomingMessageRecipientIds(input: {
       continue;
     if (!candidate.notificationsEnabled) continue;
     if (
-      candidate.mutedContacts.some(
-        (jid) => (normalizeJid(jid) ?? jid) === normalizedContactJid,
+      candidate.mutedContacts.some((muted) =>
+        muteKeys.some((key) => muteTokenMatches(muted, key)),
       )
     )
       continue;
@@ -87,9 +93,17 @@ export function selectIncomingMessageRecipientIds(input: {
   return [...recipients];
 }
 
+function muteTokenMatches(stored: string, key: string): boolean {
+  if (isMuteUuid(stored) || isMuteUuid(key)) {
+    return stored.toLowerCase() === key.toLowerCase();
+  }
+  return (normalizeJid(stored) ?? stored) === (normalizeJid(key) ?? key);
+}
+
 export async function resolveIncomingMessageRecipients(input: {
   companyId: string;
-  contactId: string;
+  contactId?: string | null;
+  conversationId?: string | null;
   contactJid: string;
   fromMe: boolean;
   isHistorySync: boolean;
@@ -106,8 +120,17 @@ export async function resolveIncomingMessageRecipients(input: {
     tenantDb
       .selectFrom("contact_assignments")
       .select("assigned_to")
-      .where("contact_id", "=", input.contactId)
       .where("unassigned_at", "is", null)
+      .where((eb) =>
+        eb.or([
+          input.contactId
+            ? eb("contact_id", "=", input.contactId)
+            : eb.val(false),
+          input.conversationId
+            ? eb("conversation_id", "=", input.conversationId)
+            : eb.val(false),
+        ]),
+      )
       .executeTakeFirst(),
   ]);
   const memberIds = members.map((member) => member.user_id);
@@ -131,6 +154,8 @@ export async function resolveIncomingMessageRecipients(input: {
 
   return selectIncomingMessageRecipientIds({
     contactJid: input.contactJid,
+    contactId: input.contactId,
+    conversationId: input.conversationId,
     fromMe: input.fromMe,
     isHistorySync: input.isHistorySync,
     now: input.now,

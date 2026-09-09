@@ -1,3 +1,6 @@
+// Channel-neutral messaging contracts
+export * from "./channel-spine/contracts";
+
 // Types
 export * from "./types/user";
 export * from "./types/company";

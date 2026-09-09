@@ -1,5 +1,13 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowRight, Check, Smartphone, Tags, UserPlus, X } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  Inbox,
+  Smartphone,
+  Tags,
+  UserPlus,
+  X,
+} from "lucide-react";
 import {
   memo,
   useCallback,
@@ -14,6 +22,11 @@ import { Link } from "react-router";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { type Tag, useTags } from "../../hooks/contact/useContactTags";
 import { useDebounce } from "../../hooks/ui";
+import { cn } from "@/lib/utils";
+import { BrandMark } from "../brand/BrandMark";
+import { catalogEntryForAccount } from "@/components/connections/channel-catalog";
+import { useChannelAccounts } from "../../hooks/useChannelAccounts";
+import { useChannelConversations } from "../../hooks/useChannelConversations";
 import {
   type AssignmentFilter,
   type ConversationStatusFilter,
@@ -21,8 +34,9 @@ import {
 } from "../../hooks/useChats";
 import { usePrefetchContact } from "../../hooks/usePrefetch";
 import { useWhatsAppConnections } from "../../hooks/useWhatsAppConnections";
+import { mergeInboxChats } from "../../lib/api/transformers";
 import { workspacePath } from "../../lib/workspace-routes";
-import type { ChatListProps } from "../../types/chat";
+import type { Chat, ChatListProps } from "../../types/chat";
 import { AddContactDialog } from "../contacts/AddContactDialog";
 import { TagSearchInput } from "../tags/TagSearchInput";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -39,6 +53,7 @@ import { getConnectionLabel } from "./ConnectionIdentity";
 import {
   CONVERSATION_STATUS_OPTIONS,
   readChatListFilters,
+  resolveOwningAccountId,
   writeChatListFilters,
 } from "./chat-list-filters";
 import { resolveInboxConnectionState } from "./inbox-connection-state";
@@ -68,7 +83,7 @@ export const ChatList = memo(function ChatList({
   const [conversationStatusFilter, setConversationStatusFilter] =
     useState<ConversationStatusFilter>(restoredFilters.status);
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
-  const [connectionFilter, setConnectionFilter] = useState("all");
+  const [accountFilter, setAccountFilter] = useState("all");
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
   const selectedTagIds = useMemo(
     () => selectedTags.map((tag) => tag.id),
@@ -86,15 +101,17 @@ export const ChatList = memo(function ChatList({
     isLoading: areConnectionsLoading,
     isError: areConnectionsUnavailable,
   } = useWhatsAppConnections();
+  const { data: channelAccounts = [] } = useChannelAccounts();
 
   useEffect(() => {
     if (
-      connectionFilter !== "all" &&
-      !connections.some((connection) => connection.id === connectionFilter)
+      accountFilter !== "all" &&
+      !connections.some((connection) => connection.id === accountFilter) &&
+      !channelAccounts.some((account) => account.id === accountFilter)
     ) {
-      setConnectionFilter("all");
+      setAccountFilter("all");
     }
-  }, [connectionFilter, connections]);
+  }, [accountFilter, channelAccounts, connections]);
 
   useEffect(() => {
     writeChatListFilters({
@@ -112,10 +129,14 @@ export const ChatList = memo(function ChatList({
     searchQuery,
     true,
     assignmentFilter,
-    connectionFilter === "all" ? undefined : connectionFilter,
+    accountFilter !== "all" &&
+      connections.some((connection) => connection.id === accountFilter)
+      ? accountFilter
+      : undefined,
     conversationStatusFilter,
     selectedTagIds,
   );
+  const { data: channelConversations = [] } = useChannelConversations(100);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -155,10 +176,71 @@ export const ChatList = memo(function ChatList({
   // Prefetch contact data on hover for faster navigation
   const prefetchContact = usePrefetchContact();
 
+  /**
+   * Everything that routes conversations into this inbox, on any channel.
+   *
+   * The scope selector used to list WhatsApp connections only, and only
+   * appeared past one of them - so a workspace with one WhatsApp number and
+   * one Telegram bot saw no selector at all, despite having two inboxes to
+   * choose between.
+   */
+  const inboxAccounts = useMemo(
+    () => [
+      ...connections.map((connection) => ({
+        id: connection.id,
+        kind: "whatsapp" as const,
+        label: getConnectionLabel(connection),
+        offline: connection.status !== "connected",
+        entry: catalogEntryForAccount("whatsapp", "whatsapp_linked_device"),
+      })),
+      ...channelAccounts.map((account) => {
+        const entry = catalogEntryForAccount(account.channel, account.provider);
+        return {
+          id: account.id,
+          kind: "channel" as const,
+          label: account.displayName?.trim() || entry?.name || account.channel,
+          offline: account.status !== "connected",
+          entry,
+        };
+      }),
+    ],
+    [channelAccounts, connections],
+  );
+
+  const owningAccountId = useCallback(
+    (chat: Chat) => resolveOwningAccountId(chat, channelConversations),
+    [channelConversations],
+  );
+
   // Filter archived chats for main view
   const visibleChats = useMemo(() => {
-    return chats?.filter((chat) => !chat.isArchived) ?? [];
-  }, [chats]);
+    const needle = searchQuery.trim().toLowerCase();
+    return mergeInboxChats(chats ?? [], channelConversations).filter((chat) => {
+      if (chat.isArchived) return false;
+      if (needle && !chat.contact.name.toLowerCase().includes(needle)) {
+        return false;
+      }
+      if (assignmentFilter === "unread" && chat.unreadCount <= 0) return false;
+      if (accountFilter !== "all" && owningAccountId(chat) !== accountFilter) {
+        return false;
+      }
+      if (
+        conversationStatusFilter !== "all" &&
+        chat.conversationStatus !== conversationStatusFilter
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [
+    accountFilter,
+    assignmentFilter,
+    channelConversations,
+    chats,
+    conversationStatusFilter,
+    owningAccountId,
+    searchQuery,
+  ]);
   const connectionState = resolveInboxConnectionState({
     connections,
     isLoading: areConnectionsLoading,
@@ -204,40 +286,51 @@ export const ChatList = memo(function ChatList({
       </div>
 
       {/* Account scope makes the destination number explicit in multi-account inboxes. */}
-      {connections.length > 1 && (
+      {inboxAccounts.length > 1 && (
         <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-2 dark:border-dark-border dark:bg-dark-secondary">
-          <Smartphone
+          <Inbox
             className="h-4 w-4 shrink-0 text-gray-400 dark:text-dark-text-tertiary"
             aria-hidden="true"
           />
           <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-dark-text-secondary">
             {t("chat.inbox", "Inbox")}
           </span>
-          <Select value={connectionFilter} onValueChange={setConnectionFilter}>
+          <Select value={accountFilter} onValueChange={setAccountFilter}>
             <SelectTrigger
               className="ml-auto h-8 min-w-0 max-w-[190px] text-xs"
-              aria-label={t(
-                "chat.filterByAccount",
-                "Filter by WhatsApp account",
-              )}
+              aria-label={t("chat.filterByAccount", "Filter by account")}
             >
               <SelectValue
-                placeholder={t(
-                  "chat.allWhatsappNumbers",
-                  "All WhatsApp numbers",
-                )}
+                placeholder={t("chat.allAccounts", "All accounts")}
               />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">
-                {t("chat.allWhatsappNumbers", "All WhatsApp numbers")}
+                <span className="flex items-center gap-2">
+                  <BrandMark className="size-4 shrink-0 rounded-[0.25rem] object-contain" />
+                  {t("chat.allAccounts", "All accounts")}
+                </span>
               </SelectItem>
-              {connections.map((connection) => (
-                <SelectItem key={connection.id} value={connection.id}>
-                  {getConnectionLabel(connection)}
-                  {connection.status !== "connected"
-                    ? ` · ${t("chat.offline", "Offline").toLowerCase()}`
-                    : ""}
+              {inboxAccounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  <span className="flex min-w-0 items-center gap-2">
+                    {account.entry ? (
+                      <span
+                        className={cn(
+                          "grid size-4 shrink-0 place-items-center rounded-[0.25rem]",
+                          account.entry.tileClassName,
+                        )}
+                      >
+                        <account.entry.Mark className="size-3" />
+                      </span>
+                    ) : null}
+                    <span className="truncate">
+                      {account.label}
+                      {account.offline
+                        ? ` · ${t("chat.offline", "Offline").toLowerCase()}`
+                        : ""}
+                    </span>
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -838,8 +931,14 @@ export const ChatList = memo(function ChatList({
                 >
                   <ChatListItem
                     chat={chat}
-                    isSelected={chat.id === selectedChatId}
-                    onClick={() => handleChatClick(chat.id)}
+                    isSelected={
+                      chat.id === selectedChatId ||
+                      chat.contact.id === selectedChatId ||
+                      chat.contact.conversationId === selectedChatId
+                    }
+                    onClick={() =>
+                      handleChatClick(chat.contact.conversationId ?? chat.id)
+                    }
                     onPrefetch={prefetchContact}
                   />
                 </div>

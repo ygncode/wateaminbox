@@ -182,11 +182,35 @@ export async function purgeArchivedConnection(
         eb
           .selectFrom("contacts")
           .select([
-            eb.val(connectionId).as("connection_id"),
+            sql<string>`${connectionId}::uuid`.as("connection_id"),
             eb.val("search_contact" as const).as("kind"),
             sql<string>`id::text`.as("reference"),
           ])
           .where("whatsapp_connection_id", "=", connectionId),
+      )
+      .onConflict((oc) =>
+        oc.columns(["connection_id", "kind", "reference"]).doNothing(),
+      )
+      .execute();
+    await trx
+      .insertInto("purge_cleanup_items")
+      .columns(["connection_id", "kind", "reference"])
+      .expression((eb) =>
+        eb
+          .selectFrom("message_attachments as attachment")
+          .innerJoin(
+            "messages as message",
+            "message.id",
+            "attachment.message_id",
+          )
+          .select([
+            sql<string>`${connectionId}::uuid`.as("connection_id"),
+            eb.val("media" as const).as("kind"),
+            "attachment.storage_uri as reference",
+          ])
+          .distinct()
+          .where("message.channel_account_id", "=", connectionId)
+          .where("attachment.storage_uri", "is not", null),
       )
       .onConflict((oc) =>
         oc.columns(["connection_id", "kind", "reference"]).doNothing(),
@@ -237,7 +261,7 @@ export async function purgeArchivedConnection(
         eb
           .selectFrom("catalog_products")
           .select([
-            eb.val(connectionId).as("connection_id"),
+            sql<string>`${connectionId}::uuid`.as("connection_id"),
             eb.val("media" as const).as("kind"),
             sql<string>`unnest(image_urls)`.as("reference"),
           ])
@@ -363,10 +387,47 @@ export async function purgeArchivedConnection(
       .where("group_id", "in", groupIds)
       .execute();
     await trx.deleteFrom("groups").where("id", "in", groupIds).execute();
+    await trx
+      .deleteFrom("outbound_message_intents")
+      .where("channel_account_id", "=", connectionId)
+      .execute();
+    await trx
+      .deleteFrom("channel_event_inbox")
+      .where("channel_account_id", "=", connectionId)
+      .execute();
+    await trx
+      .deleteFrom("contact_endpoint_reassignment_events")
+      .where("contact_endpoint_id", "in", (eb) =>
+        eb
+          .selectFrom("contact_endpoints")
+          .select("id")
+          .where("channel_account_id", "=", connectionId),
+      )
+      .execute();
     const deletedMessages = await trx
       .deleteFrom("messages")
-      .where("whatsapp_connection_id", "=", connectionId)
+      .where((eb) =>
+        eb.or([
+          eb("whatsapp_connection_id", "=", connectionId),
+          eb("channel_account_id", "=", connectionId),
+        ]),
+      )
       .executeTakeFirst();
+    // Neutral projections use restrictive account/contact bridges, so purge
+    // removes their graph before deleting the legacy parent rows.
+    await sql`DELETE FROM public.channel_message_delivery_outbox
+      WHERE channel_account_id = ${connectionId}`.execute(trx);
+    await sql`DELETE FROM public.channel_ingress_routes
+      WHERE channel_account_id = ${connectionId}`.execute(trx);
+    await trx
+      .deleteFrom("conversations")
+      .where("channel_account_id", "=", connectionId)
+      .execute();
+    await trx
+      .deleteFrom("channel_accounts")
+      .where("id", "=", connectionId)
+      .where("legacy_whatsapp_connection_id", "=", connectionId)
+      .execute();
     await trx
       .deleteFrom("contacts")
       .where("whatsapp_connection_id", "=", connectionId)

@@ -92,12 +92,14 @@ notificationRoutes.post(
   zValidator("json", muteContactSchema),
   async (c) => {
     const { user, companyId } = getRouteContext(c);
-    const { contactJid } = c.req.valid("json");
+    const body = c.req.valid("json");
+    const token =
+      body.conversationId ?? body.contactId ?? body.contactJid ?? "";
 
     const preferences = await notificationPreferencesService.muteContact(
       companyId,
       user.id,
-      contactJid,
+      token,
     );
 
     return successData(c, {
@@ -114,12 +116,14 @@ notificationRoutes.post(
   zValidator("json", muteContactSchema),
   async (c) => {
     const { user, companyId } = getRouteContext(c);
-    const { contactJid } = c.req.valid("json");
+    const body = c.req.valid("json");
+    const token =
+      body.conversationId ?? body.contactId ?? body.contactJid ?? "";
 
     const preferences = await notificationPreferencesService.unmuteContact(
       companyId,
       user.id,
-      contactJid,
+      token,
     );
 
     return successData(c, {

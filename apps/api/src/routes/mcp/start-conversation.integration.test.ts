@@ -451,4 +451,8 @@ integrationTest(
         ).toHaveLength(0);
       });
     }),
+  // Provisions two tenant schemas to prove isolation, so it runs for seconds
+  // and exceeded Bun's 5s default on CI's slower disk while passing locally.
+  // Every other tenant-provisioning suite here states its own budget.
+  120_000,
 );

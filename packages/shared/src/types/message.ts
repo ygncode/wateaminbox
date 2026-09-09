@@ -106,7 +106,8 @@ export type ScheduledMessageStatus =
  */
 export interface ScheduledMessage {
   id: string;
-  contactId: string;
+  contactId: string | null;
+  conversationId?: string | null;
   content: string;
   messageType: MessageType;
   /** Presigned URL of the media object; null for text messages */
@@ -139,6 +140,14 @@ export type MediaDownloadStatus =
   | null;
 
 export interface MessageMetadata {
+  /**
+   * A provider event rather than someone's message - a group membership
+   * change, a rename. It has a description but no author, so the thread
+   * renders it as a centered notice instead of a bubble. Kept out of
+   * `MessageType` because that union is also the outbound wire contract, and
+   * a system event must never be sendable.
+   */
+  isSystemEvent?: boolean;
   groupMentions?: Array<{ jid: string; subject: string }>;
   mediaUrl?: string;
   mimeType?: string;
@@ -213,6 +222,9 @@ export interface Contact {
   isGroup?: boolean;
   /** WhatsApp account that owns and routes this conversation. */
   connection?: WhatsAppConnectionIdentity | null;
+  channel?: string | null;
+  provider?: string | null;
+  conversationId?: string | null;
 }
 
 export interface GroupParticipant {

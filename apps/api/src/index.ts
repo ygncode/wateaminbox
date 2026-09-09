@@ -6,6 +6,26 @@ import { natsLifecycle } from "./lib/nats/index.js";
 import { rateLimitStore } from "./lib/rate-limit-store.js";
 import { runShutdown, type ShutdownStep } from "./lib/shutdown.js";
 import {
+  initializeChannelAttachmentFetch,
+  shutdownChannelAttachmentFetch,
+} from "./services/channel-attachment-fetch.service.js";
+import {
+  initializeChannelEndpointAvatars,
+  shutdownChannelEndpointAvatars,
+} from "./services/channel-endpoint-avatar.service.js";
+import {
+  initializeChannelEventRetry,
+  shutdownChannelEventRetry,
+} from "./services/channel-event-retry.service.js";
+import {
+  initializeChannelMessageDelivery,
+  shutdownChannelMessageDelivery,
+} from "./services/channel-message-delivery.service.js";
+import {
+  initializeChannelOutbound,
+  shutdownChannelOutbound,
+} from "./services/channel-outbound.service.js";
+import {
   initializeCommandOutbox,
   shutdownCommandOutbox,
 } from "./services/command-outbox.service.js";
@@ -68,6 +88,11 @@ if (!isTestEnvironment) {
     });
 
   initializeCommandOutbox();
+  initializeChannelOutbound();
+  initializeChannelEventRetry();
+  initializeChannelAttachmentFetch();
+  initializeChannelEndpointAvatars();
+  initializeChannelMessageDelivery();
   initializeMessageSearch();
   initializeMessageDelivery();
   initializeScheduledMessages();
@@ -116,6 +141,20 @@ function shutdownSteps(): ShutdownStep[] {
       },
     },
     { name: "connection-email-alerts", run: shutdownConnectionEmailAlerts },
+    { name: "channel-outbound", run: shutdownChannelOutbound },
+    { name: "channel-event-retry", run: shutdownChannelEventRetry },
+    {
+      name: "channel-attachment-fetch",
+      run: shutdownChannelAttachmentFetch,
+    },
+    {
+      name: "channel-endpoint-avatars",
+      run: shutdownChannelEndpointAvatars,
+    },
+    {
+      name: "channel-message-delivery",
+      run: shutdownChannelMessageDelivery,
+    },
     { name: "message-cleanup", run: shutdownMessageCleanup },
     { name: "connection-purge-cleanup", run: shutdownConnectionPurgeCleanup },
     { name: "command-outbox", run: shutdownCommandOutbox },

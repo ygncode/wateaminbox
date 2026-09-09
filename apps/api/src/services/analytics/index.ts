@@ -13,6 +13,7 @@ export { getDashboardStats } from "./dashboard.js";
 export { getEngagementMetrics, getEngagementTrend } from "./engagement.js";
 // Message analytics
 export {
+  getChannelMessageStats,
   getHourlyMessageStats,
   getMessageStats,
   getMessageTypeStats,

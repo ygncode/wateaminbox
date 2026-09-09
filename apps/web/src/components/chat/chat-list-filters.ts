@@ -123,3 +123,35 @@ export function writeChatListFilters(
     // Ignore storage failures (private mode, quota, blocked site data).
   }
 }
+
+/**
+ * The account that routes a chat, whatever channel it is on.
+ *
+ * The inbox scope compares against this for every row. Both sides have to
+ * resolve the same way or the filter is asymmetric: leaning on the server's
+ * WhatsApp-only narrowing left merged channel rows untouched, so choosing a
+ * WhatsApp number still listed Telegram chats beside it.
+ *
+ * A linked-device chat is owned by its WhatsApp connection even once a
+ * bridged conversation row exists, because the connection is what the scope
+ * selector names. `null` means the chat cannot be attributed to any account,
+ * so it belongs only to the unscoped view.
+ */
+export function resolveOwningAccountId(
+  chat: {
+    contact: {
+      connection?: { id: string } | null;
+      conversationId?: string | null;
+    };
+  },
+  channelConversations: ReadonlyArray<{ id: string; channelAccountId: string }>,
+): string | null {
+  if (chat.contact.connection?.id) return chat.contact.connection.id;
+  const conversationId = chat.contact.conversationId;
+  if (!conversationId) return null;
+  return (
+    channelConversations.find(
+      (conversation) => conversation.id === conversationId,
+    )?.channelAccountId ?? null
+  );
+}

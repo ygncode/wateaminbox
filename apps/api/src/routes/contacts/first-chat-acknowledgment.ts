@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
-import { requireContactVisibility } from "../../middleware/resource-visibility.js";
+import { requireConversationVisibility } from "../../middleware/resource-visibility.js";
 import { getClientIp } from "../../services/audit.service.js";
 import {
   acknowledgeFirstChat,
@@ -19,7 +19,9 @@ export const firstChatAcknowledgmentSchema = z.object({
 });
 export const firstChatAcknowledgmentRoutes = new Hono();
 const path = "/:id/first-chat-acknowledgment";
-firstChatAcknowledgmentRoutes.use(path, requireContactVisibility());
+// A channel thread is addressed by conversation id and may have no contact,
+// so visibility is resolved the way every other conversation route resolves it.
+firstChatAcknowledgmentRoutes.use(path, requireConversationVisibility());
 firstChatAcknowledgmentRoutes.get(path, async (c) => {
   const { tenantDb } = getRouteContext(c);
   return c.json({

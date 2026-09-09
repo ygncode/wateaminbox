@@ -1,5 +1,5 @@
-import type { Kysely } from 'kysely'
-import { sql } from 'kysely'
+import type { Kysely } from "kysely";
+import { sql } from "kysely";
 
 /**
  * Migration helper utilities for multi-tenant database schema management.
@@ -21,17 +21,15 @@ import { sql } from 'kysely'
 /**
  * Get all tenant schema names from the database
  */
-export async function getTenantSchemas(
-  db: Kysely<unknown>,
-): Promise<string[]> {
+export async function getTenantSchemas(db: Kysely<unknown>): Promise<string[]> {
   const result = await sql<{ schema_name: string }>`
     SELECT schema_name
     FROM information_schema.schemata
     WHERE schema_name LIKE 'tenant_%'
     ORDER BY schema_name
-  `.execute(db)
+  `.execute(db);
 
-  return result.rows.map((r) => r.schema_name)
+  return result.rows.map((r) => r.schema_name);
 }
 
 /**
@@ -42,19 +40,27 @@ export async function executeOnAllTenants(
   db: Kysely<unknown>,
   callback: (schemaName: string) => Promise<void>,
 ): Promise<void> {
-  const schemas = await getTenantSchemas(db)
+  const schemas = await getTenantSchemas(db);
 
   for (const schemaName of schemas) {
     try {
-      await callback(schemaName)
+      await callback(schemaName);
     } catch (error) {
-      console.error(
-        `Migration failed for tenant schema ${schemaName}:`,
-        error,
-      )
-      throw error
+      console.error(`Migration failed for tenant schema ${schemaName}:`, error);
+      throw error;
     }
   }
+}
+
+/**
+ * Alias for executeOnAllTenants kept for migrations that use the shorter
+ * forEachTenant name.
+ */
+export async function forEachTenant(
+  db: Kysely<unknown>,
+  callback: (schemaName: string) => Promise<void>,
+): Promise<void> {
+  return executeOnAllTenants(db, callback);
 }
 
 /**
@@ -76,18 +82,16 @@ export async function addColumnToAllTenants(
         AND table_name = ${tableName}
         AND column_name = ${columnName}
       ) as exists
-    `.execute(db)
+    `.execute(db);
 
-    if (!exists.rows[0]?.exists || exists.rows[0].exists !== 't') {
+    if (!exists.rows[0]?.exists || exists.rows[0].exists !== "t") {
       await sql`
         ALTER TABLE ${sql.raw(`"${schemaName}"."${tableName}"`)}
         ADD COLUMN IF NOT EXISTS ${sql.raw(`${columnName} ${columnDefinition}`)}
-      `.execute(db)
-      console.log(
-        `Added column ${columnName} to ${schemaName}.${tableName}`,
-      )
+      `.execute(db);
+      console.log(`Added column ${columnName} to ${schemaName}.${tableName}`);
     }
-  })
+  });
 }
 
 /**
@@ -102,11 +106,9 @@ export async function dropColumnFromAllTenants(
     await sql`
       ALTER TABLE ${sql.raw(`"${schemaName}"."${tableName}"`)}
       DROP COLUMN IF EXISTS ${sql.raw(columnName)}
-    `.execute(db)
-    console.log(
-      `Dropped column ${columnName} from ${schemaName}.${tableName}`,
-    )
-  })
+    `.execute(db);
+    console.log(`Dropped column ${columnName} from ${schemaName}.${tableName}`);
+  });
 }
 
 /**
@@ -119,15 +121,15 @@ export async function createIndexOnAllTenants(
   indexDefinition: string,
 ): Promise<void> {
   await executeOnAllTenants(db, async (schemaName) => {
-    const idxName = indexName(schemaName)
+    const idxName = indexName(schemaName);
     await sql`
       CREATE INDEX IF NOT EXISTS ${sql.raw(`"${idxName}"`)}
       ON ${sql.raw(`"${schemaName}"."${tableName}"`)} ${sql.raw(
-      indexDefinition,
-    )}
-    `.execute(db)
-    console.log(`Created index ${idxName} on ${schemaName}.${tableName}`)
-  })
+        indexDefinition,
+      )}
+    `.execute(db);
+    console.log(`Created index ${idxName} on ${schemaName}.${tableName}`);
+  });
 }
 
 /**
@@ -140,17 +142,17 @@ export async function createUniqueIndexOnAllTenants(
   indexDefinition: string,
 ): Promise<void> {
   await executeOnAllTenants(db, async (schemaName) => {
-    const idxName = indexName(schemaName)
+    const idxName = indexName(schemaName);
     await sql`
       CREATE UNIQUE INDEX IF NOT EXISTS ${sql.raw(`"${idxName}"`)}
       ON ${sql.raw(`"${schemaName}"."${tableName}"`)} ${sql.raw(
-      indexDefinition,
-    )}
-    `.execute(db)
+        indexDefinition,
+      )}
+    `.execute(db);
     console.log(
       `Created unique index ${idxName} on ${schemaName}.${tableName}`,
-    )
-  })
+    );
+  });
 }
 
 /**
@@ -166,11 +168,11 @@ export async function renameColumnInAllTenants(
     await sql`
       ALTER TABLE ${sql.raw(`"${schemaName}"."${tableName}"`)}
       RENAME COLUMN ${sql.raw(oldColumnName)} TO ${sql.raw(newColumnName)}
-    `.execute(db)
+    `.execute(db);
     console.log(
       `Renamed column ${oldColumnName} to ${newColumnName} in ${schemaName}.${tableName}`,
-    )
-  })
+    );
+  });
 }
 
 /**
@@ -181,10 +183,10 @@ export async function createTableInAllTenants(
   tableDefinition: (schemaName: string) => string,
 ): Promise<void> {
   await executeOnAllTenants(db, async (schemaName) => {
-    const definition = tableDefinition(schemaName)
-    await sql.raw(definition).execute(db)
-    console.log(`Created table in ${schemaName}`)
-  })
+    const definition = tableDefinition(schemaName);
+    await sql.raw(definition).execute(db);
+    console.log(`Created table in ${schemaName}`);
+  });
 }
 
 /**
@@ -195,8 +197,8 @@ export async function executeSqlOnAllTenants(
   sqlStatement: (schemaName: string) => string,
 ): Promise<void> {
   await executeOnAllTenants(db, async (schemaName) => {
-    await sql.raw(sqlStatement(schemaName)).execute(db)
-  })
+    await sql.raw(sqlStatement(schemaName)).execute(db);
+  });
 }
 
 /**
@@ -208,7 +210,7 @@ export async function columnExistsInTenants(
   tableName: string,
   columnName: string,
 ): Promise<boolean> {
-  const schemas = await getTenantSchemas(db)
+  const schemas = await getTenantSchemas(db);
 
   for (const schemaName of schemas) {
     const exists = await sql<{ exists: string }>`
@@ -219,14 +221,14 @@ export async function columnExistsInTenants(
         AND table_name = ${tableName}
         AND column_name = ${columnName}
       ) as exists
-    `.execute(db)
+    `.execute(db);
 
-    if (exists.rows[0]?.exists === 't') {
-      return true
+    if (exists.rows[0]?.exists === "t") {
+      return true;
     }
   }
 
-  return false
+  return false;
 }
 
 /**
@@ -238,8 +240,8 @@ export function logTenantMigration(
   details?: string,
 ): void {
   if (details) {
-    console.log(`[Tenant Migration] ${action} - ${schemaName}: ${details}`)
+    console.log(`[Tenant Migration] ${action} - ${schemaName}: ${details}`);
   } else {
-    console.log(`[Tenant Migration] ${action} - ${schemaName}`)
+    console.log(`[Tenant Migration] ${action} - ${schemaName}`);
   }
 }

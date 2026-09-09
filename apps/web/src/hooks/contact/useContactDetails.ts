@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api/client";
+import { ApiRequestError, api } from "@/lib/api/client";
 import { formatPhoneLikeText } from "@/lib/utils";
 import { queryKeys } from "../query-keys";
 
@@ -22,6 +22,9 @@ export interface ContactDetail {
   notesShared: string | null;
   createdAt: string;
   updatedAt: string;
+  conversationId?: string | null;
+  channel?: string | null;
+  provider?: string | null;
   connection: {
     id: string;
     name: string | null;
@@ -86,6 +89,12 @@ export function useContact(contactId: string | null) {
         : contact.pushName,
     }),
     enabled: !!contactId,
+    retry: (failureCount, error) => {
+      if (error instanceof ApiRequestError && error.statusCode === 404) {
+        return false;
+      }
+      return failureCount < 3;
+    },
     staleTime: 30_000, // 30 seconds
     gcTime: 300_000, // 5 minutes
   });

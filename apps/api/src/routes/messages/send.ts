@@ -5,8 +5,11 @@
  */
 
 import { zValidator } from "@hono/zod-validator";
+import { shadowLinkedDeviceLegacyMutation } from "../../channel-spine/providers/whatsapp-linked-device/shadow.js";
 import { toDbDate } from "@wateaminbox/shared";
+import type { Context } from "hono";
 import { Hono } from "hono";
+import type { z } from "zod";
 import { sql } from "kysely";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { buildOutboundMediaColumns } from "../../lib/message-formatters.js";
@@ -30,12 +33,21 @@ import { requireMessageSendPermission } from "../../middleware/message-send-poli
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { requireMessageVisibility } from "../../middleware/resource-visibility.js";
 import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
+import { insertNeutralOutboundSend } from "../../services/channel-outbound.service.js";
+import { getChannelSpineWorkspaceAuthority } from "../../services/channel-spine-authority.service.js";
+import {
+  conversationIdForContact,
+  resolveWorkflowContactId,
+} from "../../services/channel-workflow.service.js";
 import { toAuthUserResponse } from "../../services/auth.service.js";
 import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { validateGroupMentionJids } from "../../services/group-mention.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
 import { broadcastNewMessageToViewers } from "../../services/message-broadcast.service.js";
-import { requireSendAccess } from "../../services/send-access.service.js";
+import {
+  requireConversationSendAccess,
+  requireSendAccess,
+} from "../../services/send-access.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
 import {
   IncompleteForwardAlbumError,
@@ -52,6 +64,92 @@ const messageSendRateLimiter = createConditionalRateLimiter(
   },
   rateLimitConfig.enabled,
 );
+
+type SendMessageBody = z.infer<typeof sendMessageSchema>;
+
+async function sendChannelContactMessage(
+  c: Context,
+  contact: { id: string },
+  body: SendMessageBody,
+) {
+  const { tenantDb, user, companyId } = getRouteContext(c);
+  const conversationId = await conversationIdForContact(tenantDb, contact.id);
+  if (!conversationId) return notFound(c, "Contact or JID");
+  const conversation = await tenantDb
+    .selectFrom("conversations")
+    .select("channel_account_id")
+    .where("id", "=", conversationId)
+    .where("archived_at", "is", null)
+    .executeTakeFirst();
+  if (!conversation) return notFound(c, "Conversation");
+  const storedMediaReference = body.mediaUrl
+    ? getPrivateMediaReference(
+        resolveMediaKeyForCompany(body.mediaUrl, companyId),
+      )
+    : null;
+  let autoAssigned = false;
+  let messageId = "";
+  await tenantDb.transaction().execute(async (trx) => {
+    await reserveMediaReferences(trx, companyId, [storedMediaReference]);
+    const access = await requireConversationSendAccess(
+      trx,
+      conversationId,
+      user.id,
+    );
+    autoAssigned = access.autoAssigned;
+    let replyToExternalMessageId: string | null = null;
+    if (body.replyToMessageId) {
+      const quoted = await trx
+        .selectFrom("messages")
+        .select("external_message_id")
+        .where("id", "=", body.replyToMessageId)
+        .where("conversation_id", "=", conversationId)
+        .executeTakeFirst();
+      if (!quoted) throw new Error("quoted_missing");
+      replyToExternalMessageId = quoted.external_message_id;
+    }
+    const inserted = await insertNeutralOutboundSend(trx, {
+      companyId,
+      actorUserId: user.id,
+      contactId: contact.id,
+      conversationId,
+      channelAccountId: conversation.channel_account_id,
+      content: body.content ?? "",
+      messageType: body.messageType,
+      mediaUrl: storedMediaReference,
+      caseId: access.caseId,
+      replyToMessageId: body.replyToMessageId,
+      replyToExternalMessageId,
+      idempotencyKey: crypto.randomUUID(),
+    });
+    messageId = inserted.messageId;
+  });
+  if (autoAssigned) {
+    await broadcastAutoAssignment(tenantDb, companyId, contact.id, user.id);
+  }
+  const senderProfile = await toAuthUserResponse(user);
+  const createdAt = toDbDate();
+  return c.json({
+    success: true,
+    message: {
+      id: messageId,
+      conversationId: contact.id,
+      contactId: contact.id,
+      senderId: user.id,
+      senderType: "user",
+      sentByUserId: user.id,
+      sentByUserName: user.name || user.email.split("@")[0],
+      sentByUserAvatarUrl: senderProfile.avatarUrl,
+      sentByUserGravatarUrl: senderProfile.gravatarUrl,
+      messageType: body.messageType,
+      content: body.content || "",
+      status: "pending",
+      createdAt,
+      updatedAt: createdAt,
+    },
+    autoAssigned,
+  });
+}
 
 export const sendRoutes = new Hono();
 
@@ -72,15 +170,21 @@ sendRoutes.post(
       return badRequest(c, "content is required for text messages");
     }
 
+    const contactId =
+      (await resolveWorkflowContactId(tenantDb, body.contactId)) ??
+      body.contactId;
     // Get contact JID and connection ID
     const contact = await tenantDb
       .selectFrom("contacts")
       .select(["id", "jid", "is_group", "whatsapp_connection_id"])
-      .where("id", "=", body.contactId)
+      .where("id", "=", contactId)
       .executeTakeFirst();
 
-    if (!contact || !contact.jid) {
-      return notFound(c, "Contact or JID");
+    if (!contact) {
+      return notFound(c, "Contact");
+    }
+    if (!contact.jid || !contact.whatsapp_connection_id) {
+      return sendChannelContactMessage(c, contact, body);
     }
 
     // Send through the connection that owns this contact. Picking an arbitrary
@@ -136,7 +240,7 @@ sendRoutes.post(
         .selectFrom("messages")
         .select(["message_id", "sender_jid", "from_me", "status"])
         .where("id", "=", body.replyToMessageId)
-        .where("contact_id", "=", body.contactId)
+        .where("contact_id", "=", contact.id)
         .where("whatsapp_connection_id", "=", connection.id)
         .executeTakeFirst();
       if (!quotedMessage) return notFound(c, "Quoted message");
@@ -181,17 +285,18 @@ sendRoutes.post(
           resolveMediaKeyForCompany(body.mediaUrl, companyId),
         )
       : null;
+    const spineAuthority = await getChannelSpineWorkspaceAuthority(companyId);
     let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
       await reserveMediaReferences(trx, companyId, [storedMediaReference]);
-      const result = await requireSendAccess(trx, body.contactId, user.id);
+      const result = await requireSendAccess(trx, contact.id, user.id);
       autoAssigned = result.autoAssigned;
       await trx
         .insertInto("messages")
         .values({
           id: messageId,
           whatsapp_connection_id: connection.id,
-          contact_id: body.contactId,
+          contact_id: contact.id,
           message_id: waMessageId,
           from_me: true,
           sender_jid: connection.jid,
@@ -212,14 +317,17 @@ sendRoutes.post(
         buildCommandSubject(companyId, sessionId),
         sendCommand,
       );
+      if (spineAuthority.dualWriteEnabled) {
+        await shadowLinkedDeviceLegacyMutation(
+          trx,
+          companyId,
+          contact.id,
+          messageId,
+        );
+      }
     });
     if (autoAssigned) {
-      await broadcastAutoAssignment(
-        tenantDb,
-        companyId,
-        body.contactId,
-        user.id,
-      );
+      await broadcastAutoAssignment(tenantDb, companyId, contact.id, user.id);
     }
 
     const senderProfile = await toAuthUserResponse(user);
@@ -227,8 +335,8 @@ sendRoutes.post(
       id: messageId,
       messageId: waMessageId,
       whatsappMessageId: waMessageId,
-      conversationId: body.contactId,
-      contactId: body.contactId,
+      conversationId: contact.id,
+      contactId: contact.id,
       senderId: user.id,
       senderType: "user" as const,
       sentByUserId: user.id,
@@ -253,7 +361,7 @@ sendRoutes.post(
 
     await broadcastNewMessageToViewers(
       companyId,
-      body.contactId,
+      contact.id,
       {
         message: {
           ...formattedMessage,
@@ -266,7 +374,7 @@ sendRoutes.post(
               }
             : undefined,
         },
-        conversationId: body.contactId,
+        conversationId: contact.id,
       },
       connection.id,
     );
@@ -379,6 +487,7 @@ sendRoutes.post(
       }),
     );
 
+    const spineAuthority = await getChannelSpineWorkspaceAuthority(companyId);
     let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
       // Forwarded copies reuse the source messages' objects. Reserve the full
@@ -420,6 +529,14 @@ sendRoutes.post(
           buildCommandSubject(companyId, sessionId),
           pending.sendCommand,
         );
+        if (spineAuthority.dualWriteEnabled) {
+          await shadowLinkedDeviceLegacyMutation(
+            trx,
+            companyId,
+            body.targetContactId,
+            pending.id,
+          );
+        }
       }
     });
     if (autoAssigned) {
@@ -537,6 +654,7 @@ sendRoutes.post(
       quotedSenderJid,
     );
 
+    const spineAuthority = await getChannelSpineWorkspaceAuthority(companyId);
     let autoAssigned = false;
     await tenantDb.transaction().execute(async (trx) => {
       // The retry copy reuses the failed message's object.
@@ -568,6 +686,14 @@ sendRoutes.post(
         buildCommandSubject(companyId, sessionId),
         sendCommand,
       );
+      if (spineAuthority.dualWriteEnabled) {
+        await shadowLinkedDeviceLegacyMutation(
+          trx,
+          companyId,
+          contact.id,
+          newMessageId,
+        );
+      }
     });
     if (autoAssigned) {
       await broadcastAutoAssignment(tenantDb, companyId, contact.id, user.id);

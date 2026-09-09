@@ -24,7 +24,7 @@ interface MessageContextMenuProps {
   onForward?: (message: Message) => void;
   onDelete?: (message: Message) => void;
   onStar?: (message: Message) => void;
-  onReact: () => void;
+  onReact?: () => void;
   onClose: () => void;
 }
 
@@ -85,31 +85,40 @@ export const MessageContextMenu = forwardRef<
     return { x, y };
   }, [position.x, position.y]);
 
-  const menuItems: ContextMenuItem[] = [
-    { label: t("chat.react", "React"), icon: EmojiIcon, action: onReact },
-    {
-      label: t("chat.reply", "Reply"),
-      icon: ReplyIcon,
-      action: () => onReply?.(message),
-    },
-    {
-      label: t("chat.forward", "Forward"),
-      icon: ForwardIcon,
-      action: () => onForward?.(message),
-    },
-    {
-      label: message.isStarred
-        ? t("chat.unstar", "Unstar")
-        : t("chat.star", "Star"),
-      icon: StarIcon,
-      action: () => onStar?.(message),
-    },
-    {
-      label: t("chat.delete", "Delete"),
-      icon: DeleteIcon,
-      action: () => onDelete?.(message),
-    },
-  ];
+  // An absent handler means the channel adapter does not offer that action for
+  // this account. Rendering it anyway would produce a menu entry that silently
+  // does nothing, so the entry is dropped instead.
+  const menuItems: ContextMenuItem[] = (
+    [
+      onReact && {
+        label: t("chat.react", "React"),
+        icon: EmojiIcon,
+        action: onReact,
+      },
+      onReply && {
+        label: t("chat.reply", "Reply"),
+        icon: ReplyIcon,
+        action: () => onReply(message),
+      },
+      onForward && {
+        label: t("chat.forward", "Forward"),
+        icon: ForwardIcon,
+        action: () => onForward(message),
+      },
+      onStar && {
+        label: message.isStarred
+          ? t("chat.unstar", "Unstar")
+          : t("chat.star", "Star"),
+        icon: StarIcon,
+        action: () => onStar(message),
+      },
+      onDelete && {
+        label: t("chat.delete", "Delete"),
+        icon: DeleteIcon,
+        action: () => onDelete(message),
+      },
+    ] as (ContextMenuItem | undefined)[]
+  ).filter((item): item is ContextMenuItem => item !== undefined);
 
   return (
     <div

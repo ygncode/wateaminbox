@@ -1,13 +1,14 @@
 import type { Contact } from "@wateaminbox/shared";
-import { formatLastSeen } from "@wateaminbox/shared";
+import { formatLastSeen, isChannel } from "@wateaminbox/shared";
 import { ArrowLeft, Info, MoreVertical, Search } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { CONVERSATION_HEADER_INSET_CLASS } from "@/components/layout/conversation-chrome";
+import { useOptionalMobileLayout } from "@/components/layout/MobileLayout";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import { useGroup } from "@/hooks/useGroups";
 import { cn, formatPhoneLikeText } from "@/lib/utils";
-import { CONVERSATION_HEADER_INSET_CLASS } from "@/components/layout/conversation-chrome";
-import { useOptionalMobileLayout } from "@/components/layout/MobileLayout";
+import { ChannelBadge } from "./ChannelIdentity";
 import { ConnectionBadge, ConnectionRoute } from "./ConnectionIdentity";
-import { useTranslation } from "react-i18next";
 
 interface MessageHeaderProps {
   contact: Contact | undefined;
@@ -132,12 +133,26 @@ export function MessageHeader({
             </h2>
             {/* The account pill needs room to stay legible; on a phone the
                 same routing is carried by the status line below instead. */}
-            {contact.connection && (
-              <ConnectionBadge
-                connection={contact.connection}
-                compact
-                className="hidden max-w-[110px] shrink md:inline-flex"
-              />
+            {(contact.channel || contact.connection) && (
+              <>
+                <ChannelBadge
+                  channel={
+                    contact.channel && isChannel(contact.channel)
+                      ? contact.channel
+                      : "whatsapp"
+                  }
+                  compact
+                  iconOnly
+                  className="hidden md:inline-flex"
+                />
+                {contact.connection && (
+                  <ConnectionBadge
+                    connection={contact.connection}
+                    compact
+                    className="hidden max-w-[110px] shrink md:inline-flex"
+                  />
+                )}
+              </>
             )}
           </span>
 

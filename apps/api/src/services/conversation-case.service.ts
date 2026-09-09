@@ -89,7 +89,13 @@ import {
   NotFoundError,
   ValidationError,
 } from "../lib/errors.js";
-import { getCurrentAssignment, unassignContact } from "./contact.service.js";
+import { conversationIdForContact } from "./channel-workflow.service.js";
+import {
+  getCurrentAssignment,
+  getCurrentConversationAssignment,
+  unassignContact,
+  unassignConversation,
+} from "./contact.service.js";
 import {
   getCurrentSlaPolicy,
   resolveCaseTargets,
@@ -138,7 +144,7 @@ export const RESOLUTION_OUTCOMES: ConversationCaseResolutionOutcome[] = [
 
 interface ConversationCaseRow {
   id: string;
-  contact_id: string;
+  contact_id: string | null;
   kind: ConversationCaseKind;
   status: "open" | "pending" | "resolved";
   opened_at: Date;
@@ -181,6 +187,21 @@ interface ConversationCaseRow {
  * never deleted in normal operation, but callers should never see a raw
  * constraint violation from a phantom row instead of a controlled error).
  */
+async function lockConversation(
+  trx: Transaction<TenantDatabase>,
+  conversationId: string,
+): Promise<void> {
+  const conversation = await trx
+    .selectFrom("conversations")
+    .select("id")
+    .where("id", "=", conversationId)
+    .forUpdate()
+    .executeTakeFirst();
+  if (!conversation) {
+    throw new NotFoundError("Conversation");
+  }
+}
+
 async function lockContact(
   trx: Transaction<TenantDatabase>,
   contactId: string,
@@ -227,10 +248,24 @@ async function assertActorOwnsContact(
   }
 }
 
+async function assertActorOwnsConversation(
+  trx: Transaction<TenantDatabase>,
+  conversationId: string,
+  actorUserId: string,
+): Promise<void> {
+  const assignment = await getCurrentConversationAssignment(
+    trx,
+    conversationId,
+  );
+  if (assignment && assignment.assigned_to !== actorUserId) {
+    throw new ContactAssignedToOtherError(assignment.assigned_to);
+  }
+}
+
 function toConversationCase(row: ConversationCaseRow): ConversationCase {
   return {
     id: row.id,
-    contactId: row.contact_id,
+    contactId: row.contact_id ?? "",
     kind: row.kind,
     status: row.status,
     openedAt: row.opened_at,
@@ -258,7 +293,12 @@ export async function getActiveCase(
   const row = await tenantDb
     .selectFrom("conversation_cases")
     .selectAll()
-    .where("contact_id", "=", contactId)
+    .where((eb) =>
+      eb.or([
+        eb("contact_id", "=", contactId),
+        eb("conversation_id", "=", contactId),
+      ]),
+    )
     .where("status", "in", ["open", "pending"])
     .executeTakeFirst();
   return row ? toConversationCase(row as unknown as ConversationCaseRow) : null;
@@ -272,7 +312,12 @@ export async function getMostRecentCase(
   const row = await tenantDb
     .selectFrom("conversation_cases")
     .selectAll()
-    .where("contact_id", "=", contactId)
+    .where((eb) =>
+      eb.or([
+        eb("contact_id", "=", contactId),
+        eb("conversation_id", "=", contactId),
+      ]),
+    )
     .orderBy("created_at", "desc")
     .orderBy("id", "desc")
     .limit(1)
@@ -288,7 +333,12 @@ export async function hasCaseHistory(
   const row = await tenantDb
     .selectFrom("conversation_cases")
     .select("id")
-    .where("contact_id", "=", contactId)
+    .where((eb) =>
+      eb.or([
+        eb("contact_id", "=", contactId),
+        eb("conversation_id", "=", contactId),
+      ]),
+    )
     .limit(1)
     .executeTakeFirst();
   return Boolean(row);
@@ -336,6 +386,31 @@ export async function resolveActiveCaseIdForContact(
  * to enforce this invariant against; see scheduled-message.service.ts's own
  * doc comment.
  */
+export async function resolveActiveCaseIdForConversation(
+  trx: Transaction<TenantDatabase>,
+  conversationId: string,
+): Promise<string | null> {
+  await lockConversation(trx, conversationId);
+  const row = await trx
+    .selectFrom("conversation_cases")
+    .select("id")
+    .where("conversation_id", "=", conversationId)
+    .where("status", "in", ["open", "pending"])
+    .executeTakeFirst();
+  return row?.id ?? null;
+}
+
+export async function requireActiveCaseForConversationSend(
+  trx: Transaction<TenantDatabase>,
+  conversationId: string,
+): Promise<string> {
+  const caseId = await resolveActiveCaseIdForConversation(trx, conversationId);
+  if (!caseId) {
+    throw new NoActiveCaseError();
+  }
+  return caseId;
+}
+
 export async function requireActiveCaseForSend(
   trx: Transaction<TenantDatabase>,
   contactId: string,
@@ -386,6 +461,7 @@ async function syncProjection(
 ): Promise<void> {
   const updateSet: Record<string, unknown> = {
     active_case_id: sync.activeCaseId,
+    conversation_id: await conversationIdForContact(trx, contactId),
     status: sync.status,
     updated_at: toDbDate(),
   };
@@ -400,6 +476,7 @@ async function syncProjection(
     .insertInto("conversation_states")
     .values({
       contact_id: contactId,
+      conversation_id: await conversationIdForContact(trx, contactId),
       active_case_id: sync.activeCaseId,
       status: sync.status,
       resolved_at: sync.resolvedAt ?? null,
@@ -450,6 +527,7 @@ export async function openOrReopenCaseForInboundMessage(
   unassignedPreviousAssignee: string | null;
 } | null> {
   await lockContact(trx, contact.id);
+  const conversationId = await conversationIdForContact(trx, contact.id);
   // Authoritative server ingestion time - NEVER the WhatsApp-supplied
   // `message.timestamp`, which can be delayed, out of order, or (for a
   // first-ever live inbound with a future-dated client clock) even later
@@ -487,12 +565,12 @@ export async function openOrReopenCaseForInboundMessage(
   );
   const insertResult = await sql<ConversationCaseRow>`
     INSERT INTO ${casesTable} (
-      contact_id, kind, status, opened_at, opening_message_id,
+      contact_id, conversation_id, company_id, kind, status, opened_at, opening_message_id,
       open_source, opened_by, policy_id, response_target_minutes,
       resolution_target_minutes, reopened_from_case_id
     )
     VALUES (
-      ${contact.id}, ${kind}, 'open', ${serverNow}, ${message.id},
+      ${contact.id}, ${conversationId}, ${companyId}, ${kind}, 'open', ${serverNow}, ${message.id},
       'live_inbound', NULL, ${policy.id}, ${targets.responseTargetMinutes},
       ${targets.resolutionTargetMinutes}, ${priorCase?.id ?? null}
     )
@@ -604,6 +682,188 @@ export async function openOrReopenCaseForInboundMessage(
   }
 
   return result;
+}
+
+export async function openOrReopenCaseForInboundConversation(
+  trx: Transaction<TenantDatabase>,
+  companyId: string,
+  conversationId: string,
+  input: {
+    contactId: string | null;
+    isGroup: boolean;
+    message: { id: string; timestamp: Date };
+  },
+): Promise<{
+  case: ConversationCase;
+  wasAutoReopen: boolean;
+  unassignedPreviousAssignee: string | null;
+} | null> {
+  await lockConversation(trx, conversationId);
+  const serverNow = toDbDate();
+  const kind: ConversationCaseKind = input.isGroup ? "group" : "direct";
+  const policy = await getCurrentSlaPolicy(companyId);
+  const targets = resolveCaseTargets(policy, kind);
+  const existingProjection = await trx
+    .selectFrom("conversation_states")
+    .select(["status"])
+    .where("conversation_id", "=", conversationId)
+    .executeTakeFirst();
+  const isReopen = existingProjection?.status === "resolved";
+  const priorCase = isReopen
+    ? await trx
+        .selectFrom("conversation_cases")
+        .selectAll()
+        .where("conversation_id", "=", conversationId)
+        .orderBy("created_at", "desc")
+        .orderBy("id", "desc")
+        .limit(1)
+        .executeTakeFirst()
+    : null;
+  const casesTable = sql.table(
+    `${getSchemaName(companyId)}.conversation_cases`,
+  );
+  const insertResult = await sql<ConversationCaseRow>`
+    INSERT INTO ${casesTable} (
+      contact_id, conversation_id, company_id, kind, status, opened_at, opening_message_id,
+      open_source, opened_by, policy_id, response_target_minutes,
+      resolution_target_minutes, reopened_from_case_id
+    )
+    VALUES (
+      ${input.contactId}, ${conversationId}, ${companyId}, ${kind}, 'open', ${serverNow}, ${input.message.id},
+      'live_inbound', NULL, ${policy.id}, ${targets.responseTargetMinutes},
+      ${targets.resolutionTargetMinutes}, ${priorCase?.id ?? null}
+    )
+    ON CONFLICT (conversation_id) WHERE conversation_id IS NOT NULL AND status IN ('open', 'pending') DO NOTHING
+    RETURNING *
+  `.execute(trx);
+
+  let result: {
+    case: ConversationCase;
+    wasAutoReopen: boolean;
+    unassignedPreviousAssignee: string | null;
+  } | null = null;
+  let finalCaseId: string | null = null;
+
+  if (insertResult.rows.length > 0) {
+    const newCase = insertResult.rows[0];
+    let unassignedPreviousAssignee: string | null = null;
+    if (isReopen) {
+      const priorAssignment = await getCurrentConversationAssignment(
+        trx,
+        conversationId,
+      );
+      if (priorAssignment) {
+        await unassignConversation(trx, conversationId);
+        unassignedPreviousAssignee = priorAssignment.assigned_to;
+      }
+    }
+    await syncConversationProjection(trx, conversationId, input.contactId, {
+      activeCaseId: newCase.id,
+      status: "open",
+      resolvedAt: null,
+      resolvedBy: null,
+      resolutionNotes: null,
+      ...(isReopen ? { reopenedAt: serverNow, reopenedBy: null } : {}),
+    });
+    finalCaseId = newCase.id;
+    result = {
+      case: toConversationCase(newCase),
+      wasAutoReopen: isReopen,
+      unassignedPreviousAssignee,
+    };
+  } else {
+    const activeCase = await trx
+      .selectFrom("conversation_cases")
+      .selectAll()
+      .where("conversation_id", "=", conversationId)
+      .where("status", "in", ["open", "pending"])
+      .executeTakeFirst();
+    if (activeCase?.status === "pending") {
+      const updated = await trx
+        .updateTable("conversation_cases")
+        .set({ status: "open", updated_at: toDbDate() })
+        .where("id", "=", activeCase.id)
+        .where("status", "=", "pending")
+        .returningAll()
+        .executeTakeFirst();
+      if (updated) {
+        await syncConversationProjection(trx, conversationId, input.contactId, {
+          activeCaseId: activeCase.id,
+          status: "open",
+        });
+        finalCaseId = activeCase.id;
+        result = {
+          case: toConversationCase(updated as unknown as ConversationCaseRow),
+          wasAutoReopen: false,
+          unassignedPreviousAssignee: null,
+        };
+      }
+    }
+    if (!finalCaseId && activeCase) {
+      await syncConversationProjection(trx, conversationId, input.contactId, {
+        activeCaseId: activeCase.id,
+        status: activeCase.status,
+      });
+      finalCaseId = activeCase.id;
+    }
+  }
+  if (finalCaseId) {
+    await trx
+      .updateTable("messages")
+      .set({ case_id: finalCaseId })
+      .where("id", "=", input.message.id)
+      .execute();
+  }
+  return result;
+}
+
+async function syncConversationProjection(
+  trx: Transaction<TenantDatabase>,
+  conversationId: string,
+  contactId: string | null,
+  sync: ProjectionSync,
+): Promise<void> {
+  const updated = await trx
+    .updateTable("conversation_states")
+    .set({
+      active_case_id: sync.activeCaseId,
+      contact_id: contactId,
+      status: sync.status,
+      updated_at: toDbDate(),
+      ...(sync.resolvedAt !== undefined
+        ? { resolved_at: sync.resolvedAt }
+        : {}),
+      ...(sync.resolvedBy !== undefined
+        ? { resolved_by: sync.resolvedBy }
+        : {}),
+      ...(sync.resolutionNotes !== undefined
+        ? { resolution_notes: sync.resolutionNotes }
+        : {}),
+      ...(sync.reopenedAt !== undefined
+        ? { reopened_at: sync.reopenedAt }
+        : {}),
+      ...(sync.reopenedBy !== undefined
+        ? { reopened_by: sync.reopenedBy }
+        : {}),
+    })
+    .where("conversation_id", "=", conversationId)
+    .executeTakeFirst();
+  if (Number(updated.numUpdatedRows ?? 0) > 0) return;
+  await trx
+    .insertInto("conversation_states")
+    .values({
+      contact_id: contactId,
+      conversation_id: conversationId,
+      active_case_id: sync.activeCaseId,
+      status: sync.status,
+      resolved_at: sync.resolvedAt ?? null,
+      resolved_by: sync.resolvedBy ?? null,
+      resolution_notes: sync.resolutionNotes ?? null,
+      reopened_at: sync.reopenedAt ?? null,
+      reopened_by: sync.reopenedBy ?? null,
+      updated_at: toDbDate(),
+    })
+    .execute();
 }
 
 export interface ResolveCaseInput {
@@ -773,6 +1033,195 @@ export async function resumePendingCase(
   });
 }
 
+export async function resolveActiveCaseForConversation(
+  tenantDb: Kysely<TenantDatabase>,
+  conversationId: string,
+  input: ResolveCaseInput,
+): Promise<ConversationCase> {
+  if (input.outcome === "other" && !input.notes?.trim()) {
+    throw new ValidationError("Notes are required when the outcome is 'other'");
+  }
+  return tenantDb.transaction().execute(async (trx) => {
+    await lockConversation(trx, conversationId);
+    await assertActorOwnsConversation(trx, conversationId, input.resolvedBy);
+    const active = await getActiveCase(trx, conversationId);
+    if (!active) {
+      throw new ConflictError(
+        "This conversation has no active case to resolve",
+      );
+    }
+    if (input.outcome === "handled") {
+      const unanswered = await hasUnansweredLatestTurn(trx, active.id);
+      if (unanswered) {
+        throw new ValidationError(
+          "'handled' requires a team reply to the latest inbound message - choose no_reply_needed, spam, or duplicate, or 'other' with notes",
+        );
+      }
+    }
+    const resolvedAt = toDbDate();
+    const updated = await trx
+      .updateTable("conversation_cases")
+      .set({
+        status: "resolved",
+        resolved_at: resolvedAt,
+        resolved_by: input.resolvedBy,
+        resolution_outcome: input.outcome,
+        resolution_notes: input.notes?.trim() || null,
+        updated_at: toDbDate(),
+      })
+      .where("id", "=", active.id)
+      .where("status", "in", ["open", "pending"])
+      .returningAll()
+      .executeTakeFirst();
+    if (!updated) {
+      throw new ConflictError(
+        "This conversation's active case changed before the resolve could be applied",
+      );
+    }
+    const resolvedCase = updated as unknown as ConversationCaseRow;
+    await syncConversationProjection(trx, conversationId, null, {
+      activeCaseId: null,
+      status: "resolved",
+      resolvedAt: resolvedCase.resolved_at,
+      resolvedBy: resolvedCase.resolved_by,
+      resolutionNotes: resolvedCase.resolution_notes,
+    });
+    return toConversationCase(resolvedCase);
+  });
+}
+
+export async function setActiveCasePendingForConversation(
+  tenantDb: Kysely<TenantDatabase>,
+  conversationId: string,
+  actorUserId: string,
+): Promise<ConversationCase> {
+  return tenantDb.transaction().execute(async (trx) => {
+    await lockConversation(trx, conversationId);
+    await assertActorOwnsConversation(trx, conversationId, actorUserId);
+    const updated = await trx
+      .updateTable("conversation_cases")
+      .set({ status: "pending", updated_at: toDbDate() })
+      .where("conversation_id", "=", conversationId)
+      .where("status", "=", "open")
+      .returningAll()
+      .executeTakeFirst();
+    if (updated) {
+      const pendingCase = updated as unknown as ConversationCaseRow;
+      await syncConversationProjection(trx, conversationId, null, {
+        activeCaseId: pendingCase.id,
+        status: "pending",
+      });
+      return toConversationCase(pendingCase);
+    }
+    const current = await getActiveCase(trx, conversationId);
+    if (current?.status === "pending") return current;
+    throw new ConflictError(
+      current
+        ? "This conversation's active case changed before it could be marked pending"
+        : "This conversation has no active case to mark pending",
+    );
+  });
+}
+
+export async function resumePendingCaseForConversation(
+  tenantDb: Kysely<TenantDatabase>,
+  conversationId: string,
+  actorUserId: string,
+): Promise<ConversationCase> {
+  return tenantDb.transaction().execute(async (trx) => {
+    await lockConversation(trx, conversationId);
+    await assertActorOwnsConversation(trx, conversationId, actorUserId);
+    const updated = await trx
+      .updateTable("conversation_cases")
+      .set({ status: "open", updated_at: toDbDate() })
+      .where("conversation_id", "=", conversationId)
+      .where("status", "=", "pending")
+      .returningAll()
+      .executeTakeFirst();
+    if (updated) {
+      const openCase = updated as unknown as ConversationCaseRow;
+      await syncConversationProjection(trx, conversationId, null, {
+        activeCaseId: openCase.id,
+        status: "open",
+      });
+      return toConversationCase(openCase);
+    }
+    const current = await getActiveCase(trx, conversationId);
+    if (current?.status === "open") return current;
+    throw new ConflictError(
+      current
+        ? "This conversation's active case changed before it could be resumed"
+        : "This conversation has no active case to resume",
+    );
+  });
+}
+
+export async function reopenAsNewCaseForConversation(
+  tenantDb: Kysely<TenantDatabase>,
+  conversation: { id: string; isGroup: boolean },
+  input: ManualOpenCaseInput,
+): Promise<ConversationCase> {
+  return tenantDb.transaction().execute(async (trx) => {
+    await lockConversation(trx, conversation.id);
+    await assertActorOwnsConversation(trx, conversation.id, input.openedBy);
+    const priorCase = await getMostRecentCase(trx, conversation.id);
+    if (input.expectedMode === "open" && priorCase) {
+      throw new ConflictError(
+        "This conversation already has prior case history - use Reopen instead of Open",
+      );
+    }
+    if (input.expectedMode === "reopen" && !priorCase) {
+      throw new ConflictError(
+        "This conversation has no prior case history - use Open instead of Reopen",
+      );
+    }
+    if (priorCase && !input.reason?.trim()) {
+      throw new ValidationError(
+        "A reason is required to reopen a previously-closed conversation",
+      );
+    }
+    const kind: ConversationCaseKind = conversation.isGroup
+      ? "group"
+      : "direct";
+    const policy = await getCurrentSlaPolicy(input.companyId);
+    const targets = resolveCaseTargets(policy, kind);
+    const openedAt = toDbDate();
+    const reason = input.reason?.trim() || null;
+    const casesTable = sql.table(
+      `${getSchemaName(input.companyId)}.conversation_cases`,
+    );
+    const insertResult = await sql<ConversationCaseRow>`
+      INSERT INTO ${casesTable} (
+        contact_id, conversation_id, company_id, kind, status, opened_at, opening_message_id,
+        open_source, opened_by, policy_id, response_target_minutes,
+        resolution_target_minutes, reopened_from_case_id, reopen_reason
+      )
+      VALUES (
+        NULL, ${conversation.id}, ${input.companyId}, ${kind}, 'open', ${openedAt}, NULL,
+        'manual', ${input.openedBy}, ${policy.id}, ${targets.responseTargetMinutes},
+        ${targets.resolutionTargetMinutes}, ${priorCase?.id ?? null}, ${reason}
+      )
+      ON CONFLICT (conversation_id) WHERE conversation_id IS NOT NULL AND status IN ('open', 'pending') DO NOTHING
+      RETURNING *
+    `.execute(trx);
+    if (insertResult.rows.length === 0) {
+      throw new ConflictError("This conversation already has an active case");
+    }
+    const created = insertResult.rows[0];
+    await syncConversationProjection(trx, conversation.id, null, {
+      activeCaseId: created.id,
+      status: "open",
+      resolvedAt: null,
+      resolvedBy: null,
+      resolutionNotes: null,
+      ...(priorCase
+        ? { reopenedAt: created.opened_at, reopenedBy: input.openedBy }
+        : {}),
+    });
+    return toConversationCase(created);
+  });
+}
+
 export interface ManualOpenCaseInput {
   companyId: string;
   openedBy: string;
@@ -861,12 +1310,12 @@ export async function openCaseWithin(
     );
     const insertResult = await sql<ConversationCaseRow>`
       INSERT INTO ${casesTable} (
-        contact_id, kind, status, opened_at, opening_message_id,
+        contact_id, conversation_id, company_id, kind, status, opened_at, opening_message_id,
         open_source, opened_by, policy_id, response_target_minutes,
         resolution_target_minutes, reopened_from_case_id, reopen_reason
       )
       VALUES (
-        ${contact.id}, ${kind}, 'open', ${openedAt}, NULL,
+        ${contact.id}, ${await conversationIdForContact(trx, contact.id)}, ${input.companyId}, ${kind}, 'open', ${openedAt}, NULL,
         'manual', ${input.openedBy}, ${policy.id}, ${targets.responseTargetMinutes},
         ${targets.resolutionTargetMinutes}, ${priorCase?.id ?? null}, ${reason}
       )

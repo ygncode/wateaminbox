@@ -17,10 +17,16 @@ import {
   OutboundContactError,
 } from "../../../services/contact.service.js";
 import { reserveMediaReferences } from "../../../services/media-reference-lock.js";
-import { broadcastToContactViewers } from "../../../services/message-broadcast.service.js";
-import { requireSendAccess } from "../../../services/send-access.service.js";
+import {
+  broadcastToContactViewers,
+  broadcastToConversationViewers,
+} from "../../../services/message-broadcast.service.js";
+import {
+  requireConversationSendAccess,
+  requireSendAccess,
+} from "../../../services/send-access.service.js";
 import { type McpToolDefinition, McpToolError } from "../tool-context.js";
-import { requireVisibleContact } from "./read.js";
+import { requireVisibleContact, requireVisibleWorkflow } from "./read.js";
 
 export const schedulingTools: McpToolDefinition[] = [
   {
@@ -73,11 +79,12 @@ export const schedulingTools: McpToolDefinition[] = [
   {
     name: "schedule_message",
     description:
-      "Schedule one normal text message to an existing contact, without a broadcast. HIGH IMPACT: confirm recipient, wording and time before calling. Uses the contact's WhatsApp connection. Requires an open/pending conversation; for a new contact use update_conversation_state action 'open' first. Reuse the same scheduledMessageId and exact payload on retries; a changed payload with that ID is rejected. Delivery is server-side and rechecks send access at dispatch. Pending schedules can be inspected or canceled in the app.",
+      "Schedule one normal text message to an existing contact or conversation, without a broadcast. HIGH IMPACT: confirm recipient, wording and time before calling. Pass contactId or conversationId. Requires an open/pending conversation; for a new contact use update_conversation_state action 'open' first. Reuse the same scheduledMessageId and exact payload on retries; a changed payload with that ID is rejected. Delivery is server-side and rechecks send access at dispatch. Pending schedules can be inspected or canceled in the app.",
     scope: "write",
     permission: "can_send_messages",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().uuid().optional(),
+      conversationId: z.string().uuid().optional(),
       content: z.string().trim().min(1).max(65536),
       scheduledAt: z
         .string()
@@ -92,7 +99,8 @@ export const schedulingTools: McpToolDefinition[] = [
     },
     handler: async (
       args: {
-        contactId: string;
+        contactId?: string;
+        conversationId?: string;
         content: string;
         scheduledAt: string;
         scheduledMessageId: string;
@@ -100,7 +108,14 @@ export const schedulingTools: McpToolDefinition[] = [
       c,
     ) => {
       const { tenantDb, user, companyId } = getRouteContext(c);
-      await requireVisibleContact(c, args.contactId);
+      const targetId = args.conversationId ?? args.contactId;
+      if (!targetId)
+        throw new McpToolError("contactId or conversationId is required");
+      const identity = await requireVisibleWorkflow(c, targetId);
+      if (!identity.conversationId && !identity.contactId)
+        throw new McpToolError("Contact not found");
+      const contactId = identity.contactId;
+      const conversationId = identity.conversationId;
       if (rateLimitConfig.enabled) {
         const tier = rateLimitConfig.tiers.messaging.send;
         try {
@@ -138,7 +153,8 @@ export const schedulingTools: McpToolDefinition[] = [
         if (existing) {
           if (
             existing.created_by !== user.id ||
-            existing.contact_id !== args.contactId ||
+            existing.contact_id !== contactId ||
+            existing.conversation_id !== conversationId ||
             existing.content !== content ||
             new Date(existing.scheduled_at).getTime() !==
               scheduledAt.getTime() ||
@@ -162,22 +178,34 @@ export const schedulingTools: McpToolDefinition[] = [
           throw new McpToolError("scheduledAt must be within one year");
         // Use the same transaction guards and lock order as REST schedule creation.
         await reserveMediaReferences(trx, companyId, [null]);
-        const access = await requireSendAccess(trx, args.contactId, user.id);
-        const contact = await trx
-          .selectFrom("contacts")
-          .select(["jid", "whatsapp_connection_id"])
-          .where("id", "=", args.contactId)
-          .executeTakeFirstOrThrow();
-        if (!contact.jid || !contact.whatsapp_connection_id)
-          throw new McpToolError(
-            "The contact has no WhatsApp connection or JID",
+        let autoAssigned = false;
+        if (contactId) {
+          const contact = await trx
+            .selectFrom("contacts")
+            .select(["jid", "whatsapp_connection_id"])
+            .where("id", "=", contactId)
+            .executeTakeFirstOrThrow();
+          if (!contact.jid || !contact.whatsapp_connection_id)
+            throw new McpToolError(
+              "The contact has no WhatsApp connection or JID",
+            );
+          const access = await requireSendAccess(trx, contactId, user.id);
+          autoAssigned = access.autoAssigned;
+        } else {
+          const access = await requireConversationSendAccess(
+            trx,
+            conversationId!,
+            user.id,
           );
+          autoAssigned = access.autoAssigned;
+        }
         const now = toDbDate();
         const row = await trx
           .insertInto("scheduled_messages")
           .values({
             id: args.scheduledMessageId,
-            contact_id: args.contactId,
+            contact_id: contactId,
+            conversation_id: conversationId,
             content,
             message_type: "text",
             scheduled_at: scheduledAt,
@@ -193,30 +221,37 @@ export const schedulingTools: McpToolDefinition[] = [
         return {
           row,
           alreadyExisted: false,
-          autoAssigned: access.autoAssigned,
+          autoAssigned,
         };
       });
-      if (result.autoAssigned)
-        await broadcastAutoAssignment(
-          tenantDb,
-          companyId,
-          args.contactId,
-          user.id,
-        );
-      if (!result.alreadyExisted)
-        await broadcastToContactViewers(
-          companyId,
-          args.contactId,
-          "scheduled_message:updated",
-          {
-            scheduledMessageId: result.row.id,
-            conversationId: args.contactId,
-            status: "scheduled",
-          },
-        );
+      if (result.autoAssigned && contactId)
+        await broadcastAutoAssignment(tenantDb, companyId, contactId, user.id);
+      if (!result.alreadyExisted) {
+        const payload = {
+          scheduledMessageId: result.row.id,
+          conversationId: conversationId ?? contactId,
+          status: "scheduled",
+        };
+        if (contactId) {
+          await broadcastToContactViewers(
+            companyId,
+            contactId,
+            "scheduled_message:updated",
+            payload,
+          );
+        } else {
+          await broadcastToConversationViewers(
+            companyId,
+            conversationId,
+            "scheduled_message:updated",
+            payload,
+          );
+        }
+      }
       return {
         scheduledMessageId: result.row.id,
         contactId: result.row.contact_id,
+        conversationId: result.row.conversation_id,
         scheduledAt: new Date(result.row.scheduled_at).toISOString(),
         status: result.row.status,
         alreadyExisted: result.alreadyExisted,

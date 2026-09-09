@@ -8,11 +8,13 @@ import {
   RotateCcw,
   UsersRound,
 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { ChatSidebar, type SidebarView } from "../components/chat/ChatSidebar";
+import { channelDisplayName } from "../components/connections/channel-catalog";
+import { ChannelComposerGate } from "../components/chat/ChannelComposerGate";
 import { ComposerLifecycleArea } from "../components/chat/ComposerLifecycleArea";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { ContactProfile } from "../components/chat/contact-profile";
@@ -39,10 +41,15 @@ import {
 import { useWorkspace } from "../contexts/workspace-context";
 import { useChatPageState } from "../hooks/chat";
 import { useKeyboardInset } from "../hooks/ui";
+import { useChannelAccountCapabilities } from "../hooks/useChannelAccounts";
+import { useChannelConversation } from "../hooks/useChannelConversations";
 import { useComposerAccess } from "../hooks/useComposerAccess";
 import { useCreateContact } from "../hooks/useContact";
 import { useGroup } from "../hooks/useGroups";
 import { useWhatsAppConnectionsList } from "../hooks/whatsapp";
+import { sendChannelMessage } from "../lib/api/channel-conversations";
+import { transformChannelConversationToChat } from "../lib/api/transformers";
+import { uploadMedia } from "../lib/api/messages";
 import { ApiRequestError } from "../lib/api/client";
 import { cn } from "../lib/utils";
 import {
@@ -96,6 +103,7 @@ export function ChatPage() {
     selectedChatId,
     selectedContact,
     contactLoadError,
+    isContactLoading,
     isContactTyping,
     isProfileOpen,
     profileContactId,
@@ -130,6 +138,76 @@ export function ChatPage() {
     handleForwardToContact,
     handleCloseForwardDialog,
   } = useChatPageState();
+  const { data: channelConversation, isLoading: isChannelConversationLoading } =
+    useChannelConversation(selectedChatId);
+  const conversationContact = useMemo(
+    () =>
+      channelConversation
+        ? transformChannelConversationToChat(channelConversation).contact
+        : undefined,
+    [channelConversation],
+  );
+  const threadContact = selectedContact ?? conversationContact;
+  const isThreadLoading =
+    Boolean(selectedChatId) &&
+    !threadContact &&
+    (isContactLoading || isChannelConversationLoading);
+  const isThreadMissing =
+    Boolean(selectedChatId) && !threadContact && !isThreadLoading;
+  const {
+    data: channelCapabilities,
+    isLoading: areChannelCapabilitiesLoading,
+  } = useChannelAccountCapabilities(channelConversation?.channelAccountId);
+  const handleChannelSendMessage = useCallback(
+    (content: string, replyToMessageId?: string, mentionedJids?: string[]) => {
+      if (channelConversation) {
+        void sendChannelMessage(channelConversation.id, {
+          content,
+          messageType: "text",
+          replyToMessageId,
+        });
+        handleClearReply();
+        return;
+      }
+      handleSendMessage(content, replyToMessageId, mentionedJids);
+    },
+    [channelConversation, handleClearReply, handleSendMessage],
+  );
+  const handleChannelAttachFile = useCallback(
+    async (
+      files: File[],
+      type: "image" | "document",
+      caption: string,
+    ): Promise<boolean> => {
+      if (!channelConversation) {
+        return handleAttachFile(files, type, caption);
+      }
+      try {
+        for (const [index, file] of files.entries()) {
+          const uploaded = await uploadMedia(file);
+          let messageType: "image" | "video" | "audio" | "document" =
+            "document";
+          if (uploaded.mimeType.startsWith("image/")) messageType = "image";
+          else if (uploaded.mimeType.startsWith("video/"))
+            messageType = "video";
+          else if (uploaded.mimeType.startsWith("audio/"))
+            messageType = "audio";
+          await sendChannelMessage(channelConversation.id, {
+            content: index === 0 ? caption : "",
+            messageType,
+            mediaUrl: uploaded.mediaUrl,
+          });
+        }
+        return true;
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to send attachment",
+        );
+        return false;
+      }
+    },
+    [channelConversation, handleAttachFile],
+  );
 
   const handleOpenSharedContact = useCallback((contact: SharedContactCard) => {
     setSharedContactCard(contact);
@@ -189,8 +267,8 @@ export function ChatPage() {
   const { access: composerAccess } = useComposerAccess(selectedChatId ?? null);
   const canSend = composerAccess.kind === "sendable";
   const isSelectedGroup = Boolean(
-    selectedContact &&
-      (selectedContact.isGroup || selectedContact.jid?.endsWith("@g.us")),
+    threadContact &&
+      (threadContact.isGroup || threadContact.jid?.endsWith("@g.us")),
   );
   const { data: selectedGroup } = useGroup(
     isSelectedGroup ? (selectedChatId ?? null) : null,
@@ -249,22 +327,20 @@ export function ChatPage() {
           />
         )}
 
-      {selectedChatId && !selectedContact && !contactLoadError && (
-        <ConversationLoadingState />
-      )}
+      {isThreadLoading && <ConversationLoadingState />}
 
-      {selectedChatId && !selectedContact && contactLoadError && (
+      {isThreadMissing && (
         <ConversationLoadError
-          message={contactLoadError.message}
+          message={contactLoadError?.message ?? "Conversation not found"}
           onRetry={retryContactLoad}
           onBackToInbox={() => handleChatSelect(null)}
         />
       )}
 
-      {selectedChatId && selectedContact && (
+      {selectedChatId && threadContact && (
         <>
           <MessageHeader
-            contact={selectedContact}
+            contact={threadContact}
             onOpenProfile={handleOpenProfile}
             onSearch={handleOpenSearch}
             isTyping={isContactTyping}
@@ -273,7 +349,10 @@ export function ChatPage() {
           />
           {isSearchOpen && (
             <ConversationSearch
-              contactId={selectedChatId}
+              contactId={selectedContact?.id}
+              conversationId={
+                threadContact.conversationId ?? channelConversation?.id
+              }
               onClose={handleCloseSearch}
               onNavigateToMessage={handleNavigateToMessage}
             />
@@ -296,6 +375,10 @@ export function ChatPage() {
               onOpenParticipantProfile={handleOpenParticipantProfile}
               onOpenSharedContact={handleOpenSharedContact}
               onMessageSharedContact={handleMessageSharedContact}
+              // Neutral channel threads are additionally bounded by their
+              // adapter contract; legacy linked-device threads pass undefined
+              // and keep their existing action set.
+              capabilities={channelConversation ? channelCapabilities : null}
             >
               <MessageThread
                 conversationId={selectedChatId}
@@ -307,6 +390,13 @@ export function ChatPage() {
                 highlightedMessageId={highlightedMessageId}
                 onOpenContactInfo={handleOpenProfile}
                 canRetry={canSend}
+                // Only an adapter that reports remote history can be asked
+                // for it; legacy linked-device threads keep the affordance.
+                canLoadRemoteHistory={
+                  channelConversation
+                    ? (channelCapabilities?.actions.remoteHistory ?? false)
+                    : true
+                }
               />
             </MessageActionsProvider>
           </div>
@@ -314,20 +404,47 @@ export function ChatPage() {
             contactId={selectedChatId}
             access={composerAccess}
             isSending={isSending}
-            contactName={selectedContact.name}
+            contactName={threadContact.name}
           >
-            <MessageComposer
-              conversationId={selectedContact?.jid}
-              contactId={selectedChatId}
-              replyToMessage={replyToMessage}
-              onClearReply={handleClearReply}
-              onSendMessage={handleSendMessage}
-              onAttachFile={handleAttachFile}
-              disabled={isSending}
-              connection={selectedContact.connection}
-              currentUserName={user?.name}
-              mentionParticipants={selectedGroup?.participants}
-            />
+            {channelConversation ? (
+              <ChannelComposerGate
+                capabilities={channelCapabilities}
+                isLoading={areChannelCapabilitiesLoading}
+              >
+                <MessageComposer
+                  conversationId={channelConversation.id}
+                  contactId={selectedChatId}
+                  replyToMessage={replyToMessage}
+                  onClearReply={handleClearReply}
+                  onSendMessage={handleChannelSendMessage}
+                  onAttachFile={handleChannelAttachFile}
+                  disabled={isSending}
+                  connection={null}
+                  channelAccount={{
+                    displayName: channelConversation.account.displayName,
+                    channelName: channelDisplayName(
+                      channelConversation.channel,
+                    ),
+                    status: channelConversation.account.status,
+                  }}
+                  currentUserName={user?.name}
+                  mentionParticipants={selectedGroup?.participants}
+                />
+              </ChannelComposerGate>
+            ) : (
+              <MessageComposer
+                conversationId={threadContact.jid}
+                contactId={selectedChatId}
+                replyToMessage={replyToMessage}
+                onClearReply={handleClearReply}
+                onSendMessage={handleSendMessage}
+                onAttachFile={handleChannelAttachFile}
+                disabled={isSending}
+                connection={selectedContact?.connection}
+                currentUserName={user?.name}
+                mentionParticipants={selectedGroup?.participants}
+              />
+            )}
           </ComposerLifecycleArea>
         </>
       )}

@@ -1,6 +1,6 @@
 import type { Message, MessageType } from "@wateaminbox/shared";
 import { Maximize2, MessageCircle, Play, UserRound } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { lazy, type ReactNode, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import { useMessageActions } from "@/contexts/message-actions-context";
@@ -10,6 +10,16 @@ import { LinkifiedText } from "./LinkifiedText";
 import { MediaAlbumContent } from "./MediaAlbumContent";
 import { MediaLightbox } from "./MediaLightbox";
 import { MediaPendingPlaceholder } from "./MediaPendingPlaceholder";
+
+/**
+ * Only workspaces that actually receive animated stickers pay for the Lottie
+ * renderer, and only once one is on screen.
+ */
+const LottieSticker = lazy(() =>
+  import("./LottieSticker").then((module) => ({
+    default: module.LottieSticker,
+  })),
+);
 
 interface MessageContentProps {
   message: Message;
@@ -410,6 +420,16 @@ export function MessageContent({
         );
       }
       const mediaUrl = message.metadata?.mediaUrl;
+      // Telegram ships stickers as static WebP or as WebM video. A video
+      // sticker in an <img> renders as a broken image, so it needs a looping,
+      // muted <video> - the same silent autoplay the provider's own clients
+      // use. Static stickers keep the image path.
+      const stickerMimeType = message.metadata?.mimeType ?? "";
+      const isVideoSticker = stickerMimeType.startsWith("video/");
+      // Anything that is neither an image nor a video is a Telegram .tgs:
+      // gzipped Lottie the browser cannot draw on its own.
+      const isLottieSticker =
+        !isVideoSticker && !stickerMimeType.startsWith("image/");
 
       return (
         <div className="max-w-[200px]">
@@ -430,14 +450,36 @@ export function MessageContent({
                 aria-label={t("chat.openSticker", "Open sticker")}
                 tabIndex={enableMediaPreview ? 0 : -1}
               >
-                <img
-                  src={mediaUrl}
-                  alt={t("chat.mediaTypes.sticker", "Sticker")}
-                  width={200}
-                  height={200}
-                  className="h-auto w-full transition-transform duration-200 group-hover/media:scale-[1.025]"
-                  loading="lazy"
-                />
+                {isLottieSticker ? (
+                  <Suspense
+                    fallback={
+                      <div className="size-40 animate-pulse rounded-lg bg-black/5 dark:bg-white/[0.06]" />
+                    }
+                  >
+                    <LottieSticker src={mediaUrl} className="size-40" />
+                  </Suspense>
+                ) : isVideoSticker ? (
+                  <video
+                    src={mediaUrl}
+                    width={200}
+                    height={200}
+                    className="h-auto w-full transition-transform duration-200 group-hover/media:scale-[1.025]"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    aria-label={t("chat.mediaTypes.sticker", "Sticker")}
+                  />
+                ) : (
+                  <img
+                    src={mediaUrl}
+                    alt={t("chat.mediaTypes.sticker", "Sticker")}
+                    width={200}
+                    height={200}
+                    className="h-auto w-full transition-transform duration-200 group-hover/media:scale-[1.025]"
+                    loading="lazy"
+                  />
+                )}
               </button>
               <MediaLightbox
                 open={mediaPreviewOpen}

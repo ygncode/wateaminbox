@@ -41,6 +41,7 @@ export type CompanyRealtimeEventType =
  */
 export type ConversationRealtimeEventType =
   | "message:new"
+  | "channel_message:new"
   | "message:status"
   | "message:deleted"
   | "message:reaction"

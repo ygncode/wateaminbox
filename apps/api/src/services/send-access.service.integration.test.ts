@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { db } from "@wateaminbox/database";
+import {
+  db,
+  reconcileChannelSpineConcurrentIndexes,
+} from "@wateaminbox/database";
 import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
 import { sql } from "kysely";
 import {
@@ -7,9 +10,18 @@ import {
   ContactBlockedError,
   NoActiveCaseError,
 } from "../lib/errors.js";
-import { assignContactToUser } from "./contact.service.js";
-import { openOrReopenCaseForInboundMessage } from "./conversation-case.service.js";
-import { requireSendAccess } from "./send-access.service.js";
+import {
+  assignContactToUser,
+  assignConversationToUser,
+} from "./contact.service.js";
+import {
+  openOrReopenCaseForInboundConversation,
+  openOrReopenCaseForInboundMessage,
+} from "./conversation-case.service.js";
+import {
+  requireConversationSendAccess,
+  requireSendAccess,
+} from "./send-access.service.js";
 import {
   clearTenantConnection,
   createTenantSchema,
@@ -69,9 +81,7 @@ async function withTenant(
     await run(companyId);
   } finally {
     await clearTenantConnection(companyId);
-    await sql
-      .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
-      .execute(db);
+    await sql.raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`).execute(db);
     await db
       .deleteFrom("sla_policies")
       .where("company_id", "=", companyId)
@@ -131,7 +141,8 @@ describe("requireSendAccess", () => {
         const userA = crypto.randomUUID();
         const userB = crypto.randomUUID();
 
-        const unassignedContactId = await insertContactWithActiveCase(companyId);
+        const unassignedContactId =
+          await insertContactWithActiveCase(companyId);
         const unassignedResult = await tenantDb
           .transaction()
           .execute((trx) => requireSendAccess(trx, unassignedContactId, userA));
@@ -146,7 +157,8 @@ describe("requireSendAccess", () => {
           .executeTakeFirstOrThrow();
         expect(claimedAssignment.assigned_to).toBe(userA);
 
-        const selfAssignedContactId = await insertContactWithActiveCase(companyId);
+        const selfAssignedContactId =
+          await insertContactWithActiveCase(companyId);
         await assignContactToUser(
           tenantDb,
           selfAssignedContactId,
@@ -155,12 +167,15 @@ describe("requireSendAccess", () => {
         );
         const selfResult = await tenantDb
           .transaction()
-          .execute((trx) => requireSendAccess(trx, selfAssignedContactId, userA));
+          .execute((trx) =>
+            requireSendAccess(trx, selfAssignedContactId, userA),
+          );
         expect(selfResult.caseId).toBeTruthy();
         // Already self-assigned - no auto-claim needed.
         expect(selfResult.autoAssigned).toBe(false);
 
-        const otherAssignedContactId = await insertContactWithActiveCase(companyId);
+        const otherAssignedContactId =
+          await insertContactWithActiveCase(companyId);
         await assignContactToUser(
           tenantDb,
           otherAssignedContactId,
@@ -383,6 +398,100 @@ describe("requireSendAccess", () => {
         expect(activeAssignments).toHaveLength(1);
         const winner: string = activeAssignments[0].assigned_to;
         expect(winner === userA || winner === userB).toBe(true);
+      });
+    },
+  );
+});
+
+async function insertConversationWithActiveCase(companyId: string) {
+  const tenantDb = getTenantConnection(companyId);
+  await reconcileChannelSpineConcurrentIndexes(db, getSchemaName(companyId));
+  const accountId = crypto.randomUUID();
+  await tenantDb
+    .insertInto("channel_accounts")
+    .values({
+      id: accountId,
+      channel: "telegram",
+      provider: "telegram_bot",
+      display_name: "Bot",
+      status: "connected",
+    })
+    .execute();
+  const conversation = await tenantDb
+    .insertInto("conversations")
+    .values({
+      channel_account_id: accountId,
+      client_thread_key: `telegram:${crypto.randomUUID()}`,
+      kind: "direct",
+      subject: "Ada",
+      legacy_contact_id: null,
+    })
+    .returning("id")
+    .executeTakeFirstOrThrow();
+  await tenantDb.transaction().execute(async (trx) => {
+    const messageId = crypto.randomUUID();
+    await trx
+      .insertInto("messages")
+      .values({
+        id: messageId,
+        contact_id: null,
+        conversation_id: conversation.id,
+        channel_account_id: accountId,
+        message_id: crypto.randomUUID(),
+        from_me: false,
+        message_type: "text",
+        content: "hello",
+        timestamp: new Date(),
+      })
+      .execute();
+    await openOrReopenCaseForInboundConversation(
+      trx,
+      companyId,
+      conversation.id,
+      {
+        contactId: null,
+        isGroup: false,
+        message: { id: messageId, timestamp: new Date() },
+      },
+    );
+  });
+  return conversation.id;
+}
+
+describe("requireConversationSendAccess", () => {
+  integrationTest(
+    "claims an unassigned conversation without a contact and blocks another assignee",
+    async () => {
+      await withTenant(async (companyId) => {
+        const tenantDb = getTenantConnection(companyId);
+        const userA = crypto.randomUUID();
+        const userB = crypto.randomUUID();
+        const conversationId =
+          await insertConversationWithActiveCase(companyId);
+        const claimed = await tenantDb
+          .transaction()
+          .execute((trx) =>
+            requireConversationSendAccess(trx, conversationId, userA),
+          );
+        expect(claimed.caseId).toBeTruthy();
+        expect(claimed.autoAssigned).toBe(true);
+        const assignment = await tenantDb
+          .selectFrom("contact_assignments")
+          .select(["assigned_to", "contact_id"])
+          .where("conversation_id", "=", conversationId)
+          .where("unassigned_at", "is", null)
+          .executeTakeFirstOrThrow();
+        expect(assignment.assigned_to).toBe(userA);
+        expect(assignment.contact_id).toBeNull();
+
+        await assignConversationToUser(tenantDb, conversationId, userB, userB);
+        await expect(
+          tenantDb
+            .transaction()
+            .execute((trx) =>
+              requireConversationSendAccess(trx, conversationId, userA),
+            ),
+        ).rejects.toBeInstanceOf(ContactAssignedToOtherError);
       });
     },
   );

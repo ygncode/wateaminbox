@@ -19,6 +19,48 @@ export async function hasContactVisibility(
   return Boolean(assignment);
 }
 
+export function requireConversationVisibility(paramName = "id") {
+  return async (c: Context, next: Next) => {
+    const id = c.req.param(paramName)!;
+    if (await hasContactVisibility(c, id)) {
+      await next();
+      return;
+    }
+    const { tenantDb, permissions } = getRouteContext(c);
+    const conversation = await tenantDb
+      .selectFrom("conversations")
+      .select(["id", "legacy_contact_id"])
+      .where("id", "=", id)
+      .where("archived_at", "is", null)
+      .executeTakeFirst();
+    if (!conversation) {
+      throw new HTTPException(404, { message: "Conversation not found" });
+    }
+    if (permissions.can_view_all_chats) {
+      await next();
+      return;
+    }
+    const assignment = await tenantDb
+      .selectFrom("contact_assignments")
+      .select("id")
+      .where("assigned_to", "=", getRouteContext(c).user.id)
+      .where("unassigned_at", "is", null)
+      .where((eb) =>
+        eb.or([
+          eb("conversation_id", "=", conversation.id),
+          conversation.legacy_contact_id
+            ? eb("contact_id", "=", conversation.legacy_contact_id)
+            : eb.val(false),
+        ]),
+      )
+      .executeTakeFirst();
+    if (!assignment) {
+      throw new HTTPException(404, { message: "Conversation not found" });
+    }
+    await next();
+  };
+}
+
 export function requireContactVisibility(paramName = "id") {
   return async (c: Context, next: Next) => {
     if (!(await hasContactVisibility(c, c.req.param(paramName)!))) {
@@ -38,15 +80,32 @@ export function requireMessageVisibility(paramName = "id") {
     }
     const message = await tenantDb
       .selectFrom("messages")
-      .select("contact_id")
+      .select(["contact_id", "conversation_id"])
       .where("id", "=", c.req.param(paramName)!)
       .executeTakeFirst();
-    if (
-      !message?.contact_id ||
-      !(await hasContactVisibility(c, message.contact_id))
-    ) {
+    if (!message) {
       throw new HTTPException(404, { message: "Message not found" });
     }
-    await next();
+    if (
+      message.contact_id &&
+      (await hasContactVisibility(c, message.contact_id))
+    ) {
+      await next();
+      return;
+    }
+    if (message.conversation_id) {
+      const assignment = await tenantDb
+        .selectFrom("contact_assignments")
+        .select("id")
+        .where("assigned_to", "=", getRouteContext(c).user.id)
+        .where("unassigned_at", "is", null)
+        .where("conversation_id", "=", message.conversation_id)
+        .executeTakeFirst();
+      if (assignment) {
+        await next();
+        return;
+      }
+    }
+    throw new HTTPException(404, { message: "Message not found" });
   };
 }

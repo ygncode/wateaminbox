@@ -6,6 +6,7 @@
  * across different hooks and components.
  */
 
+import { channelDisplayName } from "@/components/connections/channel-catalog";
 import { toDate } from "@wateaminbox/shared";
 import type {
   Chat,
@@ -58,6 +59,9 @@ export interface ContactApiResponse {
   } | null;
   conversationStatus: ConversationLifecycleStatus;
   activeCaseId: string | null;
+  conversationId?: string | null;
+  channel?: string | null;
+  provider?: string | null;
 }
 
 /**
@@ -87,7 +91,7 @@ export interface ContactsListResponse {
  */
 export function transformContactToChat(contact: ContactApiResponse): Chat {
   return {
-    id: contact.id,
+    id: contact.conversationId ?? contact.id,
     contact: {
       id: contact.id,
       jid: contact.jid,
@@ -102,6 +106,9 @@ export function transformContactToChat(contact: ContactApiResponse): Chat {
         : undefined,
       isGroup: contact.isGroup,
       connection: contact.connection,
+      conversationId: contact.conversationId,
+      channel: contact.channel,
+      provider: contact.provider,
     },
     lastMessage: contact.lastMessage
       ? {
@@ -123,7 +130,11 @@ export function transformContactToChat(contact: ContactApiResponse): Chat {
     isPinned: false,
     isMuted: false,
     isArchived: false,
-    updatedAt: toDate(contact.updatedAt) ?? new Date(),
+    // The chat list is sorted by updatedAt. Use the latest message time as the
+    // sort key so a sync that refreshes contact rows does not reorder chats
+    // away from their actual most-recent activity.
+    updatedAt:
+      toDate(contact.lastMessageAt) ?? toDate(contact.updatedAt) ?? new Date(),
     conversationStatus: contact.conversationStatus,
     activeCaseId: contact.activeCaseId,
   };
@@ -139,4 +150,86 @@ export function transformContactsToChats(
   contacts: ContactApiResponse[],
 ): Chat[] {
   return contacts.map(transformContactToChat);
+}
+
+export function transformChannelConversationToChat(conversation: {
+  id: string;
+  channel: string;
+  provider: string;
+  kind: "direct" | "group" | "thread";
+  subject: string | null;
+  lastMessageAt: string | null;
+  lastMessagePreview: string | null;
+  unreadCount: number;
+  conversationStatus: ConversationLifecycleStatus;
+  legacyContactId: string | null;
+  counterpart?: {
+    displayName: string | null;
+    addressDisplay: string | null;
+    avatarUrl: string | null;
+  } | null;
+}): Chat {
+  // The server resolves a direct conversation's name from its counterpart's
+  // endpoint when the provider gave no subject. The channel's brand name is a
+  // last resort so a thread never renders under a raw enum like "telegram".
+  const name =
+    conversation.subject?.trim() || channelDisplayName(conversation.channel);
+  return {
+    id: conversation.legacyContactId ?? conversation.id,
+    contact: {
+      id: conversation.legacyContactId ?? conversation.id,
+      jid: undefined,
+      phoneNumber: "",
+      name,
+      isGroup: conversation.kind !== "direct",
+      // The counterpart's picture is the conversation's picture for a direct
+      // thread, so the header and the chat list show what the profile shows.
+      avatarUrl: conversation.counterpart?.avatarUrl ?? undefined,
+      conversationId: conversation.id,
+      channel: conversation.channel,
+      provider: conversation.provider,
+    },
+    lastMessage: conversation.lastMessagePreview
+      ? {
+          id: `${conversation.id}:preview`,
+          chatId: conversation.legacyContactId ?? conversation.id,
+          senderId: conversation.id,
+          content: conversation.lastMessagePreview,
+          type: "text",
+          status: "delivered",
+          timestamp: toDate(conversation.lastMessageAt) ?? new Date(),
+          isFromMe: false,
+        }
+      : undefined,
+    unreadCount: conversation.unreadCount,
+    isPinned: false,
+    isMuted: false,
+    isArchived: false,
+    updatedAt: toDate(conversation.lastMessageAt) ?? new Date(),
+    conversationStatus: conversation.conversationStatus,
+    activeCaseId: null,
+  };
+}
+
+export function mergeInboxChats(
+  contactChats: Chat[],
+  conversations: Parameters<typeof transformChannelConversationToChat>[0][],
+): Chat[] {
+  const seenContacts = new Set(contactChats.map((chat) => chat.id));
+  const seenConversations = new Set(
+    contactChats
+      .map((chat) => chat.contact.conversationId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const extras = conversations
+    .filter(
+      (conversation) =>
+        !seenConversations.has(conversation.id) &&
+        (!conversation.legacyContactId ||
+          !seenContacts.has(conversation.legacyContactId)),
+    )
+    .map(transformChannelConversationToChat);
+  return [...contactChats, ...extras].sort(
+    (left, right) => right.updatedAt.getTime() - left.updatedAt.getTime(),
+  );
 }
