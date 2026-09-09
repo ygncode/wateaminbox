@@ -171,6 +171,50 @@ export async function backfillLinkedDeviceTenant(
   return result;
 }
 
+/**
+ * Retry a batch that PostgreSQL rolled back to break a deadlock.
+ *
+ * The backfill repairs the same rows the continuous reconciler sweeps, and the
+ * two take their locks in whatever order their batches happen to land in, so
+ * PostgreSQL eventually picks one as the victim. That is not a failure of
+ * either: a deadlock is the database resolving a conflict it detected, and the
+ * loser is expected to try again.
+ *
+ * Retrying is safe because every unit of work here is idempotent and the batch
+ * rolled back whole, so nothing is half-applied. Serialization failures are
+ * treated the same way for the same reason. Anything else propagates: a
+ * constraint violation or a missing parent is a real problem and must not be
+ * retried into a loop.
+ */
+export async function withDeadlockRetry<T>(
+  operation: () => Promise<T>,
+  result?: LinkedDeviceBackfillResult,
+  attempts = 5,
+): Promise<T> {
+  // The counters are incremented per row inside the transaction, so a retried
+  // batch would count its rows twice and report more work than it did. The
+  // transaction rolled back whole, so the tallies are rolled back with it.
+  const before = result ? { ...result } : null;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      const code = (error as { code?: unknown })?.code;
+      const retryable = code === "40P01" || code === "40001";
+      if (!retryable || attempt >= attempts) throw error;
+      if (result && before) Object.assign(result, before);
+      // Stagger the retries so two contending writers do not simply collide
+      // again on the same schedule.
+      await new Promise((resolve) =>
+        setTimeout(
+          resolve,
+          100 * 2 ** (attempt - 1) + Math.floor(attempt * 37),
+        ),
+      );
+    }
+  }
+}
+
 async function runCheckpointedPhase(
   tenantDb: Kysely<TenantDatabase>,
   jobKey: string,
@@ -195,11 +239,13 @@ async function runCheckpointedPhase(
       await writeCheckpoint(tenantDb, jobKey, cursor, "complete");
       return;
     }
-    await tenantDb.transaction().execute(async (trx) => {
-      for (const row of rows) await apply(trx, row.id);
-      cursor = rows.at(-1)!.id;
-      await writeCheckpoint(trx, jobKey, cursor, "running", rows.length);
-    });
+    await withDeadlockRetry(() =>
+      tenantDb.transaction().execute(async (trx) => {
+        for (const row of rows) await apply(trx, row.id);
+        cursor = rows.at(-1)!.id;
+        await writeCheckpoint(trx, jobKey, cursor, "running", rows.length);
+      }),
+    );
   }
 }
 
@@ -223,22 +269,26 @@ async function repairNoGapRows(
       .limit(batchSize)
       .execute();
     if (accounts.length === 0) break;
-    await tenantDb.transaction().execute(async (trx) => {
-      for (const { id } of accounts) {
-        if (await ensureLinkedDeviceAccount(trx, id)) {
-          result.accountsProcessed += 1;
-        } else {
-          await journalLinkedDeviceShadowFailure(
-            trx,
-            "graph",
-            "whatsapp_connections",
-            id,
-            "legacy_connection_missing",
-          );
-          result.blockedRows += 1;
-        }
-      }
-    });
+    await withDeadlockRetry(
+      () =>
+        tenantDb.transaction().execute(async (trx) => {
+          for (const { id } of accounts) {
+            if (await ensureLinkedDeviceAccount(trx, id)) {
+              result.accountsProcessed += 1;
+            } else {
+              await journalLinkedDeviceShadowFailure(
+                trx,
+                "graph",
+                "whatsapp_connections",
+                id,
+                "legacy_connection_missing",
+              );
+              result.blockedRows += 1;
+            }
+          }
+        }),
+      result,
+    );
   }
 
   for (;;) {
@@ -271,23 +321,27 @@ async function repairNoGapRows(
       .execute();
     if (contacts.length === 0) break;
     let repaired = 0;
-    await tenantDb.transaction().execute(async (trx) => {
-      for (const { id } of contacts) {
-        const bridge = await ensureLinkedDeviceBridge(trx, id);
-        if (bridge.status === "ready") {
-          repaired += 1;
-          result.contactsProcessed += 1;
-        } else {
-          await journalLinkedDeviceShadowFailure(
-            trx,
-            "graph",
-            "contacts",
-            id,
-            bridge.errorCode,
-          );
-        }
-      }
-    });
+    await withDeadlockRetry(
+      () =>
+        tenantDb.transaction().execute(async (trx) => {
+          for (const { id } of contacts) {
+            const bridge = await ensureLinkedDeviceBridge(trx, id);
+            if (bridge.status === "ready") {
+              repaired += 1;
+              result.contactsProcessed += 1;
+            } else {
+              await journalLinkedDeviceShadowFailure(
+                trx,
+                "graph",
+                "contacts",
+                id,
+                bridge.errorCode,
+              );
+            }
+          }
+        }),
+      result,
+    );
     if (repaired === 0) {
       result.blockedRows += contacts.length;
       break;
@@ -310,23 +364,27 @@ async function repairNoGapRows(
       .execute();
     if (messages.length === 0) break;
     let repaired = 0;
-    await tenantDb.transaction().execute(async (trx) => {
-      for (const { id } of messages) {
-        const bridge = await shadowLinkedDeviceMessage(trx, id);
-        if (bridge.status === "ready") {
-          repaired += 1;
-          result.messagesProcessed += 1;
-        } else {
-          await journalLinkedDeviceShadowFailure(
-            trx,
-            "message",
-            "messages",
-            id,
-            bridge.errorCode,
-          );
-        }
-      }
-    });
+    await withDeadlockRetry(
+      () =>
+        tenantDb.transaction().execute(async (trx) => {
+          for (const { id } of messages) {
+            const bridge = await shadowLinkedDeviceMessage(trx, id);
+            if (bridge.status === "ready") {
+              repaired += 1;
+              result.messagesProcessed += 1;
+            } else {
+              await journalLinkedDeviceShadowFailure(
+                trx,
+                "message",
+                "messages",
+                id,
+                bridge.errorCode,
+              );
+            }
+          }
+        }),
+      result,
+    );
     if (repaired === 0) {
       result.blockedRows += messages.length;
       break;
@@ -344,11 +402,15 @@ async function repairNoGapRows(
     .execute();
   for (let index = 0; index < workflowContacts.length; index += batchSize) {
     const batch = workflowContacts.slice(index, index + batchSize);
-    await tenantDb.transaction().execute(async (trx) => {
-      for (const { id } of batch) {
-        await shadowLinkedDeviceWorkflow(trx, companyId, id);
-      }
-    });
+    await withDeadlockRetry(
+      () =>
+        tenantDb.transaction().execute(async (trx) => {
+          for (const { id } of batch) {
+            await shadowLinkedDeviceWorkflow(trx, companyId, id);
+          }
+        }),
+      result,
+    );
   }
 }
 
