@@ -10,7 +10,10 @@ import {
   getSchemaName,
   getTenantConnection,
 } from "../../../services/tenant.service.js";
-import { shadowLinkedDeviceLegacyMutation } from "./shadow.js";
+import {
+  shadowLinkedDeviceLegacyMutation,
+  shadowLinkedDeviceMessage,
+} from "./shadow.js";
 
 const integration = process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip;
 
@@ -317,6 +320,160 @@ integration(
             .executeTakeFirstOrThrow()
         ).status,
       ).toBe("pending");
+    } finally {
+      clearTenantConnection(companyId);
+      await sql
+        .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
+        .execute(db);
+      await db.deleteFrom("companies").where("id", "=", companyId).execute();
+    }
+  },
+  30_000,
+);
+
+integration(
+  "reuses an existing bridge without rewriting it, and rebuilds an incomplete one",
+  async () => {
+    const companyId = crypto.randomUUID();
+    const connectionId = crypto.randomUUID();
+    const contactId = crypto.randomUUID();
+    const firstMessageId = crypto.randomUUID();
+    const secondMessageId = crypto.randomUUID();
+    const schemaName = getSchemaName(companyId);
+    try {
+      await db
+        .insertInto("companies")
+        .values({
+          id: companyId,
+          name: "Bridge reuse test",
+          schema_name: schemaName,
+          status: "active",
+        })
+        .execute();
+      await createTenantSchema(companyId);
+      await reconcileChannelSpineConcurrentIndexes(db, schemaName);
+      const tenantDb = await getTenantConnection(companyId);
+      await tenantDb
+        .insertInto("whatsapp_connections")
+        .values({
+          id: connectionId,
+          name: "Support line",
+          phone_number: "60123456789",
+          jid: "60123456789@s.whatsapp.net",
+          status: "connected",
+        })
+        .execute();
+      await tenantDb
+        .insertInto("contacts")
+        .values({
+          id: contactId,
+          whatsapp_connection_id: connectionId,
+          jid: "60129999999@s.whatsapp.net",
+          phone_number: "60129999999",
+          push_name: "Ada",
+        })
+        .execute();
+      for (const [id, provider] of [
+        [firstMessageId, "3EBFIRST"],
+        [secondMessageId, "3EBSECOND"],
+      ] as const) {
+        await tenantDb
+          .insertInto("messages")
+          .values({
+            id,
+            whatsapp_connection_id: connectionId,
+            contact_id: contactId,
+            message_id: provider,
+            from_me: false,
+            message_type: "text",
+            content: "hello",
+            timestamp: new Date("2026-09-09T12:00:00Z"),
+          })
+          .execute();
+      }
+
+      // First message builds the graph.
+      await tenantDb
+        .transaction()
+        .execute((trx) =>
+          shadowLinkedDeviceLegacyMutation(
+            trx,
+            companyId,
+            contactId,
+            firstMessageId,
+          ),
+        );
+      const graphBefore = await tenantDb
+        .selectFrom("conversation_participants")
+        .select(["id", "conversation_id", "contact_endpoint_id"])
+        .orderBy("id")
+        .execute();
+      expect(graphBefore).toHaveLength(2);
+
+      // Second message reuses it. The identities it resolves must be exactly
+      // the ones the first message created, or a message would be attached to
+      // a participant that does not exist.
+      expect(
+        await tenantDb
+          .transaction()
+          .execute((trx) => shadowLinkedDeviceMessage(trx, secondMessageId)),
+      ).toMatchObject({ status: "ready" });
+      const second = await tenantDb
+        .selectFrom("messages")
+        .select([
+          "conversation_id",
+          "channel_account_id",
+          "sender_participant_id",
+          "external_identity_scope",
+        ])
+        .where("id", "=", secondMessageId)
+        .executeTakeFirstOrThrow();
+      const first = await tenantDb
+        .selectFrom("messages")
+        .select([
+          "conversation_id",
+          "channel_account_id",
+          "sender_participant_id",
+          "external_identity_scope",
+        ])
+        .where("id", "=", firstMessageId)
+        .executeTakeFirstOrThrow();
+      expect(second).toEqual(first);
+      expect(
+        graphBefore.some((row) => row.id === second.sender_participant_id),
+      ).toBe(true);
+      // And it left the shared graph alone rather than rewriting it.
+      expect(
+        await tenantDb
+          .selectFrom("conversation_participants")
+          .select(["id", "conversation_id", "contact_endpoint_id"])
+          .orderBy("id")
+          .execute(),
+      ).toEqual(graphBefore);
+
+      // An incomplete graph must not be described from derived ids: dropping
+      // the participants has to send the next message back through the full
+      // build rather than pointing it at a row that is gone.
+      await tenantDb.deleteFrom("conversation_participants").execute();
+      await tenantDb
+        .updateTable("messages")
+        .set({ sender_participant_id: null })
+        .execute();
+      expect(
+        await tenantDb
+          .transaction()
+          .execute((trx) => shadowLinkedDeviceMessage(trx, secondMessageId)),
+      ).toMatchObject({ status: "ready" });
+      expect(
+        Number(
+          (
+            await tenantDb
+              .selectFrom("conversation_participants")
+              .select((eb) => eb.fn.countAll<string>().as("count"))
+              .executeTakeFirstOrThrow()
+          ).count,
+        ),
+      ).toBe(2);
     } finally {
       clearTenantConnection(companyId);
       await sql

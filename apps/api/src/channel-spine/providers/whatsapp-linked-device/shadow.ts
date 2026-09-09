@@ -68,6 +68,80 @@ export async function ensureLinkedDeviceAccount(
   return true;
 }
 
+/**
+ * The bridge for a contact, built only if it is not already there.
+ *
+ * `ensureLinkedDeviceBridge` rewrites eight rows, and every one of them is
+ * shared by all of that contact's messages. Calling it per message made a
+ * backfill rewrite the same conversation, endpoint, presence, and participant
+ * rows once for every message in the thread - two hundred thousand times for a
+ * four-thousand-contact workspace - which dominated the run and produced most
+ * of its write amplification and lock contention.
+ *
+ * Every identity in the bridge is a deterministic UUID of values this function
+ * already has, so when the graph is present it can be described without
+ * touching it. Both the conversation and the external participant are checked:
+ * the participant carries the foreign key to the endpoint, so its presence is
+ * what makes the derived ids safe to reference. Anything less than a complete
+ * graph falls through and is built properly.
+ */
+async function resolveLinkedDeviceBridge(
+  trx: Transaction<TenantDatabase>,
+  legacyContactId: string,
+): Promise<LinkedDeviceBridgeResult> {
+  const contact = await trx
+    .selectFrom("contacts")
+    .select(["id", "whatsapp_connection_id", "jid"])
+    .where("id", "=", legacyContactId)
+    .executeTakeFirst();
+  if (!contact?.whatsapp_connection_id || !contact.jid) {
+    return ensureLinkedDeviceBridge(trx, legacyContactId);
+  }
+  const channelAccountId = contact.whatsapp_connection_id;
+  const conversationId = contact.id;
+  const contactEndpointId = deterministicChannelUuid(
+    "linked-device-endpoint",
+    channelAccountId,
+    contact.jid,
+  );
+  const externalParticipantId = deterministicChannelUuid(
+    "linked-device-external-participant",
+    conversationId,
+    contactEndpointId,
+  );
+  const [conversation, participant] = await Promise.all([
+    trx
+      .selectFrom("conversations")
+      .select("id")
+      .where("id", "=", conversationId)
+      .where("channel_account_id", "=", channelAccountId)
+      .executeTakeFirst(),
+    trx
+      .selectFrom("conversation_participants")
+      .select("id")
+      .where("id", "=", externalParticipantId)
+      .executeTakeFirst(),
+  ]);
+  if (!conversation || !participant) {
+    return ensureLinkedDeviceBridge(trx, legacyContactId);
+  }
+  return {
+    status: "ready",
+    bridge: {
+      channelAccountId,
+      contactEndpointId,
+      conversationId,
+      accountParticipantId: deterministicChannelUuid(
+        "linked-device-account-participant",
+        conversationId,
+        channelAccountId,
+      ),
+      externalParticipantId,
+      externalThreadId: contact.jid,
+    },
+  };
+}
+
 export async function ensureLinkedDeviceBridge(
   trx: Transaction<TenantDatabase>,
   legacyContactId: string,
@@ -360,7 +434,7 @@ export async function shadowLinkedDeviceMessage(
   if (!message?.contact_id) {
     return { status: "unresolved", errorCode: "legacy_contact_missing" };
   }
-  const result = await ensureLinkedDeviceBridge(trx, message.contact_id);
+  const result = await resolveLinkedDeviceBridge(trx, message.contact_id);
   if (result.status !== "ready") return result;
 
   const { bridge } = result;
