@@ -1,6 +1,10 @@
 import { toDbDate } from "@wateaminbox/shared";
-import { MEDIA_DOWNLOAD_LEASE_MS } from "../config/media.config.js";
 import { Hono } from "hono";
+import {
+  MAX_FILE_SIZE,
+  MAX_UPLOAD_BODY_SIZE,
+  MEDIA_DOWNLOAD_LEASE_MS,
+} from "../config/media.config.js";
 import {
   badRequest,
   notFound,
@@ -35,6 +39,34 @@ const uploadRateLimiter = createConditionalRateLimiter(
   },
   rateLimitConfig.enabled,
 );
+
+/**
+ * Decide whether a multipart upload should be rejected before its body is
+ * buffered, based on the Content-Length header.
+ *
+ * Hono's `parseBody()` materializes the entire multipart payload in memory
+ * (`request.arrayBuffer()` → `Response(arrayBuffer).formData()`) before the
+ * handler can inspect `file.size`, so the post-buffer `file.size` check
+ * cannot bound peak memory. Content-Length is available at the header level,
+ * so refusing oversized bodies here prevents them from being read at all.
+ *
+ * A missing or unparseable Content-Length is treated as "unknown" (do not
+ * reject): the caller still has the post-buffer `file.size` check, and the
+ * server's `maxRequestBodySize` backstop (set in src/index.ts) bounds a
+ * spoofed or chunked body that understates or omits the header. A negative
+ * value is malformed and is also left for those downstream guards.
+ *
+ * @returns true when the declared body size exceeds `maxBodySize`.
+ */
+export function isUploadBodyTooLarge(
+  contentLengthHeader: string | undefined,
+  maxBodySize: number,
+): boolean {
+  if (contentLengthHeader === undefined) return false;
+  const contentLength = Number.parseInt(contentLengthHeader, 10);
+  if (!Number.isFinite(contentLength) || contentLength < 0) return false;
+  return contentLength > maxBodySize;
+}
 
 /**
  * POST /media/upload - Upload media file
@@ -232,6 +264,21 @@ mediaRoutes.post(
 mediaRoutes.post("/upload", uploadRateLimiter, async (c) => {
   const { companyId } = getRouteContext(c);
 
+  // Reject oversized uploads *before* buffering. Hono's `parseBody()`
+  // materializes the entire multipart body in memory (`request.arrayBuffer()`
+  // then `Response(arrayBuffer).formData()`) before the handler can inspect
+  // `file.size`, so the post-buffer file-size check below cannot bound peak
+  // memory on its own. Content-Length is available at the header level, so
+  // refusing it here prevents the body from being read at all. The server's
+  // `maxRequestBodySize` (set in src/index.ts) is the backstop for a spoofed
+  // or absent Content-Length; the post-buffer `file.size` check is the
+  // authoritative file-size guard.
+  if (
+    isUploadBodyTooLarge(c.req.header("Content-Length"), MAX_UPLOAD_BODY_SIZE)
+  ) {
+    return badRequest(c, "File too large. Maximum size is 50MB");
+  }
+
   // Parse multipart form data
   const body = await c.req.parseBody();
   const file = body.file;
@@ -240,8 +287,10 @@ mediaRoutes.post("/upload", uploadRateLimiter, async (c) => {
     return badRequest(c, "No file provided");
   }
 
-  // Validate file size (max 50MB)
-  const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+  // Validate file size (max 50MB) — the authoritative limit, evaluated after
+  // the pre-buffer Content-Length guard. Catches a spoofed or absent
+  // Content-Length whose actual body stayed under the server's
+  // maxRequestBodySize backstop but whose file exceeds the route cap.
   if (file.size > MAX_FILE_SIZE) {
     return badRequest(c, "File too large. Maximum size is 50MB");
   }

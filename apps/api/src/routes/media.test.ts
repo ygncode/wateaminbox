@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { MEDIA_DOWNLOAD_LEASE_MS } from "../config/media.config.js";
+import {
+  MAX_FILE_SIZE,
+  MAX_UPLOAD_BODY_SIZE,
+  MEDIA_DOWNLOAD_LEASE_MS,
+} from "../config/media.config.js";
+import { isUploadBodyTooLarge, mediaRoutes } from "./media.js";
 
 /**
  * Mirrors the SQL predicate used to claim a deferred media download in
@@ -99,5 +104,101 @@ describe("deferred media download claim", () => {
   test("the lease is bounded and long enough to outlast a normal download", () => {
     expect(MEDIA_DOWNLOAD_LEASE_MS).toBeGreaterThanOrEqual(60_000);
     expect(MEDIA_DOWNLOAD_LEASE_MS).toBeLessThanOrEqual(30 * 60_000);
+  });
+});
+
+/**
+ * The upload route used to enforce its 50 MiB file-size cap only AFTER
+ * `c.req.parseBody()` had already buffered the entire multipart body into RAM.
+ * Hono's parseBody materializes the body as an ArrayBuffer and then parses it
+ * into FormData, so by the time `file.size` could be inspected the oversized
+ * request had already consumed its peak memory. The fix rejects oversized
+ * bodies at the Content-Length header before buffering, backed by a server-
+ * level `maxRequestBodySize`.
+ */
+describe("POST /media/upload - pre-buffer size guard", () => {
+  test("MAX_FILE_SIZE is 50 MiB and the body cap adds a 1 MiB overhead", () => {
+    expect(MAX_FILE_SIZE).toBe(50 * 1024 * 1024);
+    expect(MAX_UPLOAD_BODY_SIZE).toBe(MAX_FILE_SIZE + 1024 * 1024);
+    // The overhead must be positive so a file at the boundary (50 MiB plus
+    // multipart framing, which is well under 1 KB) is never falsely rejected.
+    expect(MAX_UPLOAD_BODY_SIZE).toBeGreaterThan(MAX_FILE_SIZE);
+    expect(Number.isFinite(MAX_UPLOAD_BODY_SIZE)).toBe(true);
+  });
+
+  test("isUploadBodyTooLarge rejects a declared body over the cap", () => {
+    expect(
+      isUploadBodyTooLarge(
+        String(MAX_UPLOAD_BODY_SIZE + 1),
+        MAX_UPLOAD_BODY_SIZE,
+      ),
+    ).toBe(true);
+    expect(isUploadBodyTooLarge("999999999999", MAX_UPLOAD_BODY_SIZE)).toBe(
+      true,
+    );
+  });
+
+  test("isUploadBodyTooLarge accepts a body at or below the cap", () => {
+    // The cap is exclusive (`>`), so exactly the cap is accepted.
+    expect(
+      isUploadBodyTooLarge(String(MAX_UPLOAD_BODY_SIZE), MAX_UPLOAD_BODY_SIZE),
+    ).toBe(false);
+    expect(
+      isUploadBodyTooLarge(String(MAX_FILE_SIZE), MAX_UPLOAD_BODY_SIZE),
+    ).toBe(false);
+    expect(isUploadBodyTooLarge("0", MAX_UPLOAD_BODY_SIZE)).toBe(false);
+  });
+
+  test("isUploadBodyTooLarge treats a missing or unparseable header as unknown", () => {
+    // A missing Content-Length (chunked encoding) and a malformed or negative
+    // value are left for the server maxRequestBodySize backstop and the
+    // post-buffer file.size check, instead of falsely rejecting on a number
+    // the route cannot trust.
+    expect(isUploadBodyTooLarge(undefined, MAX_UPLOAD_BODY_SIZE)).toBe(false);
+    expect(isUploadBodyTooLarge("", MAX_UPLOAD_BODY_SIZE)).toBe(false);
+    expect(isUploadBodyTooLarge("not-a-number", MAX_UPLOAD_BODY_SIZE)).toBe(
+      false,
+    );
+    expect(isUploadBodyTooLarge("-1", MAX_UPLOAD_BODY_SIZE)).toBe(false);
+  });
+});
+
+describe("POST /media/upload - authentication gate", () => {
+  // The route mounts authMiddleware before the upload handler, so a request
+  // without a bearer token is refused before any body is read or size check
+  // runs — the same unauthenticated-rejection contract exercised for the
+  // contacts import template route in contacts/import.test.ts.
+  test("rejects a request without an Authorization header with 401", async () => {
+    const response = await mediaRoutes.request("/upload", { method: "POST" });
+
+    expect(response.status).toBe(401);
+  });
+});
+
+/**
+ * The route's pre-buffer Content-Length guard is only effective because Bun
+ * refuses a body over `maxRequestBodySize` at the server level (set in
+ * src/index.ts). This pins the Bun behavior the backstop relies on, so a Bun
+ * upgrade that changes the cap semantics is caught here rather than silently
+ * reopening the buffer-before-reject window.
+ */
+describe("Bun maxRequestBodySize backstop", () => {
+  test("rejects a body over the cap with 413 and accepts one at the cap", async () => {
+    const server = Bun.serve({
+      port: 0,
+      maxRequestBodySize: 10,
+      fetch: () => new Response("ok"),
+    });
+    try {
+      const url = `http://localhost:${server.port}/`;
+      const over = await fetch(url, { method: "POST", body: "x".repeat(11) });
+      expect(over.status).toBe(413);
+
+      const atCap = await fetch(url, { method: "POST", body: "x".repeat(10) });
+      expect(atCap.status).toBe(200);
+      expect(await atCap.text()).toBe("ok");
+    } finally {
+      server.stop(true);
+    }
   });
 });
