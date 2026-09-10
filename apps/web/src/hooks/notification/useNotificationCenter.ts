@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toISOString } from "@wateaminbox/shared";
 import { useNotificationContext } from "@/contexts/NotificationProvider";
 import {
   deleteNotification,
@@ -13,6 +12,8 @@ import type {
 } from "@/lib/api/types";
 import {
   deleteNotificationFromResponse,
+  isUnreadOnlyListQuery,
+  markAllNotificationsReadInResponse,
   markNotificationReadInResponse,
 } from "@/lib/notification-cache";
 import { queryKeys } from "../query-keys";
@@ -40,8 +41,8 @@ export function useNotificationCenter(
     mutationFn: markNotificationAsRead,
     onSuccess: (updated) => {
       let wasUnread = false;
-      updateAllLists((old) => {
-        const result = markNotificationReadInResponse(old, updated);
+      updateAllLists((old, unreadOnly) => {
+        const result = markNotificationReadInResponse(old, updated, unreadOnly);
         wasUnread ||= result.changedUnread;
         return result.response;
       });
@@ -57,15 +58,9 @@ export function useNotificationCenter(
   const markAllAsReadMutation = useMutation({
     mutationFn: markAllNotificationsAsRead,
     onSuccess: () => {
-      updateAllLists((old) => ({
-        ...old,
-        data: old.data.map((item) => ({
-          ...item,
-          isRead: true,
-          readAt: item.readAt ?? toISOString(),
-        })),
-        meta: { ...old.meta, unreadCount: 0 },
-      }));
+      updateAllLists((old, unreadOnly) =>
+        markAllNotificationsReadInResponse(old, unreadOnly),
+      );
       queryClient.setQueryData(queryKeys.notifications.count(), 0);
     },
   });
@@ -122,12 +117,21 @@ export function useNotificationCenter(
 
 function useCallbackForLists(queryClient: ReturnType<typeof useQueryClient>) {
   return (
-    updater: (old: NotificationListResponse) => NotificationListResponse,
+    updater: (
+      old: NotificationListResponse,
+      unreadOnly: boolean,
+    ) => NotificationListResponse,
   ) => {
-    queryClient.setQueriesData<NotificationListResponse>(
-      { queryKey: queryKeys.notifications.lists() },
-      (old) => (old ? updater(old) : old),
-    );
+    const entries = queryClient.getQueriesData<NotificationListResponse>({
+      queryKey: queryKeys.notifications.lists(),
+    });
+    for (const [queryKey, old] of entries) {
+      if (!old) continue;
+      queryClient.setQueryData<NotificationListResponse>(
+        queryKey,
+        updater(old, isUnreadOnlyListQuery(queryKey)),
+      );
+    }
   };
 }
 
