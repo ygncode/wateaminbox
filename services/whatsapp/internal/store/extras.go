@@ -182,7 +182,7 @@ func (s *PGSQLStore) PutMessageSecrets(ctx context.Context, inserts []store.Mess
 	defer stmt.Close()
 
 	for _, insert := range inserts {
-		_, err = stmt.ExecContext(ctx, s.connectionID, s.JID, insert.Chat.String(), insert.Sender.String(), string(insert.ID), insert.Secret)
+		_, err = stmt.ExecContext(ctx, s.connectionID, s.JID, normalizedMappingJID(insert.Chat), normalizedMappingJID(insert.Sender), string(insert.ID), insert.Secret)
 		if err != nil {
 			return err
 		}
@@ -197,7 +197,7 @@ func (s *PGSQLStore) PutMessageSecret(ctx context.Context, chat, sender types.JI
 		INSERT INTO whatsmeow_message_secrets (connection_id, our_jid, chat_jid, sender_jid, message_id, secret)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (connection_id, our_jid, chat_jid, sender_jid, message_id) DO UPDATE SET secret = EXCLUDED.secret
-	`, s.connectionID, s.JID, chat.String(), sender.String(), string(id), secret)
+	`, s.connectionID, s.JID, normalizedMappingJID(chat), normalizedMappingJID(sender), string(id), secret)
 	return err
 }
 
@@ -209,7 +209,7 @@ func (s *PGSQLStore) GetMessageSecret(ctx context.Context, chat, sender types.JI
 	err := s.decryptionExecutor(ctx).QueryRowContext(ctx, `
 		SELECT secret, sender_jid FROM whatsmeow_message_secrets
 		WHERE connection_id = $1 AND our_jid = $2 AND chat_jid = $3 AND sender_jid = $4 AND message_id = $5
-	`, s.connectionID, s.JID, chat.String(), sender.String(), string(id)).Scan(&secret, &senderStr)
+	`, s.connectionID, s.JID, normalizedMappingJID(chat), normalizedMappingJID(sender), string(id)).Scan(&secret, &senderStr)
 
 	if err == sql.ErrNoRows {
 		return nil, types.EmptyJID, nil
