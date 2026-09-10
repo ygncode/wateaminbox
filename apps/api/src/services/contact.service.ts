@@ -198,18 +198,20 @@ export async function getContactsWithLastMessage(
       wc.phone_number as connection_phone_number,
       wc.status::text as connection_status,
       ca.assigned_to,
-      lm.timestamp as last_message_at,
-      lm.id as last_message_id,
-      lm.message_id as last_message_message_id,
-      lm.from_me as last_message_from_me,
-      lm.message_type as last_message_message_type,
-      lm.content as last_message_content,
-      lm.status as last_message_status,
-      lm.timestamp as last_message_timestamp,
-      lm.sent_by_user_id as last_message_sent_by_user_id,
-      COALESCE(cs.unread_count, 0)::bigint as unread_count,
-      COALESCE(cs.status::text, 'resolved') as conversation_status,
-      cs.active_case_id
+      COALESCE(lmc.timestamp, lml.timestamp) as last_message_at,
+      COALESCE(lmc.id, lml.id) as last_message_id,
+      COALESCE(lmc.message_id, lml.message_id) as last_message_message_id,
+      COALESCE(lmc.from_me, lml.from_me) as last_message_from_me,
+      COALESCE(lmc.message_type, lml.message_type) as last_message_message_type,
+      COALESCE(lmc.content, lml.content) as last_message_content,
+      COALESCE(lmc.status, lml.status) as last_message_status,
+      COALESCE(lmc.timestamp, lml.timestamp) as last_message_timestamp,
+      COALESCE(lmc.sent_by_user_id, lml.sent_by_user_id)
+        as last_message_sent_by_user_id,
+      COALESCE(csc.unread_count, csl.unread_count, 0)::bigint as unread_count,
+      COALESCE(csc.status::text, csl.status::text, 'resolved')
+        as conversation_status,
+      COALESCE(csc.active_case_id, csl.active_case_id) as active_case_id
     FROM ${schema}.${sql.ref("contacts")} c
     LEFT JOIN ${schema}.${sql.ref("whatsapp_connections")} wc
       ON wc.id = c.whatsapp_connection_id
@@ -221,16 +223,38 @@ export async function getContactsWithLastMessage(
     LEFT JOIN ${schema}.${sql.ref("contact_assignments")} ca
       ON ca.contact_id = c.id
       AND ca.unassigned_at IS NULL
+    -- Newest message and workflow state resolved by conversation, which is
+    -- what owns a thread now. The contact fallback is only for a row the
+    -- spine could never bridge - a contact with no WhatsApp connection or no
+    -- JID has no conversation to hang anything off, and dropping its preview
+    -- would silently blank a chat.
+    --
+    -- Two guarded laterals rather than one with COALESCE or OR: only one side
+    -- runs per row, and each can use an index. Measured on the largest
+    -- workspace, this is 54ms against 40ms for the contact-anchored original,
+    -- where COALESCE across both keys costs 72ms and OR cannot use either
+    -- index at all - that version ran for over five minutes before it was
+    -- cancelled.
     LEFT JOIN LATERAL (
       SELECT id, message_id, from_me, message_type, content, status,
              timestamp, sent_by_user_id
       FROM ${schema}.${sql.ref("messages")} m
-      WHERE m.contact_id = c.id
+      WHERE conv.id IS NOT NULL AND m.conversation_id = conv.id
       ORDER BY m.timestamp DESC, m.id DESC
       LIMIT 1
-    ) lm ON TRUE
-    LEFT JOIN ${schema}.${sql.ref("conversation_states")} cs
-      ON cs.contact_id = c.id
+    ) lmc ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT id, message_id, from_me, message_type, content, status,
+             timestamp, sent_by_user_id
+      FROM ${schema}.${sql.ref("messages")} m
+      WHERE conv.id IS NULL AND m.contact_id = c.id
+      ORDER BY m.timestamp DESC, m.id DESC
+      LIMIT 1
+    ) lml ON TRUE
+    LEFT JOIN ${schema}.${sql.ref("conversation_states")} csc
+      ON conv.id IS NOT NULL AND csc.conversation_id = conv.id
+    LEFT JOIN ${schema}.${sql.ref("conversation_states")} csl
+      ON conv.id IS NULL AND csl.contact_id = c.id
     ${hasWhereCondition ? sql`WHERE ${whereClause}` : sql``}
     ORDER BY last_message_at DESC NULLS LAST
     LIMIT ${limit}
