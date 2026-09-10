@@ -269,7 +269,7 @@ integration(
       const built = await sql<{ indexdef: string }>`
         SELECT indexdef FROM pg_indexes
         WHERE schemaname = ${schemaName}
-          AND indexname = ${`${schemaName}_msg_conv_recent_idx`}
+          AND indexname = 'msg_conv_recent_idx'
       `.execute(database);
       expect(built.rows).toHaveLength(1);
       // Column order is the whole point: equality on the conversation, then

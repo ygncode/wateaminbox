@@ -11,8 +11,22 @@ interface ConcurrentIndexDefinition {
   suffix: string;
   table: string;
   columns: readonly string[];
+  /**
+   * Already-quoted column list, for an index whose order matters. `columns`
+   * quotes each name and cannot express a direction, and for a lookup that
+   * ends in LIMIT 1 the direction is the whole point - it is what lets the
+   * planner stop at the first row instead of sorting the match.
+   */
+  columnsSql?: string;
   predicate: string;
   unique?: boolean;
+  /**
+   * A column this index needs that the spine does not own. `timestamp` belongs
+   * to the legacy messages table, and a schema that has not got it yet - a
+   * tenant part-way through provisioning, or a fixture that stubs the table -
+   * must be skipped rather than failing every other index in the run.
+   */
+  requiresColumn?: { table: string; column: string };
   duplicateGroupSql?: (schemaName: string) => string;
 }
 
@@ -111,6 +125,23 @@ const definitions: readonly ConcurrentIndexDefinition[] = [
       ) AS duplicates`,
   },
   {
+    // The inbox's newest-message-per-thread lookup, by conversation.
+    //
+    // `messages` already carries this shape three times over on `contact_id`,
+    // which is why the contact-anchored chat list is fast. The same lookup by
+    // conversation had no index at all: measured against the largest
+    // workspace the lateral went from forty milliseconds to over five
+    // minutes, and a COALESCE across both keys was no better because it can
+    // use neither index.
+    suffix: "msg_conv_recent_idx",
+    table: "messages",
+    columns: ["conversation_id"],
+    columnsSql: '"conversation_id", "timestamp" DESC, "id" DESC',
+    predicate: "conversation_id IS NOT NULL",
+    unique: false,
+    requiresColumn: { table: "messages", column: "timestamp" },
+  },
+  {
     suffix: "cs_conversation_uidx",
     table: "conversation_states",
     columns: ["conversation_id"],
@@ -140,6 +171,12 @@ export async function reconcileChannelSpineConcurrentIndexes<Database>(
     // schema prefix. Prefixing tenant_<uuid>_ overflows PostgreSQL's 63-char
     // identifier limit for several of these names.
     const indexName = definition.suffix;
+    if (
+      definition.requiresColumn &&
+      !(await hasColumn(db, schemaName, definition.requiresColumn))
+    ) {
+      continue;
+    }
     const current = await readIndex(db, schemaName, indexName);
     if (current?.valid) {
       verifyDefinition(current.definition, definition, schemaName);
@@ -170,7 +207,9 @@ export async function reconcileChannelSpineConcurrentIndexes<Database>(
       continue;
     }
 
-    const columns = definition.columns.map(quoteIdentifier).join(", ");
+    const columns =
+      definition.columnsSql ??
+      definition.columns.map(quoteIdentifier).join(", ");
     await sql
       .raw(
         `CREATE ${definition.unique === false ? "" : "UNIQUE "}INDEX CONCURRENTLY ${quoteIdentifier(indexName)} ON ${qualified(
@@ -206,6 +245,22 @@ async function readIndex<Database>(
     WHERE namespace.nspname = ${schemaName} AND relation.relname = ${indexName}
   `.execute(db);
   return result.rows[0];
+}
+
+async function hasColumn<Database>(
+  db: Kysely<Database>,
+  schemaName: string,
+  target: { table: string; column: string },
+): Promise<boolean> {
+  const found = await sql<{ exists: boolean }>`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = ${schemaName}
+        AND table_name = ${target.table}
+        AND column_name = ${target.column}
+    ) AS exists
+  `.execute(db);
+  return found.rows[0]?.exists === true;
 }
 
 function verifyDefinition(
