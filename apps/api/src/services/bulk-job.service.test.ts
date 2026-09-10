@@ -9,8 +9,10 @@ import {
   computeAudienceHash,
   deriveBulkJobOutcome,
   findUnknownTemplateVariables,
-  renderBulkTemplate,
+  getBulkJobProgress,
+  getBulkJobProgressMap,
   type ResolvedAudience,
+  renderBulkTemplate,
   resolveRecipientName,
 } from "./bulk-job.service.js";
 
@@ -323,5 +325,196 @@ describe("bulk job schemas", () => {
         messageType: "audio",
       }),
     ).toThrow();
+  });
+});
+
+/**
+ * Structural (no-DB) coverage of the snapshot-consistency fix. The fake below
+ * records the transaction's isolation level, the order of reads, and whether
+ * each read ran on the transaction connection (`trx`) or the outer `tenantDb`.
+ * It pins that both readers pair their reads inside one REPEATABLE READ
+ * transaction, which is what closes the cross-snapshot double-count race
+ * documented in the bug report. It does NOT exercise the arithmetic against a
+ * real database (see connection-purge.integration.test.ts for that).
+ */
+function fakeProgressDb(opts: {
+  leaves?: Array<{ status: string; count: number }>;
+  mapLeaves?: Array<{
+    bulk_job_id: string;
+    status: string;
+    count: number;
+  }>;
+  retained?: {
+    id: string;
+    purged_sent: number;
+    purged_failed: number;
+    purged_canceled: number;
+    purged_skipped: number;
+  };
+}) {
+  const state = {
+    isolationLevel: null as string | null,
+    reads: [] as string[],
+    betweenReadsCalledAt: null as number | null,
+    outerReads: [] as string[],
+  };
+  const trx = {
+    selectFrom: (table: string) => {
+      state.reads.push(table);
+      const builder = {
+        select: () => builder,
+        where: () => builder,
+        groupBy: () => builder,
+        execute: async () =>
+          table === "scheduled_messages"
+            ? (opts.mapLeaves ?? opts.leaves ?? []).map((row) => ({
+                ...row,
+                count: BigInt(row.count),
+              }))
+            : opts.retained
+              ? [opts.retained]
+              : [],
+        executeTakeFirst: async () =>
+          table === "bulk_jobs" ? opts.retained : undefined,
+      };
+      return builder;
+    },
+  };
+  const txBuilder = {
+    setIsolationLevel: (level: string) => {
+      state.isolationLevel = level;
+      return txBuilder;
+    },
+    execute: async (run: (t: typeof trx) => Promise<unknown>) => run(trx),
+  };
+  const tenantDb = {
+    transaction: () => txBuilder,
+    // The fixed reader must never issue a bare autocommit select on the outer
+    // connection; both reads belong inside the transaction. Recording any call
+    // here would fail the test that asserts outerReads stays empty.
+    selectFrom: (table: string) => {
+      state.outerReads.push(table);
+      throw new Error(
+        `outer selectFrom(${table}) called — both reads must run inside the transaction`,
+      );
+    },
+  };
+  return { tenantDb, state };
+}
+
+describe("getBulkJobProgress snapshot consistency (structural)", () => {
+  test("runs both reads inside one REPEATABLE READ transaction and never on the outer connection", async () => {
+    const fake = fakeProgressDb({
+      leaves: [{ status: "sent", count: 1 }],
+      retained: {
+        id: "job-1",
+        purged_sent: 0,
+        purged_failed: 0,
+        purged_canceled: 0,
+        purged_skipped: 0,
+      },
+    });
+    const hooks = {
+      betweenReads: () => {
+        fake.state.betweenReadsCalledAt = fake.state.reads.length;
+      },
+    };
+
+    const progress = await getBulkJobProgress(
+      fake.tenantDb as never,
+      "job-1",
+      hooks,
+    );
+
+    expect(fake.state.isolationLevel).toBe("repeatable read");
+    expect(fake.state.reads).toEqual(["scheduled_messages", "bulk_jobs"]);
+    expect(fake.state.outerReads).toEqual([]);
+    // The seam fires after the first read and before the second.
+    expect(fake.state.betweenReadsCalledAt).toBe(1);
+    // Sanity: the arithmetic still sums the single live leaf to sent=1/total=1.
+    expect(progress).toEqual({
+      total: 1,
+      pending: 0,
+      processing: 0,
+      sent: 1,
+      failed: 0,
+      canceled: 0,
+      skipped: 0,
+    });
+  });
+
+  test("adds retained purged_* counters from the same snapshot", async () => {
+    const fake = fakeProgressDb({
+      leaves: [{ status: "sent", count: 1 }],
+      retained: {
+        id: "job-1",
+        purged_sent: 1,
+        purged_failed: 0,
+        purged_canceled: 0,
+        purged_skipped: 0,
+      },
+    });
+
+    const progress = await getBulkJobProgress(fake.tenantDb as never, "job-1");
+
+    expect(fake.state.isolationLevel).toBe("repeatable read");
+    expect(fake.state.reads).toEqual(["scheduled_messages", "bulk_jobs"]);
+    expect(progress).toEqual({
+      total: 2,
+      pending: 0,
+      processing: 0,
+      sent: 2,
+      failed: 0,
+      canceled: 0,
+      skipped: 0,
+    });
+  });
+});
+
+describe("getBulkJobProgressMap snapshot consistency (structural)", () => {
+  test("runs both reads inside one REPEATABLE READ transaction", async () => {
+    const fake = fakeProgressDb({
+      mapLeaves: [{ bulk_job_id: "job-1", status: "sent", count: 1 }],
+      retained: {
+        id: "job-1",
+        purged_sent: 0,
+        purged_failed: 0,
+        purged_canceled: 0,
+        purged_skipped: 0,
+      },
+    });
+    const hooks = {
+      betweenReads: () => {
+        fake.state.betweenReadsCalledAt = fake.state.reads.length;
+      },
+    };
+
+    const map = await getBulkJobProgressMap(
+      fake.tenantDb as never,
+      ["job-1"],
+      hooks,
+    );
+
+    expect(fake.state.isolationLevel).toBe("repeatable read");
+    expect(fake.state.reads).toEqual(["scheduled_messages", "bulk_jobs"]);
+    expect(fake.state.outerReads).toEqual([]);
+    expect(fake.state.betweenReadsCalledAt).toBe(1);
+    expect(map.get("job-1")).toEqual({
+      total: 1,
+      pending: 0,
+      processing: 0,
+      sent: 1,
+      failed: 0,
+      canceled: 0,
+      skipped: 0,
+    });
+  });
+
+  test("returns an empty map for an empty id list without opening a transaction", async () => {
+    const fake = fakeProgressDb({ leaves: [] });
+    const map = await getBulkJobProgressMap(fake.tenantDb as never, []);
+    expect(map).toEqual(new Map());
+    expect(fake.state.isolationLevel).toBeNull();
+    expect(fake.state.reads).toEqual([]);
   });
 });

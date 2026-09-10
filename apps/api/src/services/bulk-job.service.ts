@@ -519,123 +519,176 @@ async function findJobByIdempotencyKey(
 // Progress & lifecycle
 // ============================================================================
 
+/**
+ * Optional test seam for {@link getBulkJobProgress} / {@link getBulkJobProgressMap}.
+ *
+ * The progress readers pair a live `scheduled_messages` aggregation with a
+ * `bulk_jobs.purged_*` retention read inside one REPEATABLE READ transaction
+ * so the two reads share a single MVCC snapshot. A connection purge that
+ * commits the leaf DELETE and the `purged_*` increment atomically can otherwise
+ * land between two independent READ COMMITTED statements and double-count the
+ * purged recipients. `betweenReads` is invoked between those two reads, inside
+ * the transaction, so a snapshot-consistency test can force a purge commit to
+ * land there and assert the shared snapshot keeps the totals honest. It is
+ * `undefined` for every production caller and performs no work when absent.
+ */
+export interface BulkJobProgressReadHooks {
+  betweenReads?: () => Promise<void> | void;
+}
+
 export async function getBulkJobProgress(
   tenantDb: Kysely<TenantDatabase>,
   bulkJobId: string,
+  hooks?: BulkJobProgressReadHooks,
 ): Promise<BulkJobProgress> {
-  const rows = await tenantDb
-    .selectFrom("scheduled_messages")
-    .select(["status"])
-    .select((eb) => eb.fn.countAll().as("count"))
-    .where("bulk_job_id", "=", bulkJobId)
-    .groupBy("status")
-    .execute();
+  // The live leaf counts and the retained purged_* counters are only
+  // consistent when read from the same MVCC snapshot. Under the tenant pool's
+  // default READ COMMITTED isolation each statement takes its own snapshot, so
+  // two autocommit SELECTs can straddle a connection-purge commit (leaf
+  // DELETE + purged_* increment commit atomically) and double-count the purged
+  // recipients. A single REPEATABLE READ transaction reuses one snapshot for
+  // both reads, so a purge that commits between them is invisible to the
+  // second read: either both reads see the pre-purge state (leaves present,
+  // purged_* unchanged) or both see the post-purge state (leaves gone,
+  // purged_* incremented) — never a mix that inflates the totals.
+  return tenantDb
+    .transaction()
+    .setIsolationLevel("repeatable read")
+    .execute(async (trx) => {
+      const rows = await trx
+        .selectFrom("scheduled_messages")
+        .select(["status"])
+        .select((eb) => eb.fn.countAll().as("count"))
+        .where("bulk_job_id", "=", bulkJobId)
+        .groupBy("status")
+        .execute();
 
-  const retained = await tenantDb
-    .selectFrom("bulk_jobs")
-    .select([
-      "purged_sent",
-      "purged_failed",
-      "purged_canceled",
-      "purged_skipped",
-    ])
-    .where("id", "=", bulkJobId)
-    .executeTakeFirst();
-  const byStatus = new Map(rows.map((r) => [r.status, Number(r.count)]));
-  const progress: BulkJobProgress = {
-    total: 0,
-    pending: byStatus.get("scheduled") ?? 0,
-    processing: byStatus.get("processing") ?? 0,
-    sent: (byStatus.get("sent") ?? 0) + (retained?.purged_sent ?? 0),
-    failed: (byStatus.get("failed") ?? 0) + (retained?.purged_failed ?? 0),
-    canceled:
-      (byStatus.get("canceled") ?? 0) + (retained?.purged_canceled ?? 0),
-    skipped: (byStatus.get("skipped") ?? 0) + (retained?.purged_skipped ?? 0),
-  };
-  progress.total =
-    progress.pending +
-    progress.processing +
-    progress.sent +
-    progress.failed +
-    progress.canceled +
-    progress.skipped;
-  return progress;
+      await hooks?.betweenReads?.();
+
+      const retained = await trx
+        .selectFrom("bulk_jobs")
+        .select([
+          "purged_sent",
+          "purged_failed",
+          "purged_canceled",
+          "purged_skipped",
+        ])
+        .where("id", "=", bulkJobId)
+        .executeTakeFirst();
+      const byStatus = new Map(rows.map((r) => [r.status, Number(r.count)]));
+      const progress: BulkJobProgress = {
+        total: 0,
+        pending: byStatus.get("scheduled") ?? 0,
+        processing: byStatus.get("processing") ?? 0,
+        sent: (byStatus.get("sent") ?? 0) + (retained?.purged_sent ?? 0),
+        failed: (byStatus.get("failed") ?? 0) + (retained?.purged_failed ?? 0),
+        canceled:
+          (byStatus.get("canceled") ?? 0) + (retained?.purged_canceled ?? 0),
+        skipped:
+          (byStatus.get("skipped") ?? 0) + (retained?.purged_skipped ?? 0),
+      };
+      progress.total =
+        progress.pending +
+        progress.processing +
+        progress.sent +
+        progress.failed +
+        progress.canceled +
+        progress.skipped;
+      return progress;
+    });
 }
 
 export async function getBulkJobProgressMap(
   tenantDb: Kysely<TenantDatabase>,
   bulkJobIds: string[],
+  hooks?: BulkJobProgressReadHooks,
 ): Promise<Map<string, BulkJobProgress>> {
   const map = new Map<string, BulkJobProgress>();
   if (bulkJobIds.length === 0) return map;
-  const rows = await tenantDb
-    .selectFrom("scheduled_messages")
-    .select(["bulk_job_id", "status"])
-    .select((eb) => eb.fn.countAll().as("count"))
-    .where("bulk_job_id", "in", bulkJobIds)
-    .groupBy(["bulk_job_id", "status"])
-    .execute();
-  const retainedRows = await tenantDb
-    .selectFrom("bulk_jobs")
-    .select([
-      "id",
-      "purged_sent",
-      "purged_failed",
-      "purged_canceled",
-      "purged_skipped",
-    ])
-    .where("id", "in", bulkJobIds)
-    .execute();
-  for (const retained of retainedRows) {
-    const progress: BulkJobProgress = {
-      total: 0,
-      pending: 0,
-      processing: 0,
-      sent: retained.purged_sent,
-      failed: retained.purged_failed,
-      canceled: retained.purged_canceled,
-      skipped: retained.purged_skipped,
-    };
-    progress.total =
-      progress.sent + progress.failed + progress.canceled + progress.skipped;
-    map.set(retained.id, progress);
-  }
-  for (const row of rows) {
-    const jobId = row.bulk_job_id as string;
-    const progress = map.get(jobId) ?? {
-      total: 0,
-      pending: 0,
-      processing: 0,
-      sent: 0,
-      failed: 0,
-      canceled: 0,
-      skipped: 0,
-    };
-    const count = Number(row.count);
-    switch (row.status) {
-      case "scheduled":
-        progress.pending += count;
-        break;
-      case "processing":
-        progress.processing += count;
-        break;
-      case "sent":
-        progress.sent += count;
-        break;
-      case "failed":
-        progress.failed += count;
-        break;
-      case "canceled":
-        progress.canceled += count;
-        break;
-      case "skipped":
-        progress.skipped += count;
-        break;
-    }
-    progress.total += count;
-    map.set(jobId, progress);
-  }
-  return map;
+  // Same cross-snapshot double-count race as getBulkJobProgress: the live leaf
+  // aggregation and the retained purged_* counters must come from one MVCC
+  // snapshot, or a concurrent connection-purge commit (leaf DELETE + purged_*
+  // increment in one transaction) can land between the two reads and inflate
+  // per-job totals. REPEATABLE READ shares one snapshot across both reads.
+  return tenantDb
+    .transaction()
+    .setIsolationLevel("repeatable read")
+    .execute(async (trx) => {
+      const rows = await trx
+        .selectFrom("scheduled_messages")
+        .select(["bulk_job_id", "status"])
+        .select((eb) => eb.fn.countAll().as("count"))
+        .where("bulk_job_id", "in", bulkJobIds)
+        .groupBy(["bulk_job_id", "status"])
+        .execute();
+
+      await hooks?.betweenReads?.();
+
+      const retainedRows = await trx
+        .selectFrom("bulk_jobs")
+        .select([
+          "id",
+          "purged_sent",
+          "purged_failed",
+          "purged_canceled",
+          "purged_skipped",
+        ])
+        .where("id", "in", bulkJobIds)
+        .execute();
+      for (const retained of retainedRows) {
+        const progress: BulkJobProgress = {
+          total: 0,
+          pending: 0,
+          processing: 0,
+          sent: retained.purged_sent,
+          failed: retained.purged_failed,
+          canceled: retained.purged_canceled,
+          skipped: retained.purged_skipped,
+        };
+        progress.total =
+          progress.sent +
+          progress.failed +
+          progress.canceled +
+          progress.skipped;
+        map.set(retained.id, progress);
+      }
+      for (const row of rows) {
+        const jobId = row.bulk_job_id as string;
+        const progress = map.get(jobId) ?? {
+          total: 0,
+          pending: 0,
+          processing: 0,
+          sent: 0,
+          failed: 0,
+          canceled: 0,
+          skipped: 0,
+        };
+        const count = Number(row.count);
+        switch (row.status) {
+          case "scheduled":
+            progress.pending += count;
+            break;
+          case "processing":
+            progress.processing += count;
+            break;
+          case "sent":
+            progress.sent += count;
+            break;
+          case "failed":
+            progress.failed += count;
+            break;
+          case "canceled":
+            progress.canceled += count;
+            break;
+          case "skipped":
+            progress.skipped += count;
+            break;
+        }
+        progress.total += count;
+        map.set(jobId, progress);
+      }
+      return map;
+    });
 }
 
 /**
@@ -739,6 +792,7 @@ export async function finalizeBulkJobIfComplete(
   tenantDb: Kysely<TenantDatabase>,
   companyId: string,
   bulkJobId: string,
+  hooks?: BulkJobProgressReadHooks,
 ): Promise<boolean> {
   const job = await tenantDb
     .selectFrom("bulk_jobs")
@@ -750,7 +804,7 @@ export async function finalizeBulkJobIfComplete(
     return false;
   }
 
-  const progress = await getBulkJobProgress(tenantDb, bulkJobId);
+  const progress = await getBulkJobProgress(tenantDb, bulkJobId, hooks);
   if (progress.pending + progress.processing > 0) return false;
 
   if (job.status === "canceled") {

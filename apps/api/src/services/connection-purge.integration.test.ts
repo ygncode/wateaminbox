@@ -15,7 +15,11 @@ import {
   ConnectionNotFoundError,
 } from "../lib/errors.js";
 import type { GroupEvent } from "../lib/nats/index.js";
-import { getBulkJobProgress } from "./bulk-job.service.js";
+import {
+  finalizeBulkJobIfComplete,
+  getBulkJobProgress,
+  getBulkJobProgressMap,
+} from "./bulk-job.service.js";
 import { processConnectionPurgeCleanup } from "./connection-purge-cleanup.service.js";
 import { openOrReopenCaseForInboundMessage } from "./conversation-case.service.js";
 import { lockActiveConnectionForEvent } from "./handlers/connection-event-guard.js";
@@ -987,6 +991,475 @@ describe("permanent connection purge against PostgreSQL", () => {
         await expect(
           purgeArchivedConnection(tenantDb, crypto.randomUUID()),
         ).rejects.toBeInstanceOf(ConnectionNotFoundError);
+      });
+    },
+    60_000,
+  );
+
+  // Deterministic regression coverage for the cross-snapshot double-count race
+  // between the progress readers and the connection purge. The purge commits
+  // the scheduled_messages leaf DELETE and the bulk_jobs.purged_* increment in
+  // one transaction. A reader that paired the live leaf count (a pre-commit
+  // snapshot) with the incremented purged_* (a post-commit snapshot) would
+  // double-count the purged recipient. The readers now take both reads from
+  // one REPEATABLE READ snapshot, so even a purge forced to commit between the
+  // reads cannot inflate the totals. The `betweenReads` test seam places the
+  // purge commit exactly there, inside the reader's transaction, removing the
+  // timing dependence that makes the race otherwise unreachable by tests.
+  integrationTest(
+    "progress readers share one snapshot across both reads so a purge that commits between them cannot double-count",
+    async () => {
+      await withTenant(async ({ companyId, ownerId }) => {
+        const tenantDb = getTenantConnection(companyId);
+        const at = new Date("2026-03-01T10:00:00Z");
+        const steady = {
+          total: 1,
+          pending: 0,
+          processing: 0,
+          sent: 1,
+          failed: 0,
+          canceled: 0,
+          skipped: 0,
+        };
+
+        // Seeds an archived connection with one contact, one bulk job, and one
+        // 'sent' leaf. Pre-purge progress is { sent: 1, total: 1 }; after a
+        // purge the leaf is gone and purged_sent=1, so steady-state progress is
+        // STILL { sent: 1, total: 1 }. The only way to observe sent=2 is to read
+        // the live leaf from a pre-commit snapshot AND the purged_sent increment
+        // from a post-commit snapshot — exactly the straddle this reader avoids.
+        const seedRaceFixture = async (label: string, phone: string) => {
+          const connectionId = crypto.randomUUID();
+          await tenantDb
+            .insertInto("whatsapp_connections")
+            .values({
+              id: connectionId,
+              name: label,
+              jid: `${label}@s.whatsapp.net`,
+              status: "disconnected",
+              archived_at: new Date("2026-02-01T00:00:00Z"),
+            })
+            .execute();
+          const contactId = crypto.randomUUID();
+          await tenantDb
+            .insertInto("contacts")
+            .values({
+              id: contactId,
+              whatsapp_connection_id: connectionId,
+              jid: `${label}-direct@s.whatsapp.net`,
+              phone_number: phone,
+              push_name: label,
+            })
+            .execute();
+          const bulkJobId = crypto.randomUUID();
+          await tenantDb
+            .insertInto("bulk_jobs")
+            .values({
+              id: bulkJobId,
+              name: `${label} broadcast`,
+              content: "hello",
+              audience: { tagIds: [], contactIds: [] },
+              audience_hash: "hash",
+              scheduled_at: at,
+              total_recipients: 1,
+              created_by: ownerId,
+            })
+            .execute();
+          await tenantDb
+            .insertInto("scheduled_messages")
+            .values({
+              id: crypto.randomUUID(),
+              contact_id: contactId,
+              bulk_job_id: bulkJobId,
+              content: "broadcast",
+              status: "sent",
+              scheduled_at: at,
+              next_attempt_at: at,
+              sent_at: at,
+              created_by: ownerId,
+            })
+            .execute();
+          return { connectionId, bulkJobId };
+        };
+
+        // --- getBulkJobProgress ---
+        {
+          const { connectionId, bulkJobId } = await seedRaceFixture(
+            "race-single",
+            "14150007",
+          );
+          expect(await getBulkJobProgress(tenantDb, bulkJobId)).toEqual(steady);
+
+          // Force the straddle: the reader takes SELECT 1, then the seam starts
+          // the purge and waits for it to commit, then the reader takes SELECT 2
+          // from the same REPEATABLE READ snapshot. A buggy two-snapshot reader
+          // would return sent = 1 + 1 = 2 here; the shared-snapshot reader sees
+          // the pre-purge state for both reads and stays at sent = 1.
+          let purgePromise!: ReturnType<typeof purgeArchivedConnection>;
+          const progress = await getBulkJobProgress(tenantDb, bulkJobId, {
+            betweenReads: async () => {
+              purgePromise = purgeArchivedConnection(tenantDb, connectionId);
+              await purgePromise;
+            },
+          });
+          const purgeResult = await purgePromise;
+
+          expect(progress).toEqual(steady);
+          expect(purgeResult.affectedBulkJobIds).toEqual([bulkJobId]);
+          // After the purge settles the retained purged_sent counter keeps the
+          // steady-state totals honest.
+          expect(await getBulkJobProgress(tenantDb, bulkJobId)).toEqual(steady);
+        }
+
+        // --- getBulkJobProgressMap (same race, same fix) ---
+        {
+          const { connectionId, bulkJobId } = await seedRaceFixture(
+            "race-map",
+            "14150008",
+          );
+          expect(await getBulkJobProgressMap(tenantDb, [bulkJobId])).toEqual(
+            new Map([[bulkJobId, steady]]),
+          );
+
+          let purgePromise!: ReturnType<typeof purgeArchivedConnection>;
+          const map = await getBulkJobProgressMap(tenantDb, [bulkJobId], {
+            betweenReads: async () => {
+              purgePromise = purgeArchivedConnection(tenantDb, connectionId);
+              await purgePromise;
+            },
+          });
+          const purgeResult = await purgePromise;
+
+          expect(map.get(bulkJobId)).toEqual(steady);
+          expect(purgeResult.affectedBulkJobIds).toEqual([bulkJobId]);
+          expect(await getBulkJobProgressMap(tenantDb, [bulkJobId])).toEqual(
+            new Map([[bulkJobId, steady]]),
+          );
+        }
+      });
+    },
+    60_000,
+  );
+
+  // The list route (GET /bulk-jobs) reads every job's progress in one
+  // getBulkJobProgressMap call. Before this regression it had no direct
+  // coverage at all; this pins that the map reflects the retained purged_*
+  // counters for a fully purged job without leaking them onto a sibling job
+  // that was never touched by the purge.
+  integrationTest(
+    "getBulkJobProgressMap reflects retained purged counts after a purge and does not leak them to a sibling job",
+    async () => {
+      await withTenant(async ({ companyId, ownerId }) => {
+        const tenantDb = getTenantConnection(companyId);
+        const at = new Date("2026-03-01T10:00:00Z");
+
+        const purgedConnectionId = crypto.randomUUID();
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: purgedConnectionId,
+            name: "purged",
+            jid: "map-purged@s.whatsapp.net",
+            status: "disconnected",
+            archived_at: new Date("2026-02-01T00:00:00Z"),
+          })
+          .execute();
+        const purgedContactId = crypto.randomUUID();
+        await tenantDb
+          .insertInto("contacts")
+          .values({
+            id: purgedContactId,
+            whatsapp_connection_id: purgedConnectionId,
+            jid: "map-purged-direct@s.whatsapp.net",
+            phone_number: "14150011",
+            push_name: "purged",
+          })
+          .execute();
+
+        const liveConnectionId = crypto.randomUUID();
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: liveConnectionId,
+            name: "live",
+            jid: "map-live@s.whatsapp.net",
+            status: "connected",
+            archived_at: null,
+          })
+          .execute();
+        const liveContactId = crypto.randomUUID();
+        await tenantDb
+          .insertInto("contacts")
+          .values({
+            id: liveContactId,
+            whatsapp_connection_id: liveConnectionId,
+            jid: "map-live-direct@s.whatsapp.net",
+            phone_number: "14150012",
+            push_name: "live",
+          })
+          .execute();
+
+        const purgedJobId = crypto.randomUUID();
+        const liveJobId = crypto.randomUUID();
+        for (const job of [
+          { id: purgedJobId, name: "Purged broadcast", total: 2 },
+          { id: liveJobId, name: "Live broadcast", total: 3 },
+        ]) {
+          await tenantDb
+            .insertInto("bulk_jobs")
+            .values({
+              id: job.id,
+              name: job.name,
+              content: "hello",
+              audience: { tagIds: [], contactIds: [] },
+              audience_hash: "hash",
+              scheduled_at: at,
+              total_recipients: job.total,
+              created_by: ownerId,
+            })
+            .execute();
+        }
+
+        const leaf = (
+          jobId: string,
+          contactId: string,
+        ): Array<{
+          id: string;
+          contact_id: string;
+          bulk_job_id: string;
+          content: string;
+          status: "sent";
+          scheduled_at: Date;
+          next_attempt_at: Date;
+          sent_at: Date;
+          created_by: string;
+        }> =>
+          Array.from({ length: 2 }, () => ({
+            id: crypto.randomUUID(),
+            contact_id: contactId,
+            bulk_job_id: jobId,
+            content: "broadcast",
+            status: "sent" as const,
+            scheduled_at: at,
+            next_attempt_at: at,
+            sent_at: at,
+            created_by: ownerId,
+          }));
+        await tenantDb
+          .insertInto("scheduled_messages")
+          .values(leaf(purgedJobId, purgedContactId))
+          .execute();
+        await tenantDb
+          .insertInto("scheduled_messages")
+          .values([
+            ...leaf(liveJobId, liveContactId),
+            {
+              id: crypto.randomUUID(),
+              contact_id: liveContactId,
+              bulk_job_id: liveJobId,
+              content: "broadcast",
+              status: "sent",
+              scheduled_at: at,
+              next_attempt_at: at,
+              sent_at: at,
+              created_by: ownerId,
+            },
+          ])
+          .execute();
+
+        const purged = {
+          total: 2,
+          pending: 0,
+          processing: 0,
+          sent: 2,
+          failed: 0,
+          canceled: 0,
+          skipped: 0,
+        };
+        const live = {
+          total: 3,
+          pending: 0,
+          processing: 0,
+          sent: 3,
+          failed: 0,
+          canceled: 0,
+          skipped: 0,
+        };
+
+        expect(
+          await getBulkJobProgressMap(tenantDb, [purgedJobId, liveJobId]),
+        ).toEqual(
+          new Map([
+            [purgedJobId, purged],
+            [liveJobId, live],
+          ]),
+        );
+
+        const result = await purgeArchivedConnection(
+          tenantDb,
+          purgedConnectionId,
+        );
+        expect(result.affectedBulkJobIds).toEqual([purgedJobId]);
+
+        // The purged job's leaves are gone; its retained purged_sent counter
+        // keeps its totals at exactly 2. The sibling live job is untouched —
+        // the retained counters must never sum onto the wrong job.
+        expect(
+          await getBulkJobProgressMap(tenantDb, [purgedJobId, liveJobId]),
+        ).toEqual(
+          new Map([
+            [purgedJobId, purged],
+            [liveJobId, live],
+          ]),
+        );
+      });
+    },
+    60_000,
+  );
+
+  // Deterministic regression coverage for the permanent-inflation path the
+  // report calls out: finalizeBulkJobIfComplete reads progress through
+  // getBulkJobProgress and writes progress.sent/failed/skipped into audit_logs
+  // on the single winning finalization CAS (bulk-job.service.ts:838-851). A
+  // purge committing between that read's two SELECTs would, on the buggy
+  // reader, persist inflated counters into the audit record forever. With the
+  // shared-snapshot fix the audit row reflects the self-consistent counts even
+  // when the purge commits mid-read.
+  integrationTest(
+    "finalizeBulkJobIfComplete persists snapshot-consistent counts to audit_logs even when a purge commits during the progress read",
+    async () => {
+      await withTenant(async ({ companyId, ownerId }) => {
+        const tenantDb = getTenantConnection(companyId);
+        const at = new Date("2026-03-01T10:00:00Z");
+
+        // Two connections: one archived (purged mid-read), one live (retained).
+        // A cross-connection job has two 'sent' leaves, one per contact, so the
+        // honest total is sent=2 with no failed/skipped.
+        const archivedConnectionId = crypto.randomUUID();
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: archivedConnectionId,
+            name: "archived",
+            jid: "finalize-archived@s.whatsapp.net",
+            status: "disconnected",
+            archived_at: new Date("2026-02-01T00:00:00Z"),
+          })
+          .execute();
+        const archivedContactId = crypto.randomUUID();
+        await tenantDb
+          .insertInto("contacts")
+          .values({
+            id: archivedContactId,
+            whatsapp_connection_id: archivedConnectionId,
+            jid: "finalize-archived-direct@s.whatsapp.net",
+            phone_number: "14150031",
+            push_name: "archived",
+          })
+          .execute();
+        const liveConnectionId = crypto.randomUUID();
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: liveConnectionId,
+            name: "live",
+            jid: "finalize-live@s.whatsapp.net",
+            status: "connected",
+            archived_at: null,
+          })
+          .execute();
+        const liveContactId = crypto.randomUUID();
+        await tenantDb
+          .insertInto("contacts")
+          .values({
+            id: liveContactId,
+            whatsapp_connection_id: liveConnectionId,
+            jid: "finalize-live-direct@s.whatsapp.net",
+            phone_number: "14150032",
+            push_name: "live",
+          })
+          .execute();
+
+        const bulkJobId = crypto.randomUUID();
+        await tenantDb
+          .insertInto("bulk_jobs")
+          .values({
+            id: bulkJobId,
+            name: "Finalize race broadcast",
+            content: "hello",
+            audience: { tagIds: [], contactIds: [] },
+            audience_hash: "hash",
+            scheduled_at: at,
+            status: "running",
+            total_recipients: 2,
+            created_by: ownerId,
+          })
+          .execute();
+        const leaf = (contactId: string) => ({
+          id: crypto.randomUUID(),
+          contact_id: contactId,
+          bulk_job_id: bulkJobId,
+          content: "broadcast",
+          status: "sent" as const,
+          scheduled_at: at,
+          next_attempt_at: at,
+          sent_at: at,
+          created_by: ownerId,
+        });
+        await tenantDb
+          .insertInto("scheduled_messages")
+          .values([leaf(archivedContactId), leaf(liveContactId)])
+          .execute();
+
+        // Force the straddle inside finalization's progress read: the
+        // betweenReads hook commits the purge of the archived connection
+        // between the reader's two SELECTs. A buggy two-snapshot reader would
+        // double-count the purged 'sent' leaf (live sent=2 + purged_sent=1 = 3)
+        // and persist sent=3 into the audit log. The shared-snapshot reader
+        // stays at sent=2 (the live retained leaf + the purged leaf via
+        // either both-pre or both-post-purge consistency).
+        let purgedArchived!: ReturnType<typeof purgeArchivedConnection>;
+        const finalized = await finalizeBulkJobIfComplete(
+          tenantDb,
+          companyId,
+          bulkJobId,
+          {
+            betweenReads: async () => {
+              purgedArchived = purgeArchivedConnection(
+                tenantDb,
+                archivedConnectionId,
+              );
+              await purgedArchived;
+            },
+          },
+        );
+        const purgeResult = await purgedArchived;
+
+        expect(finalized).toBe(true);
+        expect(purgeResult.affectedBulkJobIds).toEqual([bulkJobId]);
+
+        const auditRow = await tenantDb
+          .selectFrom("audit_logs")
+          .select(["action", "entity_id", "details"])
+          .where("action", "=", "bulk_job.completed")
+          .where("entity_id", "=", bulkJobId)
+          .executeTakeFirstOrThrow();
+
+        const details = auditRow.details as Record<string, unknown>;
+        // The honest total: 2 sent (one live, one purged-via-purged_sent), no
+        // failed/skipped. The buggy reader would have written sent=3 here.
+        expect(details.sent).toBe(2);
+        expect(details.failed).toBe(0);
+        expect(details.skipped).toBe(0);
+        expect(details.outcome).toBe("completed");
+
+        // The job itself transitioned to completed exactly once.
+        const jobRow = await tenantDb
+          .selectFrom("bulk_jobs")
+          .select("status")
+          .where("id", "=", bulkJobId)
+          .executeTakeFirstOrThrow();
+        expect(jobRow.status).toBe("completed");
       });
     },
     60_000,
