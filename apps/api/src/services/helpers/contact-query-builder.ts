@@ -39,7 +39,11 @@ export function buildConversationStatusClause(
   conversationStatus?: "open" | "pending" | "resolved" | "all",
 ): RawBuilder<unknown> {
   if (!conversationStatus || conversationStatus === "all") return sql``;
-  return sql`COALESCE(cs.status, 'resolved') = ${conversationStatus}`;
+  // Resolved from whichever side of the list query matched: the conversation
+  // when the contact has one, the contact itself only when it could never be
+  // bridged. Naming a single alias here silently broke every lifecycle filter
+  // the moment the list gained the second one.
+  return sql`COALESCE(csc.status, csl.status, 'resolved') = ${conversationStatus}`;
 }
 
 /**
@@ -145,7 +149,7 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
   }
   if (unreadOnly) {
     // A contact with no conversation_states row has nothing unread.
-    conditions.push(sql`COALESCE(cs.unread_count, 0) > 0`);
+    conditions.push(sql`COALESCE(csc.unread_count, csl.unread_count, 0) > 0`);
   }
 
   const hasAssignmentFilter = Boolean(
