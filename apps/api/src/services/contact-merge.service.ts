@@ -282,6 +282,31 @@ export async function unmergeContacts(
 }
 
 /**
+ * Whether an address identifies a person, rather than merely being present.
+ *
+ * WhatsApp gives its own service accounts the phone number `0`, so "WhatsApp"
+ * and "WhatsApp Business" arrive as two contacts sharing an address. Matching
+ * on it proposes merging two unrelated system accounts, and a merge accepted
+ * on that basis is not something the operator can tell was wrong by looking at
+ * it - the suggestion looks exactly like a real duplicate.
+ *
+ * A placeholder is anything with no digits or letters to distinguish it: a
+ * string of zeros, an empty value, punctuation. A real phone number or email
+ * always carries more.
+ */
+function isIdentifyingAddress(value: string | null): boolean {
+  if (!value) return false;
+  const trimmed = value.trim();
+  if (trimmed.length < 4) return false;
+  // All-zero placeholders, however long.
+  if (/^0+$/.test(trimmed)) return false;
+  // Digits-only addresses need enough distinct digits to be a real number;
+  // 0000000000 and 1111111111 are placeholders, not phone numbers.
+  if (/^\d+$/.test(trimmed) && new Set(trimmed).size < 3) return false;
+  return true;
+}
+
+/**
  * Endpoint kinds a person merge may involve.
  *
  * An allowlist rather than a denylist: a future adapter that introduces a new
@@ -328,8 +353,10 @@ export async function suggestContactMerges(
   const addresses = [
     ...new Set(
       own
-        .filter((endpoint) =>
-          MERGEABLE_ENDPOINT_KINDS.has(endpoint.endpoint_kind),
+        .filter(
+          (endpoint) =>
+            MERGEABLE_ENDPOINT_KINDS.has(endpoint.endpoint_kind) &&
+            isIdentifyingAddress(endpoint.normalized_address),
         )
         .map((endpoint) => endpoint.normalized_address as string),
     ),
