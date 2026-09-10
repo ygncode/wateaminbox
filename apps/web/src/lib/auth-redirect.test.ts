@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildAuthUrl,
+  buildPostRegistrationLoginUrl,
   getAuthRedirectFromState,
   getInvitationTokenFromRedirect,
   getSafeAuthRedirect,
@@ -39,5 +40,22 @@ describe("authentication redirects", () => {
     expect(
       buildAuthUrl("/register", "/invite/token", "person@example.com"),
     ).toBe("/register?redirect=%2Finvite%2Ftoken&email=person%40example.com");
+  });
+});
+
+describe("buildPostRegistrationLoginUrl", () => {
+  test("drops invitation redirects so login routes to the workspace", () => {
+    const url = buildPostRegistrationLoginUrl(
+      "/invite/a1b2c3d4e5f6",
+      "user@example.com",
+    );
+    expect(url).toBe("/login?email=user%40example.com");
+    expect(url).not.toContain("redirect=");
+  });
+
+  test("preserves a non-invitation redirect", () => {
+    expect(buildPostRegistrationLoginUrl("/chat", "user@example.com")).toBe(
+      "/login?redirect=%2Fchat&email=user%40example.com",
+    );
   });
 });

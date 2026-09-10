@@ -47,3 +47,19 @@ export function buildAuthUrl(
   const query = params.toString();
   return query ? `${path}?${query}` : path;
 }
+
+/**
+ * Build the login URL shown on the registration success screen. Invitation
+ * registrations auto-accept the invitation during email verification, so the
+ * `/invite/<token>` redirect is dropped to keep the user from being routed
+ * back to a consumed (and therefore invalid) invitation after they sign in.
+ * Login then falls through to its normal workspace routing, landing the user
+ * in the workspace they just joined.
+ */
+export function buildPostRegistrationLoginUrl(
+  redirectTo: string | null,
+  email?: string | null,
+): string {
+  const invitationToken = getInvitationTokenFromRedirect(redirectTo);
+  return buildAuthUrl("/login", invitationToken ? null : redirectTo, email);
+}
