@@ -38,13 +38,19 @@ export async function getContactStats(
     .where("contacts.is_group", "=", false)
     .executeTakeFirst();
 
-  // Assigned contacts
+  // Assigned contacts. Joined to `contacts` and restricted to the same
+  // direct-contact set (`is_group = false`) that `total` describes, otherwise
+  // group auto-assignments (created via `assignCreatedGroupToItsCreator`)
+  // would inflate `assigned` above `total` and drive `unassigned` negative.
   const assignedResult = await tenantDb
     .selectFrom("contact_assignments")
-    .select((eb) => eb.fn.count("contact_id").distinct().as("count"))
-    .where("unassigned_at", "is", null)
+    .innerJoin("contacts", "contacts.id", "contact_assignments.contact_id")
+    .select((eb) =>
+      eb.fn.count("contact_assignments.contact_id").distinct().as("count"),
+    )
+    .where("contact_assignments.unassigned_at", "is", null)
+    .where("contacts.is_group", "=", false)
     .executeTakeFirst();
-
   const total = Number(totalResult?.count || 0);
   const assigned = Number(assignedResult?.count || 0);
 
