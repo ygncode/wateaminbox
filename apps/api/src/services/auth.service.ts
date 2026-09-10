@@ -13,6 +13,7 @@ import {
   InvitationEmailMismatchError,
   InvitationExpiredError,
   InvitationNotFoundError,
+  isUniqueViolation,
   UserAlreadyMemberError,
 } from "../lib/errors.js";
 import { getGravatarUrl } from "../lib/gravatar.js";
@@ -312,6 +313,21 @@ export async function register(
       );
 
       return { user: createdUser, verificationToken: token };
+    })
+    .catch((error: unknown) => {
+      // Two concurrent registrations (or a registration racing a profile
+      // email change) for the same address can both pass the pre-check above
+      // before either commit; the `users_email_key` constraint then rejects
+      // the loser with 23505. Surface the same friendly 409 the pre-check
+      // raises instead of leaking a raw driver error as HTTP 500.
+      if (isUniqueViolation(error, "users_email_key")) {
+        throw new AuthError(
+          "An account with this email already exists",
+          "EMAIL_EXISTS",
+          409,
+        );
+      }
+      throw error;
     });
 
   const verificationEmailSent = await deliverVerificationEmail(
@@ -850,6 +866,18 @@ export async function updateProfile(
   } catch (error) {
     if (uploadedAvatarKey) {
       await deleteMedia(uploadedAvatarKey).catch(() => undefined);
+    }
+    // The outside-the-transaction uniqueness pre-check is racy: two
+    // concurrent profile updates can both pass it before either commit, so
+    // the `users_email_key` unique constraint is the real backstop. Catch
+    // the losing transaction's 23505 and surface the same friendly 409 the
+    // pre-check raises instead of leaking a raw driver error as HTTP 500.
+    if (isUniqueViolation(error, "users_email_key")) {
+      throw new AuthError(
+        "An account with this email already exists",
+        "EMAIL_EXISTS",
+        409,
+      );
     }
     throw error;
   }
