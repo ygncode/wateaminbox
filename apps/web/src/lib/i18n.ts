@@ -51,8 +51,10 @@ const syncDateLocale = (language: string): void => {
   dayjs.locale(DAYJS_LOCALES[language] ?? "en");
 };
 
+// i18next v26 removed the startup support notice along with the
+// `showSupportNotice` option that used to silence it, so passing it now fails
+// the InitOptions overload.
 i18n.use(initReactI18next).init({
-  showSupportNotice: false,
   resources: {
     en: { translation: en },
     "zh-CN": { translation: zhCN },
