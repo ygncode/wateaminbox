@@ -69,10 +69,17 @@ export interface ChannelMessagesPage {
 }
 
 export function getChannelConversations(
-  params: { limit?: number } = {},
+  params: { limit?: number; tagIds?: readonly string[] } = {},
 ): Promise<ChannelConversation[]> {
+  // Tags are sent as one comma-separated value so the channel list narrows the
+  // same way the contact list does. Without it a selected tag filtered only
+  // the WhatsApp side and left every channel chat showing.
+  const { tagIds, ...rest } = params;
   return api.get<ChannelConversation[]>(
-    `/conversations${buildQueryString(params)}`,
+    `/conversations${buildQueryString({
+      ...rest,
+      ...(tagIds?.length ? { tagIds: tagIds.join(",") } : {}),
+    })}`,
   );
 }
 
