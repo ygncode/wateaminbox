@@ -23,6 +23,7 @@ import {
   getRefreshTokenExpiry,
   verifyRefreshToken,
 } from "../lib/jwt.js";
+import { sniffMediaType } from "../lib/media-sniff.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 import type { UpdateProfileInput } from "../lib/schemas/auth.js";
 import { hashToken } from "../lib/security.js";
@@ -187,18 +188,33 @@ export async function toAuthUserResponse(
   };
 }
 
-async function uploadProfileAvatar(
+type ImageUploader = (
+  data: Buffer | Uint8Array,
+  mimeType: string,
+  companyId: string,
+  filename?: string,
+) => Promise<{ key: string }>;
+
+export async function uploadProfileAvatar(
   userId: string,
   avatarDataUrl: string,
+  upload: ImageUploader = uploadMedia,
 ): Promise<string> {
   const match = avatarDataUrl.match(
     /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/,
   );
-  if (!match) throw new Error("Invalid profile image");
+  if (!match) {
+    throw new AuthError("Invalid profile image", "INVALID_PROFILE_IMAGE", 400);
+  }
   const mimeType = match[1];
+  const decoded = Buffer.from(match[2], "base64");
+  const sniffed = sniffMediaType(decoded);
+  if (!sniffed || sniffed.mimeType !== mimeType) {
+    throw new AuthError("Invalid profile image", "INVALID_PROFILE_IMAGE", 400);
+  }
   const extension = mimeType === "image/jpeg" ? "jpg" : mimeType.split("/")[1];
-  const avatar = await uploadMedia(
-    Buffer.from(match[2], "base64"),
+  const avatar = await upload(
+    decoded,
     mimeType,
     `user-${userId}`,
     `profile-avatar.${extension}`,

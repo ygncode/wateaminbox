@@ -115,6 +115,16 @@ export function sniffMediaType(
   if (startsWith(head, [0xff, 0xd8, 0xff])) {
     return { extension: "jpg", mimeType: "image/jpeg" };
   }
+  if (
+    startsWith(head, [0x52, 0x49, 0x46, 0x46]) &&
+    head.length >= 12 &&
+    head[8] === 0x57 &&
+    head[9] === 0x45 &&
+    head[10] === 0x42 &&
+    head[11] === 0x50
+  ) {
+    return { extension: "webp", mimeType: "image/webp" };
+  }
 
   return null;
 }
