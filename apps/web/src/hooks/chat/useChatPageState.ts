@@ -439,6 +439,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
                   videoCount,
                 }
               : undefined,
+            replyToMessageId: replyToMessage?.id,
           });
         }
         toast.dismiss(sendingToastId);
@@ -456,7 +457,13 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
         return false;
       }
     },
-    [selectedChatId, isContactBlocked, blockedSendMessage, sendMessage],
+    [
+      selectedChatId,
+      isContactBlocked,
+      blockedSendMessage,
+      sendMessage,
+      replyToMessage,
+    ],
   );
 
   // Delete message handlers
