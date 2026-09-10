@@ -332,6 +332,36 @@ takes the neutral path. The MCP `send_message` tool routes a WhatsApp contact
 down the legacy path unconditionally and never consults them. Both end in the
 same NATS command, so both work; only the route differs.
 
+## Restoring, and the index that has to come with it
+
+A restore drill on 2026-09-10 restored the 02:25 dump into a scratch database
+and compared it against production. Every table matched except `messages`,
+which was short by exactly the number that arrived after the snapshot: the
+backup is complete and consistent as of its own time.
+
+It also found the thing worth knowing. The restored copy had no
+`msg_conv_recent_idx`, because the backup predates it, and the chat list is
+now anchored on conversations - so the inbox query that runs in 54ms against
+production **timed out after sixty seconds** against the restore. A restore
+from any backup taken before that index existed produces a database that
+technically holds every row and cannot serve an inbox.
+
+So the index reconcile is part of the restore, not a follow-up:
+
+```sh
+docker exec <api-container> /usr/local/bin/secret-entrypoint \
+  bun run /app/apps/api/dist/scripts/reconcile-channel-spine-indexes.js --apply
+```
+
+Two smaller things the drill turned up:
+
+- `pg_restore` is not installed on the host. Restores go through the postgres
+  container: `gunzip -c <dump>.gz | docker exec -i <postgres> pg_restore ...`.
+- The restic repository lives under `/opt/wateaminbox/secrets`, not under the
+  control-plane directory. Pointing at the wrong one makes `restic snapshots`
+  report almost nothing, which reads as a backup failure and is not one - the
+  repository held 53 snapshots at the time of the drill.
+
 ## Known remaining work
 
 Still incomplete before claiming the RFC finished:
