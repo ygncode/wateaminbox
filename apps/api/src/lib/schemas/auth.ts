@@ -29,8 +29,14 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 // =============================================================================
 
 export const deviceInfoSchema = z.object({
-  deviceName: z.string().optional(),
-  deviceType: z.string().optional(),
+  deviceName: z
+    .string()
+    .max(255, "Device name must be at most 255 characters")
+    .optional(),
+  deviceType: z
+    .string()
+    .max(50, "Device type must be at most 50 characters")
+    .optional(),
 });
 
 export const loginSchema = z.object({
