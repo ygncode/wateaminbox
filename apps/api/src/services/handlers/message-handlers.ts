@@ -222,7 +222,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
                 ':[0-9]+@',
                 '@'
               )
-        WHERE secret.connection_id::text = ${connection.id}
+        WHERE secret.connection_id::text = ${sessionId ?? connection.id}
           AND secret.message_id = ${payload.messageId}
         ORDER BY mapping.created_at DESC NULLS LAST
         LIMIT 1
@@ -248,7 +248,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
       }>`
         SELECT full_name, push_name, first_name
         FROM whatsapp_sessions.whatsmeow_contacts
-        WHERE connection_id::text = ${connection.id}
+        WHERE connection_id::text = ${sessionId ?? connection.id}
           AND regexp_replace(their_jid, ':[0-9]+@', '@') = ${normalizedSenderJid}
         LIMIT 1
       `.execute(tenantDb);
