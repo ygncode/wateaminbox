@@ -711,21 +711,6 @@ async function ensureIndexes<Database>(
         sql`CREATE INDEX ${sql.ref(`${schemaName}_csrj_due_idx`)}
         ON ${table("channel_spine_reconciliation_journal")} (status, next_attempt_at, created_at)`,
       ],
-      [
-        // The inbox's newest-message-per-thread lookup, by conversation.
-        //
-        // `messages` already carries this shape three times over on
-        // `contact_id`, which is why the contact-anchored list is fast. Reading
-        // the same thing by conversation had no index at all: the lateral
-        // degraded to a scan and the list went from forty milliseconds to over
-        // five minutes on the largest workspace. Column order matches the
-        // lookup exactly - equality on the conversation, then the ordering the
-        // query asks for - so the planner can stop at the first row.
-        "messages_conversation_recent_idx",
-        sql`CREATE INDEX ${sql.ref(`${schemaName}_msg_conv_recent_idx`)}
-        ON ${table("messages")} (conversation_id, "timestamp" DESC, id DESC)
-        WHERE conversation_id IS NOT NULL`,
-      ],
     ];
 
   const existing = await sql<{ indexname: string }>`
@@ -738,6 +723,48 @@ async function ensureIndexes<Database>(
     await statement.execute(db);
     names.add(expectedName);
   }
+  await createConversationRecentIndex(db, schemaName, names);
+}
+
+/**
+ * The inbox's newest-message-per-thread lookup, by conversation.
+ *
+ * `messages` already carries this shape three times over on `contact_id`,
+ * which is why the contact-anchored chat list is fast. The same lookup by
+ * conversation had no index at all: measured against the largest workspace
+ * the lateral went from forty milliseconds to over five minutes, and a
+ * COALESCE across both keys was no better because it can use neither index.
+ *
+ * Ordered to match the lookup exactly - equality on the conversation, then
+ * the ordering the list asks for - so the planner stops at the first row
+ * rather than sorting a thread.
+ *
+ * Built separately from the definitions above because it is the only index
+ * here that spans a column the spine does not own. `timestamp` belongs to the
+ * legacy messages table, and a schema that has not got it yet - a fresh
+ * tenant mid-provision, or a fixture that stubs the table - must be left
+ * alone rather than failing the whole reconcile.
+ */
+async function createConversationRecentIndex<Database>(
+  db: Kysely<Database>,
+  schemaName: string,
+  existingIndexes: Set<string>,
+): Promise<void> {
+  const indexName = `${schemaName}_msg_conv_recent_idx`;
+  if (existingIndexes.has(indexName)) return;
+  const column = await sql<{ exists: boolean }>`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = ${schemaName}
+        AND table_name = 'messages'
+        AND column_name = 'timestamp'
+    ) AS exists
+  `.execute(db);
+  if (!column.rows[0]?.exists) return;
+  await sql`CREATE INDEX ${sql.ref(indexName)}
+    ON ${sql.table(`${schemaName}.messages`)}
+      (conversation_id, "timestamp" DESC, id DESC)
+    WHERE conversation_id IS NOT NULL`.execute(db);
 }
 
 function indexNameFor(logicalName: string, schemaName: string): string {
@@ -753,7 +780,6 @@ function indexNameFor(logicalName: string, schemaName: string): string {
     outbound_intents_send_message_uidx: "omi_send_msg_uidx",
     contact_suppressions_active_idx: "csup_active_idx",
     channel_spine_reconciliation_due_idx: "csrj_due_idx",
-    messages_conversation_recent_idx: "msg_conv_recent_idx",
   };
   return `${schemaName}_${suffixes[logicalName]}`;
 }
