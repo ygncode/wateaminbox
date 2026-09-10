@@ -2,6 +2,20 @@ import { AppError, ConflictError } from "../lib/errors.js";
 import { getTenantConnection } from "./tenant.service.js";
 
 /**
+ * Whether a database error is a PostgreSQL `unique_violation` (SQLSTATE 23505).
+ * The `node-postgres` driver surfaces the SQLSTATE on `error.code`. The DB
+ * UNIQUE constraint on `quick_replies(shortcut)` is the race-free authority for
+ * shortcut uniqueness; this maps its violation to the API's `409` contract.
+ */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: string }).code === "23505"
+  );
+}
+
+/**
  * Quick reply interface
  */
 export interface QuickReply {
@@ -157,14 +171,10 @@ export async function createQuickReply(
 ): Promise<QuickReply> {
   const tenantDb = getTenantConnection(companyId);
 
-  // Check for duplicate shortcut
-  const existing = await getQuickReplyByShortcut(companyId, input.shortcut);
-  if (existing) {
-    throw new ConflictError(
-      `Quick reply with shortcut "${input.shortcut}" already exists`,
-    );
-  }
-
+  // Let the database UNIQUE constraint on quick_replies(shortcut) be the
+  // authority for uniqueness. A SELECT pre-check is non-atomic under READ
+  // COMMITTED and loses a concurrent create race; the unique_violation raised
+  // by the insert is the only race-free backstop. See migration 090.
   const row = await tenantDb
     .insertInto("quick_replies")
     .values({
@@ -174,7 +184,15 @@ export async function createQuickReply(
       created_by: userId,
     })
     .returningAll()
-    .executeTakeFirst();
+    .executeTakeFirst()
+    .catch((error: unknown) => {
+      if (isUniqueViolation(error)) {
+        throw new ConflictError(
+          `Quick reply with shortcut "${input.shortcut}" already exists`,
+        );
+      }
+      throw error;
+    });
 
   if (!row) {
     throw new AppError("Failed to create quick reply", 500);
@@ -199,19 +217,6 @@ export async function updateQuickReply(
     return null;
   }
 
-  // Check for duplicate shortcut if shortcut is being changed
-  if (input.shortcut && input.shortcut !== existing.shortcut) {
-    const duplicateShortcut = await getQuickReplyByShortcut(
-      companyId,
-      input.shortcut,
-    );
-    if (duplicateShortcut) {
-      throw new ConflictError(
-        `Quick reply with shortcut "${input.shortcut}" already exists`,
-      );
-    }
-  }
-
   // Build update object
   const updateData: Record<string, unknown> = {
     updated_at: new Date(),
@@ -229,26 +234,41 @@ export async function updateQuickReply(
     updateData.content = input.content;
   }
 
-  const row = await tenantDb.transaction().execute(async (trx) => {
-    const updated = await trx
-      .updateTable("quick_replies")
-      .set(updateData)
-      .where("id", "=", quickReplyId)
-      .returningAll()
-      .executeTakeFirst();
+  const row = await tenantDb
+    .transaction()
+    .execute(async (trx) => {
+      const updated = await trx
+        .updateTable("quick_replies")
+        .set(updateData)
+        .where("id", "=", quickReplyId)
+        .returningAll()
+        .executeTakeFirst();
 
-    // Pending automatic replies are template snapshots. Keep them in sync so
-    // fixing template copy also fixes replies that have not gone out yet.
-    if (updated && input.content !== undefined) {
-      await trx
-        .updateTable("scheduled_messages")
-        .set({ content: input.content, updated_at: new Date() })
-        .where("auto_reply_quick_reply_id", "=", quickReplyId)
-        .where("status", "=", "scheduled")
-        .execute();
-    }
-    return updated;
-  });
+      // Pending automatic replies are template snapshots. Keep them in sync so
+      // fixing template copy also fixes replies that have not gone out yet.
+      if (updated && input.content !== undefined) {
+        await trx
+          .updateTable("scheduled_messages")
+          .set({ content: input.content, updated_at: new Date() })
+          .where("auto_reply_quick_reply_id", "=", quickReplyId)
+          .where("status", "=", "scheduled")
+          .execute();
+      }
+      return updated;
+    })
+    .catch((error: unknown) => {
+      // A rename onto a shortcut another row already holds trips the UNIQUE
+      // index on quick_replies(shortcut); the non-atomic pre-check that used
+      // to guard this could not survive a concurrent rename/create race.
+      if (isUniqueViolation(error)) {
+        throw new ConflictError(
+          `Quick reply with shortcut "${
+            input.shortcut ?? existing.shortcut
+          }" already exists`,
+        );
+      }
+      throw error;
+    });
 
   return row ? mapRowToQuickReply(row) : null;
 }
