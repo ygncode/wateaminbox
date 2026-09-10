@@ -10,6 +10,7 @@ import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { requirePermission, tenantMiddleware } from "../middleware/tenant.js";
 import * as auditService from "../services/audit.service.js";
+import { createCSVHeader, createCSVRow } from "../services/export/csv.js";
 import { PERMISSIONS } from "../services/permission.service.js";
 
 export const auditRoutes = new Hono();
@@ -27,6 +28,54 @@ function sanitizeAuditDetails(value: unknown): unknown {
     );
   }
   return value;
+}
+
+/**
+ * Column order for the audit CSV export. Exported so tests can pin the shape
+ * independently of the route handler.
+ */
+export const AUDIT_EXPORT_COLUMNS = [
+  "ID",
+  "Actor",
+  "Actor Email",
+  "Action",
+  "Entity Type",
+  "Entity ID",
+  "Details",
+  "IP Address",
+  "Created At",
+];
+
+/**
+ * Build the audit-log CSV body.
+ *
+ * Routes every cell through the shared CSV helpers (`createCSVHeader` /
+ * `createCSVRow`), which apply `neutralizeFormula` so an attacker-controlled
+ * Actor name starting with `=`, `+`, `-`, or `@` is emitted as inert text
+ * instead of a spreadsheet formula. This keeps the audit export on the same
+ * neutralization convention as the other data exports.
+ *
+ * Exported for unit testing without a database or HTTP layer.
+ */
+export function buildAuditExportCSV(logs: auditService.AuditLog[]): string {
+  const rows = logs.map((log) => ({
+    ID: log.id,
+    Actor: log.actor?.name || "System",
+    "Actor Email": log.actor?.email || "",
+    Action: log.action,
+    "Entity Type": log.entityType || "",
+    "Entity ID": log.entityId || "",
+    Details: log.details
+      ? JSON.stringify(sanitizeAuditDetails(log.details))
+      : "",
+    "IP Address": log.ipAddress || "",
+    "Created At": toISOString(log.createdAt),
+  }));
+
+  return [
+    createCSVHeader(AUDIT_EXPORT_COLUMNS),
+    ...rows.map((row) => createCSVRow(row, AUDIT_EXPORT_COLUMNS)),
+  ].join("\n");
 }
 
 // All audit routes require authentication and tenant context
@@ -157,35 +206,7 @@ auditRoutes.get(
       offset: 0,
     });
 
-    const headers = [
-      "ID",
-      "Actor",
-      "Actor Email",
-      "Action",
-      "Entity Type",
-      "Entity ID",
-      "Details",
-      "IP Address",
-      "Created At",
-    ];
-    const rows = result.logs.map((log) => [
-      log.id,
-      log.actor?.name || "System",
-      log.actor?.email || "",
-      log.action,
-      log.entityType || "",
-      log.entityId || "",
-      log.details ? JSON.stringify(sanitizeAuditDetails(log.details)) : "",
-      log.ipAddress || "",
-      toISOString(log.createdAt),
-    ]);
-
-    const csv = [
-      headers.join(","),
-      ...rows.map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-      ),
-    ].join("\n");
+    const csv = buildAuditExportCSV(result.logs);
 
     return new Response(csv, {
       headers: {
