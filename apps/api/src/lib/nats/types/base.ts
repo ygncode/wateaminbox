@@ -35,6 +35,28 @@ export type MessageType =
   | "reaction"
   | "template";
 
+/**
+ * Media-bearing message types that require a non-empty `mediaUrl` /
+ * `media_object_key`. This mirrors the Go worker's media branch
+ * (case "image", "video", "audio", "document", "sticker" in
+ * subscriber.go), which routes on `type` and rejects an empty media
+ * object key with "media object key is outside tenant prefix".
+ *
+ * Typed as `readonly string[]` (not `as const`) so `MEDIA_MESSAGE_TYPES
+ * .includes(messageType)` accepts the wider `MessageType` union without
+ * a cast. Non-media types (text/location/contact/reaction/template) are
+ * intentionally excluded: `!== "text"` would wrongly classify the
+ * non-media location/contact/reaction types as media on the send and
+ * conversation routes, which use the full messageType enum.
+ */
+export const MEDIA_MESSAGE_TYPES: readonly string[] = [
+  "image",
+  "video",
+  "audio",
+  "document",
+  "sticker",
+];
+
 // Status type discriminator
 export type StatusType = "text" | "image" | "video";
 

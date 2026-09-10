@@ -363,3 +363,57 @@ describe("Conversation tuple-keyset pagination", () => {
     });
   });
 });
+
+describe("POST /api/conversations/:id/messages - media message cross-field validation", () => {
+  integrationTest(
+    "rejects each media messageType without mediaUrl with 400 and does not queue a command",
+    async () => {
+      await withTenantFixture(async ({ headers }) => {
+        for (const messageType of [
+          "image",
+          "video",
+          "audio",
+          "document",
+          "sticker",
+        ]) {
+          const response = await app.request(
+            `/api/conversations/${crypto.randomUUID()}/messages`,
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ messageType, content: "hello" }),
+            },
+          );
+          expect(response.status).toBe(400);
+          expect(await response.text()).toContain(
+            "mediaUrl is required for media messages",
+          );
+        }
+      });
+    },
+  );
+
+  integrationTest(
+    "rejects text messageType with mediaUrl with 400 and does not queue a command",
+    async () => {
+      await withTenantFixture(async ({ headers }) => {
+        const response = await app.request(
+          `/api/conversations/${crypto.randomUUID()}/messages`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              messageType: "text",
+              content: "hello",
+              mediaUrl: "https://example.com/image.png",
+            }),
+          },
+        );
+        expect(response.status).toBe(400);
+        expect(await response.text()).toContain(
+          "mediaUrl is not allowed for text messages",
+        );
+      });
+    },
+  );
+});

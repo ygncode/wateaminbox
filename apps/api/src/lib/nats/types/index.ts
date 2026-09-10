@@ -5,6 +5,7 @@
 
 // Base types
 export {
+  MEDIA_MESSAGE_TYPES,
   type MessageType,
   NATS_SUBJECTS,
   type NatsCommand,

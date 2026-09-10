@@ -20,10 +20,12 @@ import {
   API_TRANSIENT_EVENTS_QUEUE,
   API_TRANSIENT_EVENTS_TUNING,
   buildEventConsumerOptions,
+  buildSendMessageCommand,
   buildSendReactionCommand,
   PermanentEventError,
   parseWhatsAppEvent,
 } from "./client.js";
+import { MEDIA_MESSAGE_TYPES, type MessageType } from "./types/index.js";
 
 interface InspectableConsumerOpts {
   getOpts(): {
@@ -394,5 +396,73 @@ describe("reaction command", () => {
       target_sender_jid: "48954691608613@lid",
       from_me: false,
     });
+  });
+});
+
+/**
+ * `buildSendMessageCommand` converges all send paths (immediate send,
+ * conversation send, retry, forward). The routes validate media/message
+ * pairing, but retry/forward rebuild from stored rows without
+ * revalidation, so the builder must refuse to render a command that the
+ * worker would only reject asynchronously with an opaque
+ * "media object key is outside tenant prefix" error.
+ */
+describe("buildSendMessageCommand media validation", () => {
+  const companyId = "00000000-0000-4000-8000-000000000001";
+  const connectionId = "00000000-0000-4000-8000-000000000002";
+  const jid = "15551234567@s.whatsapp.net";
+  const userId = "00000000-0000-4000-8000-000000000003";
+  const pendingMessageId = "pending_abc";
+
+  test("throws when a media message type is sent without mediaUrl", async () => {
+    for (const messageType of MEDIA_MESSAGE_TYPES) {
+      await expect(
+        buildSendMessageCommand(
+          companyId,
+          connectionId,
+          jid,
+          "please look at this",
+          messageType as MessageType,
+          userId,
+          pendingMessageId,
+        ),
+      ).rejects.toThrow(`mediaUrl is required for ${messageType} messages`);
+    }
+  });
+
+  test("does not lose the user's text when mediaUrl is missing", async () => {
+    // Regression guard for the original bug: the malformed command kept the
+    // caption text in `content` and set `type:"image"` while leaving the
+    // media fields undefined. The throw now prevents that command entirely.
+    await expect(
+      buildSendMessageCommand(
+        companyId,
+        connectionId,
+        jid,
+        "please look at this",
+        "image",
+        userId,
+        pendingMessageId,
+      ),
+    ).rejects.toThrow("mediaUrl is required for image messages");
+  });
+
+  test("does not throw for non-media types without mediaUrl", async () => {
+    for (const messageType of ["text", "location", "contact"] as const) {
+      const command = await buildSendMessageCommand(
+        companyId,
+        connectionId,
+        jid,
+        "hello",
+        messageType,
+        userId,
+        pendingMessageId,
+      );
+      expect(command.type).toBe(messageType);
+      expect(command.media_object_key).toBeUndefined();
+      expect(command.media_size).toBeUndefined();
+      expect(command.caption).toBeUndefined();
+      expect(command.content).toBe("hello");
+    }
   });
 });
