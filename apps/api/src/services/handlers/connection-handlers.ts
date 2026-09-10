@@ -28,9 +28,20 @@ import { handlerLogger as logger } from "./types.js";
 
 type ConnectedSessionSnapshot = {
   session_ended_at: Date | null;
+  // A credential-intact resume reuses an already-linked session, whose
+  // `connected_at` was set on its first `"connected"` transition and is never
+  // cleared by `updateSessionStatus("disconnected"/"connecting")`. A fresh
+  // pairing — relink spawns a brand-new session without it — starts null.
+  session_connected_at: Date | null;
   stable_connection_id: string;
   established_phone_number: string | null;
   connection_archived_at: Date | null;
+  // `logged_out_at` is set only by the `loggedOut` branch of
+  // `handleDisconnectedEvent` and cleared only on the next `"connected"` write
+  // (which runs after this decision). A fresh QR re-pair after WhatsApp revoked
+  // the session must be admitted even though `phone_number` survives the
+  // logout; this stamp is the one field that distinguishes the two.
+  connection_logged_out_at: Date | null;
 };
 
 export function isEstablishedReconnect(
@@ -41,7 +52,9 @@ export function isEstablishedReconnect(
   return Boolean(
     prior &&
       prior.session_ended_at === null &&
+      prior.session_connected_at !== null &&
       prior.connection_archived_at === null &&
+      prior.connection_logged_out_at === null &&
       prior.stable_connection_id === connectionId &&
       prior.established_phone_number !== null &&
       normalizeWhatsAppPhone(prior.established_phone_number) ===
@@ -185,9 +198,11 @@ export async function handleConnectedEvent(
         )
         .select([
           "session.ended_at as session_ended_at",
+          "session.connected_at as session_connected_at",
           "session.whatsapp_connection_id as stable_connection_id",
           "connection.phone_number as established_phone_number",
           "connection.archived_at as connection_archived_at",
+          "connection.logged_out_at as connection_logged_out_at",
         ])
         .where("session.id", "=", sessionId)
         .executeTakeFirst();
