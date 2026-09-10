@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"mime"
 	"net/url"
 	"regexp"
 	"strings"
@@ -80,8 +81,28 @@ func New(cfg Config) (*Client, error) {
 	}, nil
 }
 
+// validateMimeType rejects anything that is not a real media type. The on-demand
+// download path once passed a bare category ("audio"/"image"/...) here, which
+// S3 happily stored as the object's Content-Type, producing an invalid
+// subtype-less header. mime.ParseMediaType alone is too lenient to catch this:
+// it accepts a bare type with no subtype (e.g. "audio"), so an explicit
+// "type/subtype" check is required.
+func validateMimeType(mimeType string) error {
+	base, _, err := mime.ParseMediaType(mimeType)
+	if err != nil {
+		return fmt.Errorf("invalid mime type %q for media upload: %w", mimeType, err)
+	}
+	if !strings.Contains(base, "/") {
+		return fmt.Errorf("invalid mime type %q for media upload: missing subtype", mimeType)
+	}
+	return nil
+}
+
 // UploadMedia uploads media data and returns a stable private object reference.
 func (c *Client) UploadMedia(ctx context.Context, data []byte, mimeType string, companyID string) (string, error) {
+	if err := validateMimeType(mimeType); err != nil {
+		return "", err
+	}
 	if !validTenantID(companyID) {
 		return "", fmt.Errorf("invalid company ID for media key")
 	}
@@ -109,6 +130,9 @@ func (c *Client) UploadMedia(ctx context.Context, data []byte, mimeType string, 
 
 // UploadMediaWithFilename uploads media with a sanitized filename.
 func (c *Client) UploadMediaWithFilename(ctx context.Context, data []byte, mimeType string, companyID string, filename string) (string, error) {
+	if err := validateMimeType(mimeType); err != nil {
+		return "", err
+	}
 	if !validTenantID(companyID) {
 		return "", fmt.Errorf("invalid company ID for media key")
 	}
@@ -283,6 +307,15 @@ func getExtensionFromMimeType(mimeType string) string {
 
 	if ext, ok := mimeToExt[mimeType]; ok {
 		return ext
+	}
+	// Fall back to the base "type/subtype" once parameters are stripped so a
+	// value like "audio/ogg; codecs=opus" still resolves instead of ".bin".
+	// The exact match above is tried first so specialized entries such as
+	// "audio/ogg;codecs=opus" keep winning when the producer omits the space.
+	if base, _, err := mime.ParseMediaType(mimeType); err == nil {
+		if ext, ok := mimeToExt[base]; ok {
+			return ext
+		}
 	}
 	return ".bin" // Default for unknown types
 }
