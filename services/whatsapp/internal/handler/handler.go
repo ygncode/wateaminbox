@@ -29,6 +29,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log"
 	"sync"
 	"time"
@@ -39,8 +40,8 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	"golang.org/x/sync/singleflight"
 
+	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/interfaces"
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
-	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/storage"
 )
 
 // Number of parallel workers for history sync processing
@@ -98,7 +99,7 @@ type Config struct {
 	Publisher            *natsClient.Publisher
 	SyncStatusPublisher  SyncStatusPublisher
 	HistoryPagePublisher HistoryPagePublisher
-	Storage              *storage.Client
+	Storage              interfaces.Storage
 	Ctx                  context.Context
 }
 
@@ -130,6 +131,15 @@ type Handler struct {
 	groupRefreshSlots   chan struct{}
 	// refreshGroupFn overrides the WhatsApp round trip in tests.
 	refreshGroupFn func(types.JID)
+
+	// downloadMediaWithPathFn overrides the whatsmeow media fetch in
+	// handleDownloadRequest so the on-demand download flow can be exercised
+	// without a live WhatsApp connection. Production leaves it nil.
+	downloadMediaWithPathFn func(ctx context.Context, directPath string, encFileHash, fileHash, mediaKey []byte, mediaType whatsmeow.MediaType, mmsType string) ([]byte, error)
+	// publishDownloadResponseFn overrides the download-response NATS publish
+	// in handleDownloadRequest so the on-demand flow can be exercised without
+	// a live NATS connection. Production leaves it nil.
+	publishDownloadResponseFn func(messageID, mediaURL string, mediaSize int64, success bool, errMsg string) error
 
 	// Group metadata syncs are connection-scoped. A new Connected event cancels
 	// the previous sync, while the heavier LID directory repair runs at most once
@@ -188,6 +198,19 @@ func (h *Handler) HandleEventWithSuccessStatus(evt interface{}) bool {
 	}
 	h.HandleEvent(evt)
 	return true
+}
+
+// publishDownloadResp publishes a media download response. It routes through
+// publishDownloadResponseFn when set (tests) so the on-demand flow can be
+// driven without a live NATS publisher.
+func (h *Handler) publishDownloadResp(messageID, mediaURL string, mediaSize int64, success bool, errMsg string) error {
+	if h.publishDownloadResponseFn != nil {
+		return h.publishDownloadResponseFn(messageID, mediaURL, mediaSize, success, errMsg)
+	}
+	if h.publisher == nil {
+		return errors.New("message publisher is not configured")
+	}
+	return h.publisher.PublishDownloadResponse(messageID, mediaURL, mediaSize, success, errMsg)
 }
 
 // HandleEvent processes incoming WhatsApp events.

@@ -402,13 +402,24 @@ type CommandResultPayload struct {
 }
 
 // DownloadRequest is the payload for on-demand media download requests.
+//
+// The request carries two distinct pieces of type information that must not be
+// collapsed into one:
+//
+//   - MediaType is a coarse category ("image", "video", "audio", "document")
+//     the worker maps to a whatsmeow.MediaType to drive the fetch.
+//   - MimeType is the real media type from the DB row (e.g. "audio/ogg;
+//     codecs=opus") the worker passes through as the S3 object's
+//     Content-Type. Sending only the category here previously produced an
+//     invalid subtype-less Content-Type on every on-demand download.
 type DownloadRequest struct {
 	MessageID     string `json:"messageId"`
 	DirectPath    string `json:"directPath"`
 	MediaKey      []byte `json:"mediaKey"`      // Base64 encoded
 	FileSHA256    []byte `json:"fileSha256"`    // Base64 encoded
 	FileEncSHA256 []byte `json:"fileEncSha256"` // Base64 encoded
-	MediaType     string `json:"mediaType"`
+	MediaType     string `json:"mediaType"`     // Category used to select the whatsmeow download path
+	MimeType      string `json:"mimeType,omitempty"`
 	FileName      string `json:"fileName,omitempty"`
 }
 
