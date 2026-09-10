@@ -60,7 +60,10 @@ through the rollback window; do not repurpose either file under a new name.
    `wateaminbox_worker` login from the mounted file without putting the password
    in argv or generated SQL. It rejects reused credentials before contacting
    PostgreSQL and rejects preexisting worker roles with unsafe attributes,
-   memberships, ownership, direct/default grants, or schema-create authority.
+   unexpected memberships, ownership, direct/default grants, or schema-create
+   authority. A multi-host deployment may also add per-node login roles named
+   `wti_w_*` to the runtime grant when they hold no ADMIN OPTION or unsafe
+   attributes, but no other membership is accepted.
 7. Recreate NATS, API, Centrifugo, and orchestrator. NATS starts with separate
    `service` and `worker` users; the orchestrator passes only the restricted
    worker URLs to child processes.
