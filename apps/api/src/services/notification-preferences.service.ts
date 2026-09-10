@@ -117,14 +117,17 @@ export async function getNotificationPreferences(
       quiet_hours_end: DEFAULT_PREFERENCES.quietHoursEnd,
       muted_contacts: DEFAULT_PREFERENCES.mutedContacts,
     })
+    .onConflict((oc) => oc.column("user_id").doNothing())
     .returningAll()
     .executeTakeFirst();
 
   if (!created) {
-    throw new AppError(
-      "Failed to create default notification preferences",
-      500,
-    );
+    const existing = await tenantDb
+      .selectFrom("notification_preferences")
+      .selectAll()
+      .where("user_id", "=", userId)
+      .executeTakeFirstOrThrow();
+    return mapRowToPreferences(existing);
   }
 
   return mapRowToPreferences(created);
