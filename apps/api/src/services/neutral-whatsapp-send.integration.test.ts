@@ -154,6 +154,17 @@ integration(
           content: "hello from the neutral path",
           messageType: "text",
           caseId: null,
+          // Album membership rides on the same intent. Dispatching a real
+          // album needs a resolvable media object, which this fixture has no
+          // way to provide, so the album's own coverage is the metadata write
+          // below and the transport's parser test.
+          mediaAlbum: {
+            id: "album-1",
+            index: 0,
+            count: 2,
+            imageCount: 2,
+            videoCount: 0,
+          },
           idempotencyKey: crypto.randomUUID(),
         }),
       );
@@ -195,6 +206,19 @@ integration(
       expect(message.whatsapp_connection_id).toBe(connectionId);
       expect(message.contact_id).toBe(contactId);
       expect(message.message_id).toBe(`pending_${messageId}`);
+
+      // The inbox lays album tiles out from message metadata, so a child that
+      // loses this renders as a loose photo beside the album it belongs to.
+      const stored = await tenantDb
+        .selectFrom("messages")
+        .select("metadata")
+        .where("id", "=", messageId)
+        .executeTakeFirstOrThrow();
+      expect(stored.metadata).toMatchObject({
+        mediaAlbumId: "album-1",
+        mediaAlbumIndex: 0,
+        mediaAlbumCount: 2,
+      });
     } finally {
       clearTenantConnection(companyId);
       await sql

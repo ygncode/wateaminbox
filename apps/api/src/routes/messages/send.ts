@@ -5,19 +5,19 @@
  */
 
 import { zValidator } from "@hono/zod-validator";
-import { shadowLinkedDeviceLegacyMutation } from "../../channel-spine/providers/whatsapp-linked-device/shadow.js";
 import { toDbDate } from "@wateaminbox/shared";
 import type { Context } from "hono";
 import { Hono } from "hono";
-import type { z } from "zod";
 import { sql } from "kysely";
+import type { z } from "zod";
+import { shadowLinkedDeviceLegacyMutation } from "../../channel-spine/providers/whatsapp-linked-device/shadow.js";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { buildOutboundMediaColumns } from "../../lib/message-formatters.js";
+import { isConfirmedQuote } from "../../lib/message-quote.js";
 import {
   buildCommandSubject,
   buildSendMessageCommand,
 } from "../../lib/nats/index.js";
-import { isConfirmedQuote } from "../../lib/message-quote.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
 import {
   forwardMessageSchema,
@@ -33,13 +33,17 @@ import { requireMessageSendPermission } from "../../middleware/message-send-poli
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { requireMessageVisibility } from "../../middleware/resource-visibility.js";
 import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
+import { toAuthUserResponse } from "../../services/auth.service.js";
 import { insertNeutralOutboundSend } from "../../services/channel-outbound.service.js";
-import { getChannelSpineWorkspaceAuthority } from "../../services/channel-spine-authority.service.js";
+import {
+  getChannelSpineWorkspaceAuthority,
+  isChannelProviderEnabled,
+} from "../../services/channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
 import {
   conversationIdForContact,
   resolveWorkflowContactId,
 } from "../../services/channel-workflow.service.js";
-import { toAuthUserResponse } from "../../services/auth.service.js";
 import { enqueueCommand } from "../../services/command-outbox.service.js";
 import { validateGroupMentionJids } from "../../services/group-mention.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
@@ -71,6 +75,7 @@ async function sendChannelContactMessage(
   c: Context,
   contact: { id: string },
   body: SendMessageBody,
+  mentionedJids?: string[],
 ) {
   const { tenantDb, user, companyId } = getRouteContext(c);
   const conversationId = await conversationIdForContact(tenantDb, contact.id);
@@ -120,6 +125,8 @@ async function sendChannelContactMessage(
       caseId: access.caseId,
       replyToMessageId: body.replyToMessageId,
       replyToExternalMessageId,
+      mediaAlbum: body.mediaAlbum ?? null,
+      mentionedJids: mentionedJids ?? null,
       idempotencyKey: crypto.randomUUID(),
     });
     messageId = inserted.messageId;
@@ -257,6 +264,28 @@ sendRoutes.post(
       } else {
         quotedSenderJid = quotedMessage?.sender_jid || contact.jid;
       }
+    }
+
+    // Every check above still runs: the connection is live, mentions name
+    // real participants, the album is coherent, the quote is confirmed. Only
+    // the write differs, so enabling the provider cannot change what this
+    // route accepts - just which path records and dispatches it.
+    const spineAuthorityForSend =
+      await getChannelSpineWorkspaceAuthority(companyId);
+    if (
+      spineAuthorityForSend.writeAuthority === "neutral" &&
+      isChannelProviderEnabled(
+        spineAuthorityForSend,
+        "whatsapp_linked_device",
+      ) &&
+      (await isChannelSpineTenantReady(tenantDb, companyId))
+    ) {
+      return sendChannelContactMessage(
+        c,
+        contact,
+        body,
+        mentionValidation.mentionedJids,
+      );
     }
 
     // Create a pending message in database

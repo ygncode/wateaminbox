@@ -52,6 +52,20 @@ export async function insertNeutralOutboundSend(
     caseId: string | null;
     replyToMessageId?: string | null;
     replyToExternalMessageId?: string | null;
+    /**
+     * WhatsApp groups consecutive image/video sends into one album tile. Each
+     * child is its own message carrying the shared album identity, so the
+     * payload has to travel with the intent - a child that loses it renders as
+     * a loose image beside the album it belongs to.
+     */
+    mediaAlbum?: {
+      id: string;
+      index: number;
+      count: number;
+      imageCount: number;
+      videoCount: number;
+    } | null;
+    mentionedJids?: string[] | null;
     idempotencyKey: string;
   },
 ): Promise<{ messageId: string }> {
@@ -62,6 +76,10 @@ export async function insertNeutralOutboundSend(
     actorUserId: input.actorUserId,
     sentByUserId: input.actorUserId,
     replyToExternalMessageId: input.replyToExternalMessageId ?? null,
+    mediaAlbum: input.mediaAlbum ?? undefined,
+    mentionedJids: input.mentionedJids?.length
+      ? input.mentionedJids
+      : undefined,
     attachments: input.mediaUrl
       ? [{ ordinal: 0, storageUri: input.mediaUrl }]
       : [],
@@ -82,7 +100,15 @@ export async function insertNeutralOutboundSend(
       media_url: input.mediaUrl ?? null,
       sent_by_user_id: input.actorUserId,
       status: "pending",
-      metadata: {},
+      // The inbox reads album membership from message metadata to lay the
+      // tiles out, so it has to be written here as well as sent to the worker.
+      metadata: input.mediaAlbum
+        ? {
+            mediaAlbumId: input.mediaAlbum.id,
+            mediaAlbumIndex: input.mediaAlbum.index,
+            mediaAlbumCount: input.mediaAlbum.count,
+          }
+        : {},
       timestamp: new Date(),
       case_id: input.caseId,
       channel_account_id: input.channelAccountId,
