@@ -217,7 +217,37 @@ export async function searchMessages(
     OFFSET ${offset}
   `.execute(tenantDb);
 
-  const total = result.rows.length > 0 ? Number(result.rows[0].total_count) : 0;
+  let total = result.rows.length > 0 ? Number(result.rows[0].total_count) : 0;
+
+  // When the requested page sits beyond the last matching row (offset >= total),
+  // the outer SELECT returns 0 rows so the per-row COUNT(*) OVER() is unavailable
+  // and `total` would incorrectly collapse to 0 (indistinguishable from a genuine
+  // no-match search). Re-compute the true total with a separate COUNT(*) that
+  // shares the same FROM/JOIN/WHERE but is not subject to LIMIT/OFFSET. Genuine
+  // no-match searches (offset: 0, empty page) keep total: 0 — no count needed.
+  if (result.rows.length === 0 && offset > 0) {
+    const countResult = await sql<{ total: string | number }>`
+      SELECT COUNT(*)::int AS total
+      FROM ${messagesTable} m
+      INNER JOIN ${contactsTable} c ON c.id = m.contact_id
+      ${
+        assignedUserId
+          ? sql`INNER JOIN ${assignmentsTable} ca
+              ON ca.contact_id = c.id
+              AND ca.assigned_to = ${assignedUserId}
+              AND ca.unassigned_at IS NULL`
+          : sql``
+      }
+      WHERE
+        (m.search_vector @@ plainto_tsquery('english', ${query})
+         OR m.content ILIKE '%' || ${query} || '%')
+        ${contactId ? sql`AND m.contact_id = ${contactId}` : sql``}
+        ${startDate ? sql`AND m.timestamp >= ${startDate}` : sql``}
+        ${endDate ? sql`AND m.timestamp <= ${endDate}` : sql``}
+        ${messageTypes && messageTypes.length > 0 ? sql`AND m.message_type = ANY(${messageTypes}::text[])` : sql``}
+    `.execute(tenantDb);
+    total = Number(countResult.rows[0]?.total ?? 0);
+  }
 
   const results: SearchResult[] = result.rows.map((row) => ({
     id: row.id,
