@@ -416,6 +416,13 @@ messageRoutes.post(
         "account.id",
         "conversation.channel_account_id",
       )
+      // A linked-device account mirrors a WhatsApp connection, and the
+      // connection row is the authority for whether that phone is online.
+      .leftJoin(
+        "whatsapp_connections as connection",
+        "connection.id",
+        "account.legacy_whatsapp_connection_id",
+      )
       .select([
         "conversation.id",
         "conversation.channel_account_id",
@@ -424,6 +431,8 @@ messageRoutes.post(
         "account.channel",
         "account.provider",
         "account.status as account_status",
+        "account.legacy_whatsapp_connection_id",
+        "connection.status as connection_status",
       ])
       .where("conversation.id", "=", contactId)
       .where("conversation.archived_at", "is", null)
@@ -454,7 +463,17 @@ messageRoutes.post(
       // fifteen minutes indefinitely, so the message sat "pending" in the
       // inbox looking sent. Refusing here keeps the two paths honest with the
       // sender about what happened.
-      if (neutralConversation.account_status !== "connected") {
+      //
+      // For a linked-device account the connection row is the authority, not
+      // the mirrored account status. The mirror is only refreshed when a
+      // message flows through the bridge, so a phone that reconnected quietly
+      // left the mirror reading "disconnected" and this guard then blocked
+      // every send from a workspace whose WhatsApp was in fact online.
+      const sendStatus =
+        neutralConversation.legacy_whatsapp_connection_id !== null
+          ? neutralConversation.connection_status
+          : neutralConversation.account_status;
+      if (sendStatus !== "connected") {
         return badRequest(c, "This channel account is not connected");
       }
       const idempotencyKey = c.req.header("idempotency-key")?.trim();

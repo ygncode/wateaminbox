@@ -123,7 +123,12 @@ integration(
           display_name: "MMPhone",
           external_account_id: "60123456789@s.whatsapp.net",
           external_scope_id: connectionId,
-          status: "connected",
+          // Deliberately stale. In production a phone reconnected at 00:25
+          // while the mirror still read "disconnected" from 19:48, because the
+          // mirror only refreshes when a message flows through the bridge.
+          // Both send guards used to read this column, so that workspace could
+          // not send at all while its WhatsApp was in fact online.
+          status: "disconnected",
           legacy_whatsapp_connection_id: connectionId,
         })
         .execute();
@@ -155,7 +160,8 @@ integration(
 
       // The dispatcher must claim it: this is where `enabled_providers` is
       // consulted, and where a WhatsApp intent would silently sit for ever if
-      // the flip had not taken.
+      // the flip had not taken. It must also look past the stale mirror above
+      // to the connection itself, which says the phone is online.
       expect(await dispatchNextChannelOutbound()).toBe(1);
 
       const intent = await tenantDb
