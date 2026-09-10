@@ -377,44 +377,62 @@ export async function handleDownloadResponseEvent(
         );
       }
     } else {
-      // Update message with error status
-      await tenantDb
-        .updateTable("messages")
-        .set({
-          media_download_status: "failed",
-          media_download_error: payload.error || "Unknown error",
-        })
-        .where("id", "=", payload.messageId)
-        .where("whatsapp_connection_id", "=", connectionId)
-        .execute();
+      // First response wins, mirroring the success branch above. A late
+      // `success:false` (e.g. a redelivered download command whose ACK was
+      // lost) can arrive after an earlier `success:true` already settled the
+      // row. Run under the connection lifecycle lock and refuse to overwrite
+      // an already-completed row, so a late failure neither flips
+      // `media_download_status` back to `failed` nor emits a spurious
+      // `media:download_failed`. The broadcast is gated on the update
+      // actually settling a row, exactly like the success branch.
+      const settled = await tenantDb.transaction().execute(async (trx) => {
+        if (!(await lockActiveConnectionForEvent(trx, connectionId))) {
+          return undefined;
+        }
+        return trx
+          .updateTable("messages")
+          .set({
+            media_download_status: "failed",
+            media_download_error: payload.error || "Unknown error",
+          })
+          .where("id", "=", payload.messageId)
+          .where("whatsapp_connection_id", "=", connectionId)
+          .where((eb) =>
+            eb.or([
+              eb("media_download_status", "is", null),
+              eb("media_download_status", "!=", "completed"),
+            ]),
+          )
+          .returning(["id", "contact_id"])
+          .executeTakeFirst();
+      });
 
-      logger.error(
-        {
-          messageId: payload.messageId,
-          error: payload.error,
-        },
-        "Media download failed",
-      );
+      if (settled) {
+        logger.error(
+          {
+            messageId: payload.messageId,
+            error: payload.error,
+          },
+          "Media download failed",
+        );
 
-      // Broadcast failure to clients
-      const message = await tenantDb
-        .selectFrom("messages")
-        .select(["id", "contact_id"])
-        .where("id", "=", payload.messageId)
-        .where("whatsapp_connection_id", "=", connectionId)
-        .executeTakeFirst();
-
-      if (message) {
         await broadcastToContactViewers(
           companyId,
-          message.contact_id,
+          settled.contact_id,
           "media:download_failed",
           {
-            messageId: message.id,
-            conversationId: message.contact_id,
+            messageId: settled.id,
+            conversationId: settled.contact_id,
             error: payload.error,
           },
           { connectionId },
+        );
+      } else {
+        // Already completed, the connection is gone, or the row was purged;
+        // nothing to settle and no one to notify.
+        logger.info(
+          { messageId: payload.messageId, connectionId },
+          "Ignored media response for an already-settled message",
         );
       }
     }
