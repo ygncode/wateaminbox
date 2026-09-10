@@ -205,3 +205,85 @@ integration(
   },
   120_000,
 );
+
+integration(
+  "indexes messages by conversation when the legacy timestamp column is there",
+  async () => {
+    const url = new URL(process.env.DATABASE_URL!);
+    if (!["localhost", "127.0.0.1"].includes(url.hostname)) {
+      throw new Error("Local test database required");
+    }
+    const database = new Kysely<unknown>({
+      dialect: new PostgresDialect({
+        pool: new Pool({ connectionString: url.toString(), max: 1 }),
+      }),
+    });
+    const schemaName = `tenant_ix_${crypto.randomUUID().replaceAll("-", "")}`;
+    const schema = sql.id(schemaName);
+
+    try {
+      await sql`CREATE SCHEMA ${schema}`.execute(database);
+      await sql`CREATE TABLE ${schema}.whatsapp_connections (id UUID PRIMARY KEY)`.execute(
+        database,
+      );
+      await sql`CREATE TABLE ${schema}.contacts (id UUID PRIMARY KEY)`.execute(
+        database,
+      );
+      // The real messages table carries the legacy ordering column; the stub
+      // in the test above does not. The guard has to tell those apart, or the
+      // index it exists to create is silently never built in production.
+      await sql`CREATE TABLE ${schema}.messages (
+        id UUID PRIMARY KEY,
+        "timestamp" TIMESTAMPTZ NOT NULL DEFAULT now()
+      )`.execute(database);
+      await sql`CREATE TABLE ${schema}.message_reactions (
+        id UUID PRIMARY KEY,
+        message_id UUID
+      )`.execute(database);
+      await sql`CREATE TABLE ${schema}.scheduled_messages (id UUID PRIMARY KEY)`.execute(
+        database,
+      );
+      await sql`CREATE TABLE ${schema}.tags (id UUID PRIMARY KEY)`.execute(
+        database,
+      );
+      for (const tableName of [
+        "conversation_states",
+        "contact_assignments",
+        "contact_notes_private",
+        "contact_notes_shared",
+      ]) {
+        await sql
+          .raw(
+            `CREATE TABLE "${schemaName}"."${tableName}" (id UUID PRIMARY KEY)`,
+          )
+          .execute(database);
+      }
+      await sql`CREATE TABLE ${schema}.conversation_cases (
+        id UUID PRIMARY KEY,
+        policy_id UUID
+      )`.execute(database);
+
+      await ensureChannelSpineTenantSchema(database, schemaName);
+      await reconcileChannelSpineConcurrentIndexes(database, schemaName);
+
+      const built = await sql<{ indexdef: string }>`
+        SELECT indexdef FROM pg_indexes
+        WHERE schemaname = ${schemaName}
+          AND indexname = ${`${schemaName}_msg_conv_recent_idx`}
+      `.execute(database);
+      expect(built.rows).toHaveLength(1);
+      // Column order is the whole point: equality on the conversation, then
+      // the ordering the inbox asks for, so the planner can stop at the first
+      // row instead of sorting a thread.
+      expect(built.rows[0]!.indexdef).toContain("conversation_id");
+      expect(built.rows[0]!.indexdef).toContain('"timestamp" DESC');
+
+      // Reconciling again must not try to build it a second time.
+      await reconcileChannelSpineConcurrentIndexes(database, schemaName);
+    } finally {
+      await sql`DROP SCHEMA IF EXISTS ${schema} CASCADE`.execute(database);
+      await database.destroy();
+    }
+  },
+  60_000,
+);
