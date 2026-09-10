@@ -16,10 +16,16 @@ describe("CSV export neutralizes spreadsheet formula injection", () => {
     "@SUM(1:99)",
     "\t=1+1",
     "\r=1+1",
+    "\n=1+1",
   ];
 
   test.each(payloads)("toCSV makes %j inert", (payload) => {
-    const cell = toCSV([{ text_content: payload }]).split("\n")[1];
+    // Join everything after the header so an embedded newline in the payload
+    // (e.g. a leading "\n") is preserved; split()[1] would silently drop it.
+    const cell = toCSV([{ text_content: payload }])
+      .split("\n")
+      .slice(1)
+      .join("\n");
 
     expect(cell.startsWith("'") || cell.startsWith(QUOTED_FORMULA_PREFIX)).toBe(
       true,
@@ -53,6 +59,13 @@ describe("CSV export neutralizes spreadsheet formula injection", () => {
     expect(escapeCSVCell('=HYPERLINK("http://evil","x"),y')).toBe(
       `"'=HYPERLINK(""http://evil"",""x""),y"`,
     );
+  });
+
+  test("a leading line feed is neutralized with the apostrophe inside the quotes", () => {
+    // OWASP lists line feed alongside tab and carriage return as a character
+    // cells must not begin with. The LF forces quoting, so the apostrophe
+    // must land inside the quotes or the formula trigger still escapes.
+    expect(escapeCSVCell("\n=1+1")).toBe(`"'\n=1+1"`);
   });
 });
 
