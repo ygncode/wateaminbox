@@ -549,3 +549,132 @@ describe("unmergeContacts", () => {
     60_000,
   );
 });
+
+describe("suggestContactMerges placeholder addresses", () => {
+  integrationTest(
+    "never proposes merging two contacts that only share a placeholder number",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const schemaName = getSchemaName(companyId);
+      const ownerId = crypto.randomUUID();
+      try {
+        await db
+          .insertInto("users")
+          .values({
+            id: ownerId,
+            email: `placeholder-${ownerId}@example.com`,
+            password_hash: "test",
+          })
+          .execute();
+        await db
+          .insertInto("companies")
+          .values({
+            id: companyId,
+            name: "Placeholder address test",
+            schema_name: schemaName,
+            status: "active",
+          })
+          .execute();
+        await db
+          .insertInto("sla_policies")
+          .values({
+            company_id: companyId,
+            target_minutes: 60,
+            direct_resolution_target_minutes: 480,
+            group_response_target_minutes: 120,
+            group_resolution_target_minutes: 960,
+            timezone: "UTC",
+            weekly_schedule: JSON.stringify(DEFAULT_SLA_WEEKLY_SCHEDULE),
+            exceptions: JSON.stringify([]),
+            effective_from: new Date("1970-01-01T00:00:00Z"),
+            created_by: ownerId,
+          })
+          .execute();
+        await createTenantSchema(companyId);
+        await reconcileChannelSpineConcurrentIndexes(db, schemaName);
+        const tenantDb = getTenantConnection(companyId);
+
+        const account = crypto.randomUUID();
+        await tenantDb
+          .insertInto("channel_accounts")
+          .values({
+            id: account,
+            channel: "whatsapp",
+            provider: "whatsapp_linked_device",
+            display_name: "Line",
+            status: "connected",
+          })
+          .execute();
+
+        // WhatsApp's own service accounts both arrive with the number 0.
+        // Matching on it proposed merging two unrelated system contacts, and
+        // the suggestion looked exactly like a real duplicate.
+        const service = await tenantDb
+          .insertInto("contacts")
+          .values({ jid: "0@s.whatsapp.net", push_name: "WhatsApp" })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        const business = await tenantDb
+          .insertInto("contacts")
+          .values({ jid: "0@s.whatsapp.net", push_name: "WhatsApp Business" })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        const real = await tenantDb
+          .insertInto("contacts")
+          .values({ jid: "60129999999@s.whatsapp.net", push_name: "Ada" })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        const alsoReal = await tenantDb
+          .insertInto("contacts")
+          .values({ jid: null, push_name: "Ada elsewhere" })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+
+        for (const [contactId, address, externalId] of [
+          [service.id, "0", "0@s.whatsapp.net"],
+          [business.id, "0", "0b@s.whatsapp.net"],
+          [real.id, "60129999999", "60129999999@s.whatsapp.net"],
+          [alsoReal.id, "60129999999", "tg-ada"],
+        ] as const) {
+          await tenantDb
+            .insertInto("contact_endpoints")
+            .values({
+              contact_id: contactId,
+              channel: "whatsapp",
+              provider: "whatsapp_linked_device",
+              channel_account_id: account,
+              endpoint_kind: "phone",
+              external_id: externalId,
+              identity_scope: "global",
+              normalized_address: address,
+            })
+            .execute();
+        }
+
+        // The placeholder pair is not proposed in either direction.
+        expect(await suggestContactMerges(tenantDb, service.id)).toEqual([]);
+        expect(await suggestContactMerges(tenantDb, business.id)).toEqual([]);
+
+        // A real shared number still is, so the guard has not simply
+        // disabled suggestions.
+        expect(
+          (await suggestContactMerges(tenantDb, real.id)).map(
+            (suggestion) => suggestion.contactId,
+          ),
+        ).toEqual([alsoReal.id]);
+      } finally {
+        clearTenantConnection(companyId);
+        await sql
+          .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
+          .execute(db);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
+        await db.deleteFrom("users").where("id", "=", ownerId).execute();
+      }
+    },
+    60_000,
+  );
+});
