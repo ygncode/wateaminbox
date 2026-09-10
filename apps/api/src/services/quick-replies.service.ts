@@ -174,7 +174,7 @@ export async function createQuickReply(
   // Let the database UNIQUE constraint on quick_replies(shortcut) be the
   // authority for uniqueness. A SELECT pre-check is non-atomic under READ
   // COMMITTED and loses a concurrent create race; the unique_violation raised
-  // by the insert is the only race-free backstop. See migration 090.
+  // by the insert is the only race-free backstop. See migration 103.
   const row = await tenantDb
     .insertInto("quick_replies")
     .values({
