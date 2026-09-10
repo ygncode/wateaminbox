@@ -82,7 +82,7 @@ describe("command outbox", () => {
     expect(command.mentioned_jids).toEqual(["6585719494172749@lid"]);
   });
 
-  test("carries WhatsApp album association data in an ordered media send", async () => {
+  test("carries WhatsApp album association data in the send command", async () => {
     const album = {
       id: "3EB0000102030405FAFBFF",
       index: 1,
@@ -90,12 +90,17 @@ describe("command outbox", () => {
       imageCount: 2,
       videoCount: 1,
     };
+    // Album fields are a type-agnostic passthrough in the command, so a
+    // text-typed command is used here to exercise the assignment without
+    // entering the media branch (which would require S3). The routes only
+    // attach albums to image/video sends; the builder's media-without-
+    // mediaUrl guard is pinned in lib/nats/client.test.ts.
     const command = await buildSendMessageCommand(
       "company-id",
       "connection-id",
       "15551234567@s.whatsapp.net",
       "",
-      "image",
+      "text",
       "user-id",
       "pending_internal-id",
       undefined,

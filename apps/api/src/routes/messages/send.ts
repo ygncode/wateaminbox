@@ -17,6 +17,7 @@ import { isConfirmedQuote } from "../../lib/message-quote.js";
 import {
   buildCommandSubject,
   buildSendMessageCommand,
+  MEDIA_MESSAGE_TYPES,
 } from "../../lib/nats/index.js";
 import { rateLimitConfig, rateLimitStore } from "../../lib/rate-limit-store.js";
 import {
@@ -175,6 +176,17 @@ sendRoutes.post(
 
     if (!body.content && body.messageType === "text") {
       return badRequest(c, "content is required for text messages");
+    }
+
+    // Media types require a media object; text must not carry one. The
+    // explicit allow-list (not `!== "text"`) keeps the non-media
+    // location/contact/reaction types from being misclassified as media
+    // — the send schema uses the full messageType enum.
+    if (MEDIA_MESSAGE_TYPES.includes(body.messageType) && !body.mediaUrl) {
+      return badRequest(c, "mediaUrl is required for media messages");
+    }
+    if (body.messageType === "text" && body.mediaUrl) {
+      return badRequest(c, "mediaUrl is not allowed for text messages");
     }
 
     const contactId =

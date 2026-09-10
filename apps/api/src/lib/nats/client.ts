@@ -19,6 +19,7 @@ import { getMediaObjectReference } from "../storage.js";
 import { forConnection } from "./command-builder.js";
 import { natsLifecycle } from "./lifecycle.js";
 import {
+  MEDIA_MESSAGE_TYPES,
   type MessageType,
   NATS_SUBJECTS,
   type NatsCommand,
@@ -235,10 +236,18 @@ export async function buildSendMessageCommand(
     | Awaited<ReturnType<typeof getMediaObjectReference>>
     | undefined;
 
-  if (
-    mediaUrl &&
-    ["image", "video", "audio", "document", "sticker"].includes(messageType)
-  ) {
+  // Defense-in-depth: a media-bearing type requires a media object. The
+  // send and conversation routes validate this and return 400, but retry
+  // and forward rebuild from stored rows without revalidation — without
+  // this guard they would emit the malformed command this bug produced
+  // (`type: "image"` with an undefined `media_object_key`), which the
+  // worker then rejects asynchronously with the opaque
+  // "media object key is outside tenant prefix" error.
+  if (!mediaUrl && MEDIA_MESSAGE_TYPES.includes(messageType)) {
+    throw new Error(`mediaUrl is required for ${messageType} messages`);
+  }
+
+  if (mediaUrl && MEDIA_MESSAGE_TYPES.includes(messageType)) {
     try {
       // HEAD validates ownership and metadata without moving object bytes
       // through the API process or JetStream.
