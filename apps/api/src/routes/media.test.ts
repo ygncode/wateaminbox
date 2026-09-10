@@ -205,7 +205,9 @@ describe("Bun maxRequestBodySize backstop", () => {
       server.stop(true);
     }
   });
+});
 
+/**
  * Pins the contract the API puts on the wire for an on-demand download request:
  * the real DB `media_mime_type` must travel as `mimeType` (so the worker stores
  * it as the S3 Content-Type) while the coarse `mediaType` category is still

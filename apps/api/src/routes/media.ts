@@ -1,6 +1,5 @@
 import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
-import { MEDIA_DOWNLOAD_LEASE_MS } from "../config/media.config.js";
 import {
   MAX_FILE_SIZE,
   MAX_UPLOAD_BODY_SIZE,

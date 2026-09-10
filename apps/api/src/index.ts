@@ -49,7 +49,6 @@ import {
   initializeMessageDelivery,
   shutdownMessageDelivery,
 } from "./services/message-delivery-outbox.service.js";
-import { initializeMessageHandler } from "./services/message-handler.js";
 import {
   initializeMessageHandler,
   shutdownMessageHandler,
