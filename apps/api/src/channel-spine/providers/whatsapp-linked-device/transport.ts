@@ -79,6 +79,7 @@ export class LinkedDeviceNatsTransport implements LinkedDeviceAdapterPort {
         stringValue(payload.replyToExternalMessageId),
         undefined,
         stringArray(payload.mentionedJids),
+        mediaAlbum(payload.mediaAlbum),
       );
       await tenantDb.transaction().execute(async (trx) => {
         const message = await trx
@@ -126,6 +127,48 @@ function firstStorageUri(value: unknown): string | undefined {
     return undefined;
   }
   return stringValue((value[0] as Record<string, unknown>).storageUri);
+}
+
+/**
+ * The album a media message belongs to, when it belongs to one.
+ *
+ * Rebuilt field by field rather than passed through: the payload is JSON that
+ * has round-tripped through the database, and the worker positions tiles from
+ * these numbers. A partial album is worse than none - it would place a photo
+ * at a tile index that does not exist.
+ */
+export function mediaAlbum(value: unknown):
+  | {
+      id: string;
+      index: number;
+      count: number;
+      imageCount: number;
+      videoCount: number;
+    }
+  | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const album = value as Record<string, unknown>;
+  const id = stringValue(album.id);
+  const index = numberValue(album.index);
+  const count = numberValue(album.count);
+  const imageCount = numberValue(album.imageCount);
+  const videoCount = numberValue(album.videoCount);
+  if (
+    id === undefined ||
+    index === undefined ||
+    count === undefined ||
+    imageCount === undefined ||
+    videoCount === undefined
+  ) {
+    return undefined;
+  }
+  return { id, index, count, imageCount, videoCount };
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0
+    ? value
+    : undefined;
 }
 
 /** Group mentions only reach the worker when every entry is a usable JID. */
