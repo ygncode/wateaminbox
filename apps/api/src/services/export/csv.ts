@@ -16,7 +16,7 @@ const FORMULA_TRIGGERS = new Set(["=", "+", "-", "@"]);
  * Leading control characters that spreadsheets skip before deciding whether a
  * cell is a formula, so they must be neutralized too.
  */
-const LEADING_CONTROL_CHARS = new Set(["\t", "\r"]);
+const LEADING_CONTROL_CHARS = new Set(["\t", "\r", "\n"]);
 
 /**
  * Neutralize spreadsheet formula injection ("CSV injection").
