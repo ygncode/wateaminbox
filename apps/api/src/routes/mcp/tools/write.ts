@@ -417,7 +417,6 @@ async function queueTextMessage(
   autoAssigned: boolean;
   note: string;
 }> {
-  await enforceSendRateLimit(c);
   const { tenantDb, user, companyId } = getRouteContext(c);
 
   const contact = await tenantDb
@@ -560,6 +559,9 @@ export const writeTools: McpToolDefinition[] = [
       if (!targetId) {
         throw new McpToolError("contactId or conversationId is required");
       }
+      // Before requireVisibleWorkflow so an exhausted bucket is rejected
+      // without touching the database, matching the REST send route.
+      await enforceSendRateLimit(c);
       await requireVisibleWorkflow(c, targetId);
       return queueTextMessage(c, targetId, args.content);
     },
@@ -600,6 +602,9 @@ export const writeTools: McpToolDefinition[] = [
       },
       c,
     ) => {
+      // Before findOrCreateContactByPhone so an exhausted bucket cannot
+      // create a contact whose first message is then rejected.
+      await enforceSendRateLimit(c);
       const { tenantDb } = getRouteContext(c);
 
       let resolved: FindOrCreateContactByPhoneResult;
