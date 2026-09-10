@@ -1,4 +1,5 @@
 import { normalizeJid } from "@wateaminbox/shared";
+import { type SqlBool, sql } from "kysely";
 import { AppError } from "../lib/errors.js";
 import { getTenantConnection } from "./tenant.service.js";
 
@@ -187,7 +188,15 @@ export function buildPreferenceUpdateData(
 }
 
 /**
- * Mutes a contact for a user
+ * Mutes a contact for a user.
+ *
+ * Appends the contact to `muted_contacts` atomically in a single SQL
+ * statement. `array_append` reads the *live* column value under Postgres's
+ * row lock rather than from a stale JS snapshot, so two concurrent mutes of
+ * different contacts each append their own element instead of one blindly
+ * overwriting the other (lost update). The membership predicate makes the
+ * statement a no-op when the contact is already muted, keeping it idempotent
+ * and duplicate-free even under concurrent mutes of the same contact.
  */
 export async function muteContact(
   companyId: string,
@@ -201,13 +210,41 @@ export async function muteContact(
     return preferences;
   }
 
-  return updateNotificationPreferences(companyId, userId, {
-    mutedContacts: [...preferences.mutedContacts, normalized],
-  });
+  const tenantDb = getTenantConnection(companyId);
+  const updated = await tenantDb
+    .updateTable("notification_preferences")
+    .set({
+      muted_contacts: sql<
+        string[]
+      >`array_append(COALESCE(muted_contacts, ARRAY[]::TEXT[]), ${normalized})`,
+      updated_at: new Date(),
+    })
+    .where("user_id", "=", userId)
+    .where(
+      sql<SqlBool>`NOT (COALESCE(muted_contacts, ARRAY[]::TEXT[]) @> ARRAY[${normalized}]::text[])`,
+    )
+    .returningAll()
+    .executeTakeFirst();
+
+  if (updated) {
+    return mapRowToPreferences(updated);
+  }
+
+  // A concurrent call won the race and muted this contact first: the membership
+  // predicate excluded our row, so nothing was written. Return the current
+  // persisted state rather than the earlier (now stale) snapshot.
+  return getNotificationPreferences(companyId, userId);
 }
 
 /**
- * Unmutes a contact for a user
+ * Unmutes a contact for a user.
+ *
+ * Removes the contact from `muted_contacts` atomically in a single SQL
+ * statement. `array_remove` reads the *live* column value under Postgres's
+ * row lock, so two concurrent unmutes of different contacts each remove their
+ * own element instead of one overwriting the other (lost update). The
+ * membership predicate makes the statement a no-op when the contact is not
+ * muted, avoiding a needless `updated_at` bump.
  */
 export async function unmuteContact(
   companyId: string,
@@ -221,11 +258,28 @@ export async function unmuteContact(
     return preferences;
   }
 
-  return updateNotificationPreferences(companyId, userId, {
-    mutedContacts: preferences.mutedContacts.filter(
-      (value) => value !== normalized,
-    ),
-  });
+  const tenantDb = getTenantConnection(companyId);
+  const updated = await tenantDb
+    .updateTable("notification_preferences")
+    .set({
+      muted_contacts: sql<
+        string[]
+      >`array_remove(COALESCE(muted_contacts, ARRAY[]::TEXT[]), ${normalized})`,
+      updated_at: new Date(),
+    })
+    .where("user_id", "=", userId)
+    .where(
+      sql<SqlBool>`COALESCE(muted_contacts, ARRAY[]::TEXT[]) @> ARRAY[${normalized}]::text[]`,
+    )
+    .returningAll()
+    .executeTakeFirst();
+
+  if (updated) {
+    return mapRowToPreferences(updated);
+  }
+
+  // A concurrent call unmuted this contact first: nothing left to remove.
+  return getNotificationPreferences(companyId, userId);
 }
 
 const uuidPattern =
