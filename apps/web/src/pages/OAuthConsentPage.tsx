@@ -6,6 +6,7 @@ import { WorkspaceAvatar } from "../components/workspace/WorkspaceAvatar";
 import { useAuth } from "../contexts/auth-context";
 import { useWorkspace } from "../contexts/workspace-context";
 import { api } from "../lib/api/client";
+import { resolveConsentSelection } from "../lib/consent-selection";
 
 interface ClientInfo {
   clientId: string;
@@ -76,14 +77,15 @@ export function OAuthConsentPage() {
     };
   }, [request.client_id, request.scope]);
 
-  // Selecting the only workspace for the user saves a click without hiding the
-  // choice: the card still shows which one, and several workspaces still
-  // require a deliberate pick.
-  useEffect(() => {
-    if (memberships.length === 1 && selected === null) {
-      setSelected(memberships[0].id);
-    }
-  }, [memberships, selected]);
+  // The membership list is live (refetched on focus and on a poller), so a
+  // workspace chosen here can leave the list while the page stays mounted.
+  // Reconcile the selection against the current list on every render rather
+  // than trusting the stored id: keep it while it is still present, fall back
+  // to the lone remaining workspace, and otherwise make the user pick again.
+  const selectedCompanyId = useMemo(
+    () => resolveConsentSelection(selected, memberships),
+    [selected, memberships],
+  );
 
   const submit = async (decision: "approve" | "deny") => {
     setSubmitting(decision);
@@ -91,7 +93,9 @@ export function OAuthConsentPage() {
     try {
       const { redirectTo } = await api.post<{ redirectTo: string }>(
         decision === "approve" ? "/oauth/authorize" : "/oauth/authorize/deny",
-        decision === "approve" ? { ...request, companyId: selected } : request,
+        decision === "approve"
+          ? { ...request, companyId: selectedCompanyId }
+          : request,
       );
       window.location.replace(redirectTo);
     } catch (err) {
@@ -201,7 +205,7 @@ export function OAuthConsentPage() {
 
             <div className="mt-3 grid gap-2">
               {memberships.map((workspace) => {
-                const active = selected === workspace.id;
+                const active = selectedCompanyId === workspace.id;
                 return (
                   <label
                     key={workspace.id}
@@ -271,7 +275,7 @@ export function OAuthConsentPage() {
             <button
               type="button"
               onClick={() => void submit("approve")}
-              disabled={busy || !selected || !client}
+              disabled={busy || !selectedCompanyId || !client}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0b7a55] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_1px_2px_rgba(16,33,27,.06)] transition-colors hover:bg-[#096544] disabled:opacity-50"
             >
               {submitting === "approve" ? (
