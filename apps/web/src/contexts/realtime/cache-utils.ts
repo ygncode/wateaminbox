@@ -8,6 +8,7 @@
 
 import type { QueryClient } from "@tanstack/react-query";
 import type { Message, PaginatedMessages } from "@wateaminbox/shared";
+import { isOptimisticTwin } from "../../hooks/messages/optimistic-message";
 import { queryKeys } from "../../hooks/query-keys";
 import { chatKeys } from "../../hooks/useChats";
 import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
@@ -97,6 +98,28 @@ export function addMessageToCache(
         if (messageExists) {
           isDuplicate = true;
           return oldData;
+        }
+
+        // Reconcile the optimistic placeholder in place when the realtime
+        // `message:new` echo of the user's own send arrives before POST
+        // `onSuccess`. The optimistic id (`optimistic-<ms>`) never equals the
+        // server uuid, so the id-only dedup above would otherwise treat the
+        // echo as a new message and prepend it beside the placeholder, so the
+        // flat selector renders the same send as two bubbles until a refetch
+        // or POST `onSuccess` closes the gap. Replacing the placeholder in
+        // place collapses the two ids into one rendered row at echo time.
+        for (let pi = 0; pi < oldData.pages.length; pi++) {
+          const page = oldData.pages[pi];
+          for (let mi = 0; mi < page.messages.length; mi++) {
+            if (isOptimisticTwin(page.messages[mi], message)) {
+              const newPages = [...oldData.pages];
+              const newMessages = [...page.messages];
+              newMessages[mi] = message;
+              newPages[pi] = { ...page, messages: newMessages };
+              added = true;
+              return { ...oldData, pages: newPages };
+            }
+          }
         }
       }
 
