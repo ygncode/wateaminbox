@@ -8,34 +8,48 @@ import type { Database } from "@wateaminbox/database";
 import { db } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
 import type { Transaction } from "kysely";
+import { CompanyNotFoundError, ValidationError } from "../../lib/errors.js";
+import { sniffMediaType } from "../../lib/media-sniff.js";
 import { seedChannelSpineFlags } from "../channel-spine-provisioning.service.js";
-import { CompanyNotFoundError } from "../../lib/errors.js";
 import {
   deleteMedia,
   getPresignedUrl,
   uploadMedia,
 } from "../../lib/storage.js";
+import { invalidateCompanyMembership } from "../company-membership.service.js";
 import { seedDefaultSlaPolicy } from "../sla-policy/policy.service.js";
 import { createTenantSchema, getSchemaName } from "../tenant.service.js";
-import { invalidateCompanyMembership } from "../company-membership.service.js";
 import type {
   Company,
   CreateCompanyInput,
   UpdateCompanyInput,
 } from "./types.js";
 
-async function uploadWorkspaceLogo(
+type ImageUploader = (
+  data: Buffer | Uint8Array,
+  mimeType: string,
+  companyId: string,
+  filename?: string,
+) => Promise<{ key: string }>;
+
+export async function uploadWorkspaceLogo(
   companyId: string,
   logoDataUrl: string,
+  upload: ImageUploader = uploadMedia,
 ): Promise<string> {
   const match = logoDataUrl.match(
     /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/,
   );
-  if (!match) throw new Error("Invalid workspace logo");
+  if (!match) throw new ValidationError("Invalid workspace logo");
   const mimeType = match[1];
+  const decoded = Buffer.from(match[2], "base64");
+  const sniffed = sniffMediaType(decoded);
+  if (!sniffed || sniffed.mimeType !== mimeType) {
+    throw new ValidationError("Invalid workspace logo");
+  }
   const extension = mimeType === "image/jpeg" ? "jpg" : mimeType.split("/")[1];
-  const logo = await uploadMedia(
-    Buffer.from(match[2], "base64"),
+  const logo = await upload(
+    decoded,
     mimeType,
     companyId,
     `workspace-logo.${extension}`,
