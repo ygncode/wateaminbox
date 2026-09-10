@@ -4,7 +4,7 @@ import { createDatabase } from "./client.js";
 import {
   applyQuickRepliesShortcutUnique,
   removeQuickRepliesShortcutUnique,
-} from "./migrations/090_add_quick_replies_shortcut_unique.js";
+} from "./migrations/103_add_quick_replies_shortcut_unique.js";
 
 const integrationTest =
   process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip;
