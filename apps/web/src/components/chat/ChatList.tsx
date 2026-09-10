@@ -137,7 +137,12 @@ export const ChatList = memo(function ChatList({
     conversationStatusFilter,
     selectedTagIds,
   );
-  const { data: channelConversations = [] } = useChannelConversations(100);
+  // The channel list has to narrow by the same tags as the contact list, or a
+  // selected tag filters only the WhatsApp side of the merged inbox.
+  const { data: channelConversations = [] } = useChannelConversations(
+    100,
+    selectedTagIds,
+  );
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);

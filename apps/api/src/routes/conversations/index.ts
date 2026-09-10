@@ -21,6 +21,14 @@ import { stateRoutes } from "./state.js";
 
 export const conversationRoutes = new Hono();
 
+/**
+ * Tag ids arrive as a comma-separated query parameter. Anything that is not a
+ * UUID is dropped rather than passed on: the value is user-supplied and
+ * reaches an IN list.
+ */
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // All conversation routes require authentication and tenant context.
 conversationRoutes.use("/*", authMiddleware);
 conversationRoutes.use("/*", tenantMiddleware());
@@ -35,6 +43,14 @@ conversationRoutes.get("/", async (c) => {
   const limit = Number.isSafeInteger(requestedLimit)
     ? Math.min(100, Math.max(1, requestedLimit))
     : 50;
+  // A channel conversation has no legacy contact, so its tags live on the
+  // conversation rather than on a contact. The chat list's tag filter is
+  // contact-scoped and so never matched one: selecting a tag left every
+  // Telegram chat in the list whether or not it carried that tag.
+  const tagIds = (c.req.query("tagIds") ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => UUID_PATTERN.test(value));
   const conversations = await tenantDb
     .selectFrom("conversations as conversation")
     .innerJoin(
@@ -78,6 +94,17 @@ conversationRoutes.get("/", async (c) => {
     // This surface stays channel-only until WhatsApp actually reads through
     // the spine. Removing the filter is part of that switch, not before it.
     .where("account.legacy_whatsapp_connection_id", "is", null)
+    .$if(tagIds.length > 0, (qb) =>
+      qb.where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom("conversation_tags as link")
+            .select("link.tag_id")
+            .whereRef("link.conversation_id", "=", "conversation.id")
+            .where("link.tag_id", "in", tagIds),
+        ),
+      ),
+    )
     .$if(!permissions.can_view_all_chats, (qb) =>
       qb.where((eb) =>
         eb.exists(
