@@ -723,48 +723,6 @@ async function ensureIndexes<Database>(
     await statement.execute(db);
     names.add(expectedName);
   }
-  await createConversationRecentIndex(db, schemaName, names);
-}
-
-/**
- * The inbox's newest-message-per-thread lookup, by conversation.
- *
- * `messages` already carries this shape three times over on `contact_id`,
- * which is why the contact-anchored chat list is fast. The same lookup by
- * conversation had no index at all: measured against the largest workspace
- * the lateral went from forty milliseconds to over five minutes, and a
- * COALESCE across both keys was no better because it can use neither index.
- *
- * Ordered to match the lookup exactly - equality on the conversation, then
- * the ordering the list asks for - so the planner stops at the first row
- * rather than sorting a thread.
- *
- * Built separately from the definitions above because it is the only index
- * here that spans a column the spine does not own. `timestamp` belongs to the
- * legacy messages table, and a schema that has not got it yet - a fresh
- * tenant mid-provision, or a fixture that stubs the table - must be left
- * alone rather than failing the whole reconcile.
- */
-async function createConversationRecentIndex<Database>(
-  db: Kysely<Database>,
-  schemaName: string,
-  existingIndexes: Set<string>,
-): Promise<void> {
-  const indexName = `${schemaName}_msg_conv_recent_idx`;
-  if (existingIndexes.has(indexName)) return;
-  const column = await sql<{ exists: boolean }>`
-    SELECT EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_schema = ${schemaName}
-        AND table_name = 'messages'
-        AND column_name = 'timestamp'
-    ) AS exists
-  `.execute(db);
-  if (!column.rows[0]?.exists) return;
-  await sql`CREATE INDEX ${sql.ref(indexName)}
-    ON ${sql.table(`${schemaName}.messages`)}
-      (conversation_id, "timestamp" DESC, id DESC)
-    WHERE conversation_id IS NOT NULL`.execute(db);
 }
 
 function indexNameFor(logicalName: string, schemaName: string): string {
