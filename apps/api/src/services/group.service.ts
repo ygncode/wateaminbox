@@ -1,6 +1,7 @@
 import {
   extractPhoneFromJid,
   getGroupDisplayName,
+  getLidDisplayName,
   normalizeJid,
 } from "@wateaminbox/shared";
 import { type Kysely, sql } from "kysely";
@@ -387,7 +388,8 @@ export async function getEnrichedGroupParticipants(
         contact?.push_name ||
         storedNameByJid.get(jid) ||
         sender?.sender_name ||
-        (phoneNumber ? `+${phoneNumber}` : jid.split("@")[0]) ||
+        (phoneNumber ? `+${phoneNumber}` : null) ||
+        getLidDisplayName(jid) ||
         "Unknown participant";
 
       const mentionIds = new Set(mentionIdsByJid.get(jid));
