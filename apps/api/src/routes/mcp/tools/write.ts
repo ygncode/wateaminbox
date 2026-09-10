@@ -15,10 +15,10 @@ import {
   buildSendMessageCommand,
 } from "../../../lib/nats/index.js";
 import {
-  rateLimitConfig,
   type RateLimitResult,
-  rateLimitStore,
   RateLimitStoreUnavailableError,
+  rateLimitConfig,
+  rateLimitStore,
 } from "../../../lib/rate-limit-store.js";
 import { broadcastToCompany } from "../../../lib/realtime.js";
 import {
@@ -37,8 +37,8 @@ import {
 import { getAssignmentNotificationInputs } from "../../../services/assignment-notification.service.js";
 import { decideContactAssignment } from "../../../services/assignment-policy.js";
 import {
-  createAuditLog,
   type CreateAuditLogInput,
+  createAuditLog,
   getClientIp,
 } from "../../../services/audit.service.js";
 import {
@@ -139,6 +139,36 @@ async function enforceBulkRateLimit(c: Context): Promise<void> {
   if (!result.allowed) {
     throw new McpToolError(
       `Broadcast rate limit exceeded; retry in ${result.retryAfter} seconds`,
+    );
+  }
+}
+
+async function enforceSendRateLimit(c: Context): Promise<void> {
+  if (!rateLimitConfig.enabled) return;
+
+  const { user } = getRouteContext(c);
+  const tier = rateLimitConfig.tiers.messaging.send;
+  let result: RateLimitResult;
+  try {
+    // Match the REST send limiter's key exactly so browser and MCP requests
+    // consume one per-user budget rather than separate per-token budgets.
+    result = await rateLimitStore.increment(
+      `messaging-send:user:${user.id}`,
+      tier.requests,
+      tier.windowSeconds,
+    );
+  } catch (error) {
+    if (error instanceof RateLimitStoreUnavailableError) {
+      throw new McpToolError(
+        "Send rate limiting is temporarily unavailable; retry shortly",
+      );
+    }
+    throw error;
+  }
+
+  if (!result.allowed) {
+    throw new McpToolError(
+      `Send rate limit exceeded; retry in ${result.retryAfter} seconds`,
     );
   }
 }
@@ -387,6 +417,7 @@ async function queueTextMessage(
   autoAssigned: boolean;
   note: string;
 }> {
+  await enforceSendRateLimit(c);
   const { tenantDb, user, companyId } = getRouteContext(c);
 
   const contact = await tenantDb
