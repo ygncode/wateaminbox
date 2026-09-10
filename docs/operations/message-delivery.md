@@ -135,6 +135,7 @@ rollback; a previous API will not drain it. Resume an updated API to finish
 pending work. No backfill is attempted for messages predating the migration,
 because their prior notification delivery cannot be determined reliably.
 
-Both message-send endpoints reject quotes to temporary or unconfirmed outgoing
-stanzas with HTTP 400. Retry the reply after the original message is confirmed;
-no pending message or command is created by a rejected reply.
+The immediate-send and scheduled-message endpoints reject quotes to temporary
+or unconfirmed outgoing stanzas with HTTP 400. Retry the reply after the
+original message is confirmed; a rejected reply creates no pending message, no
+scheduled row, and no command.
