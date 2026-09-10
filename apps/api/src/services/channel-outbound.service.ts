@@ -173,7 +173,34 @@ export async function dispatchNextChannelOutbound(): Promise<number> {
         .where("intent.status", "=", "pending")
         .where("intent.next_attempt_at", "<=", new Date())
         .where("account.archived_at", "is", null)
-        .where("account.status", "=", "connected")
+        // A linked-device account mirrors a WhatsApp connection, and the
+        // connection is the authority for whether that phone is online. The
+        // mirror only refreshes when a message flows through the bridge, so a
+        // phone that reconnected quietly left it reading "disconnected" - and
+        // filtering on it here meant the intent was never claimed at all. It
+        // would sit pending for ever while the inbox showed a sent message.
+        .where((eb) =>
+          eb.or([
+            eb.and([
+              eb("account.legacy_whatsapp_connection_id", "is", null),
+              eb("account.status", "=", "connected"),
+            ]),
+            eb.and([
+              eb("account.legacy_whatsapp_connection_id", "is not", null),
+              eb.exists(
+                eb
+                  .selectFrom("whatsapp_connections as live")
+                  .select("live.id")
+                  .whereRef(
+                    "live.id",
+                    "=",
+                    "account.legacy_whatsapp_connection_id",
+                  )
+                  .where("live.status", "=", "connected"),
+              ),
+            ]),
+          ]),
+        )
         .where("conversation.archived_at", "is", null)
         .where("account.provider", "in", authority.enabledProviders)
         .orderBy("intent.next_attempt_at")
@@ -323,20 +350,35 @@ async function isClaimStillAuthorized(claim: ClaimedIntent): Promise<boolean> {
       "account.id",
       "conversation.channel_account_id",
     )
+    .leftJoin(
+      "whatsapp_connections as connection",
+      "connection.id",
+      "account.legacy_whatsapp_connection_id",
+    )
     .select([
       "conversation.legacy_contact_id",
       "conversation.archived_at",
       "account.status as account_status",
+      "account.legacy_whatsapp_connection_id",
+      "connection.status as connection_status",
       "account.archived_at as account_archived_at",
     ])
     .where("conversation.id", "=", claim.conversationId)
     .where("conversation.channel_account_id", "=", claim.channelAccountId)
     .executeTakeFirst();
+  // A linked-device account mirrors a WhatsApp connection, and that
+  // connection is the authority for whether the phone is online. The mirror
+  // only refreshes when a message flows through the bridge, so a phone that
+  // reconnected quietly would otherwise leave every queued send unclaimed.
+  const liveStatus =
+    conversation?.legacy_whatsapp_connection_id != null
+      ? conversation.connection_status
+      : conversation?.account_status;
   if (
     !conversation ||
     conversation.archived_at ||
     conversation.account_archived_at ||
-    conversation.account_status !== "connected"
+    liveStatus !== "connected"
   ) {
     return false;
   }
