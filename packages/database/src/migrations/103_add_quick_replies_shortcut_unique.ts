@@ -2,7 +2,7 @@ import { type Kysely, sql } from "kysely";
 import { executeOnAllTenants } from "./migration-helpers.js";
 
 /**
- * Migration 090: Enforce per-tenant uniqueness of `quick_replies.shortcut`.
+ * Migration 103: Enforce per-tenant uniqueness of `quick_replies.shortcut`.
  *
  * PROBLEM:
  * `quick_replies.shortcut` carried only a plain (non-unique) index. The
