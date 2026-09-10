@@ -60,7 +60,14 @@ export async function applyQuickRepliesShortcutUnique(
       qr.id DESC
   `;
 
-  await db.transaction().execute(async (trx) => {
+  // Kysely's Migrator already runs every migration inside a transaction, so
+  // `db` is a Transaction here and opening a nested one throws
+  // "calling the transaction method for a Transaction is not supported".
+  // Reuse the caller's transaction when there is one; the migration-test entry
+  // point passes a plain Kysely instance and still gets atomicity.
+  const inTransaction =
+    (db as { isTransaction?: boolean }).isTransaction === true;
+  const run = async (trx: Kysely<unknown>) => {
     // Re-point the single auto_reply_settings row at the survivor for its
     // shortcut before any duplicate is deleted. The survivor rule already
     // prefers the row auto_reply_settings points at, so this is a no-op in
@@ -116,7 +123,12 @@ export async function applyQuickRepliesShortcutUnique(
       )}
       ON ${quickReplies} (shortcut)
     `.execute(trx);
-  });
+  };
+  if (inTransaction) {
+    await run(db);
+  } else {
+    await db.transaction().execute(run);
+  }
 }
 
 /** Reverse the unique index for a single schema (migration `down`). */
