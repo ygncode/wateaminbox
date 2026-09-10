@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { MessageStatus } from "@wateaminbox/database";
 import { db } from "@wateaminbox/database";
 import { DEFAULT_SLA_WEEKLY_SCHEDULE, toDbDate } from "@wateaminbox/shared";
 import type { Kysely } from "kysely";
@@ -141,6 +142,7 @@ async function insertScheduled(
     mediaUrl: string;
     mediaMimeType: string;
     mediaFileName: string;
+    replyToMessageId: string;
   }> = {},
 ): Promise<string> {
   const id = crypto.randomUUID();
@@ -155,7 +157,7 @@ async function insertScheduled(
       media_url: overrides.mediaUrl ?? null,
       media_mime_type: overrides.mediaMimeType ?? null,
       media_file_name: overrides.mediaFileName ?? null,
-      reply_to_message_id: null,
+      reply_to_message_id: overrides.replyToMessageId ?? null,
       scheduled_at: scheduledAt,
       status: "scheduled",
       attempts: 0,
@@ -166,6 +168,67 @@ async function insertScheduled(
     })
     .execute();
   return id;
+}
+
+/** Insert a quote-eligible message row owned by the seeded connection. */
+async function insertQuoteMessage(
+  tenantDb: Kysely<TenantDatabase>,
+  seeded: SeededConversation,
+  options: {
+    fromMe: boolean;
+    messageId: string;
+    status: MessageStatus;
+    senderJid?: string;
+  },
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await tenantDb
+    .insertInto("messages")
+    .values({
+      id,
+      contact_id: seeded.contactId,
+      whatsapp_connection_id: seeded.connectionId,
+      message_id: options.messageId,
+      from_me: options.fromMe,
+      status: options.status,
+      sender_jid: options.senderJid ?? null,
+      message_type: "text",
+      content: "original",
+      timestamp: new Date(),
+    })
+    .execute();
+  return id;
+}
+
+/** Assert the dispatched send referenced (or omitted) a quote as expected. */
+async function assertDispatchedQuote(
+  tenantDb: Kysely<TenantDatabase>,
+  sentMessageId: string,
+  expected: { replyTo: string | null },
+): Promise<void> {
+  const message = await tenantDb
+    .selectFrom("messages")
+    .select(["id", "quoted_message_id", "status"])
+    .where("id", "=", sentMessageId)
+    .executeTakeFirstOrThrow();
+  expect(message.status).toBe("pending");
+  expect(message.quoted_message_id).toBe(expected.replyTo);
+
+  const outbox = await tenantDb
+    .selectFrom("nats_outbox")
+    .select("payload")
+    .execute();
+  expect(outbox).toHaveLength(1);
+  const payload = outbox[0].payload as Record<string, unknown>;
+  // The send command drops an undefined `reply_to` during JSON serialization,
+  // so an unquoted dispatch reads back as `undefined`; coalesce to null so a
+  // missing stanza id and an explicit null expectation compare equal.
+  expect(payload.reply_to ?? null).toBe(expected.replyTo);
+  // A confirmed quote must also carry the quoted sender's JID so the worker
+  // can populate ContextInfo.Participant.
+  if (expected.replyTo !== null) {
+    expect(payload.reply_to_sender).toBeTruthy();
+  }
 }
 
 describe("scheduled message dispatcher integration", () => {
@@ -657,6 +720,122 @@ describe("scheduled message dispatcher integration", () => {
           .executeTakeFirstOrThrow();
         expect(projection.status).toBe("resolved");
         expect(projection.active_case_id).toBeNull();
+      } finally {
+        await dropTenantSchema(companyId);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
+      }
+    },
+    30_000,
+  );
+});
+
+describe("scheduled reply quote confirmation at dispatch", () => {
+  // A pending/failed outgoing quote's `message_id` is the synthetic
+  // `pending_<uuid>` WhatsApp never issued; the dispatcher must drop the
+  // quote instead of sending a malformed `ContextInfo.StanzaID`. A confirmed
+  // quote (own or incoming) still references the real WhatsApp stanza ID.
+  const quoteScenarios = [
+    {
+      name: "drops a still-pending own-message quote and sends unquoted",
+      quote: { fromMe: true, messageId: null, status: "pending" },
+      expectedReplyTo: null,
+    },
+    {
+      name: "drops an already-failed own-message quote and sends unquoted",
+      quote: { fromMe: true, messageId: null, status: "failed" },
+      expectedReplyTo: null,
+    },
+    {
+      name: "keeps a confirmed own-message quote with its real stanza id",
+      quote: { fromMe: true, messageId: "confirmed-own-wa-id", status: "sent" },
+      expectedReplyTo: "confirmed-own-wa-id",
+    },
+    {
+      name: "keeps an incoming-message quote with its real stanza id",
+      quote: {
+        fromMe: false,
+        messageId: "incoming-wa-id",
+        status: "delivered",
+      },
+      expectedReplyTo: "incoming-wa-id",
+    },
+  ] as const;
+
+  for (const scenario of quoteScenarios) {
+    integrationTest(
+      scenario.name,
+      async () => {
+        const companyId = crypto.randomUUID();
+        try {
+          await createTenantSchema(companyId);
+          const tenantDb = getTenantConnection(companyId);
+          const seeded = await seedConversation(tenantDb, companyId);
+          const quoteId = await insertQuoteMessage(tenantDb, seeded, {
+            fromMe: scenario.quote.fromMe,
+            messageId:
+              scenario.quote.messageId ?? `pending_${crypto.randomUUID()}`,
+            status: scenario.quote.status,
+          });
+          const scheduledId = await insertScheduled(tenantDb, seeded, {
+            replyToMessageId: quoteId,
+          });
+
+          expect(await dispatchCompanyScheduledMessages(companyId)).toBe(1);
+
+          const row = await tenantDb
+            .selectFrom("scheduled_messages")
+            .select(["status", "sent_message_id"])
+            .where("id", "=", scheduledId)
+            .executeTakeFirstOrThrow();
+          expect(row.status).toBe("sent");
+          expect(row.sent_message_id).toBeTruthy();
+
+          await assertDispatchedQuote(tenantDb, row.sent_message_id as string, {
+            replyTo: scenario.expectedReplyTo,
+          });
+        } finally {
+          await dropTenantSchema(companyId);
+          await db
+            .deleteFrom("sla_policies")
+            .where("company_id", "=", companyId)
+            .execute();
+          await db
+            .deleteFrom("companies")
+            .where("id", "=", companyId)
+            .execute();
+        }
+      },
+      30_000,
+    );
+  }
+
+  integrationTest(
+    "sends unquoted when the quoted message was deleted after scheduling",
+    async () => {
+      const companyId = crypto.randomUUID();
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const seeded = await seedConversation(tenantDb, companyId);
+        const scheduledId = await insertScheduled(tenantDb, seeded, {
+          replyToMessageId: crypto.randomUUID(),
+        });
+
+        expect(await dispatchCompanyScheduledMessages(companyId)).toBe(1);
+
+        const row = await tenantDb
+          .selectFrom("scheduled_messages")
+          .select(["status", "sent_message_id"])
+          .where("id", "=", scheduledId)
+          .executeTakeFirstOrThrow();
+        expect(row.status).toBe("sent");
+        await assertDispatchedQuote(tenantDb, row.sent_message_id as string, {
+          replyTo: null,
+        });
       } finally {
         await dropTenantSchema(companyId);
         await db
