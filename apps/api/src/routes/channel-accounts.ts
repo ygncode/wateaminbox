@@ -1,9 +1,8 @@
 import { randomBytes } from "node:crypto";
-import { zValidator } from "../lib/validator.js";
 import { db, type TenantDatabase } from "@wateaminbox/database";
 import { isChannel, isChannelProvider } from "@wateaminbox/shared";
 import { Hono } from "hono";
-import type { Transaction } from "kysely";
+import { sql, type Transaction } from "kysely";
 import { z } from "zod";
 import { resolveAdapterCapabilities } from "../channel-spine/application/adapter-registry.js";
 import {
@@ -13,8 +12,14 @@ import {
 } from "../channel-spine/providers/telegram-bot/api.js";
 import { channelAdapterRegistry } from "../channel-spine/registry.js";
 import { env } from "../lib/env.js";
-import { conflict, forbidden, notFound } from "../lib/errors.js";
+import {
+  conflict,
+  forbidden,
+  MaxConnectionsExceededError,
+  notFound,
+} from "../lib/errors.js";
 import { successData } from "../lib/response.js";
+import { zValidator } from "../lib/validator.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
@@ -199,26 +204,6 @@ channelAccountRoutes.post(
       return c.json({ error: "Telegram bot is already connected" }, 409);
     }
 
-    // The plan sells connection slots, not WhatsApp slots. Reusing the same
-    // ceiling here keeps a workspace from adding channel accounts outside the
-    // plan it pays for. Reconnecting an account that already exists does not
-    // consume a new slot, so only a genuinely new account is counted.
-    if (!existingAccount) {
-      const maxConnections = await getMaxConnections(companyId);
-      const used = await countUsedConnectionSlots(tenantDb);
-      if (used >= maxConnections) {
-        return c.json(
-          {
-            error: "Connection limit reached for this plan",
-            code: "MAX_CONNECTIONS_EXCEEDED",
-            used,
-            max: maxConnections,
-          },
-          402,
-        );
-      }
-    }
-
     const company = await db
       .selectFrom("companies")
       .select("schema_name")
@@ -231,91 +216,130 @@ channelAccountRoutes.post(
       "SHA-256",
       new TextEncoder().encode(routeKey),
     );
-    await db.transaction().execute(async (trx) => {
-      const tenant = trx.withSchema(
-        company.schema_name,
-      ) as unknown as Transaction<TenantDatabase>;
-      if (existingAccount) {
+    try {
+      await db.transaction().execute(async (trx) => {
+        const tenant = trx.withSchema(
+          company.schema_name,
+        ) as unknown as Transaction<TenantDatabase>;
+        // The plan sells connection slots, not WhatsApp slots. Reusing the same
+        // ceiling here keeps a workspace from adding channel accounts outside
+        // the plan it pays for. Reconnecting an account that already exists
+        // does not consume a new slot, so only a genuinely new account is
+        // counted. The count+insert runs inside this transaction behind the
+        // same company-scoped advisory lock spawnConnection uses, so two
+        // concurrent Telegram connects - or a Telegram connect racing a
+        // WhatsApp spawn - cannot both observe the same pre-insert slot count
+        // and over-insert. The lock is transaction-scoped, so it is released
+        // on commit or rollback with no explicit unlock.
+        if (!existingAccount) {
+          await sql`SELECT pg_advisory_xact_lock(hashtextextended(${companyId}, 0))`.execute(
+            trx,
+          );
+          const maxConnections = await getMaxConnections(companyId);
+          const used = await countUsedConnectionSlots(tenant);
+          if (used >= maxConnections) {
+            throw new MaxConnectionsExceededError(used, maxConnections);
+          }
+        }
+        if (existingAccount) {
+          await trx
+            .updateTable("channel_ingress_routes")
+            .set({
+              state: "revoked",
+              revoked_at: new Date(),
+              updated_at: new Date(),
+            })
+            .where("company_id", "=", companyId)
+            .where("channel_account_id", "=", accountId)
+            .where("state", "!=", "revoked")
+            .execute();
+          await tenant
+            .updateTable("channel_accounts")
+            .set({
+              display_name: displayName ?? identity.first_name,
+              status: "connecting",
+              provider_status: null,
+              provider_metadata: {
+                ...(identity.username ? { username: identity.username } : {}),
+                canReadAllGroupMessages:
+                  identity.can_read_all_group_messages === true,
+              },
+              updated_at: new Date(),
+            })
+            .where("id", "=", accountId)
+            .execute();
+        } else {
+          await tenant
+            .insertInto("channel_accounts")
+            .values({
+              id: accountId,
+              channel: "telegram",
+              provider: "telegram_bot",
+              display_name: displayName ?? identity.first_name,
+              external_account_id: String(identity.id),
+              external_scope_id: "telegram-bot",
+              status: "connecting",
+              provider_status: null,
+              capabilities_revision: "telegram-bot:v1",
+              provider_metadata: {
+                ...(identity.username ? { username: identity.username } : {}),
+                // Recorded at connect so the UI can tell the operator their
+                // group inbox will stay empty until privacy mode is off.
+                canReadAllGroupMessages:
+                  identity.can_read_all_group_messages === true,
+              },
+              legacy_whatsapp_connection_id: null,
+              connected_by: user.id,
+              connected_at: null,
+              last_sync_at: null,
+              archived_at: null,
+            })
+            .execute();
+        }
+        await storeChannelCredential(
+          tenant,
+          companyId,
+          accountId,
+          "telegram_bot_token",
+          botToken,
+        );
+        await storeChannelCredential(
+          tenant,
+          companyId,
+          accountId,
+          "telegram_webhook_secret",
+          webhookSecret,
+        );
         await trx
-          .updateTable("channel_ingress_routes")
-          .set({
-            state: "revoked",
-            revoked_at: new Date(),
-            updated_at: new Date(),
-          })
-          .where("company_id", "=", companyId)
-          .where("channel_account_id", "=", accountId)
-          .where("state", "!=", "revoked")
-          .execute();
-        await tenant
-          .updateTable("channel_accounts")
-          .set({
-            display_name: displayName ?? identity.first_name,
-            status: "connecting",
-            provider_status: null,
-            provider_metadata: {
-              ...(identity.username ? { username: identity.username } : {}),
-              canReadAllGroupMessages:
-                identity.can_read_all_group_messages === true,
-            },
-            updated_at: new Date(),
-          })
-          .where("id", "=", accountId)
-          .execute();
-      } else {
-        await tenant
-          .insertInto("channel_accounts")
+          .insertInto("channel_ingress_routes")
           .values({
-            id: accountId,
-            channel: "telegram",
             provider: "telegram_bot",
-            display_name: displayName ?? identity.first_name,
-            external_account_id: String(identity.id),
-            external_scope_id: "telegram-bot",
-            status: "connecting",
-            provider_status: null,
-            capabilities_revision: "telegram-bot:v1",
-            provider_metadata: {
-              ...(identity.username ? { username: identity.username } : {}),
-              // Recorded at connect so the UI can tell the operator their
-              // group inbox will stay empty until privacy mode is off.
-              canReadAllGroupMessages:
-                identity.can_read_all_group_messages === true,
-            },
-            legacy_whatsapp_connection_id: null,
-            connected_by: user.id,
-            connected_at: null,
-            last_sync_at: null,
-            archived_at: null,
+            route_key_hash: Buffer.from(routeHash).toString("hex"),
+            company_id: companyId,
+            channel_account_id: accountId,
+            state: "pending",
+            revoked_at: null,
           })
           .execute();
+      });
+    } catch (error) {
+      if (error instanceof MaxConnectionsExceededError) {
+        // Preserve this route's existing 402 response contract: the WhatsApp
+        // connect routes re-throw MaxConnectionsExceededError as a 429, but the
+        // Telegram connect route has always answered with a 402 JSON body
+        // carrying { error, code, used, max }, so it keeps doing so.
+        return c.json(
+          {
+            error: "Connection limit reached for this plan",
+            code: "MAX_CONNECTIONS_EXCEEDED",
+            used: error.currentCount,
+            max: error.maxAllowed,
+          },
+          402,
+        );
       }
-      await storeChannelCredential(
-        tenant,
-        companyId,
-        accountId,
-        "telegram_bot_token",
-        botToken,
-      );
-      await storeChannelCredential(
-        tenant,
-        companyId,
-        accountId,
-        "telegram_webhook_secret",
-        webhookSecret,
-      );
-      await trx
-        .insertInto("channel_ingress_routes")
-        .values({
-          provider: "telegram_bot",
-          route_key_hash: Buffer.from(routeHash).toString("hex"),
-          company_id: companyId,
-          channel_account_id: accountId,
-          state: "pending",
-          revoked_at: null,
-        })
-        .execute();
-    });
+      throw error;
+    }
 
     const webhookUrl = `${env.APP_URL.replace(/\/$/, "")}/api/channel-ingress/telegram_bot/${routeKey}`;
     try {
