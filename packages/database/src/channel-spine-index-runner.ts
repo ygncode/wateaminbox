@@ -142,6 +142,32 @@ const definitions: readonly ConcurrentIndexDefinition[] = [
     requiresColumn: { table: "messages", column: "timestamp" },
   },
   {
+    // Sender-anchored history for one connection: "what name has this person
+    // used in this workspace", which the group panel and the group-member
+    // sync both ask (group.service.ts, group-sync.service.ts), and which the
+    // avatar fan-out writes back through (contact-handlers.ts).
+    //
+    // Neither column was indexed, so the lookup sequentially scanned the whole
+    // table on every group-detail load - the one read here that grows with
+    // message volume rather than with group size.
+    //
+    // Every call site filters on `whatsapp_connection_id` as well as
+    // `sender_jid`, so one composite serves all of them. The predicate is
+    // deliberately only the two NOT NULLs: a narrower `sender_name IS NOT
+    // NULL` would match the group-sync read and silently exclude the avatar
+    // update, which has no such filter.
+    suffix: "msg_conn_sender_idx",
+    table: "messages",
+    columns: ["whatsapp_connection_id", "sender_jid"],
+    predicate: "whatsapp_connection_id IS NOT NULL AND sender_jid IS NOT NULL",
+    unique: false,
+    // Both columns belong to the legacy messages table and arrive together, so
+    // one guard covers the pair. A schema without them - a fixture, or a
+    // tenant part-way through provisioning - has to be skipped rather than
+    // aborting the run for every tenant after it.
+    requiresColumn: { table: "messages", column: "sender_jid" },
+  },
+  {
     suffix: "cs_conversation_uidx",
     table: "conversation_states",
     columns: ["conversation_id"],

@@ -2038,6 +2038,17 @@ export async function reconcileTenantSchema<Database>(
     `.execute(db),
   );
 
+  // Migration 104 parity. 062 indexed the fan-out direction of this table and
+  // left the group panel's own membership read - `WHERE group_id = $1` - on a
+  // full scan. A new tenant needs both from the start, or it reproduces the
+  // scan until the next migration run.
+  await ensureIndex(`${schemaName}_gp_group_idx`, (indexName) =>
+    sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+      ON ${table("group_participants")} (group_id)
+    `.execute(db),
+  );
+
   // Migration 068 parity. Group administration keeps WhatsApp's own view of a
   // group (permissions, ownership, invite link, membership) so the API never
   // has to guess it between syncs. Every column here is written only after
