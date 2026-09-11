@@ -13,6 +13,14 @@ WATeamInbox depends on third-party software distributed under its own license te
 
 whatsmeow source files, including any modifications to MPL-covered files, remain governed by MPL-2.0. The upstream source and license are available from the project link above. Distributors should review and preserve all license and notice obligations for the exact dependency versions they ship.
 
+## Simple Icons
+
+- Project: [Simple Icons](https://github.com/simple-icons/simple-icons)
+- License: [CC0 1.0 Universal](https://github.com/simple-icons/simple-icons/blob/master/LICENSE.md)
+- Used by: `apps/web/src/components/connections/channel-icons.tsx`
+
+The channel brand marks are Simple Icons paths inlined as React components rather than installed as a dependency. CC0 waives attribution, but the marks themselves are third-party trademarks; see "Trademarks and affiliation" below.
+
 ## Other dependencies
 
 JavaScript and Go manifests and lockfiles list additional direct and transitive dependencies, each under its own terms. This notice highlights whatsmeow because of its MPL-2.0 terms; it is not an exhaustive inventory or a substitute for reviewing dependencies before redistribution.
