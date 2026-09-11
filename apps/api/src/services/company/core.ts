@@ -9,6 +9,7 @@ import { db } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
 import type { Transaction } from "kysely";
 import { CompanyNotFoundError, ValidationError } from "../../lib/errors.js";
+import { createLogger, formatError } from "../../lib/logger.js";
 import { sniffMediaType } from "../../lib/media-sniff.js";
 import { seedChannelSpineFlags } from "../channel-spine-provisioning.service.js";
 import {
@@ -18,12 +19,18 @@ import {
 } from "../../lib/storage.js";
 import { invalidateCompanyMembership } from "../company-membership.service.js";
 import { seedDefaultSlaPolicy } from "../sla-policy/policy.service.js";
-import { createTenantSchema, getSchemaName } from "../tenant.service.js";
+import {
+  createTenantSchema,
+  dropTenantSchema,
+  getSchemaName,
+} from "../tenant.service.js";
 import type {
   Company,
   CreateCompanyInput,
   UpdateCompanyInput,
 } from "./types.js";
+
+const logger = createLogger("company-service");
 
 type ImageUploader = (
   data: Buffer | Uint8Array,
@@ -58,11 +65,49 @@ export async function uploadWorkspaceLogo(
 }
 
 /**
+ * Compensates for a workspace whose tenant schema did not finish provisioning.
+ *
+ * The `companies` row commits as `active` before the schema exists, so a
+ * transient provisioning failure used to leave a workspace the user could see
+ * and select but whose every tenant-scoped request failed with "relation does
+ * not exist", plus an orphan PostgreSQL schema when provisioning had got far
+ * enough to create one. Drop whatever exists and hide the row, which is the
+ * same terminal state `deleteCompany` puts a workspace in - `getUserCompanies`
+ * filters `status != 'deleted'` - so the failure is recoverable by creating the
+ * workspace again.
+ *
+ * Both steps are best effort: the caller rethrows the original provisioning
+ * error, and a compensation failure must not replace it.
+ */
+async function rollbackFailedWorkspace(companyId: string): Promise<void> {
+  try {
+    // Idempotent, and covers both a missing schema and a half-built one.
+    await dropTenantSchema(companyId);
+  } catch (error) {
+    logger.error(
+      { err: formatError(error), companyId },
+      "Could not drop the tenant schema of a workspace whose provisioning failed",
+    );
+  }
+
+  await db
+    .updateTable("companies")
+    .set({ status: "deleted", updated_at: toDbDate() })
+    .where("id", "=", companyId)
+    .execute();
+
+  invalidateCompanyMembership(companyId);
+}
+
+/**
  * Creates a new company with its tenant schema
  */
 export async function createCompany(
   input: CreateCompanyInput,
   ownerId: string,
+  provisionTenantSchema: (
+    companyId: string,
+  ) => Promise<void> = createTenantSchema,
 ): Promise<Company> {
   // Generate a unique ID for the company (will be used for schema name)
   const companyId = crypto.randomUUID();
@@ -139,8 +184,16 @@ export async function createCompany(
   // "every company_members write invalidates" rule literally true.
   invalidateCompanyMembership(companyId);
 
-  // Create the tenant schema
-  await createTenantSchema(companyId);
+  // Create the tenant schema. This cannot join the transaction above - it runs
+  // on the shared tenant pool, which is a different connection - so the row is
+  // already committed by the time it runs and a failure here has to be
+  // compensated rather than rolled back.
+  try {
+    await provisionTenantSchema(companyId);
+  } catch (error) {
+    await rollbackFailedWorkspace(companyId);
+    throw error;
+  }
 
   return result as unknown as Company;
 }
