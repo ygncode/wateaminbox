@@ -9,6 +9,7 @@ import {
   prependOptimisticMessage,
   reconcileOptimisticMessage,
 } from "./optimistic-message";
+import { setMessageStarredInCaches } from "./message-star-cache";
 import type { InfiniteMessagesData, SendMessageInput } from "./types";
 
 /**
@@ -194,28 +195,49 @@ export function useStarMessage() {
       isStarred: boolean;
     }) => api.patch<Message>(`/messages/${messageId}`, { isStarred }),
     onMutate: async ({ messageId, conversationId, isStarred }) => {
+      // Cancel the query the rendered thread actually reads before writing to
+      // it, or an in-flight refetch can resolve afterwards and undo the toggle.
       await queryClient.cancelQueries({
-        queryKey: queryKeys.messages.list({ conversationId }),
+        queryKey: infiniteMessageKeys.list(conversationId),
       });
+
+      const previousData = queryClient.getQueryData(
+        infiniteMessageKeys.list(conversationId),
+      );
 
       const previousMessages = queryClient.getQueryData<Message[]>(
         queryKeys.messages.list({ conversationId }),
       );
 
-      queryClient.setQueryData<Message[]>(
-        queryKeys.messages.list({ conversationId }),
-        (old) =>
-          old?.map((msg) =>
-            msg.id === messageId ? { ...msg, isStarred } : msg,
-          ) || [],
-      );
+      setMessageStarredInCaches(queryClient, {
+        conversationId,
+        messageId,
+        isStarred,
+      });
 
-      return { previousMessages, conversationId };
+      return { previousData, previousMessages, conversationId, messageId };
     },
-    onError: (_err, _variables, context) => {
-      if (context?.previousMessages) {
+    onSuccess: (updatedMessage, variables) => {
+      // Reconcile with what the server stored rather than assuming it echoed
+      // the requested flag back. `isStarred` is optional on the wire, so keep
+      // the requested value when the response omits it.
+      setMessageStarredInCaches(queryClient, {
+        conversationId: variables.conversationId,
+        messageId: variables.messageId,
+        isStarred: updatedMessage.isStarred ?? variables.isStarred,
+      });
+    },
+    onError: (_err, variables, context) => {
+      if (context?.previousData !== undefined) {
         queryClient.setQueryData(
-          queryKeys.messages.list({ conversationId: context.conversationId }),
+          infiniteMessageKeys.list(variables.conversationId),
+          context.previousData,
+        );
+      }
+
+      if (context?.previousMessages !== undefined) {
+        queryClient.setQueryData(
+          queryKeys.messages.list({ conversationId: variables.conversationId }),
           context.previousMessages,
         );
       }
