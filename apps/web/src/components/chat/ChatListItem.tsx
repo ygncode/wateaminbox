@@ -9,7 +9,7 @@ import {
   formatPhoneNumber,
 } from "@/lib/utils";
 import type { ChatListItemProps } from "../../types/chat";
-import { ChannelBadge } from "./ChannelIdentity";
+import { ChannelAvatarBadge } from "./ChannelIdentity";
 import { ConnectionBadge } from "./ConnectionIdentity";
 import { ConversationStatusBadge } from "./ConversationStatusBadge";
 import { resolveMentionNames } from "./group-mentions";
@@ -195,10 +195,23 @@ export const ChatListItem = memo(function ChatListItem({
             />
           )}
         </div>
+        {/* Channel mark - which app this conversation arrived on. Sits in the
+            corner the platform badge occupies everywhere else, so presence
+            moves to the opposite corner rather than stacking with it. */}
+        {(contact.channel || contact.connection) && (
+          <ChannelAvatarBadge
+            channel={
+              contact.channel && isChannel(contact.channel)
+                ? contact.channel
+                : "whatsapp"
+            }
+            className="absolute -bottom-0.5 -right-0.5"
+          />
+        )}
         {/* Online Indicator - only for individual contacts */}
         {!contact.isGroup && contact.isOnline && (
           <span
-            className="absolute bottom-0 right-0 w-3 h-3 bg-whatsapp-green
+            className="absolute top-0 right-0 w-3 h-3 bg-whatsapp-green
                        border-2 border-white dark:border-dark-secondary rounded-full"
             aria-label={t("chat.online", "Online")}
           />
@@ -235,25 +248,12 @@ export const ChatListItem = memo(function ChatListItem({
             {chat.conversationStatus !== "open" && (
               <ConversationStatusBadge status={chat.conversationStatus} />
             )}
-            {(contact.channel || contact.connection) && (
-              <>
-                <ChannelBadge
-                  channel={
-                    contact.channel && isChannel(contact.channel)
-                      ? contact.channel
-                      : "whatsapp"
-                  }
-                  compact
-                  iconOnly
-                />
-                {contact.connection && (
-                  <ConnectionBadge
-                    connection={contact.connection}
-                    compact
-                    className="max-w-[92px] shrink-0"
-                  />
-                )}
-              </>
+            {contact.connection && (
+              <ConnectionBadge
+                connection={contact.connection}
+                compact
+                className="max-w-[92px] shrink-0"
+              />
             )}
             {/* Message Status Icon for sent messages */}
             {lastMessage?.isFromMe && !lastMessage.isDeleted && (
