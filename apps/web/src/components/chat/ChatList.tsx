@@ -318,14 +318,14 @@ export const ChatList = memo(function ChatList({
               />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">
+              <SelectItem value="all" hideIndicator>
                 <span className="flex items-center gap-2">
                   <BrandMark className="size-4 shrink-0 rounded-[0.25rem] object-contain" />
                   {t("chat.allAccounts", "All accounts")}
                 </span>
               </SelectItem>
               {inboxAccounts.map((account) => (
-                <SelectItem key={account.id} value={account.id}>
+                <SelectItem key={account.id} value={account.id} hideIndicator>
                   <span className="flex min-w-0 items-center gap-2">
                     {account.entry ? (
                       <span

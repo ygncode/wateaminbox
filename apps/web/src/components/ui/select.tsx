@@ -112,23 +112,40 @@ const SelectLabel = React.forwardRef<
 ));
 SelectLabel.displayName = SelectPrimitive.Label.displayName;
 
+interface SelectItemProps
+  extends React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item> {
+  /**
+   * Drops the leading check gutter.
+   *
+   * For a list whose items already carry a leading graphic - a channel tile,
+   * an avatar - the tick adds a second column of indentation and pushes the
+   * graphic off the trigger's alignment. The checked row stays legible
+   * through the `data-[state=checked]` colour below, so the tick is
+   * redundant there rather than load-bearing. Every other Select keeps it.
+   */
+  hideIndicator?: boolean;
+}
+
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
->(({ className, children, ...props }, ref) => (
+  SelectItemProps
+>(({ className, children, hideIndicator = false, ...props }, ref) => (
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 data-[state=checked]:text-whatsapp-green-a11y-text data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:data-[highlighted]:bg-dark-tertiary dark:data-[highlighted]:text-dark-text-primary dark:data-[state=checked]:text-whatsapp-green",
+      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pr-2 text-sm outline-none data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 data-[state=checked]:text-whatsapp-green-a11y-text data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:data-[highlighted]:bg-dark-tertiary dark:data-[highlighted]:text-dark-text-primary dark:data-[state=checked]:text-whatsapp-green",
+      hideIndicator ? "pl-2" : "pl-8",
       className,
     )}
     {...props}
   >
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-      <SelectPrimitive.ItemIndicator>
-        <Check className="h-4 w-4" />
-      </SelectPrimitive.ItemIndicator>
-    </span>
+    {hideIndicator ? null : (
+      <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+        <SelectPrimitive.ItemIndicator>
+          <Check className="h-4 w-4" />
+        </SelectPrimitive.ItemIndicator>
+      </span>
+    )}
 
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
@@ -150,13 +167,13 @@ SelectSeparator.displayName = SelectPrimitive.Separator.displayName;
 export {
   EMPTY_SELECT_VALUE,
   Select,
-  SelectGroup,
-  SelectValue,
-  SelectTrigger,
   SelectContent,
-  SelectLabel,
+  SelectGroup,
   SelectItem,
-  SelectSeparator,
-  SelectScrollUpButton,
+  SelectLabel,
   SelectScrollDownButton,
+  SelectScrollUpButton,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
 };
