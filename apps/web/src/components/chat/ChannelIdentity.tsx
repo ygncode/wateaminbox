@@ -1,4 +1,13 @@
 import type { Channel } from "@wateaminbox/shared";
+import type { ComponentType } from "react";
+import {
+  EmailMark,
+  InstagramMark,
+  LineMark,
+  MessengerMark,
+  TelegramMark,
+  WhatsAppMark,
+} from "@/components/connections/channel-icons";
 import type { ChannelAccount } from "@/lib/api/channel-accounts";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +58,72 @@ const channelPresentation: Record<
       "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700",
   },
 };
+
+/**
+ * The provider's own mark and brand colour, for the avatar corner badge.
+ *
+ * `viber` has no entry because nothing draws its mark yet; callers fall back
+ * to the lettered `ChannelBadge` for any channel missing here rather than
+ * inventing a glyph.
+ */
+const channelBrand: Partial<
+  Record<
+    Channel,
+    { Mark: ComponentType<{ className?: string }>; tileClassName: string }
+  >
+> = {
+  whatsapp: { Mark: WhatsAppMark, tileClassName: "bg-[#25D366] text-white" },
+  telegram: { Mark: TelegramMark, tileClassName: "bg-[#2AABEE] text-white" },
+  messenger: { Mark: MessengerMark, tileClassName: "bg-[#0084FF] text-white" },
+  instagram: {
+    Mark: InstagramMark,
+    tileClassName:
+      "bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white",
+  },
+  line: { Mark: LineMark, tileClassName: "bg-[#06C755] text-white" },
+  email: { Mark: EmailMark, tileClassName: "bg-[#5B6B79] text-white" },
+};
+
+interface ChannelAvatarBadgeProps {
+  channel: Channel;
+  className?: string;
+}
+
+/**
+ * The channel a conversation arrived on, badged onto its avatar.
+ *
+ * A row already spends its horizontal space on the name, the connection, and
+ * the message preview; a lettered chip in that line competes with all three
+ * for the one thing a glance needs - which app this is. Pinning the real mark
+ * to the avatar answers that in the corner of the eye and gives the preview
+ * its width back. The ring separates the tile from a same-coloured avatar.
+ */
+export function ChannelAvatarBadge({
+  channel,
+  className,
+}: ChannelAvatarBadgeProps) {
+  const brand = channelBrand[channel];
+  const label = channelPresentation[channel].label;
+  if (!brand) {
+    return (
+      <ChannelBadge channel={channel} compact iconOnly className={className} />
+    );
+  }
+  const { Mark, tileClassName } = brand;
+  return (
+    <span
+      className={cn(
+        "grid size-[18px] shrink-0 place-items-center rounded-full ring-2 ring-white dark:ring-dark-secondary",
+        tileClassName,
+        className,
+      )}
+      title={label}
+      aria-label={`${label} channel`}
+    >
+      <Mark className="size-2.5" />
+    </span>
+  );
+}
 
 interface ChannelBadgeProps {
   channel: Channel;

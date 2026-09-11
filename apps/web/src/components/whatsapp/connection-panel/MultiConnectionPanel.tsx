@@ -1,22 +1,26 @@
 import { Loader2, Plus, RefreshCw, Smartphone } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { ChannelAccountCard } from "@/components/connections/ChannelAccountCard";
+import { ChannelPickerDialog } from "@/components/connections/ChannelPickerDialog";
+import type { ChannelCatalogEntry } from "@/components/connections/channel-catalog";
+import { TelegramConnectDialog } from "@/components/connections/TelegramConnectDialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useWorkspace } from "@/contexts/workspace-context";
 import {
   useChannelAccounts,
   useChannelProviderAvailability,
   useConnectTelegramBot,
   useDisconnectChannelAccount,
+  usePauseChannelAccount,
+  useRenameChannelAccount,
+  useResumeChannelAccount,
 } from "@/hooks/useChannelAccounts";
 import { useWhatsAppConnections } from "@/hooks/useWhatsAppConnections";
 import { useArchivedWhatsAppConnections } from "@/hooks/whatsapp/useArchivedWhatsAppConnections";
-import { useWorkspace } from "@/contexts/workspace-context";
 import { getWorkspaceBillingUrl } from "@/lib/billing-url";
 import { cn } from "@/lib/utils";
-import { ChannelAccountCard } from "@/components/connections/ChannelAccountCard";
-import { ChannelPickerDialog } from "@/components/connections/ChannelPickerDialog";
-import type { ChannelCatalogEntry } from "@/components/connections/channel-catalog";
-import { TelegramConnectDialog } from "@/components/connections/TelegramConnectDialog";
 import { injectAnimationStyles, removeAnimationStyles } from "../animations";
 import { ConnectionCard } from "../ConnectionCard";
 import { EmptyConnectionsView } from "../EmptyConnectionsView";
@@ -25,7 +29,6 @@ import { ArchivedConnectionCard } from "./ArchivedConnectionCard";
 import { GlobalErrorBanner } from "./GlobalErrorBanner";
 import { getConnectionSetupStage } from "./setup-state";
 import type { MultiConnectionPanelProps } from "./types";
-import { useTranslation } from "react-i18next";
 
 /**
  * Multi-connection panel for managing multiple WhatsApp connections
@@ -77,6 +80,16 @@ export function MultiConnectionPanel({
     useChannelProviderAvailability();
   const connectTelegram = useConnectTelegramBot();
   const disconnectChannelAccount = useDisconnectChannelAccount();
+  const renameChannelAccount = useRenameChannelAccount();
+  const pauseChannelAccount = usePauseChannelAccount();
+  const resumeChannelAccount = useResumeChannelAccount();
+  const [pausingAccountId, setPausingAccountId] = useState<string | null>(null);
+  const [resumingAccountId, setResumingAccountId] = useState<string | null>(
+    null,
+  );
+  const [renamingAccountId, setRenamingAccountId] = useState<string | null>(
+    null,
+  );
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [telegramOpen, setTelegramOpen] = useState(false);
@@ -459,6 +472,28 @@ export function MultiConnectionPanel({
               key={account.id}
               account={account}
               isDisconnecting={disconnectingAccountId === account.id}
+              isRenaming={renamingAccountId === account.id}
+              isPausing={pausingAccountId === account.id}
+              isResuming={resumingAccountId === account.id}
+              onPause={() => {
+                setPausingAccountId(account.id);
+                pauseChannelAccount.mutate(account.id, {
+                  onSettled: () => setPausingAccountId(null),
+                });
+              }}
+              onResume={() => {
+                setResumingAccountId(account.id);
+                resumeChannelAccount.mutate(account.id, {
+                  onSettled: () => setResumingAccountId(null),
+                });
+              }}
+              onRename={(displayName) => {
+                setRenamingAccountId(account.id);
+                renameChannelAccount.mutate(
+                  { channelAccountId: account.id, displayName },
+                  { onSettled: () => setRenamingAccountId(null) },
+                );
+              }}
               onDisconnect={() => {
                 setDisconnectingAccountId(account.id);
                 disconnectChannelAccount.mutate(account.id, {

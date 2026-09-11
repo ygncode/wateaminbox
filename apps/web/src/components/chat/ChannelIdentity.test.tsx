@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ChannelAccountBadge, ChannelBadge } from "./ChannelIdentity";
+import {
+  ChannelAccountBadge,
+  ChannelAvatarBadge,
+  ChannelBadge,
+} from "./ChannelIdentity";
 
 describe("channel identity badges", () => {
   test("channel badges retain an accessible name in icon-only mode", () => {
@@ -25,5 +29,18 @@ describe("channel identity badges", () => {
     );
     expect(html).toContain("Email account: Support, connected");
     expect(html).toContain("Support");
+  });
+
+  test("avatar badges draw the provider's own mark, named for a screen reader", () => {
+    const html = renderToStaticMarkup(<ChannelAvatarBadge channel="telegram" />);
+    expect(html).toContain('aria-label="Telegram channel"');
+    expect(html).toContain("<svg");
+    expect(html).not.toContain("TG");
+  });
+
+  test("avatar badges fall back to the lettered badge for an undrawn channel", () => {
+    const html = renderToStaticMarkup(<ChannelAvatarBadge channel="viber" />);
+    expect(html).toContain('aria-label="Viber channel"');
+    expect(html).toContain("VI");
   });
 });

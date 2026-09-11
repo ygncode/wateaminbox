@@ -67,6 +67,36 @@ export function connectTelegramBot(input: {
   return api.post<ChannelAccount>("/channel-accounts/telegram-bot", input);
 }
 
+export function renameChannelAccount(
+  channelAccountId: string,
+  displayName: string,
+): Promise<ChannelAccount> {
+  return api.patch<ChannelAccount>(
+    `/channel-accounts/${encodeURIComponent(channelAccountId)}`,
+    { displayName },
+  );
+}
+
+/**
+ * Pause delivery, keeping the account and its stored credential.
+ *
+ * Distinct from `disconnectChannelAccount`, which archives and erases: this
+ * one is reversible with `resumeChannelAccount`.
+ */
+export function pauseChannelAccount(channelAccountId: string): Promise<void> {
+  return api.post(
+    `/channel-accounts/${encodeURIComponent(channelAccountId)}/disconnect`,
+    {},
+  );
+}
+
+export function resumeChannelAccount(channelAccountId: string): Promise<void> {
+  return api.post(
+    `/channel-accounts/${encodeURIComponent(channelAccountId)}/resume`,
+    {},
+  );
+}
+
 export function disconnectChannelAccount(
   channelAccountId: string,
 ): Promise<void> {

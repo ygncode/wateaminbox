@@ -97,6 +97,7 @@ export {
   PageSkeleton,
   type PageSkeletonProps,
   type PageSkeletonVariant,
+  workspaceLoadingVariant,
 } from "./page-skeleton";
 export {
   ServerDataTable,

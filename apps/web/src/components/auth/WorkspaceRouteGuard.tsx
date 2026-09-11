@@ -1,11 +1,12 @@
 import * as React from "react";
-import { Navigate, Outlet, useParams } from "react-router";
+import { Navigate, Outlet, useLocation, useParams } from "react-router";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { workspacePath } from "../../lib/workspace-routes";
-import { PageSkeleton } from "../ui";
+import { PageSkeleton, workspaceLoadingVariant } from "../ui";
 
 export function WorkspaceRouteGuard() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
+  const location = useLocation();
   const {
     memberships,
     activeWorkspaceId,
@@ -46,7 +47,12 @@ export function WorkspaceRouteGuard() {
         <Navigate to="/workspaces" replace />
       );
     }
-    return <PageSkeleton variant="default" />;
+    return (
+      <PageSkeleton
+        variant={workspaceLoadingVariant(location.pathname)}
+        withShell
+      />
+    );
   }
 
   return <Outlet />;

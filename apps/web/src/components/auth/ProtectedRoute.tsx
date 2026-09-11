@@ -1,32 +1,24 @@
 import type { MemberPermissions } from "@wateaminbox/shared";
+import { useTranslation } from "react-i18next";
 import { Navigate, useLocation } from "react-router";
 import { useAuth } from "../../contexts/auth-context";
 import { useWorkspace } from "../../contexts/workspace-context";
 import {
-  type WorkspaceAccessMode,
   resolveWorkspaceAccessRedirect,
+  type WorkspaceAccessMode,
 } from "../../lib/workspace-access";
 import { workspacePath } from "../../lib/workspace-routes";
-import { PageSkeleton, type PageSkeletonVariant } from "../ui";
+import { PageSkeleton, workspaceLoadingVariant } from "../ui";
 import {
   OnboardingErrorScreen,
   OnboardingLoadingScreen,
 } from "../ui/onboarding-state";
-import { useTranslation } from "react-i18next";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   workspaceMode?: WorkspaceAccessMode;
   requiredPermission?: keyof MemberPermissions;
   requiredAnyPermission?: Array<keyof MemberPermissions>;
-}
-
-function workspaceLoadingVariant(pathname: string): PageSkeletonVariant {
-  if (pathname.includes("/chat")) return "chat";
-  if (pathname.includes("/settings")) return "settings";
-  if (pathname.includes("/dashboard")) return "dashboard";
-  if (pathname.includes("/team")) return "team";
-  return "default";
 }
 
 export function ProtectedRoute({
@@ -54,7 +46,7 @@ export function ProtectedRoute({
       return (
         <PageSkeleton
           variant={workspaceLoadingVariant(location.pathname)}
-          className="min-h-dvh"
+          withShell
         />
       );
     }
