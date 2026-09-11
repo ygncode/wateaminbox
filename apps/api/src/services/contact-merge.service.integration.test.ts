@@ -550,6 +550,220 @@ describe("unmergeContacts", () => {
   );
 });
 
+describe("unmergeContacts same-target re-merge", () => {
+  integrationTest(
+    "rejects reversing a stale merge after the same (source, target) pair was re-merged",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const schemaName = getSchemaName(companyId);
+      const ownerId = crypto.randomUUID();
+      try {
+        await db
+          .insertInto("users")
+          .values({
+            id: ownerId,
+            email: `contact-stale-${ownerId}@example.com`,
+            password_hash: "test",
+          })
+          .execute();
+        await db
+          .insertInto("companies")
+          .values({
+            id: companyId,
+            name: "Contact stale unmerge test",
+            schema_name: schemaName,
+            status: "active",
+          })
+          .execute();
+        await db
+          .insertInto("sla_policies")
+          .values({
+            company_id: companyId,
+            target_minutes: 60,
+            direct_resolution_target_minutes: 480,
+            group_response_target_minutes: 120,
+            group_resolution_target_minutes: 960,
+            timezone: "UTC",
+            weekly_schedule: JSON.stringify(DEFAULT_SLA_WEEKLY_SCHEDULE),
+            exceptions: JSON.stringify([]),
+            effective_from: new Date("1970-01-01T00:00:00Z"),
+            created_by: ownerId,
+          })
+          .execute();
+        await createTenantSchema(companyId);
+        await reconcileChannelSpineConcurrentIndexes(db, schemaName);
+        const tenantDb = getTenantConnection(companyId);
+
+        const account = crypto.randomUUID();
+        await tenantDb
+          .insertInto("channel_accounts")
+          .values({
+            id: account,
+            channel: "telegram",
+            provider: "telegram_bot",
+            display_name: "Bot",
+            status: "connected",
+          })
+          .execute();
+        const target = await tenantDb
+          .insertInto("contacts")
+          .values({ jid: "60123456789@s.whatsapp.net", push_name: "Ada" })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        const source = await tenantDb
+          .insertInto("contacts")
+          .values({ jid: null, push_name: "Ada (Telegram)" })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        const sourceEndpoint = await tenantDb
+          .insertInto("contact_endpoints")
+          .values({
+            contact_id: source.id,
+            channel: "telegram",
+            provider: "telegram_bot",
+            channel_account_id: account,
+            endpoint_kind: "person",
+            external_id: "tg-stale",
+            identity_scope: "telegram:user",
+          })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+
+        // merge A -> unmerge A -> merge B, reusing the same (source, target).
+        const first = await mergeContacts(tenantDb, {
+          sourceContactId: source.id,
+          targetContactId: target.id,
+          actorUserId: ownerId,
+          reason: "first merge",
+        });
+        await unmergeContacts(tenantDb, {
+          mergeEventId: first.mergeEventId,
+          actorUserId: ownerId,
+          reason: "reverse the first merge",
+        });
+        const second = await mergeContacts(tenantDb, {
+          sourceContactId: source.id,
+          targetContactId: target.id,
+          actorUserId: ownerId,
+          reason: "re-merge the same pair",
+        });
+
+        // B is the merge in effect: the source points at the survivor and the
+        // active merge event pointer names B, not A.
+        const afterReMerge = await tenantDb
+          .selectFrom("contacts")
+          .select(["merged_into_contact_id", "active_merge_event_id"])
+          .where("id", "=", source.id)
+          .executeTakeFirstOrThrow();
+        expect(afterReMerge.merged_into_contact_id).toBe(target.id);
+        expect(afterReMerge.active_merge_event_id).toBe(second.mergeEventId);
+
+        // Reversing the stale event A must be rejected as superseded, even
+        // though A and B share the same survivor. Before the fix this passed
+        // and orphaned B's audit rows.
+        await expect(
+          unmergeContacts(tenantDb, {
+            mergeEventId: first.mergeEventId,
+            actorUserId: ownerId,
+            reason: "reverse the stale first merge",
+          }),
+        ).rejects.toBeInstanceOf(ValidationError);
+
+        // The rejection left the in-effect merge untouched: the endpoint is
+        // still on the survivor, the source is still archived, and B is still
+        // the active merge event.
+        expect(
+          (
+            await tenantDb
+              .selectFrom("contact_endpoints")
+              .select("contact_id")
+              .where("id", "=", sourceEndpoint.id)
+              .executeTakeFirstOrThrow()
+          ).contact_id,
+        ).toBe(target.id);
+        const untouched = await tenantDb
+          .selectFrom("contacts")
+          .select([
+            "merged_into_contact_id",
+            "active_merge_event_id",
+            "archived_at",
+          ])
+          .where("id", "=", source.id)
+          .executeTakeFirstOrThrow();
+        expect(untouched.merged_into_contact_id).toBe(target.id);
+        expect(untouched.active_merge_event_id).toBe(second.mergeEventId);
+        expect(untouched.archived_at).not.toBeNull();
+
+        // The in-effect event B is still correctable, and correcting it
+        // restores the endpoint and revives the source as a first unmerge
+        // would.
+        const undoneB = await unmergeContacts(tenantDb, {
+          mergeEventId: second.mergeEventId,
+          actorUserId: ownerId,
+          reason: "correct the in-effect merge",
+        });
+        expect(undoneB.mergeEventId).toBe(second.mergeEventId);
+        expect(undoneB.restoredEndpoints).toBe(1);
+        expect(undoneB.skippedEndpoints).toBe(0);
+        expect(
+          (
+            await tenantDb
+              .selectFrom("contact_endpoints")
+              .select("contact_id")
+              .where("id", "=", sourceEndpoint.id)
+              .executeTakeFirstOrThrow()
+          ).contact_id,
+        ).toBe(source.id);
+        const revived = await tenantDb
+          .selectFrom("contacts")
+          .select([
+            "merged_into_contact_id",
+            "active_merge_event_id",
+            "archived_at",
+          ])
+          .where("id", "=", source.id)
+          .executeTakeFirstOrThrow();
+        expect(revived.merged_into_contact_id).toBeNull();
+        expect(revived.active_merge_event_id).toBeNull();
+        expect(revived.archived_at).toBeNull();
+        expect(await resolveCanonicalContactId(tenantDb, source.id)).toBe(
+          source.id,
+        );
+
+        // After B is unmerged, A remains superseded (its pointer was cleared
+        // by the first unmerge and never re-pointed at A), so reversing A a
+        // second time is still rejected.
+        await expect(
+          unmergeContacts(tenantDb, {
+            mergeEventId: first.mergeEventId,
+            actorUserId: ownerId,
+            reason: "reverse A after B",
+          }),
+        ).rejects.toBeInstanceOf(ValidationError);
+        await expect(
+          unmergeContacts(tenantDb, {
+            mergeEventId: second.mergeEventId,
+            actorUserId: ownerId,
+            reason: "B again",
+          }),
+        ).rejects.toBeInstanceOf(ValidationError);
+      } finally {
+        await clearTenantConnection(companyId);
+        await sql
+          .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
+          .execute(db);
+        await db
+          .deleteFrom("sla_policies")
+          .where("company_id", "=", companyId)
+          .execute();
+        await db.deleteFrom("companies").where("id", "=", companyId).execute();
+        await db.deleteFrom("users").where("id", "=", ownerId).execute();
+      }
+    },
+    60_000,
+  );
+});
+
 describe("suggestContactMerges placeholder addresses", () => {
   integrationTest(
     "never proposes merging two contacts that only share a placeholder number",

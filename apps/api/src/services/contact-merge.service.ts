@@ -140,6 +140,7 @@ export async function mergeContacts(
       .updateTable("contacts")
       .set({
         merged_into_contact_id: target.id,
+        active_merge_event_id: mergeEvent.id,
         archived_at: new Date(),
         updated_at: new Date(),
       })
@@ -201,16 +202,20 @@ export async function unmergeContacts(
     }
     const source = await trx
       .selectFrom("contacts")
-      .select(["id", "merged_into_contact_id"])
+      .select(["id", "merged_into_contact_id", "active_merge_event_id"])
       .where("id", "=", mergeEvent.source_contact_id)
+      .forUpdate()
       .executeTakeFirst();
     if (!source) {
       throw new ValidationError("The merged-away contact no longer exists");
     }
-    // Only the merge that is currently in effect can be corrected. If the
-    // source was merged again afterwards, undoing this older event would
-    // revive it into a state that no longer describes anything.
-    if (source.merged_into_contact_id !== mergeEvent.target_contact_id) {
+    // Only the merge that is currently in effect can be corrected. The
+    // `active_merge_event_id` pointer names that specific event: once it is
+    // cleared (after an unmerge) or replaced (after a re-merge, even into the
+    // same survivor), the older event is superseded. Comparing the survivor
+    // id is not enough, because two events for the same `(source, target)`
+    // pair share a target.
+    if (source.active_merge_event_id !== mergeEvent.id) {
       throw new ValidationError(
         "This merge has already been superseded and cannot be reversed",
       );
@@ -265,6 +270,7 @@ export async function unmergeContacts(
       .updateTable("contacts")
       .set({
         merged_into_contact_id: null,
+        active_merge_event_id: null,
         archived_at: null,
         updated_at: new Date(),
       })
