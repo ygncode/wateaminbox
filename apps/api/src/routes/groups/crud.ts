@@ -10,7 +10,7 @@
  * There is no delete route. WhatsApp has no delete/disband operation for
  * groups; `POST /:id/leave` ends this account's membership instead.
  */
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import {
   GROUP_LEAVE_SEMANTICS,
   getGroupDisplayName,

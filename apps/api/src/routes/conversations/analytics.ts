@@ -1,4 +1,4 @@
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { db } from "@wateaminbox/database";
 import { now, parseDate, subtractDays, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";

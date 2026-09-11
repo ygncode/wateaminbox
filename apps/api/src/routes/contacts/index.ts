@@ -9,7 +9,7 @@
  * - /contacts/import/* - CSV import
  */
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { db } from "@wateaminbox/database";
 import {
   getContactDisplayName,

@@ -6,7 +6,7 @@
  * have their own validation shape (weekly calendar + exceptions).
  */
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { Hono } from "hono";
 import { successData } from "../../lib/response.js";
 import { createSlaPolicySchema } from "../../lib/schemas/index.js";

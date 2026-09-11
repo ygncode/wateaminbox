@@ -10,7 +10,7 @@
  * account lost admin rights a second ago, or a number refuses group invites -
  * never leaves the workspace showing a change that did not happen.
  */
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { GROUP_MAX_PARTICIPANTS } from "@wateaminbox/shared";
 import { type Context, Hono } from "hono";
 import { badRequest, conflict } from "../../lib/errors.js";

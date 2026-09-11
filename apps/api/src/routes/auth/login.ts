@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { AuthError } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { successMessage, successWithMessage } from "../../lib/response.js";

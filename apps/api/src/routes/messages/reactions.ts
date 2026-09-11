@@ -16,7 +16,7 @@ import {
 import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
 import { requireConversationSendAccess } from "../../services/send-access.service.js";
 import { broadcastToConversationViewers } from "../../services/message-broadcast.service.js";
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { nowMs } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";

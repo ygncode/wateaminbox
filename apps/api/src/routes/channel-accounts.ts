@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../lib/validator.js";
 import { db, type TenantDatabase } from "@wateaminbox/database";
 import { isChannel, isChannelProvider } from "@wateaminbox/shared";
 import { Hono } from "hono";

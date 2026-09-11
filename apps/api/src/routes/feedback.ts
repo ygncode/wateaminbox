@@ -5,7 +5,7 @@
  * Sends feedback to the configured feedback recipient via email.
  */
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../lib/validator.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import { sendEmail } from "../lib/email.js";

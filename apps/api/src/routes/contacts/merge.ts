@@ -1,4 +1,4 @@
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { getContactDisplayName } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { z } from "zod";

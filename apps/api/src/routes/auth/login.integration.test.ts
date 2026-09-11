@@ -70,24 +70,18 @@ describe("POST /api/auth/login deviceInfo bounds", () => {
       // inside the forUpdate transaction. The zod .max(255) bound must turn it
       // into a 400 validation error before the transaction is ever entered.
       expect(response.status).toBe(400);
-      const body = (await response.json()) as {
-        success: boolean;
-        error: {
-          name: string;
-          issues: Array<{ message: string; path: (string | number)[] }>;
-        };
-      };
-      // Not the generic 500 envelope: a structured Zod validation error.
-      expect(body.success).toBe(false);
-      expect(body.error.name).toBe("ZodError");
-      expect(
-        body.error.issues.some(
-          (i) =>
-            i.message === "Device name must be at most 255 characters" &&
-            JSON.stringify(i.path) ===
-              JSON.stringify(["deviceInfo", "deviceName"]),
-        ),
-      ).toBe(true);
+      // The documented envelope (`validationError` in lib/response.ts), not the
+      // raw `{ success: false, error: { issues, name: "ZodError" } }` payload
+      // that the default zValidator hook used to leak from every route.
+      expect(await response.json()).toEqual({
+        error: "Validation Error",
+        details: [
+          {
+            field: "deviceInfo.deviceName",
+            message: "Device name must be at most 255 characters",
+          },
+        ],
+      });
 
       // Validation rejects in the zValidator middleware before the route
       // handler calls login(), so no session row is inserted.
@@ -117,23 +111,15 @@ describe("POST /api/auth/login deviceInfo bounds", () => {
       });
 
       expect(response.status).toBe(400);
-      const body = (await response.json()) as {
-        success: boolean;
-        error: {
-          name: string;
-          issues: Array<{ message: string; path: (string | number)[] }>;
-        };
-      };
-      expect(body.success).toBe(false);
-      expect(body.error.name).toBe("ZodError");
-      expect(
-        body.error.issues.some(
-          (i) =>
-            i.message === "Device type must be at most 50 characters" &&
-            JSON.stringify(i.path) ===
-              JSON.stringify(["deviceInfo", "deviceType"]),
-        ),
-      ).toBe(true);
+      expect(await response.json()).toEqual({
+        error: "Validation Error",
+        details: [
+          {
+            field: "deviceInfo.deviceType",
+            message: "Device type must be at most 50 characters",
+          },
+        ],
+      });
 
       expect(await countSessions(userId)).toBe(0);
     },

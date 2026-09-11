@@ -2,12 +2,10 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
-import type { ZodError } from "zod";
 import { env } from "./lib/env.js";
 import { AppError, AuthError } from "./lib/errors.js";
 import { createLogger, formatError } from "./lib/logger.js";
 import { rateLimitConfig, rateLimitStore } from "./lib/rate-limit-store.js";
-import { formatZodErrors } from "./lib/response.js";
 import { createRateLimitMiddleware } from "./middleware/rate-limit.js";
 import { routes } from "./routes/index.js";
 import { wellKnownRoutes } from "./routes/well-known.js";
@@ -89,25 +87,7 @@ app.notFound((c) => {
 app.onError((err, c) => {
   // Handle HTTPException - preserve status code and message
   if (err instanceof HTTPException) {
-    const status = err.status;
-    const message = err.message || "An error occurred";
-
-    // Check if this is a Zod validation error from zValidator
-    // zValidator throws HTTPException with a response containing { success: false, error: ZodError }
-    const cause = err.cause;
-    if (cause && typeof cause === "object" && "issues" in cause) {
-      // This is a ZodError - format it nicely
-      const zodError = cause as ZodError;
-      return c.json(
-        {
-          error: "Validation Error",
-          details: formatZodErrors(zodError.issues),
-        },
-        400,
-      );
-    }
-
-    return c.json({ error: message }, status);
+    return c.json({ error: err.message || "An error occurred" }, err.status);
   }
 
   // Handle AuthError - includes code field for specific auth error handling
