@@ -66,8 +66,57 @@ import {
   getUserNames,
 } from "../../services/user.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
+import type { TenantDatabase } from "../../services/tenant.service.js";
+import type { Kysely } from "kysely";
 
 export const messageRoutes = new Hono();
+
+/**
+ * Fails a remote-history request that has gone unanswered for longer than
+ * `REMOTE_HISTORY_RESPONSE_TIMEOUT_MS`, but only while the row still looks
+ * stale.
+ *
+ * The caller reads the status with a plain SELECT that takes no lock, so a
+ * retry POST (see `POST /conversations/:id/history`, which holds `forUpdate`)
+ * can commit a fresh `requesting` between that read and this write. An
+ * unguarded UPDATE would then overwrite the fresh state with `failed`, and
+ * because the POST treats only a *fresh* `requesting` as already-pending, the
+ * user gets a false "try again" button whose next click enqueues a second
+ * `request_history` for a page that is already in flight. Re-checking the
+ * freshness here keeps the loser of the race from writing at all: PostgreSQL
+ * re-evaluates the predicate against the committed row once the lock is free.
+ *
+ * @returns `true` when this call performed the flip, so the caller can report
+ * the state that actually survived rather than the one it read.
+ */
+export async function failStaleRemoteHistoryRequest(
+  tenantDb: Kysely<TenantDatabase>,
+  contactId: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const staleRequestBefore = new Date(
+    now.getTime() - REMOTE_HISTORY_RESPONSE_TIMEOUT_MS,
+  );
+
+  const flipped = await tenantDb
+    .updateTable("contacts")
+    .set({
+      remote_history_status: "failed",
+      remote_history_updated_at: toDbDate(now),
+    })
+    .where("id", "=", contactId)
+    .where("remote_history_status", "=", "requesting")
+    .where((eb) =>
+      eb.or([
+        eb("remote_history_updated_at", "is", null),
+        eb("remote_history_updated_at", "<=", staleRequestBefore),
+      ]),
+    )
+    .returning("id")
+    .executeTakeFirst();
+
+  return Boolean(flipped);
+}
 
 /**
  * GET /conversations/:id/messages - Get messages for a conversation/contact
@@ -112,15 +161,15 @@ messageRoutes.get(
         contact.remote_history_updated_at.getTime() <=
           Date.now() - REMOTE_HISTORY_RESPONSE_TIMEOUT_MS)
     ) {
-      remoteHistoryStatus = "failed";
-      await tenantDb
-        .updateTable("contacts")
-        .set({
-          remote_history_status: remoteHistoryStatus,
-          remote_history_updated_at: toDbDate(),
-        })
-        .where("id", "=", contactId)
-        .execute();
+      // Only report `failed` if this request actually wrote it: a refused flip
+      // means a retry refreshed the row while this read was in flight, and the
+      // contact is still waiting on the history it asked for.
+      remoteHistoryStatus = (await failStaleRemoteHistoryRequest(
+        tenantDb,
+        contactId,
+      ))
+        ? "failed"
+        : "requesting";
     }
 
     let query = tenantDb
