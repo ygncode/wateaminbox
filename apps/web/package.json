@@ -33,7 +33,7 @@
     "dayjs": "^1.11.23",
     "i18next": "^26.4.2",
     "lottie-web": "^5.13.0",
-    "lucide-react": "^0.562.0",
+    "lucide-react": "^1.41.0",
     "motion": "^13.2.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.8",
