@@ -4,6 +4,7 @@ import { createDatabase } from "./client.js";
 import {
   applyQuickRepliesShortcutUnique,
   removeQuickRepliesShortcutUnique,
+  up,
 } from "./migrations/103_add_quick_replies_shortcut_unique.js";
 
 const integrationTest =
@@ -116,7 +117,7 @@ async function insertReply(
   return id;
 }
 
-describe("quick_replies shortcut uniqueness migration 090", () => {
+describe("quick_replies shortcut uniqueness migration 103", () => {
   integrationTest(
     "collapses duplicates, re-points references, and installs the UNIQUE index",
     async () => {
@@ -262,6 +263,44 @@ describe("quick_replies shortcut uniqueness migration 090", () => {
         await sql
           .raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`)
           .execute(database);
+        await database.destroy();
+      }
+    },
+    120_000,
+  );
+
+  // Kysely's Migrator runs every migration inside a transaction, so `up`
+  // receives a Transaction rather than a pool. Driving `up` that way is what
+  // the per-schema tests above cannot catch: an earlier revision opened its
+  // own `db.transaction()` inside the helper and died on the real deployment
+  // with "calling the transaction method for a Transaction is not supported".
+  integrationTest(
+    "up runs inside the Migrator's transaction, as a real deployment does",
+    async () => {
+      const database = createDatabase(process.env.DATABASE_URL || "");
+      const schema = `tenant_${crypto.randomUUID().replaceAll("-", "_")}`;
+      try {
+        await buildPreMigrationTenant(database, schema);
+        const older = new Date(Date.now() - 60_000);
+        await insertReply(database, schema, "dupe", older);
+        await insertReply(database, schema, "dupe", new Date());
+
+        await database.transaction().execute(async (trx) => {
+          await up(trx);
+        });
+
+        expect(
+          (await shortcutIndexes(database, schema)).find(
+            (idx) =>
+              idx.unique &&
+              idx.columns.length === 1 &&
+              idx.columns[0] === "shortcut",
+          ),
+        ).toBeDefined();
+      } finally {
+        await sql`DROP SCHEMA IF EXISTS ${sql.ref(schema)} CASCADE`.execute(
+          database,
+        );
         await database.destroy();
       }
     },

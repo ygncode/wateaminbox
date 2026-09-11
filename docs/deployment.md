@@ -325,10 +325,10 @@ or non-executable content. Never edit the volume manually or remove it with
 `docker compose down --volumes` during routine deployments.
 
 `api` sets `stop_grace_period: 30s`, above the 20s `SHUTDOWN_DEADLINE_MS` in
-`apps/api/src/index.ts`. On SIGTERM it drains the HTTP server, stops the message
-handler, cleanup, command outbox and scheduled dispatchers, drains NATS, then
-closes the tenant database pools — in that order, because each step can still
-need what the next one releases. All of them share one 20s budget: a step that
+`apps/api/src/index.ts`. On SIGTERM it drains the HTTP server, runs cleanup,
+command outbox and scheduled dispatchers, stops the message handler and drains
+NATS, then closes the tenant database pools — in that order, because each step
+can still need what the next one releases. All of them share one 20s budget: a step that
 exhausts it is abandoned and the remaining steps are logged as skipped, so a
 stuck `drain()` or outbox cycle can no longer hold the process open until
 SIGKILL. A second SIGTERM exits immediately. Change the budget and grace period

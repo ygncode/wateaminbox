@@ -327,10 +327,10 @@ The two workspaces that still show unmirrored messages are `deleted` and carry
 no flags, so the backfill skips them by design. That is not a gap.
 
 Sending diverges by client and it is worth knowing which is which. The inbox
-posts to `/conversations/:id/messages`, which honours the flags and therefore
-takes the neutral path. The MCP `send_message` tool routes a WhatsApp contact
-down the legacy path unconditionally and never consults them. Both end in the
-same NATS command, so both work; only the route differs.
+posts to `/messages`, which honours the flags and therefore takes the neutral
+path. The MCP `send_message` tool routes a WhatsApp contact down the legacy
+path unconditionally and never consults them. Both end in the same NATS
+command, so both work; only the route differs.
 
 ## Restoring, and the index that has to come with it
 
