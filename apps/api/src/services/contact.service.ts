@@ -3,7 +3,10 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { normalizePhoneNumber } from "../lib/schemas.js";
 import { conversationIdForContact } from "./channel-workflow.service.js";
-import { buildContactWhereClause } from "./helpers/contact-query-builder.js";
+import {
+  buildContactWhereClause,
+  phoneSearchDigits,
+} from "./helpers/contact-query-builder.js";
 import { getSchemaName, type TenantDatabase } from "./tenant.service.js";
 import { getUserNames } from "./user.service.js";
 
@@ -346,12 +349,18 @@ export async function getContactsWithLastMessage(
   }
   if (search) {
     const usernameSearch = search.trim().replace(/^@+/, "") || search;
+    // The row query restates a formatted number as digits; the total has to
+    // count the same rows or pagination reports a page that is not there.
+    const phoneDigits = phoneSearchDigits(search);
     countQuery = countQuery.where((eb) =>
       eb.or([
         eb("contacts.push_name", "ilike", `%${search}%`),
         eb("contacts.username", "ilike", `%${usernameSearch}%`),
         eb("contacts.custom_name", "ilike", `%${search}%`),
         eb("contacts.phone_number", "ilike", `%${search}%`),
+        ...(phoneDigits
+          ? [eb("contacts.phone_number", "ilike", `%${phoneDigits}%`)]
+          : []),
       ]),
     );
   }
