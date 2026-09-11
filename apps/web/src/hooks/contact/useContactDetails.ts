@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { ApiRequestError, api } from "@/lib/api/client";
 import { formatPhoneLikeText } from "@/lib/utils";
 import { queryKeys } from "../query-keys";
+import { groupKeys, type GroupDetail } from "../useGroups";
 
 /**
  * Contact detail from API with extended fields
@@ -101,6 +103,53 @@ export function useContact(contactId: string | null) {
 }
 
 /**
+ * Applies a `PATCH /contacts/:id` response to every cache that renders it.
+ *
+ * A group's alias is edited through the *contacts* endpoint, but the groups
+ * sidebar (`groupKeys.lists()`) and the leave-group dialog
+ * (`groupKeys.detail`) render from the separate `groups` query domain.
+ * Invalidation is prefix-based, so `contacts.all` never reached either one and
+ * a rename left both showing the old alias until an unrelated refetch.
+ *
+ * The PATCH response carries no `isGroup`, so group handling is decided by the
+ * cached contact the profile panel rendered from.
+ */
+export function applyContactUpdateToCaches(
+  queryClient: QueryClient,
+  params: { contactId: string; update: ContactDetail },
+): void {
+  const { contactId, update } = params;
+  const cachedContact = queryClient.getQueryData<ContactDetail>(
+    queryKeys.contacts.detail(contactId),
+  );
+
+  queryClient.setQueryData(
+    queryKeys.contacts.detail(contactId),
+    (old: ContactDetail | undefined) => {
+      if (!old) return update;
+      return { ...old, ...update };
+    },
+  );
+  queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
+
+  if (!cachedContact?.isGroup) return;
+
+  queryClient.setQueryData(
+    groupKeys.detail(contactId),
+    (old: GroupDetail | undefined) => {
+      if (!old) return old;
+      return {
+        ...old,
+        customName: update.customName,
+        displayName: update.customName || old.name || "Unknown Group",
+        updatedAt: update.updatedAt,
+      };
+    },
+  );
+  queryClient.invalidateQueries({ queryKey: groupKeys.lists() });
+}
+
+/**
  * Hook to update a contact's custom name or shared notes
  */
 export function useUpdateContact() {
@@ -126,16 +175,10 @@ export function useUpdateContact() {
       return response;
     },
     onSuccess: (data, variables) => {
-      // Update the contact cache
-      queryClient.setQueryData(
-        queryKeys.contacts.detail(variables.contactId),
-        (old: ContactDetail | undefined) => {
-          if (!old) return data;
-          return { ...old, ...data };
-        },
-      );
-      // Invalidate the contacts list to reflect changes
-      queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
+      applyContactUpdateToCaches(queryClient, {
+        contactId: variables.contactId,
+        update: data,
+      });
     },
   });
 }
