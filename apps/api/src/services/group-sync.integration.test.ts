@@ -1131,4 +1131,324 @@ describe("group synchronization", () => {
     },
     30_000,
   );
+  integrationTest(
+    "masks LID participants whose backfilled sender_name carries the bare LID digits",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+      const groupJid = `${randomNumericId()}@g.us`;
+      const ownNumber = randomNumericId();
+      // A 16-digit LID local part: migration 034 backfills `split_part(jid,
+      // '@', 1)` into `messages.sender_name` for unmapped LID senders, so a
+      // quiescent LID member's newest (and only) group message row carries the
+      // opaque digits here. The panel chain used to short-circuit on that
+      // value and never reach `getLidDisplayName`.
+      const longLid = "6585719494172749";
+      const longLidJid = `${longLid}@lid`;
+      // An 11-digit local part — within the E.164 cap, so a leak used to render
+      // as "+<digits>" through `formatPhoneLikeText` on the client.
+      const shortLid = "88888888888";
+      const shortLidJid = `${shortLid}@lid`;
+      // A hosted LID uses the same opaque local part over a different suffix.
+      const hostedLid = "99112233";
+      const hostedLidJid = `${hostedLid}@hosted.lid`;
+
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: connectionId,
+            name: "Primary",
+            jid: `${ownNumber}@s.whatsapp.net`,
+            status: "connected",
+          })
+          .execute();
+
+        const contactEvent: ContactEvent = {
+          contractVersion: 1,
+          type: "contact",
+          companyId,
+          connectionId,
+          timestamp: new Date().toISOString(),
+          payload: {
+            jid: groupJid,
+            displayName: "LID Leak Group",
+            isGroup: true,
+            participants: [
+              { jid: longLidJid, isAdmin: false },
+              { jid: shortLidJid, isAdmin: false },
+              { jid: hostedLidJid, isAdmin: false },
+              { jid: `${ownNumber}@s.whatsapp.net`, isAdmin: true },
+            ],
+          },
+        };
+        await handleContactEvent(contactEvent);
+
+        const groupContact = await tenantDb
+          .selectFrom("contacts")
+          .select(["id"])
+          .where("jid", "=", groupJid)
+          .executeTakeFirstOrThrow();
+        const groupRecord = await tenantDb
+          .selectFrom("groups")
+          .select("id")
+          .where("contact_id", "=", groupContact.id)
+          .executeTakeFirstOrThrow();
+
+        // Backfill the exact shape migration 034 writes for unmapped LID
+        // senders: `sender_jid` = the LID JID, `sender_name` = the bare local
+        // part digits. This is the demonstrated leak producer.
+        const backfillTimestamp = new Date("2026-01-01T00:00:00Z");
+        await tenantDb
+          .insertInto("messages")
+          .values([
+            {
+              whatsapp_connection_id: connectionId,
+              contact_id: groupContact.id,
+              message_id: `backfill-${longLid}`,
+              from_me: false,
+              sender_jid: longLidJid,
+              sender_name: longLid,
+              message_type: "text",
+              content: "backfilled long",
+              timestamp: backfillTimestamp,
+            },
+            {
+              whatsapp_connection_id: connectionId,
+              contact_id: groupContact.id,
+              message_id: `backfill-${shortLid}`,
+              from_me: false,
+              sender_jid: shortLidJid,
+              sender_name: shortLid,
+              message_type: "text",
+              content: "backfilled short",
+              timestamp: backfillTimestamp,
+            },
+            {
+              whatsapp_connection_id: connectionId,
+              contact_id: groupContact.id,
+              message_id: `backfill-${hostedLid}`,
+              from_me: false,
+              sender_jid: hostedLidJid,
+              sender_name: hostedLid,
+              message_type: "text",
+              content: "backfilled hosted",
+              timestamp: backfillTimestamp,
+            },
+          ])
+          .execute();
+
+        const participants = await getEnrichedGroupParticipants(tenantDb, {
+          groupId: groupRecord.id,
+          contactId: groupContact.id,
+          connectionId,
+          connectionJid: `${ownNumber}@s.whatsapp.net`,
+        });
+        const displayNameByJid = new Map(
+          participants.map((participant) => [
+            participant.jid,
+            participant.displayName,
+          ]),
+        );
+
+        // The backfilled bare digits must NOT leak: the panel resolves to the
+        // privacy-safe label instead of the opaque LID local part.
+        expect(displayNameByJid.get(longLidJid)).toBe(
+          `WhatsApp user (ID …${longLid.slice(-4)})`,
+        );
+        expect(displayNameByJid.get(shortLidJid)).toBe(
+          `WhatsApp user (ID …${shortLid.slice(-4)})`,
+        );
+        expect(displayNameByJid.get(hostedLidJid)).toBe(
+          `WhatsApp user (ID …${hostedLid.slice(-4)})`,
+        );
+
+        // The commit's per-row invariant: the primary name and the subtitle
+        // (rendered through `formatPhoneLikeText` on `displayName` and `jid`
+        // respectively) must agree for every LID member, even when
+        // `sender_name` carries the bare digits.
+        for (const participant of participants) {
+          const isLid =
+            participant.jid.endsWith("@lid") ||
+            participant.jid.endsWith("@hosted.lid");
+          if (!isLid) continue;
+          expect(formatPhoneLikeText(participant.displayName)).toBe(
+            formatPhoneLikeText(participant.jid),
+          );
+        }
+
+        // The profile path and the panel path agree on the same input that
+        // previously diverged: both mask the digit-repeating push_name.
+        expect(
+          getContactDisplayName({
+            jid: longLidJid,
+            push_name: longLid,
+          }),
+        ).toBe(`WhatsApp user (ID …${longLid.slice(-4)})`);
+        expect(
+          getContactDisplayName({ jid: longLidJid, push_name: longLid }),
+        ).toBe(displayNameByJid.get(longLidJid) as string);
+
+        // A real name carried on `sender_name` is still shown (no regression
+        // for a known participant whose backfilled row carries a name).
+        await tenantDb
+          .insertInto("messages")
+          .values({
+            whatsapp_connection_id: connectionId,
+            contact_id: groupContact.id,
+            message_id: `backfill-real-${longLid}`,
+            from_me: false,
+            sender_jid: longLidJid,
+            sender_name: "Carol Behind A LID",
+            message_type: "text",
+            content: "named",
+            // Newer than the digit-backfill row, so this becomes the
+            // most-recent row for that sender_jid.
+            timestamp: new Date("2026-02-01T00:00:00Z"),
+          })
+          .execute();
+        const afterRealName = await getEnrichedGroupParticipants(tenantDb, {
+          groupId: groupRecord.id,
+          contactId: groupContact.id,
+          connectionId,
+          connectionJid: `${ownNumber}@s.whatsapp.net`,
+        });
+        const realNameByJid = new Map(
+          afterRealName.map((participant) => [
+            participant.jid,
+            participant.displayName,
+          ]),
+        );
+        expect(realNameByJid.get(longLidJid)).toBe("Carol Behind A LID");
+
+        // The live-writer shape (sender_name = null) also masks, confirming the
+        // self-heal path is unaffected by the guard.
+        await tenantDb
+          .insertInto("messages")
+          .values({
+            whatsapp_connection_id: connectionId,
+            contact_id: groupContact.id,
+            message_id: `live-${shortLid}`,
+            from_me: false,
+            sender_jid: shortLidJid,
+            sender_name: null,
+            message_type: "text",
+            content: "live",
+            timestamp: new Date("2026-03-01T00:00:00Z"),
+          })
+          .execute();
+        const afterLive = await getEnrichedGroupParticipants(tenantDb, {
+          groupId: groupRecord.id,
+          contactId: groupContact.id,
+          connectionId,
+          connectionJid: `${ownNumber}@s.whatsapp.net`,
+        });
+        const liveByJid = new Map(
+          afterLive.map((participant) => [
+            participant.jid,
+            participant.displayName,
+          ]),
+        );
+        expect(liveByJid.get(shortLidJid)).toBe(
+          `WhatsApp user (ID …${shortLid.slice(-4)})`,
+        );
+      } finally {
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      }
+    },
+    30_000,
+  );
+  integrationTest(
+    "masks LID participants whose contact or stored name restates the opaque LID identity",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+      const groupJid = `${randomNumericId()}@g.us`;
+      const ownNumber = randomNumericId();
+      const lidLocalPart = randomNumericId();
+      const lidJid = `${lidLocalPart}@lid`;
+
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: connectionId,
+            name: "Primary",
+            jid: `${ownNumber}@s.whatsapp.net`,
+            status: "connected",
+          })
+          .execute();
+
+        await handleContactEvent({
+          contractVersion: 1,
+          type: "contact",
+          companyId,
+          connectionId,
+          timestamp: new Date().toISOString(),
+          payload: {
+            jid: groupJid,
+            displayName: "LID Identity Restatement Group",
+            isGroup: true,
+            participants: [
+              { jid: lidJid, isAdmin: false },
+              { jid: `${ownNumber}@s.whatsapp.net`, isAdmin: true },
+            ],
+          },
+        });
+
+        const groupContact = await tenantDb
+          .selectFrom("contacts")
+          .select(["id"])
+          .where("jid", "=", groupJid)
+          .executeTakeFirstOrThrow();
+        const groupRecord = await tenantDb
+          .selectFrom("groups")
+          .select("id")
+          .where("contact_id", "=", groupContact.id)
+          .executeTakeFirstOrThrow();
+
+        // A contact row whose push_name merely restates the opaque LID digits.
+        await tenantDb
+          .insertInto("contacts")
+          .values({
+            whatsapp_connection_id: connectionId,
+            jid: lidJid,
+            push_name: lidLocalPart,
+          })
+          .execute();
+
+        const participants = await getEnrichedGroupParticipants(tenantDb, {
+          groupId: groupRecord.id,
+          contactId: groupContact.id,
+          connectionId,
+          connectionJid: `${ownNumber}@s.whatsapp.net`,
+        });
+        const displayNameByJid = new Map(
+          participants.map((participant) => [
+            participant.jid,
+            participant.displayName,
+          ]),
+        );
+
+        // The digit-repeating push_name falls through to the LID mask.
+        expect(displayNameByJid.get(lidJid)).toBe(
+          `WhatsApp user (ID …${lidLocalPart.slice(-4)})`,
+        );
+        expect(
+          formatPhoneLikeText(displayNameByJid.get(lidJid) as string),
+        ).toBe(formatPhoneLikeText(lidJid));
+      } finally {
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      }
+    },
+    30_000,
+  );
 });
