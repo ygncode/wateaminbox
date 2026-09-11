@@ -4,7 +4,7 @@
  * Handles invitation listing, creation, cancellation, acceptance, and resending.
  */
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { Hono } from "hono";
 import {
   successData,

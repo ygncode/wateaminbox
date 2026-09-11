@@ -4,7 +4,7 @@
  * Handles permission listing, member permissions, and permission management.
  */
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { successData, successWithMessage } from "../../lib/response.js";

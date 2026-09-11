@@ -4,7 +4,7 @@
  * Routes for batch operations on messages.
  */
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { notFound } from "../../lib/errors.js";

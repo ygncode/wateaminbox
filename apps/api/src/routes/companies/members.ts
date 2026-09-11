@@ -4,7 +4,7 @@
  * Handles member listing, role updates, and member removal.
  */
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import type { CompanyMember } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";

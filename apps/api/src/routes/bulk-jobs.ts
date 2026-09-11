@@ -10,7 +10,7 @@
  * depend on HTTP request limiting at all.
  */
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../lib/validator.js";
 import { Hono } from "hono";
 import { badRequest, conflict, notFound } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";

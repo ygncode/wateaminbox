@@ -1,4 +1,4 @@
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { isChannel, isChannelProvider } from "@wateaminbox/shared";
 import { createHash } from "node:crypto";
 import { Hono } from "hono";

@@ -3,7 +3,7 @@
  *
  * CRUD operations for managing multiple WhatsApp connections per company.
  */
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { toDbDate, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";

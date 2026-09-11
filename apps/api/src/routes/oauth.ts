@@ -12,7 +12,7 @@
  * bodies.
  */
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../lib/validator.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import { env } from "../lib/env.js";

@@ -1,4 +1,4 @@
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { Hono } from "hono";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { validatePasswordStrength } from "../../lib/password.js";

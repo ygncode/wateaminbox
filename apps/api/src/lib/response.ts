@@ -149,10 +149,16 @@ export function validationError(c: Context, details: ValidationDetail[]) {
  * @param zodErrors - Zod error array from safeParse result
  */
 export function formatZodErrors(
-  zodErrors: Array<{ path: (string | number)[]; message: string }>,
+  zodErrors: ReadonlyArray<{
+    path: readonly PropertyKey[];
+    message: string;
+  }>,
 ): ValidationDetail[] {
   return zodErrors.map((e) => ({
-    field: e.path.join("."),
+    // Zod types an issue path as `PropertyKey[]` because symbolic paths exist
+    // in object schemas; JSON request bodies can only produce string and
+    // number segments, and `String` keeps a symbol from throwing in `join`.
+    field: e.path.map((segment) => String(segment)).join("."),
     message: e.message,
   }));
 }

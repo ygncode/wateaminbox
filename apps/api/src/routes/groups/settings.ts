@@ -12,7 +12,7 @@
  * account's membership; the group and its history continue to exist for the
  * remaining members, and the conversation stays in the inbox as a record.
  */
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { GROUP_LEAVE_SEMANTICS } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { conflict } from "../../lib/errors.js";

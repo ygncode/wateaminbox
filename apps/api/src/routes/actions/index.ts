@@ -5,7 +5,7 @@
  * These endpoints allow clients to trigger actions without maintaining a WebSocket connection.
  */
 
-import { zValidator } from "@hono/zod-validator";
+import { zValidator } from "../../lib/validator.js";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
