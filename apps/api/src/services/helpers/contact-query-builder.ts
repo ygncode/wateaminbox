@@ -47,6 +47,25 @@ export function buildConversationStatusClause(
 }
 
 /**
+ * Digits-only restatement of a formatted phone search.
+ *
+ * Stored phone numbers are bare digits (see normalizePhoneNumber), so a caller
+ * who types "+91 79810 75978" - the format WhatsApp and the Add Contact hint
+ * both encourage - can never match `phone_number ILIKE '%+91 79810 75978%'`.
+ * Callers OR this value in as a second pattern.
+ *
+ * @param search - Raw search term.
+ * @returns The digits to match, or null when the ILIKE pattern already covers
+ *   the search (it is digits-only) or it carries no usable number.
+ */
+export function phoneSearchDigits(search?: string): string | null {
+  const trimmed = search?.trim() ?? "";
+  const digits = trimmed.replace(/\D+/g, "");
+  if (digits.length < 3 || digits === trimmed) return null;
+  return digits;
+}
+
+/**
  * Build search filter SQL clause for raw SQL queries.
  * Uses parameterized query to prevent SQL injection.
  *
@@ -58,7 +77,14 @@ export function buildSearchClause(search?: string): RawBuilder<unknown> {
   const searchValue = `%${search}%`;
   const username = search.trim().replace(/^@+/, "") || search;
   const usernameSearchValue = `%${username}%`;
-  return sql`(c.push_name ILIKE ${searchValue} OR c.username ILIKE ${usernameSearchValue} OR c.custom_name ILIKE ${searchValue} OR c.phone_number ILIKE ${searchValue})`;
+  const phoneDigits = phoneSearchDigits(search);
+  const phoneDigitsClause = phoneDigits
+    ? sql` OR c.phone_number ILIKE ${`%${phoneDigits}%`}`
+    : sql``;
+  return sql`(c.push_name ILIKE ${searchValue}
+    OR c.username ILIKE ${usernameSearchValue}
+    OR c.custom_name ILIKE ${searchValue}
+    OR c.phone_number ILIKE ${searchValue}${phoneDigitsClause})`;
 }
 
 /**

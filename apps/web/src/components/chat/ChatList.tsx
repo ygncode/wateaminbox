@@ -57,6 +57,7 @@ import {
   resolveOwningAccountId,
   writeChatListFilters,
 } from "./chat-list-filters";
+import { chatMatchesSearch } from "./chat-search";
 import { resolveInboxConnectionState } from "./inbox-connection-state";
 
 // Fixed height for chat list items for virtualization
@@ -223,10 +224,13 @@ export const ChatList = memo(function ChatList({
 
   // Filter archived chats for main view
   const visibleChats = useMemo(() => {
-    const needle = searchQuery.trim().toLowerCase();
     return mergeInboxChats(chats ?? [], channelConversations).filter((chat) => {
       if (chat.isArchived) return false;
-      if (needle && !chat.contact.name.toLowerCase().includes(needle)) {
+      // Contacts already arrived filtered by the API; this also narrows the
+      // channel conversations merged in beside them, which the API never
+      // searched. See chat-search.ts for why the display name alone is not
+      // enough for a phone-number search.
+      if (!chatMatchesSearch(chat, searchQuery)) {
         return false;
       }
       if (assignmentFilter === "unread" && chat.unreadCount <= 0) return false;
