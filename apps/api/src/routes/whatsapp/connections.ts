@@ -413,6 +413,23 @@ connectionRoutes.post(
         connectionId,
       );
 
+      // Archived accounts keep status "disconnected", so they slip past the
+      // connected guard below and this route flips them to "pending" without
+      // clearing `archived_at` - a state the connection lifecycle says cannot
+      // exist. While it lasts it inflates `getConnectionLimits`, whose
+      // `connected|pending` filter has no archived guard, so legitimate spawns
+      // can get a 429; the account also shows up as a confusing pending entry
+      // in the archived list, and a worker pairs an account the operator had
+      // archived. `POST .../relink` is the archive-aware path and clears
+      // `archived_at` in the same transaction as the status change, so send
+      // the caller there instead.
+      if (connection.archivedAt) {
+        throw new HTTPException(409, {
+          message:
+            "This account is archived. Relink it to connect it again.",
+        });
+      }
+
       // Only allow reconnect for disconnected connections
       if (connection.status === "connected") {
         throw new HTTPException(400, {
