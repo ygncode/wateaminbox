@@ -99,7 +99,7 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     container_name: wateaminbox-minio
     command: server /data --console-address ":9001"
     environment:
@@ -118,7 +118,7 @@ services:
 
   # Create default bucket on startup
   minio-init:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:latest
     container_name: wateaminbox-minio-init
     depends_on:
       minio:

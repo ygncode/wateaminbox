@@ -134,7 +134,7 @@ jobs:
           docker run -d --name minio-ci -p 4450:9000 \
             -e MINIO_ROOT_USER=minioadmin \
             -e MINIO_ROOT_PASSWORD=minioadmin \
-            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+            quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
           for attempt in {1..30}; do
             if curl --fail --silent http://127.0.0.1:4450/minio/health/live >/dev/null; then
               break
@@ -146,7 +146,7 @@ jobs:
             fi
             sleep 1
           done
-          docker run --rm --network host --entrypoint /bin/sh minio/mc:latest \
+          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:latest \
             -c 'mc alias set local http://127.0.0.1:4450 minioadmin minioadmin && mc mb --ignore-existing local/whatsapp-media'
 
       - name: Configure test database URL
@@ -237,7 +237,7 @@ jobs:
           docker run -d --name minio-ci -p 4450:9000 \
             -e MINIO_ROOT_USER=minioadmin \
             -e MINIO_ROOT_PASSWORD=minioadmin \
-            minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+            quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
           for attempt in {1..30}; do
             if curl --fail --silent http://127.0.0.1:4450/minio/health/live >/dev/null; then
               break
@@ -249,7 +249,7 @@ jobs:
             fi
             sleep 1
           done
-          docker run --rm --network host --entrypoint /bin/sh minio/mc:latest \
+          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:latest \
             -c 'mc alias set local http://127.0.0.1:4450 minioadmin minioadmin && mc mb --ignore-existing local/whatsapp-media'
 
       - name: Configure test database URL
