@@ -1,6 +1,7 @@
 {
   "common": {
     "cancel": "取消",
+    "save": "保存",
     "delete": "删除",
     "loading": "加载中...",
     "error": "发生错误",
@@ -438,8 +439,8 @@
       "description": "告诉我们哪些功能好用，哪些需要改进。反馈会直接送达团队；即使您关闭了悬浮的反馈标签，也可以在这里提交。"
     },
     "connections": {
-      "title": "WhatsApp 连接",
-      "description": "关联并管理为该工作区收件箱提供服务的 WhatsApp 设备。"
+      "title": "渠道连接",
+      "description": "关联并管理为该工作区收件箱提供服务的账号。"
     },
     "quickRepliesPanel": {
       "title": "已保存的回复",
@@ -1377,9 +1378,14 @@
     "viewSetup": "查看设置",
     "moreActions": "更多操作",
     "moreActionsFor": "{{name}} 的更多操作",
+    "resume": "恢复连接",
+    "disconnect": "断开连接",
+    "rename": "重命名",
+    "renameAccount": "账号名称",
     "archiveUnlink": "归档并解除关联",
     "archiveUnlinkConfirm": "确定归档并解除关联 {{name}}？",
     "archiveUnlinkDescription": "此操作会将设备从 WhatsApp 登出，并在活跃连接中隐藏该账号。会话、分配与备注都会保留，重新关联该号码后将恢复。",
+    "channelArchiveUnlinkDescription": "此操作会移除 {{channel}} 的 Webhook 并清除已保存的凭据，重新连接时需要再次提供机器人令牌。会话、分配与备注都会保留。",
     "dialogConnected": "WhatsApp 已连接",
     "dialogLinking": "关联你的 WhatsApp 设备",
     "dialogAdd": "添加 WhatsApp 连接",

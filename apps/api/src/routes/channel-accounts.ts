@@ -372,6 +372,313 @@ channelAccountRoutes.post(
   },
 );
 
+/**
+ * Stop delivery without giving up the account.
+ *
+ * Unlinking erases the bot token, so the only way back is to fetch it from
+ * BotFather again - too much ceremony for "mute this bot over the weekend".
+ * Pausing removes the webhook and revokes the ingress route, so Telegram
+ * stops sending and a leaked URL stops being honoured, while the credential
+ * stays encrypted at rest and the account keeps its conversations, its slot,
+ * and its name.
+ *
+ * Webhook-first and fail-closed, like unlink: the account is marked on its way
+ * down before Telegram is asked, and a refusal puts it back rather than
+ * leaving a row that claims to be paused while updates still arrive.
+ */
+channelAccountRoutes.post("/:id/disconnect", async (c) => {
+  const { tenantDb, companyId, role } = getRouteContext(c);
+  if (role === "member") return forbidden(c);
+  const account = await tenantDb
+    .selectFrom("channel_accounts")
+    .select(["id", "provider", "status", "archived_at"])
+    .where("id", "=", c.req.param("id"))
+    .executeTakeFirst();
+  if (!account || account.archived_at) return notFound(c, "Channel account");
+  if (account.provider !== "telegram_bot") {
+    return c.json({ error: "Use the provider-specific disconnect flow" }, 400);
+  }
+  if (account.status === "disabled") {
+    return conflict(c, "Channel account is already disconnected");
+  }
+  const botToken = await readChannelCredential(
+    tenantDb,
+    companyId,
+    account.id,
+    "telegram_bot_token",
+  );
+  if (!botToken)
+    return c.json({ error: "Channel credential unavailable" }, 503);
+  const previousStatus = account.status;
+  await tenantDb
+    .updateTable("channel_accounts")
+    .set({ status: "disabled", provider_status: "webhook_removal_pending" })
+    .where("id", "=", account.id)
+    .execute();
+  try {
+    await removeTelegramWebhook(botToken);
+  } catch {
+    await tenantDb
+      .updateTable("channel_accounts")
+      .set({
+        status: previousStatus,
+        provider_status: "webhook_removal_failed",
+      })
+      .where("id", "=", account.id)
+      .execute();
+    return c.json({ error: "Telegram webhook removal failed" }, 502);
+  }
+  await db.transaction().execute(async (trx) => {
+    const company = await trx
+      .selectFrom("companies")
+      .select("schema_name")
+      .where("id", "=", companyId)
+      .executeTakeFirstOrThrow();
+    const tenant = trx.withSchema(
+      company.schema_name,
+    ) as unknown as Transaction<TenantDatabase>;
+    await trx
+      .updateTable("channel_ingress_routes")
+      .set({ state: "revoked", revoked_at: new Date(), updated_at: new Date() })
+      .where("company_id", "=", companyId)
+      .where("channel_account_id", "=", account.id)
+      .where("state", "!=", "revoked")
+      .execute();
+    await tenant
+      .updateTable("channel_accounts")
+      .set({
+        status: "disabled",
+        // Cleared, not left at the in-flight value: a paused account is at
+        // rest, and a row still reading "removal pending" reads as stuck.
+        provider_status: null,
+        connected_at: null,
+        updated_at: new Date(),
+      })
+      .where("id", "=", account.id)
+      .execute();
+  });
+  return c.json({ success: true });
+});
+
+/**
+ * Put a paused bot back to work.
+ *
+ * This is the connect flow without the parts that only apply to a new
+ * account: no identity call, no quota check (a paused account never released
+ * its slot), no new row. What it does repeat is the rotation - the stored
+ * route key is a one-way hash, so the old webhook URL cannot be rebuilt even
+ * in principle, and resuming mints a fresh key and secret. Rotating is the
+ * only option available and also the better one: a URL that leaked while the
+ * account was paused never becomes live again.
+ */
+channelAccountRoutes.post("/:id/resume", async (c) => {
+  const { tenantDb, companyId, role } = getRouteContext(c);
+  if (role === "member") return forbidden(c);
+  const account = await tenantDb
+    .selectFrom("channel_accounts")
+    .select(["id", "provider", "status", "archived_at"])
+    .where("id", "=", c.req.param("id"))
+    .executeTakeFirst();
+  if (!account || account.archived_at) return notFound(c, "Channel account");
+  if (account.provider !== "telegram_bot") {
+    return c.json({ error: "Use the provider-specific connect flow" }, 400);
+  }
+  if (account.status === "connected") {
+    return conflict(c, "Channel account is already connected");
+  }
+  const authority = await getChannelSpineWorkspaceAuthority(companyId);
+  if (
+    authority.writeAuthority !== "neutral" ||
+    !isChannelProviderEnabled(authority, "telegram_bot")
+  ) {
+    return notFound(c, "Telegram Bot is not enabled for this workspace");
+  }
+  // Resuming stores a fresh webhook secret, so a server that cannot encrypt
+  // one must say so before Telegram is told about a route we cannot honour.
+  if (!canStoreChannelCredentials()) {
+    return c.json(
+      {
+        error:
+          "This server has no channel credential encryption key configured",
+      },
+      503,
+    );
+  }
+  const botToken = await readChannelCredential(
+    tenantDb,
+    companyId,
+    account.id,
+    "telegram_bot_token",
+  );
+  // An account paused before the credential outlived the pause, or one whose
+  // keyring has since changed, cannot be resumed - only unlinked and
+  // reconnected with the token again. Say that rather than throwing.
+  if (!botToken) {
+    return c.json(
+      {
+        error:
+          "The stored bot token is unavailable. Unlink this account and connect the bot again.",
+      },
+      409,
+    );
+  }
+
+  const company = await db
+    .selectFrom("companies")
+    .select("schema_name")
+    .where("id", "=", companyId)
+    .executeTakeFirstOrThrow();
+  const routeKey = randomBytes(32).toString("base64url");
+  const webhookSecret = randomBytes(32).toString("base64url");
+  const routeHash = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(routeKey),
+  );
+  await db.transaction().execute(async (trx) => {
+    const tenant = trx.withSchema(
+      company.schema_name,
+    ) as unknown as Transaction<TenantDatabase>;
+    await trx
+      .updateTable("channel_ingress_routes")
+      .set({ state: "revoked", revoked_at: new Date(), updated_at: new Date() })
+      .where("company_id", "=", companyId)
+      .where("channel_account_id", "=", account.id)
+      .where("state", "!=", "revoked")
+      .execute();
+    await tenant
+      .updateTable("channel_accounts")
+      .set({
+        status: "connecting",
+        provider_status: null,
+        updated_at: new Date(),
+      })
+      .where("id", "=", account.id)
+      .execute();
+    await storeChannelCredential(
+      tenant,
+      companyId,
+      account.id,
+      "telegram_webhook_secret",
+      webhookSecret,
+    );
+    await trx
+      .insertInto("channel_ingress_routes")
+      .values({
+        provider: "telegram_bot",
+        route_key_hash: Buffer.from(routeHash).toString("hex"),
+        company_id: companyId,
+        channel_account_id: account.id,
+        state: "pending",
+        revoked_at: null,
+      })
+      .execute();
+  });
+
+  const webhookUrl = `${env.APP_URL.replace(/\/$/, "")}/api/channel-ingress/telegram_bot/${routeKey}`;
+  try {
+    await configureTelegramWebhook(botToken, webhookUrl, webhookSecret);
+  } catch {
+    await tenantDb
+      .updateTable("channel_accounts")
+      .set({ status: "error", provider_status: "webhook_configuration_failed" })
+      .where("id", "=", account.id)
+      .execute();
+    return c.json({ error: "Telegram webhook configuration failed" }, 502);
+  }
+
+  await db.transaction().execute(async (trx) => {
+    const tenant = trx.withSchema(
+      company.schema_name,
+    ) as unknown as Transaction<TenantDatabase>;
+    await tenant
+      .updateTable("channel_accounts")
+      .set({
+        status: "connected",
+        connected_at: new Date(),
+        updated_at: new Date(),
+      })
+      .where("id", "=", account.id)
+      .execute();
+    await trx
+      .updateTable("channel_ingress_routes")
+      .set({ state: "active", updated_at: new Date() })
+      .where("company_id", "=", companyId)
+      .where("channel_account_id", "=", account.id)
+      .where("state", "=", "pending")
+      .execute();
+  });
+  return c.json({ success: true });
+});
+
+const renameChannelAccountSchema = z.object({
+  displayName: z.string().trim().min(1).max(100),
+});
+
+/**
+ * PATCH /channel-accounts/:id - rename the account.
+ *
+ * The display name is ours, not the provider's: Telegram hands back the bot's
+ * own first_name at connect time, which is what the bot is called in Telegram
+ * and rarely what the workspace calls the inbox it feeds. A linked WhatsApp
+ * number has been renameable since it shipped, and an inbox that lets you
+ * name one of its two accounts reads as an oversight rather than a rule.
+ *
+ * Only the name moves. Nothing here touches the provider, the credential, or
+ * the ingress route, so a rename cannot fail halfway and leave the account in
+ * a state the provider disagrees with.
+ */
+channelAccountRoutes.patch(
+  "/:id",
+  zValidator("json", renameChannelAccountSchema),
+  async (c) => {
+    const { tenantDb, role } = getRouteContext(c);
+    if (role === "member") return forbidden(c);
+    const { displayName } = c.req.valid("json");
+    const account = await tenantDb
+      .selectFrom("channel_accounts")
+      .select(["id", "archived_at"])
+      .where("id", "=", c.req.param("id"))
+      .executeTakeFirst();
+    // An archived account is gone as far as the workspace is concerned; it is
+    // listed nowhere and renaming it would only edit history.
+    if (!account || account.archived_at) return notFound(c, "Channel account");
+    const updated = await tenantDb
+      .updateTable("channel_accounts")
+      .set({ display_name: displayName, updated_at: new Date() })
+      .where("id", "=", account.id)
+      .returning([
+        "id",
+        "channel",
+        "provider",
+        "display_name",
+        "external_account_id",
+        "status",
+        "provider_status",
+        "provider_metadata",
+        "connected_at",
+        "last_sync_at",
+        "created_at",
+        "updated_at",
+      ])
+      .executeTakeFirstOrThrow();
+    return successData(c, {
+      id: updated.id,
+      channel: updated.channel,
+      provider: updated.provider,
+      displayName: updated.display_name,
+      externalAccountId: updated.external_account_id,
+      status: updated.status,
+      providerStatus: updated.provider_status,
+      canReadAllGroupMessages:
+        updated.provider_metadata?.canReadAllGroupMessages === true,
+      connectedAt: updated.connected_at,
+      lastSyncAt: updated.last_sync_at,
+      createdAt: updated.created_at,
+      updatedAt: updated.updated_at,
+    });
+  },
+);
+
 channelAccountRoutes.delete("/:id", async (c) => {
   const { tenantDb, companyId, role } = getRouteContext(c);
   if (role === "member") return forbidden(c);
@@ -427,6 +734,10 @@ channelAccountRoutes.delete("/:id", async (c) => {
       .updateTable("channel_accounts")
       .set({
         status: "archived",
+        // The removal did succeed to reach this line, so the in-flight flag
+        // set on the way in has to come back off; left behind, an archived
+        // row reads as permanently mid-operation.
+        provider_status: null,
         archived_at: new Date(),
         updated_at: new Date(),
       })

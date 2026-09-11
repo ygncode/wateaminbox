@@ -1,10 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   connectTelegramBot,
   disconnectChannelAccount,
   getChannelAccountCapabilities,
   getChannelAccounts,
   getChannelProviderAvailability,
+  pauseChannelAccount,
+  renameChannelAccount,
+  resumeChannelAccount,
 } from "@/lib/api/channel-accounts";
 import { queryKeys } from "./query-keys";
 
@@ -51,6 +55,59 @@ export function useConnectTelegramBot() {
   });
 }
 
+export function useRenameChannelAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      channelAccountId,
+      displayName,
+    }: {
+      channelAccountId: string;
+      displayName: string;
+    }) => renameChannelAccount(channelAccountId, displayName),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.channelAccounts.all,
+      });
+    },
+    onError: (error: unknown) => {
+      toast.error(mutationErrorMessage(error, "Could not rename this account"));
+    },
+  });
+}
+
+export function usePauseChannelAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: pauseChannelAccount,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.channelAccounts.all,
+      });
+    },
+    onError: (error: unknown) => {
+      toast.error(
+        mutationErrorMessage(error, "Could not disconnect this account"),
+      );
+    },
+  });
+}
+
+export function useResumeChannelAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: resumeChannelAccount,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.channelAccounts.all,
+      });
+    },
+    onError: (error: unknown) => {
+      toast.error(mutationErrorMessage(error, "Could not resume this account"));
+    },
+  });
+}
+
 export function useDisconnectChannelAccount() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -60,7 +117,35 @@ export function useDisconnectChannelAccount() {
         queryKey: queryKeys.channelAccounts.all,
       });
     },
+    /**
+     * Unlinking fails for reasons only the server can see - a webhook the
+     * provider refused to drop, a credential this process cannot decrypt -
+     * and every one of them used to land as silence: the row stayed put and
+     * the click looked ignored. Say what happened instead, and keep the
+     * server's own wording when it sent one.
+     */
+    onError: (error: unknown) => {
+      toast.error(mutationErrorMessage(error, "Could not unlink this account"));
+    },
   });
+}
+
+/**
+ * Keep the server's own wording when it sent one.
+ *
+ * These mutations fail for reasons only the server can see - a webhook the
+ * provider refused to drop, a credential this process cannot decrypt - and
+ * every one of them used to land as silence: the row stayed put and the click
+ * looked ignored.
+ */
+function mutationErrorMessage(error: unknown, fallback: string): string {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : "";
+  return message.trim()
+    ? `${fallback}: ${message}`
+    : `${fallback}. Please try again.`;
 }
 
 function isNotFound(error: unknown): boolean {

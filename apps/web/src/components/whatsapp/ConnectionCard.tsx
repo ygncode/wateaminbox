@@ -1,7 +1,6 @@
 import { formatAuditTime } from "@wateaminbox/shared";
 import {
   AlertCircle,
-  CheckCircle2,
   Clock3,
   Edit2,
   Loader2,
@@ -11,7 +10,6 @@ import {
   PowerOff,
   QrCode,
   RefreshCw,
-  Smartphone,
   Trash2,
   Wifi,
   WifiOff,
@@ -19,12 +17,13 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { WhatsAppMark } from "@/components/connections/channel-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import type { ConnectionWithState } from "@/hooks/useWhatsAppConnections";
 import { cn, formatPhoneNumber } from "@/lib/utils";
-import { useTranslation } from "react-i18next";
 
 interface ConnectionCardProps {
   connection: ConnectionWithState;
@@ -96,24 +95,31 @@ export function ConnectionCard({
     >
       <div className="flex flex-col gap-4 overflow-visible sm:flex-row sm:items-start sm:justify-between">
         <div className="flex w-full min-w-0 flex-1 items-start gap-3">
-          {/* Status Icon */}
-          <div
-            className={cn(
-              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset",
-              connection.status === "connected"
-                ? "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/15"
-                : connection.status === "pending"
-                  ? "bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/15"
-                  : "bg-[#f3f6f3] text-[#65736d] ring-[#e2e8e3] dark:bg-white/[0.06] dark:text-[#a9bab4] dark:ring-white/[0.08]",
-            )}
-          >
-            {connection.status === "connected" ? (
-              <CheckCircle2 className="h-5 w-5" />
-            ) : connection.status === "pending" || localState.isConnecting ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Smartphone className="h-5 w-5" />
-            )}
+          {/* Channel tile - the same brand tile a channel account row draws,
+              so a WhatsApp number and a Telegram bot read as one list rather
+              than as two features that happen to share a page. Status lives
+              in the corner dot and the badge, not in the tile's colour. */}
+          <div className="relative shrink-0">
+            <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#25D366] text-white shadow-sm">
+              {connection.status === "pending" || localState.isConnecting ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <WhatsAppMark className="h-6 w-6" />
+              )}
+            </span>
+            <span
+              className={cn(
+                "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-[#172622]",
+                connection.status === "connected"
+                  ? "bg-emerald-500"
+                  : connection.status === "pending"
+                    ? "bg-amber-500"
+                    : connection.status === "banned" ||
+                        connection.status === "error"
+                      ? "bg-red-500"
+                      : "bg-slate-400",
+              )}
+            />
           </div>
 
           {/* Connection Info */}
@@ -124,7 +130,7 @@ export function ConnectionCard({
                   type="text"
                   value={editName}
                   onChange={(e) => onEditNameChange(e.target.value)}
-                  className="flex-1 px-2 py-1 border border-gray-300 dark:border-dark-border rounded text-sm bg-white dark:bg-dark-tertiary text-gray-900 dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-whatsapp-teal-green"
+                  className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-gray-100 px-2 py-1 text-sm text-gray-900 transition-all placeholder-gray-500 focus:border-whatsapp-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-whatsapp-green dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder-dark-text-tertiary dark:focus:bg-dark-elevated"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") onSaveEdit();
                     if (e.key === "Escape") onCancelEdit();

@@ -1,6 +1,7 @@
 {
   "common": {
     "cancel": "Cancel",
+    "save": "Save",
     "delete": "Delete",
     "loading": "Loading…",
     "error": "An error occurred",
@@ -442,8 +443,8 @@
       "description": "Tell us what's working and what we can improve. Feedback reaches the team directly, and this form stays here even if you dismissed the floating feedback tab."
     },
     "connections": {
-      "title": "WhatsApp connections",
-      "description": "Link and manage the WhatsApp devices that power this workspace inbox."
+      "title": "Channel connections",
+      "description": "Link and manage the accounts that power this workspace inbox."
     },
     "quickRepliesPanel": {
       "title": "Saved responses",
@@ -1385,9 +1386,14 @@
     "viewSetup": "View setup",
     "moreActions": "More actions",
     "moreActionsFor": "More actions for {{name}}",
+    "resume": "Resume",
+    "disconnect": "Disconnect",
+    "rename": "Rename",
+    "renameAccount": "Account name",
     "archiveUnlink": "Archive & unlink",
     "archiveUnlinkConfirm": "Archive and unlink {{name}}?",
     "archiveUnlinkDescription": "This logs the device out of WhatsApp and hides the account from active connections. Conversations, assignments, and notes are retained and will return if this number is linked again.",
+    "channelArchiveUnlinkDescription": "This removes the webhook from {{channel}} and erases the stored credential, so reconnecting needs the bot token again. Conversations, assignments, and notes are retained.",
     "dialogConnected": "WhatsApp connected",
     "dialogLinking": "Link your WhatsApp device",
     "dialogAdd": "Add WhatsApp connection",
