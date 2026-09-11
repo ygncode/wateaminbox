@@ -125,12 +125,28 @@ tagRoutes.patch("/:id", zValidator("json", updateTagSchema), async (c) => {
     updateData.color = body.color;
   }
 
-  const tag = await tenantDb
-    .updateTable("tags")
-    .set(updateData)
-    .where("id", "=", tagId)
-    .returning(["id", "name", "color", "created_by", "created_at"])
-    .executeTakeFirst();
+  const columns = ["id", "name", "color", "created_by", "created_at"] as const;
+
+  // An empty body is valid against `updateTagSchema`, and Kysely compiles
+  // `.set({})` to an `UPDATE ... SET` with no assignments. PostgreSQL rejects
+  // that as a syntax error (SQLSTATE 42601), which reached the client as an
+  // unhandled 500 - for a missing id too, because the throw happened before
+  // `executeTakeFirst()` could report no row. A patch that names no fields
+  // requests no change, so read the tag back rather than write it and keep the
+  // 404 contract for an id that does not exist.
+  const tag =
+    Object.keys(updateData).length === 0
+      ? await tenantDb
+          .selectFrom("tags")
+          .select(columns)
+          .where("id", "=", tagId)
+          .executeTakeFirst()
+      : await tenantDb
+          .updateTable("tags")
+          .set(updateData)
+          .where("id", "=", tagId)
+          .returning(columns)
+          .executeTakeFirst();
 
   if (!tag) {
     return notFound(c, "Tag");
