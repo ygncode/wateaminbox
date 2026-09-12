@@ -1,5 +1,5 @@
 import { fetchWithAuth } from "./client";
-import type { Message } from "@/types/chat";
+import type { Message, RemoteHistoryStatus } from "@wateaminbox/shared";
 
 /** One page of a customer's history, oldest first within the page. */
 export interface CustomerTimelinePage {
@@ -7,7 +7,11 @@ export interface CustomerTimelinePage {
   canonicalContactId: string;
   hasMore: boolean;
   nextCursor: string | null;
-  remoteHistory: { status: string; contactId: string | null };
+  /**
+   * Whether any of the customer's threads can still load older history from a
+   * linked phone, and which one to ask.
+   */
+  remoteHistory: { status: RemoteHistoryStatus; contactId: string | null };
 }
 
 /**
@@ -16,11 +20,7 @@ export interface CustomerTimelinePage {
  * The timeline interleaves threads, so a row that does not say where it came
  * from is unreadable next to the one above it.
  */
-export type TimelineMessage = Message & {
-  threadId: string | null;
-  channel: string | null;
-  provider: string | null;
-};
+export type TimelineMessage = Message;
 
 /**
  * One page of the merged history for a customer.

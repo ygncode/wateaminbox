@@ -22,6 +22,12 @@ interface VirtualMessageListProps {
   items: MessageListItem[];
   totalSize: number;
   isGroup?: boolean;
+  /**
+   * Marks each message with the channel it arrived on. Only a merged
+   * customer's history spans channels; marking every bubble in an ordinary
+   * single-channel thread is noise.
+   */
+  showChannelMarks?: boolean;
   currentUserId: string;
   currentUserName?: string;
   currentUserAvatarUrl?: string;
@@ -63,6 +69,7 @@ export function VirtualMessageList({
   items,
   totalSize,
   isGroup = false,
+  showChannelMarks = false,
   currentUserId,
   currentUserName,
   currentUserAvatarUrl,
@@ -235,6 +242,7 @@ export function VirtualMessageList({
                 albumExpectedCount={item.albumExpectedCount}
                 isOwn={item.message.senderType === "user"}
                 isGroup={isGroup}
+                showChannelMark={showChannelMarks}
                 currentUserId={currentUserId}
                 currentUserName={currentUserName}
                 currentUserAvatarUrl={currentUserAvatarUrl}

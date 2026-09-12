@@ -27,6 +27,7 @@ import { useChatStore } from "../../stores/chat-store";
 import {
   addMessageToCache,
   invalidateChatList,
+  invalidateCustomerTimelines,
   refetchConversationMessages,
   updateContactDetailsByJid,
   updateContactInChatList,
@@ -123,6 +124,10 @@ export function registerRealtimeEventHandlers({
     bindUserEvent<NewMessagePayload>("message:new", (data) => {
       const payload = data.payload;
       addMessageToCache(qc, payload.conversationId, payload.message);
+      // A merged customer's history is keyed by the chat the reader opened,
+      // not by the conversation this arrived on, so the cache write above
+      // cannot reach it.
+      invalidateCustomerTimelines(qc);
       invalidateChatList(qc);
 
       // Treat realtime as an update signal, not the source of truth. In
@@ -160,6 +165,7 @@ export function registerRealtimeEventHandlers({
       qc.invalidateQueries({
         queryKey: infiniteMessageKeys.list(conversationId),
       });
+      invalidateCustomerTimelines(qc);
       invalidateChatList(qc);
       qc.invalidateQueries({
         queryKey: queryKeys.channelConversations.lists(),

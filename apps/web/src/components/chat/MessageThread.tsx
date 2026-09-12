@@ -9,6 +9,8 @@ import {
 import { useWorkspace } from "../../contexts";
 import { useMessageSelection } from "../../hooks/chat/useMessageSelection";
 import { useMessageVirtualization } from "../../hooks/chat/useMessageVirtualization";
+import { useCustomerChats } from "@/hooks/contact/useCustomerChats";
+import { useCustomerTimeline } from "@/hooks/chat/useCustomerTimeline";
 import { useInfiniteMessages } from "../../hooks/useInfiniteMessages";
 import { useRetryMessage } from "../../hooks/useMessages";
 import { useRemoteHistory } from "../../hooks/useRemoteHistory";
@@ -115,24 +117,40 @@ export function MessageThread({
     y: number;
   } | null>(null);
 
-  // Fetch messages
+  // A merged customer is read as one history across their threads; everyone
+  // else keeps the single-conversation read, its cache key, and its optimistic
+  // realtime insert exactly as they are. The chat list has usually already
+  // loaded this, so it costs nothing extra on the common path.
+  const { data: customerChats = [] } = useCustomerChats(conversationId);
+  const isMergedCustomer = customerChats.length > 1;
+
+  const conversationQuery = useInfiniteMessages(
+    isMergedCustomer ? undefined : conversationId,
+  );
+  const timelineQuery = useCustomerTimeline(
+    isMergedCustomer ? conversationId : null,
+  );
+
   const {
-    data,
     isLoading,
     isError,
     error,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteMessages(conversationId);
+  } = isMergedCustomer ? timelineQuery : conversationQuery;
   const {
     requestHistory: requestRemoteHistory,
     isRequesting: isRequestingRemoteHistory,
     error: remoteHistoryError,
   } = useRemoteHistory(conversationId);
 
-  const messages = data?.messages ?? EMPTY_MESSAGES;
-  const remoteHistoryStatus = data?.remoteHistoryStatus ?? "unknown";
+  const messages = isMergedCustomer
+    ? timelineQuery.messages
+    : (conversationQuery.data?.messages ?? EMPTY_MESSAGES);
+  const remoteHistoryStatus = isMergedCustomer
+    ? (timelineQuery.remoteHistory?.status ?? "unknown")
+    : (conversationQuery.data?.remoteHistoryStatus ?? "unknown");
   const resolvedReplyMessage = resolveMessageNavigationTarget(
     messages,
     replyNavigation?.target ?? null,

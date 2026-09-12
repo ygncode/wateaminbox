@@ -13,7 +13,11 @@ afterEach(() => {
 });
 
 const message = (id: string, channel: string): TimelineMessage =>
-  ({ id, channel, threadId: `thread-${channel}` }) as TimelineMessage;
+  ({
+    id,
+    channel,
+    threadId: `thread-${channel}`,
+  }) as unknown as TimelineMessage;
 
 const page = (
   messages: TimelineMessage[],
