@@ -16,6 +16,7 @@ import { env } from "../lib/env.js";
 import { conflict, forbidden, notFound } from "../lib/errors.js";
 import { successData } from "../lib/response.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { createAuditLog, getClientIp } from "../services/audit.service.js";
 import { getRouteContext } from "../middleware/context.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import {
@@ -807,13 +808,36 @@ channelAccountRoutes.delete("/:id", async (c) => {
 });
 
 channelAccountRoutes.post("/:id/purge", async (c) => {
-  const { tenantDb, role } = getRouteContext(c);
+  const { tenantDb, role, companyId, user } = getRouteContext(c);
   if (role === "member") return forbidden(c);
   try {
-    const purged = await purgeArchivedChannelAccount(
-      tenantDb,
-      c.req.param("id"),
-    );
+    const accountId = c.req.param("id");
+    const purged = await purgeArchivedChannelAccount(tenantDb, accountId);
+    // The deletion has committed and cannot be retried, so a failed audit
+    // write must not be reported as a failed purge; it is loud in the logs
+    // instead. The separation is recorded because the merge history that
+    // would explain it went with the contacts it described.
+    if (purged.separatedContacts.length > 0) {
+      try {
+        await createAuditLog({
+          companyId,
+          userId: user.id,
+          action: "contact.separated_by_purge",
+          entityType: "channel_account",
+          entityId: accountId,
+          details: {
+            separatedCount: purged.separatedContacts.length,
+            separated: purged.separatedContacts,
+          },
+          ipAddress: getClientIp(c),
+        });
+      } catch (error) {
+        logger.error(
+          { accountId, err: formatError(error) },
+          "Channel account purge committed but its audit record could not be written",
+        );
+      }
+    }
     return successData(c, purged);
   } catch (error) {
     if (error instanceof ChannelAccountNotArchivedError) {

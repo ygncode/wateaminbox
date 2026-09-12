@@ -219,11 +219,64 @@ describe("purging a connection after a merge", () => {
           reason: "Same customer",
         });
 
+        // A customer living on another account, merged into one this purge is
+        // about to delete. It must come back as its own contact rather than
+        // pointing at a deleted row, and the purge has to name it: the merge
+        // record explaining the separation is deleted with the target.
+        const survivingAccount = crypto.randomUUID();
+        await tenantDb
+          .insertInto("channel_accounts")
+          .values({
+            id: survivingAccount,
+            channel: "telegram",
+            provider: "telegram_bot",
+            display_name: "Other bot",
+            status: "connected",
+          })
+          .execute();
+        const outsider = await tenantDb
+          .insertInto("contacts")
+          .values({ push_name: "Outsider" })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        await tenantDb
+          .insertInto("contact_endpoints")
+          .values({
+            contact_id: outsider.id,
+            channel: "telegram",
+            provider: "telegram_bot",
+            channel_account_id: survivingAccount,
+            endpoint_kind: "person",
+            external_id: `tg-outsider-${outsider.id}`,
+            identity_scope: "account",
+          })
+          .execute();
+        await mergeContacts(tenantDb, {
+          sourceContactId: outsider.id,
+          targetContactId: first.id,
+          actorUserId: ownerId,
+          reason: "Same customer",
+        });
+
         const purged = await purgeArchivedChannelAccount(
           tenantDb,
           neutralAccount,
         );
         expect(purged.contactIds.sort()).toEqual([first.id, second.id].sort());
+        expect(purged.separatedContacts).toEqual([
+          { id: outsider.id, name: "Outsider" },
+        ]);
+        expect(
+          await tenantDb
+            .selectFrom("contacts")
+            .select("merged_into_contact_id")
+            .where("id", "=", outsider.id)
+            .executeTakeFirstOrThrow(),
+        ).toEqual({ merged_into_contact_id: null });
+        await tenantDb
+          .deleteFrom("contacts")
+          .where("id", "=", outsider.id)
+          .execute();
         expect(
           await tenantDb.selectFrom("contacts").select("id").execute(),
         ).toEqual([]);

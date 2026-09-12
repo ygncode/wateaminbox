@@ -81,6 +81,16 @@ export interface ArchivedConnectionPurge {
    * left to dispatch), so the caller has to settle it once, after commit.
    */
   affectedBulkJobIds: string[];
+  /**
+   * Customers the purge silently un-merged.
+   *
+   * A merge is recorded against rows this purge is about to delete, and those
+   * records go with them - the foreign keys are RESTRICT, so leaving them
+   * behind fails the purge outright. Naming the customers here is what lets
+   * the caller record the separation somewhere that survives, because
+   * otherwise a customer stops being merged with nothing anywhere to say so.
+   */
+  separatedContacts: Array<{ id: string; name: string | null }>;
 }
 
 /**
@@ -459,10 +469,22 @@ export async function purgeArchivedConnection(
       .execute();
     // A customer merged into one of these but living on another connection
     // would still point at a row about to disappear.
-    await trx
+    const separatedContacts = await trx
       .updateTable("contacts")
       .set({ merged_into_contact_id: null, updated_at: new Date() })
       .where("merged_into_contact_id", "in", purgedContacts)
+      // A customer on this connection is deleted, not separated. Reporting it
+      // would tell an operator a customer came back when the row disappeared
+      // a statement later.
+      .where("whatsapp_connection_id", "is distinct from", connectionId)
+      .returning([
+        "id",
+        sql<
+          string | null
+        >`COALESCE(custom_name, display_name, push_name, phone_number)`.as(
+          "name",
+        ),
+      ])
       .execute();
     await trx
       .deleteFrom("contacts")
@@ -500,6 +522,7 @@ export async function purgeArchivedConnection(
       contactIds: contactRows.map((row) => row.id),
       deletedMessageCount: Number(deletedMessages?.numDeletedRows ?? 0n),
       affectedBulkJobIds,
+      separatedContacts,
     };
   });
 }

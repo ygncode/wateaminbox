@@ -22,6 +22,8 @@ function fakeTenantDb(rows: {
     count?: number;
   }>;
   deletedMessageCount?: number;
+  /** Customers the purge detaches from a contact it is about to delete. */
+  separated?: Array<{ id: string; name: string | null }>;
 }) {
   const statements: string[] = [];
 
@@ -47,6 +49,12 @@ function fakeTenantDb(rows: {
   const writeBuilder = (statement: string) => {
     const builder = {
       set: () => builder,
+      returning: () => ({
+        execute: async () => {
+          statements.push(statement);
+          return rows.separated ?? [];
+        },
+      }),
       values: () => builder,
       columns: () => builder,
       expression: () => builder,
@@ -117,6 +125,7 @@ describe("permanent connection purge", () => {
       contacts: [{ id: "contact-1" }, { id: "contact-2" }],
       scheduled_messages: [{ bulk_job_id: "job-1", status: "sent", count: 1 }],
       deletedMessageCount: 7,
+      separated: [{ id: "contact-3", name: "Ada" }],
     });
 
     const result = await purgeArchivedConnection(fake.tenantDb, "connection-1");
@@ -125,6 +134,9 @@ describe("permanent connection purge", () => {
       contactIds: ["contact-1", "contact-2"],
       deletedMessageCount: 7,
       affectedBulkJobIds: ["job-1"],
+      // The customers this purge un-merged, named so the caller can record a
+      // separation whose own merge record is about to be deleted.
+      separatedContacts: [{ id: "contact-3", name: "Ada" }],
     });
 
     const at = (statement: string) => {

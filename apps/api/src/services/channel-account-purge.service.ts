@@ -12,7 +12,16 @@ export class ChannelAccountNotArchivedError extends Error {
 export async function purgeArchivedChannelAccount(
   tenantDb: Kysely<TenantDatabase>,
   accountId: string,
-): Promise<{ contactIds: string[]; deletedMessageCount: number }> {
+): Promise<{
+  contactIds: string[];
+  deletedMessageCount: number;
+  /**
+   * Customers the purge silently un-merged. Their merge records are deleted
+   * with the contacts they describe - the foreign keys are RESTRICT - so the
+   * caller records the separation somewhere that outlives the purge.
+   */
+  separatedContacts: Array<{ id: string; name: string | null }>;
+}> {
   return tenantDb.transaction().execute(async (trx) => {
     const account = await trx
       .selectFrom("channel_accounts")
@@ -65,6 +74,7 @@ export async function purgeArchivedChannelAccount(
       )
       .execute();
 
+    let separatedContacts: Array<{ id: string; name: string | null }> = [];
     await trx
       .deleteFrom("outbound_message_intents")
       .where("channel_account_id", "=", accountId)
@@ -158,15 +168,28 @@ export async function purgeArchivedChannelAccount(
           ]),
         )
         .execute();
-      await trx
+      separatedContacts = await trx
         .updateTable("contacts")
         .set({ merged_into_contact_id: null, updated_at: new Date() })
         .where("merged_into_contact_id", "in", contactIds)
+        // A customer that is itself being purged is deleted, not separated.
+        // Reporting it would tell an operator a customer came back when the
+        // row disappeared a statement later.
+        .where("id", "not in", contactIds)
+        .returning([
+          "id",
+          sql<
+            string | null
+          >`COALESCE(custom_name, display_name, push_name, phone_number)`.as(
+            "name",
+          ),
+        ])
         .execute();
       await trx.deleteFrom("contacts").where("id", "in", contactIds).execute();
     }
     return {
       contactIds,
+      separatedContacts,
       deletedMessageCount: Number(deletedMessages?.numDeletedRows ?? 0n),
     };
   });
