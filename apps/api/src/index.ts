@@ -6,6 +6,10 @@ import { createLogger, formatError } from "./lib/logger.js";
 import { rateLimitStore } from "./lib/rate-limit-store.js";
 import { runShutdown, type ShutdownStep } from "./lib/shutdown.js";
 import {
+  initializeAbandonedPairingSessions,
+  shutdownAbandonedPairingSessions,
+} from "./services/abandoned-pairing-session.service.js";
+import {
   initializeChannelAttachmentFetch,
   shutdownChannelAttachmentFetch,
 } from "./services/channel-attachment-fetch.service.js";
@@ -105,6 +109,7 @@ if (!isTestEnvironment) {
   initializeScheduledMessages();
   initializeConnectionPurgeCleanup();
   initializeConnectionEmailAlerts();
+  initializeAbandonedPairingSessions();
   initializeChannelSpineReconciler();
 
   logger.info(
@@ -149,6 +154,10 @@ function shutdownSteps(): ShutdownStep[] {
       },
     },
     { name: "connection-email-alerts", run: shutdownConnectionEmailAlerts },
+    {
+      name: "abandoned-pairing-sessions",
+      run: shutdownAbandonedPairingSessions,
+    },
     { name: "channel-outbound", run: shutdownChannelOutbound },
     { name: "channel-event-retry", run: shutdownChannelEventRetry },
     {
