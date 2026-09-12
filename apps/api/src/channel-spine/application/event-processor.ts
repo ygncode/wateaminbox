@@ -296,7 +296,15 @@ async function applyMessageUpsert(
   const senderEndpointId = payload.sender
     ? await ensureEndpoint(trx, event, payload.sender)
     : null;
-  const contactId = await attachWorkflowContact(trx, conversationId);
+  // Only an inbound sender is a customer candidate. An outbound message's
+  // sender is the workspace, and adopting it would make the business its own
+  // customer; those conversations resolve from their participants instead,
+  // on this message or on the first reply.
+  const contactId = await attachWorkflowContact(
+    trx,
+    conversationId,
+    payload.direction === "inbound" ? senderEndpointId : null,
+  );
   const occurredAt = new Date(event.providerOccurredAt ?? event.receivedAt);
   const existing = await trx
     .selectFrom("messages")
@@ -736,17 +744,155 @@ async function applySyncCheckpoint(
   return { conversationId };
 }
 
+/**
+ * Endpoint kinds that identify a person a workspace can hold a customer
+ * record for. The same allowlist the merge service applies, for the same
+ * reason: a bot, a shared mailbox, or an organization is not a customer, and
+ * inventing one for it would put a whole audience behind a single identity.
+ */
+const CUSTOMER_ENDPOINT_KINDS = new Set(["person", "user", "phone", "email"]);
+
+/**
+ * The customer a conversation belongs to, creating one if this is the first
+ * time the workspace has seen them.
+ *
+ * Until this existed, a neutral provider produced conversations and endpoints
+ * that belonged to nobody: `legacy_contact_id` and `contact_endpoints.contact_id`
+ * both stayed null, and only the WhatsApp mirror ever wrote a contact. That
+ * left every non-WhatsApp person unmergeable - a merge moves endpoints between
+ * customers, and an endpoint owned by no one has no customer to move from - and
+ * invisible to every contact-scoped surface.
+ *
+ * Deliberately narrow:
+ *
+ * - Only direct conversations. A group is a thread, not a person; the RFC
+ *   refuses to fold one into a customer identity.
+ * - Only person-like endpoints, and only one. A direct thread with several
+ *   external parties is not a customer conversation, and guessing which party
+ *   is "the customer" is exactly the wrong kind of identity decision to make
+ *   automatically.
+ * - An endpoint that already belongs to a customer adopts that customer rather
+ *   than creating a second one, so a merged customer stays merged when their
+ *   next message arrives.
+ *
+ * The endpoint row is the idempotency key and is locked for the decision: it
+ * is what a second concurrent event would race to claim, and `contacts` has no
+ * unique constraint to fall back on when `whatsapp_connection_id` is null.
+ */
 async function attachWorkflowContact(
   trx: Transaction<TenantDatabase>,
   conversationId: string,
+  candidateEndpointId: string | null = null,
 ): Promise<string | null> {
   const conversation = await trx
     .selectFrom("conversations")
-    .select("legacy_contact_id")
+    .select(["legacy_contact_id", "kind"])
     .where("id", "=", conversationId)
     .forUpdate()
     .executeTakeFirstOrThrow();
-  return conversation.legacy_contact_id;
+  if (conversation.legacy_contact_id) return conversation.legacy_contact_id;
+  if (conversation.kind !== "direct") return null;
+
+  const endpointColumns = [
+    "endpoint.id as endpoint_id",
+    "endpoint.contact_id as contact_id",
+    "endpoint.endpoint_kind as endpoint_kind",
+    "endpoint.display_name as display_name",
+    "endpoint.address_display as address_display",
+    "endpoint.normalized_address as normalized_address",
+  ] as const;
+  // The named sender when this message brought one, so the very first inbound
+  // message resolves without waiting for a participant row to exist. Otherwise
+  // the conversation's own external participants, which is the only evidence an
+  // event without a sender carries.
+  const candidates = candidateEndpointId
+    ? await trx
+        .selectFrom("contact_endpoints as endpoint")
+        .select(endpointColumns)
+        .where("endpoint.id", "=", candidateEndpointId)
+        .forUpdate()
+        .execute()
+    : await trx
+        .selectFrom("conversation_participants as participant")
+        .innerJoin(
+          "contact_endpoints as endpoint",
+          "endpoint.id",
+          "participant.contact_endpoint_id",
+        )
+        .select(endpointColumns)
+        .where("participant.conversation_id", "=", conversationId)
+        .where("participant.participant_kind", "=", "external")
+        .where("participant.is_self", "=", false)
+        .where("participant.left_at", "is", null)
+        .forUpdate()
+        .execute();
+  const customers = candidates.filter((candidate) =>
+    CUSTOMER_ENDPOINT_KINDS.has(candidate.endpoint_kind),
+  );
+  if (customers.length !== 1) return null;
+  const endpoint = customers[0]!;
+
+  const contactId =
+    endpoint.contact_id ??
+    (
+      await trx
+        .insertInto("contacts")
+        .values({
+          // Not a WhatsApp linked device, so no connection and no JID. The
+          // provider address lives on the endpoint, which is the channel-neutral
+          // home for it.
+          whatsapp_connection_id: null,
+          jid: null,
+          phone_number: null,
+          // `push_name` and `username` are what the contact list renders and
+          // searches; `display_name` alone would leave the customer nameless
+          // and unsearchable on that endpoint.
+          push_name: endpoint.display_name ?? endpoint.address_display ?? null,
+          username: endpoint.normalized_address ?? null,
+          display_name: endpoint.display_name ?? null,
+          is_group: false,
+          record_kind: "customer",
+        })
+        .returning("id")
+        .executeTakeFirstOrThrow()
+    ).id;
+
+  if (!endpoint.contact_id) {
+    await trx
+      .updateTable("contact_endpoints")
+      .set({ contact_id: contactId, updated_at: new Date() })
+      .where("id", "=", endpoint.endpoint_id)
+      .execute();
+  }
+  // The inbox lists contacts and neutral conversations from two queries and
+  // reconciles them on this link. Creating the customer without it shows the
+  // same person twice: an empty contact row beside the real thread.
+  await trx
+    .updateTable("conversations")
+    .set({ legacy_contact_id: contactId, updated_at: new Date() })
+    .where("id", "=", conversationId)
+    .where("legacy_contact_id", "is", null)
+    .execute();
+
+  // Workflow rows written before the thread had a customer are keyed only by
+  // conversation. Routes that resolve a workflow identity prefer the contact
+  // key as soon as the conversation names one, so leaving these null makes
+  // such a route match nothing and then insert a second row - which the
+  // unique index on conversation_id rejects. Marking a thread read failed
+  // exactly that way.
+  for (const table of [
+    "conversation_states",
+    "contact_assignments",
+    "conversation_cases",
+  ] as const) {
+    await trx
+      .updateTable(table)
+      .set({ contact_id: contactId })
+      .where("conversation_id", "=", conversationId)
+      .where("contact_id", "is", null)
+      .execute();
+  }
+  return contactId;
 }
 
 async function ensureConversation(
