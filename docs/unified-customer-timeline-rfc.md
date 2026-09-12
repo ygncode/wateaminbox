@@ -206,6 +206,36 @@ for assignment-restricted users, because the index is tenant-scoped but not
 assignment-scoped (`search.service.ts:90-95`), and per-thread visibility still
 applies to the threads that make up the filter.
 
+## Known limitation: reconnecting an account fragments a customer
+
+Reconnecting a channel account mints a new `channel_accounts` row, so the same
+person arrives on a new `contact_endpoints` row and ingest creates them a new
+customer. A merged customer therefore splits: their next message lands beside
+the merged row rather than in it, and the thread they were reachable on points
+at an account that no longer works.
+
+The obvious fix - adopt the customer that already owns another endpoint with
+the same normalized address on the same channel - was attempted and backed
+out. It fails on a constraint that predates this work:
+`conversation_cases` carries a unique index on `contact_id` where the status is
+open or pending, so one customer may hold one active case. Two threads for one
+customer both want one, and the second inbound message fails the insert.
+
+That is the contact-to-conversation workflow migration the spine RFC sequences
+(`channel-neutral-spine-rfc.md:617`), which also prohibits new
+conversation-only workflow rows until that sequence completes. Automatic
+adoption is downstream of it, not a change that can be slipped in beside it.
+
+Until then:
+
+- re-merging after a reconnect is manual, and the suggestion already surfaces
+  it - the two endpoints share a normalized address on the same channel, which
+  is the strongest evidence the suggester has;
+- a thread whose account was archived is left out of the switcher. It cannot be
+  written to, and offering it queues a message the dispatcher can never claim,
+  which reads as the product losing the message rather than refusing it. Its
+  history still belongs to the customer and still appears in their timeline.
+
 ## Plan
 
 1. **Provenance.** Add `threadId`/`channel`/`provider` to the message payload.
