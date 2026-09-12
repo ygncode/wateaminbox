@@ -78,6 +78,11 @@ export interface Chat {
    * it, which the chat switcher treats as "ask the server".
    */
   chatCount?: number;
+  /**
+   * Every account this customer's threads run on. A merged customer belongs to
+   * more than one, so an account filter keeps them if any thread matches.
+   */
+  accountIds?: string[];
   assignedTo?: string;
   isPinned: boolean;
   isMuted: boolean;

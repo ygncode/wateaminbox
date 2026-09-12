@@ -12,7 +12,11 @@ import { api } from "./client";
 export type ConversationLifecycleStatus = "open" | "pending" | "resolved";
 
 export type ResolutionOutcome =
-  "handled" | "no_reply_needed" | "spam" | "duplicate" | "other";
+  | "handled"
+  | "no_reply_needed"
+  | "spam"
+  | "duplicate"
+  | "other";
 
 export interface ConversationCase {
   id: string;
@@ -75,6 +79,8 @@ export async function resolveConversation(
 export interface CustomerResolveResult {
   canonicalContactId: string;
   resolved: string[];
+  /** Threads that had nothing to resolve; not a failure of the action. */
+  alreadyResolved: string[];
   skipped: { threadId: string; unreadCount: number }[];
 }
 

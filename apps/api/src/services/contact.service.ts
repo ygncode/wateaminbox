@@ -61,6 +61,8 @@ export interface ContactWithLastMessage {
   unread_count: number | bigint;
   /** Threads this customer is reachable on, including merged-away contacts. */
   chat_count: number;
+  /** Every account this customer's threads run on, for the inbox filter. */
+  account_ids: string[];
   conversation_status: "open" | "pending" | "resolved";
   active_case_id: string | null;
   is_online: boolean;
@@ -171,6 +173,7 @@ export async function getContactsWithLastMessage(
     last_message_timestamp: Date | null;
     unread_count: string;
     chat_count: number;
+    account_ids: string[] | null;
     is_online: boolean;
     last_seen: Date | null;
     connection_id: string | null;
@@ -222,6 +225,11 @@ export async function getContactsWithLastMessage(
       (COALESCE(csc.unread_count, csl.unread_count, 0)
         + COALESCE(grp.unread_count, 0))::bigint as unread_count,
       (1 + COALESCE(grp.chat_count, 0))::int as chat_count,
+      ARRAY_REMOVE(
+        COALESCE(grp.account_ids, ARRAY[]::uuid[])
+          || ARRAY[COALESCE(acc.id, c.whatsapp_connection_id)],
+        NULL
+      ) as account_ids,
       COALESCE(csc.status::text, csl.status::text, 'resolved')
         as conversation_status,
       COALESCE(csc.active_case_id, csl.active_case_id) as active_case_id
@@ -282,7 +290,17 @@ export async function getContactsWithLastMessage(
                0
              )::bigint AS unread_count,
              MAX(COALESCE(mconv.last_message_at, mcsl.last_message_at))
-               AS last_message_at
+               AS last_message_at,
+             -- Every account a merged-away thread runs on. The row stands for
+             -- the customer, so narrowing the inbox to one account has to keep
+             -- it when any of their threads is on that account - otherwise a
+             -- customer reachable on two channels disappears from one filter.
+             ARRAY_REMOVE(
+               ARRAY_AGG(DISTINCT COALESCE(
+                 mconv.channel_account_id, mc.whatsapp_connection_id
+               )),
+               NULL
+             ) AS account_ids
       FROM ${schema}.${sql.ref("contacts")} mc
       LEFT JOIN ${schema}.${sql.ref("conversations")} mconv
         ON mconv.legacy_contact_id = mc.id
@@ -341,6 +359,7 @@ export async function getContactsWithLastMessage(
       last_message_at: contact.last_message_at,
       unread_count: BigInt(contact.unread_count),
       chat_count: Number(contact.chat_count ?? 1),
+      account_ids: contact.account_ids ?? [],
       is_online: contact.is_online,
       last_seen: contact.last_seen,
       connection_id: contact.connection_id,
@@ -445,7 +464,9 @@ export async function getContactsWithLastMessage(
   } else if (unassigned) {
     countQuery = countQuery
       .where("contact_assignments.assigned_to", "is", null)
-      .where(sql<SqlBool>`NOT ${mergedGroup(sql`mca.assigned_to IS NOT NULL`)}`);
+      .where(
+        sql<SqlBool>`NOT ${mergedGroup(sql`mca.assigned_to IS NOT NULL`)}`,
+      );
   }
   if (conversationStatus && conversationStatus !== "all") {
     countQuery = countQuery.where(

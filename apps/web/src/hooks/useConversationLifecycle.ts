@@ -89,11 +89,10 @@ export function useResolveCustomer(chatId: string) {
       resolveCustomer(chatId, input),
     onSuccess: (result) => {
       invalidate();
+      const closed = result.resolved.length + result.alreadyResolved.length;
       if (result.skipped.length === 0) {
         toast.success(
-          result.resolved.length > 1
-            ? `Resolved ${result.resolved.length} chats`
-            : "Conversation resolved",
+          closed > 1 ? `Resolved ${closed} chats` : "Conversation resolved",
         );
         return;
       }
@@ -102,9 +101,7 @@ export function useResolveCustomer(chatId: string) {
         0,
       );
       toast.success(
-        `Resolved ${result.resolved.length} of ${
-          result.resolved.length + result.skipped.length
-        } chats`,
+        `Resolved ${closed} of ${closed + result.skipped.length} chats`,
         {
           description: `${result.skipped.length} chat(s) stayed open with ${unread} unread message(s).`,
           duration: 12_000,

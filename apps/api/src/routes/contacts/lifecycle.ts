@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { resolveConversationSchema } from "../../lib/schemas/conversation.js";
-import { notFound } from "../../lib/errors.js";
+import { ConflictError, notFound } from "../../lib/errors.js";
 import { successData } from "../../lib/response.js";
 import { zValidator } from "../../lib/validator.js";
 import { getRouteContext } from "../../middleware/context.js";
@@ -72,19 +72,33 @@ customerLifecycleRoutes.post(
     const { resolvable, skipped } = partitionByUnread(visible, unread);
 
     const resolved: string[] = [];
+    const alreadyResolved: string[] = [];
     for (const thread of resolvable) {
       const threadId = threadKey(thread)!;
-      const closed = thread.contactId
-        ? await resolveActiveCase(tenantDb, thread.contactId, {
-            outcome,
-            notes,
-            resolvedBy: user.id,
-          })
-        : await resolveActiveCaseForConversation(
-            tenantDb,
-            thread.conversationId!,
-            { outcome, notes, resolvedBy: user.id },
-          );
+      // A thread that is already resolved is not a failure of this action, it
+      // is the state this action wants. Letting its conflict escape failed the
+      // whole request after earlier threads had already been committed - the
+      // operator saw an error over work that had in fact been done.
+      let closed;
+      try {
+        closed = thread.contactId
+          ? await resolveActiveCase(tenantDb, thread.contactId, {
+              outcome,
+              notes,
+              resolvedBy: user.id,
+            })
+          : await resolveActiveCaseForConversation(
+              tenantDb,
+              thread.conversationId!,
+              { outcome, notes, resolvedBy: user.id },
+            );
+      } catch (error) {
+        if (error instanceof ConflictError) {
+          alreadyResolved.push(threadId);
+          continue;
+        }
+        throw error;
+      }
       resolved.push(threadId);
       await createAuditLog({
         companyId,
@@ -107,6 +121,9 @@ customerLifecycleRoutes.post(
     return successData(c, {
       canonicalContactId: customer.canonicalContactId,
       resolved,
+      // Threads that had nothing to resolve. Reported rather than counted as
+      // resolved, so the toast cannot claim work it did not do.
+      alreadyResolved,
       skipped,
     });
   },
