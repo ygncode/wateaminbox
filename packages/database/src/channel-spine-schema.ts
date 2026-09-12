@@ -24,6 +24,18 @@ export async function ensureChannelSpineTenantSchema<Database>(
       ["archived_at", "TIMESTAMPTZ"],
     ]);
 
+    // The merge alias in its reverse direction: which rows were merged into
+    // this one. The forward walk reads by primary key, so the foreign key
+    // alone serves it; the chat list and the chat switcher ask the opposite
+    // question once per listed contact and had nothing to use. Partial,
+    // because merged rows are rare by construction. Migration 105 adds the
+    // same index to schemas created before it.
+    await sql`
+      CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_merged_into_idx`)}
+      ON ${table("contacts")} (merged_into_contact_id)
+      WHERE merged_into_contact_id IS NOT NULL
+    `.execute(db);
+
     await sql`CREATE TABLE IF NOT EXISTS ${table("channel_accounts")} (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       channel TEXT NOT NULL,
