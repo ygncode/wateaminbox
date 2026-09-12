@@ -27,6 +27,15 @@ export interface CustomerChat {
   accountName: string | null;
   /** Display address of the endpoint this thread reaches, never a raw secret. */
   address: string | null;
+  /**
+   * The WhatsApp JID this thread is sent on, when it has one.
+   *
+   * Carried because the composer needs the identity of the thread being read,
+   * and a contact read cannot supply it: contact reads follow merge aliases to
+   * the surviving customer, whose JID is null when that customer arrived on a
+   * channel other than WhatsApp.
+   */
+  jid: string | null;
   displayName: string | null;
   lastMessageAt: Date | null;
   unreadCount: number;
@@ -118,7 +127,11 @@ export async function listCustomerChats(
       .leftJoin("conversation_states as state", (join) =>
         join.onRef("state.conversation_id", "=", "conversation.id"),
       )
+      .leftJoin("contacts as legacy", (join) =>
+        join.onRef("legacy.id", "=", "conversation.legacy_contact_id"),
+      )
       .select([
+        "legacy.jid as jid",
         "conversation.id as conversation_id",
         "conversation.legacy_contact_id as legacy_contact_id",
         "conversation.last_message_at as last_message_at",
@@ -179,6 +192,7 @@ export async function listCustomerChats(
       accountId: row.account_id,
       accountName: row.account_name,
       address: row.address_display ?? row.normalized_address,
+      jid: row.jid,
       displayName: row.display_name,
       lastMessageAt: row.last_message_at,
       unreadCount: Number(row.unread_count ?? 0),
@@ -200,6 +214,7 @@ export async function listCustomerChats(
       accountId: row.connection_id,
       accountName: row.connection_name,
       address: row.phone_number ?? row.jid,
+      jid: row.jid,
       displayName: row.custom_name ?? row.push_name,
       lastMessageAt: row.last_message_at,
       unreadCount: Number(row.unread_count ?? 0),

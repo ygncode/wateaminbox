@@ -40,6 +40,7 @@ import {
 } from "../contexts/message-actions-context";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useChatPageState } from "../hooks/chat";
+import { useCustomerChats } from "../hooks/contact/useCustomerChats";
 import { useKeyboardInset } from "../hooks/ui";
 import { useChannelAccountCapabilities } from "../hooks/useChannelAccounts";
 import { useChannelConversation } from "../hooks/useChannelConversations";
@@ -150,6 +151,15 @@ export function ChatPage() {
     [channelConversation],
   );
   const threadContact = selectedContact ?? conversationContact;
+  // The thread being read, as the switcher describes it. A contact read
+  // canonicalises to the surviving customer, so for a merged customer it
+  // answers with the wrong thread's identity - and with no JID at all when
+  // that customer arrived on a channel other than WhatsApp, which left the
+  // composer with nothing to address and so removed it from the screen.
+  const { data: customerThreads = [] } = useCustomerChats(selectedRowId);
+  const activeThread = customerThreads.find(
+    (thread) => thread.chatId === selectedChatId,
+  );
   const isThreadLoading =
     Boolean(selectedChatId) &&
     !threadContact &&
@@ -270,7 +280,7 @@ export function ChatPage() {
   const canSend = composerAccess.kind === "sendable";
   const isSelectedGroup = Boolean(
     threadContact &&
-      (threadContact.isGroup || threadContact.jid?.endsWith("@g.us")),
+    (threadContact.isGroup || threadContact.jid?.endsWith("@g.us")),
   );
   const { data: selectedGroup } = useGroup(
     isSelectedGroup ? (selectedChatId ?? null) : null,
@@ -436,8 +446,8 @@ export function ChatPage() {
               </ChannelComposerGate>
             ) : (
               <MessageComposer
-                conversationId={threadContact.jid}
-                contactId={selectedChatId}
+                conversationId={activeThread?.jid ?? threadContact.jid}
+                contactId={activeThread?.contactId ?? selectedChatId}
                 replyToMessage={replyToMessage}
                 onClearReply={handleClearReply}
                 onSendMessage={handleSendMessage}

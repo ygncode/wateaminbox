@@ -164,7 +164,7 @@ describe("listCustomerChats", () => {
         // inverted preference makes every neutral thread unrecognisable as the
         // one already open.
         expect(chats.map((chat) => chat.chatId)).toEqual(
-          chats.map((chat) => chat.conversationId ?? chat.contactId),
+          chats.map((chat) => chat.conversationId ?? chat.contactId ?? ""),
         );
         // Newest thread first, and each keeps the id the chat route addresses.
         expect(chats.map((chat) => chat.contactId ?? "")).toEqual([

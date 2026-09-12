@@ -11,6 +11,7 @@ const chat = (chatId: string): CustomerChat => ({
   accountId: null,
   accountName: null,
   address: null,
+  jid: null,
   displayName: null,
   lastMessageAt: null,
   unreadCount: 0,
