@@ -107,9 +107,7 @@ describe("buildContactWhereClause merge collapse", () => {
   test("hides contacts that were merged into another customer", () => {
     // A merged customer is one inbox row. The merged-away contact keeps its
     // conversation, which stays reachable through the chat switcher.
-    expect(compiledWhere({})).toContain(
-      "c.merged_into_contact_id IS NULL",
-    );
+    expect(compiledWhere({})).toContain("c.merged_into_contact_id IS NULL");
   });
 
   test("keeps an assigned chat in its assignee's filter after a merge", () => {
@@ -137,9 +135,26 @@ describe("buildContactWhereClause merge collapse", () => {
   });
 
   test("counts unread on a merged-away thread toward the surviving row", () => {
-    expect(compiledWhere({ unreadOnly: true })).toContain(
-      "grp.unread_count",
-    );
+    expect(compiledWhere({ unreadOnly: true })).toContain("grp.unread_count");
+  });
+
+  test("keeps a merged customer under an account only a hidden thread is on", () => {
+    // The surviving row may be the Telegram one, carrying no WhatsApp
+    // connection at all. Matching it alone hid the customer from the filter
+    // of an account they are plainly reachable on.
+    const byConnection = compiledWhere({
+      connectionId: "conn-1",
+      contactsTable: tenantTable("contacts"),
+    });
+    expect(byConnection).toContain("c.whatsapp_connection_id = ");
+    expect(byConnection).toContain("mc.whatsapp_connection_id = ");
+    expect(byConnection).toContain("mc.merged_into_contact_id = c.id");
+  });
+
+  test("falls back to the surviving row when no tenant tables are passed", () => {
+    const byConnection = compiledWhere({ connectionId: "conn-1" });
+    expect(byConnection).toContain("c.whatsapp_connection_id = ");
+    expect(byConnection).not.toContain("mc.whatsapp_connection_id");
   });
 
   test("omits the group term when the caller passes no tenant tables", () => {

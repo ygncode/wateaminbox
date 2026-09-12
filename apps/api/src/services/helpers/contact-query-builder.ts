@@ -230,7 +230,19 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
   if (search) conditions.push(buildSearchClause(search));
   if (!includeGroups) conditions.push(buildGroupClause(includeGroups));
   if (connectionId) {
-    conditions.push(sql`c.whatsapp_connection_id = ${connectionId}`);
+    // A merged customer is one row standing for several threads, and the row
+    // that survived may be the Telegram one - it carries no WhatsApp
+    // connection at all. Matching only the surviving row hid a customer from
+    // the filter of an account they are plainly reachable on.
+    conditions.push(
+      contactsTable
+        ? sql`(c.whatsapp_connection_id = ${connectionId} OR ${mergedGroupExists(
+            contactsTable,
+            sql``,
+            sql`mc.whatsapp_connection_id = ${connectionId}`,
+          )})`
+        : sql`c.whatsapp_connection_id = ${connectionId}`,
+    );
   }
   if (tagIds?.length) {
     if (!contactTagsTable) {

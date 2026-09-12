@@ -424,9 +424,8 @@ export async function getContactsWithLastMessage(
   }
   if (connectionId) {
     countQuery = countQuery.where(
-      "contacts.whatsapp_connection_id",
-      "=",
-      connectionId,
+      sql<SqlBool>`(contacts.whatsapp_connection_id = ${connectionId}
+        OR ${mergedGroup(sql`mc.whatsapp_connection_id = ${connectionId}`)})`,
     );
   }
   if (search) {
