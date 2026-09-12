@@ -1,12 +1,13 @@
 import crypto from "node:crypto";
 import { type AuthTokenType, type Database, db } from "@wateaminbox/database";
-import { toDbDate } from "@wateaminbox/shared";
+import { nowMs, toDbDate } from "@wateaminbox/shared";
 import type { Kysely, Transaction } from "kysely";
 import {
   type EmailResult,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from "../lib/email.js";
+import { env } from "../lib/env.js";
 import {
   AuthError,
   CompanyNotFoundError,
@@ -25,6 +26,11 @@ import {
 } from "../lib/jwt.js";
 import { sniffMediaType } from "../lib/media-sniff.js";
 import { hashPassword, verifyPassword } from "../lib/password.js";
+import {
+  isRetiredRefreshTokenAccepted,
+  readRetiredRefreshTokens,
+  retainSupersededRefreshToken,
+} from "../lib/refresh-token-retention.js";
 import type { UpdateProfileInput } from "../lib/schemas/auth.js";
 import { hashToken } from "../lib/security.js";
 import { deleteMedia, getPresignedUrl, uploadMedia } from "../lib/storage.js";
@@ -984,6 +990,15 @@ export async function changePassword(
 
 /**
  * Refresh the session using a refresh token
+ *
+ * Rotation stays single-use, but a hash retired within the last
+ * `JWT_REFRESH_REUSE_GRACE_SECONDS` is accepted as a retry rather than a
+ * replay. A refresh response lost in transit - a container replaced
+ * mid-request during a deployment, a dropped connection - and two tabs
+ * refreshing at once both otherwise leave the client holding a token the
+ * session has already rotated past, which costs a real re-login even though
+ * nothing was compromised. Retention and its bounds live in
+ * `lib/refresh-token-retention.ts`.
  */
 export async function refreshSession(
   refreshToken: string,
@@ -993,18 +1008,35 @@ export async function refreshSession(
     throw new AuthError("Invalid refresh token", "INVALID_TOKEN", 401);
   }
 
+  const presentedHash = hashToken(refreshToken);
+  const graceMs = env.JWT_REFRESH_REUSE_GRACE_SECONDS * 1000;
+
   const result = await db.transaction().execute(async (trx) => {
     const session = await trx
       .selectFrom("user_sessions as session")
       .innerJoin("users as user", "user.id", "session.user_id")
       .where("session.id", "=", payload.sessionId)
-      .where("session.refresh_token", "=", hashToken(refreshToken))
       .where("session.expires_at", ">", toDbDate())
-      .select(["session.id", "session.user_id", "user.email_verified_at"])
+      .select([
+        "session.id",
+        "session.user_id",
+        "session.refresh_token",
+        "session.previous_refresh_tokens",
+        "user.email_verified_at",
+      ])
       .forUpdate("session")
       .executeTakeFirst();
 
-    if (!session) {
+    // The row is read by primary key, so comparing the presented hash here
+    // instead of in the WHERE clause keeps the accepted set and the retention
+    // policy in one place.
+    const isCurrentToken = session?.refresh_token === presentedHash;
+    const retired = readRetiredRefreshTokens(session?.previous_refresh_tokens);
+    const isRetry =
+      !isCurrentToken &&
+      isRetiredRefreshTokenAccepted(retired, presentedHash, nowMs());
+
+    if (!session || (!isCurrentToken && !isRetry)) {
       throw new AuthError(
         "Session not found, expired, or refresh token already used",
         "SESSION_EXPIRED",
@@ -1029,6 +1061,18 @@ export async function refreshSession(
       .updateTable("user_sessions")
       .set({
         refresh_token: hashToken(newRefreshToken),
+        // The hash being superseded retires now, whether it was the current
+        // token or one already retired that a lagging tab is presenting. That
+        // is what lets every tab converge: the token the current holder is
+        // about to lose becomes acceptable for the same short window.
+        previous_refresh_tokens: JSON.stringify(
+          retainSupersededRefreshToken(
+            retired,
+            session.refresh_token,
+            nowMs(),
+            graceMs,
+          ),
+        ),
         last_active_at: toDbDate(),
         expires_at: getRefreshTokenExpiry(),
       })

@@ -103,10 +103,17 @@ export function OnboardingErrorScreen({
   message,
   onRetry,
   onSignOut,
+  eyebrow,
+  title,
+  hint,
 }: {
   message: string;
   onRetry: () => void;
   onSignOut: () => void;
+  /** Override the default "Workspace unavailable" framing. */
+  eyebrow?: string;
+  title?: string;
+  hint?: string;
 }) {
   const { t } = useTranslation();
 
@@ -117,16 +124,19 @@ export function OnboardingErrorScreen({
           <AlertTriangle aria-hidden="true" className="h-6 w-6" />
         </span>
         <p className="mt-7 text-xs font-bold uppercase tracking-[0.16em] text-amber-700 dark:text-amber-300">
-          {t("onboarding.workspaceUnavailable", "Workspace unavailable")}
+          {eyebrow ??
+            t("onboarding.workspaceUnavailable", "Workspace unavailable")}
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
-          {t("onboarding.couldNotLoad", "We couldn’t load your workspace")}
+          {title ??
+            t("onboarding.couldNotLoad", "We couldn’t load your workspace")}
         </h1>
         <p className="mt-3 text-sm leading-6 text-slate-500 dark:text-dark-text-secondary">
-          {t(
-            "onboarding.couldNotLoadHint",
-            "Your current page has been preserved. Try loading workspace access again, or sign out and return later.",
-          )}
+          {hint ??
+            t(
+              "onboarding.couldNotLoadHint",
+              "Your current page has been preserved. Try loading workspace access again, or sign out and return later.",
+            )}
         </p>
         <div
           role="alert"

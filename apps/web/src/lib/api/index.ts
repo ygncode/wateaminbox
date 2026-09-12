@@ -84,6 +84,7 @@ export {
   initializeAuth,
   setAuthToken,
   setCompanyId,
+  type TokenRefreshOutcome,
 } from "./client.js";
 // Re-export companies functions
 export { getUserCompanies } from "./companies.js";

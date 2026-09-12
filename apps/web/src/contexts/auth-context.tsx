@@ -4,6 +4,7 @@ import {
   login as apiLogin,
   logout as apiLogout,
   register as apiRegister,
+  ApiRequestError,
   attemptTokenRefresh,
   clearAuthTokens,
   getAccessToken,
@@ -11,12 +12,17 @@ import {
   initializeAuth,
   type RegisterRequest,
   type RegisterResponse,
+  type TokenRefreshOutcome,
   type UpdateProfileRequest,
   type UpdateProfileResponse,
   unsubscribeAllPush,
   updateCurrentUserProfile,
 } from "../lib/api";
 import { useChatStore } from "../stores/chat-store";
+import {
+  restoreSession,
+  type SessionAttemptResult,
+} from "../lib/session-restore";
 import { useTranslation } from "react-i18next";
 
 export interface AuthUser {
@@ -33,6 +39,17 @@ export interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  /**
+   * The API could not be reached, so whether the session is still valid is
+   * unknown.
+   *
+   * Distinct from "not authenticated". A refresh cookie survives a deployment,
+   * but the client cannot prove that until something answers, and treating the
+   * silence as a rejection would send every user back to the login screen for
+   * what is only a few seconds of downtime. Consumers must show a retry rather
+   * than redirect while this is set.
+   */
+  authUnavailable: boolean;
 }
 
 export interface AuthContextValue extends AuthState {
@@ -81,7 +98,42 @@ const EMPTY_STATE: AuthState = {
   isAuthenticated: false,
   isLoading: false,
   error: null,
+  authUnavailable: false,
 };
+
+/**
+ * Whether an error proves the session is gone, as opposed to merely proving the
+ * API could not be reached.
+ *
+ * Only the server refusing the credentials is evidence about the session. A
+ * network failure, a timeout, or a 5xx from a container that is still starting
+ * says nothing, and clearing tokens on those is what turned an ordinary
+ * deployment into a mass sign-out.
+ */
+function isAuthRejection(error: unknown): boolean {
+  return (
+    error instanceof ApiRequestError &&
+    (error.statusCode === 401 || error.statusCode === 403)
+  );
+}
+
+const UNAVAILABLE_STATE: AuthState = { ...EMPTY_STATE, authUnavailable: true };
+
+/**
+ * Raised when the session cannot be restored because the API refused it.
+ *
+ * Modelled as an `ApiRequestError` so the `401`/`403` checks that already exist
+ * keep working. The alternative - reporting the outcome like a boolean - left
+ * nothing for the callers to react to, and a rejected session has to clear the
+ * query cache and the chat store, not just stop loading.
+ */
+function sessionExpiredError(): ApiRequestError {
+  return new ApiRequestError(
+    401,
+    "SESSION_EXPIRED",
+    "Your session has expired. Please sign in again.",
+  );
+}
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const { t } = useTranslation();
@@ -93,26 +145,47 @@ export function AuthProvider({ children }: AuthProviderProps) {
   });
 
   const loadIdentity = React.useCallback(async () => {
-    if (!getAccessToken()) await attemptTokenRefresh();
-    if (!getAccessToken()) {
-      setState(EMPTY_STATE);
-      return;
-    }
+    const attemptLoad = async (): Promise<SessionAttemptResult> => {
+      let outcome: TokenRefreshOutcome | null = null;
+      if (!getAccessToken()) outcome = await attemptTokenRefresh();
 
-    const apiUser = await getCurrentUser();
-    setState({
-      user: mapApiUser(apiUser),
-      isAuthenticated: true,
-      isLoading: false,
-      error: null,
-    });
+      if (!getAccessToken()) {
+        // "rejected" means the server refused the cookie. Anything else means
+        // no answer arrived, which is retried rather than treated as a logout.
+        return outcome === "rejected" ? "rejected" : "unavailable";
+      }
+
+      try {
+        const apiUser = await getCurrentUser();
+        setState({
+          user: mapApiUser(apiUser),
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+          authUnavailable: false,
+        });
+        return "loaded";
+      } catch (error) {
+        // A 5xx or a dropped connection while reading the profile is no more
+        // evidence about the session than the same failure on the refresh.
+        return isAuthRejection(error) ? "rejected" : "unavailable";
+      }
+    };
+
+    const verdict = await restoreSession(attemptLoad);
+    if (verdict === "rejected") throw sessionExpiredError();
+    if (verdict === "unverified") setState(UNAVAILABLE_STATE);
   }, []);
 
   React.useEffect(() => {
     initializeAuth();
-    loadIdentity().catch(() => {
-      clearAuthTokens();
-      setState(EMPTY_STATE);
+    loadIdentity().catch((error) => {
+      if (isAuthRejection(error)) {
+        clearAuthTokens();
+        setState(EMPTY_STATE);
+        return;
+      }
+      setState(UNAVAILABLE_STATE);
     });
   }, [loadIdentity]);
 
@@ -125,6 +198,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isAuthenticated: true,
         isLoading: false,
         error: null,
+        authUnavailable: false,
       });
     } catch (error) {
       const message =
@@ -188,7 +262,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setState((previous) => ({ ...previous, isLoading: true }));
     try {
       await loadIdentity();
-    } catch {
+    } catch (error) {
+      if (!isAuthRejection(error)) {
+        setState(UNAVAILABLE_STATE);
+        return;
+      }
       clearAuthTokens();
       queryClient.clear();
       useChatStore.getState().reset();

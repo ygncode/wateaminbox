@@ -519,3 +519,78 @@ describe("realtime tuning bounds in production", () => {
     );
   });
 });
+
+describe("refresh token reuse grace window", () => {
+  /**
+   * `env.ts` is evaluated once per process and Bun caches it, so the only way
+   * to observe how a setting is parsed is a fresh process. Each case prints the
+   * resolved value on stdout, which keeps the assertion about the value rather
+   * than about the parser's internals.
+   */
+  async function resolveGraceSeconds(
+    value: string | undefined,
+  ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+    const env: Record<string, string> = {
+      ...(process.env as Record<string, string>),
+      NODE_ENV: "development",
+      JWT_SECRET: "an-explicitly-supplied-secret-123456789",
+      CENTRIFUGO_TOKEN_HMAC_SECRET: "a-distinct-explicit-secret-987654321",
+    };
+    if (value === undefined) delete env.JWT_REFRESH_REUSE_GRACE_SECONDS;
+    else env.JWT_REFRESH_REUSE_GRACE_SECONDS = value;
+
+    const child = Bun.spawn(
+      [
+        process.execPath,
+        "-e",
+        'const { env } = await import("./src/lib/env.ts"); console.log(env.JWT_REFRESH_REUSE_GRACE_SECONDS)',
+      ],
+      {
+        cwd: new URL("../..", import.meta.url).pathname,
+        env,
+        stderr: "pipe",
+        stdout: "pipe",
+      },
+    );
+
+    const [stdout, stderr] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+
+    return { exitCode: await child.exited, stdout: stdout.trim(), stderr };
+  }
+
+  test("defaults to a minute when the setting is absent", async () => {
+    const result = await resolveGraceSeconds(undefined);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("60");
+  }, 30_000);
+
+  test("accepts 0, which stops recording new retirements", async () => {
+    const result = await resolveGraceSeconds("0");
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("0");
+  }, 30_000);
+
+  test("rejects a window long enough to weaken replay detection", async () => {
+    // Rejecting at startup rather than clamping keeps a typo from quietly
+    // widening how long a stolen retired token stays usable.
+    const result = await resolveGraceSeconds("86400");
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toMatch(
+      /JWT_REFRESH_REUSE_GRACE_SECONDS must be an integer between 0 and 3600/,
+    );
+  }, 30_000);
+
+  test("rejects a fractional or negative value", async () => {
+    const fractional = await resolveGraceSeconds("1.5");
+    expect(fractional.exitCode).not.toBe(0);
+
+    const negative = await resolveGraceSeconds("-1");
+    expect(negative.exitCode).not.toBe(0);
+  }, 30_000);
+});

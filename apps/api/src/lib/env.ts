@@ -44,6 +44,30 @@ function getEnvSafePositiveInteger(
   return parsed;
 }
 
+/**
+ * Like {@link getEnvSafePositiveInteger} but allows `0`, which several
+ * settings use to mean "off" rather than "unset".
+ */
+function getEnvSafeNonNegativeInteger(
+  key: string,
+  defaultValue: number,
+  maxValue: number = Number.MAX_SAFE_INTEGER,
+): number {
+  const value = process.env[key];
+  if (value === undefined || value === "") return defaultValue;
+  const parsed = Number(value);
+  if (
+    !/^\d+$/.test(value) ||
+    !Number.isSafeInteger(parsed) ||
+    parsed > maxValue
+  ) {
+    throw new Error(
+      `Environment variable ${key} must be an integer between 0 and ${maxValue}`,
+    );
+  }
+  return parsed;
+}
+
 function getEnvBoolean(key: string, defaultValue?: boolean): boolean {
   const value = process.env[key];
   if (value === undefined) {
@@ -79,6 +103,16 @@ export const env = {
   JWT_SECRET: getEnv("JWT_SECRET", ""),
   JWT_ACCESS_EXPIRES_IN: getEnv("JWT_ACCESS_EXPIRES_IN", "15m"),
   JWT_REFRESH_EXPIRES_IN: getEnv("JWT_REFRESH_EXPIRES_IN", "7d"),
+  // How long a refresh token stays acceptable after rotation supersedes it.
+  // Covers a refresh response lost in transit (a container replaced
+  // mid-request during a deployment) and two tabs refreshing at once, both of
+  // which otherwise look identical to a replayed token and force a real
+  // re-login. `0` restores strict single-use rotation.
+  JWT_REFRESH_REUSE_GRACE_SECONDS: getEnvSafeNonNegativeInteger(
+    "JWT_REFRESH_REUSE_GRACE_SECONDS",
+    60,
+    3600,
+  ),
 
   // Email. Only the selected provider's credentials are required, so a
   // deployment on one provider never has to invent values for the other.

@@ -595,3 +595,39 @@ rotation. Reduce capacity only after checking traffic and allowing SIGTERM to
 drain the removed replica. Two replicas on one host improve process resilience
 but do not provide host HA or justify an SLA. The orchestrator must remain one
 replica.
+
+### What a browser session does across an upgrade
+
+A deployment is not a sign-out. `JWT_SECRET` is a file-backed secret that does
+not change between releases, `user_sessions.refresh_token` lives in PostgreSQL,
+and the refresh cookie is an HttpOnly browser cookie, so a token issued before
+the upgrade still verifies afterwards. A reload during the gap costs the user
+the seconds the API is unreachable, not their session.
+
+Two mechanisms keep it that way, and both matter more here than they would on a
+topology with a start-first rollout:
+
+- The web client refreshes the access token with a short bounded retry, and
+  clears local auth state only when the API actually answers 401 or 403. A
+  network failure or a 5xx - exactly what the gap produces - is reported as an
+  unavailable session, and the route offers a retry instead of redirecting to
+  `/login`. Treating silence as a rejection would take every user to the login
+  screen for a few seconds of downtime.
+- The API accepts a refresh token it retired within
+  `JWT_REFRESH_REUSE_GRACE_SECONDS` (default `60`, `0` to disable). Rotation is
+  still single-use, but a rotation that commits server-side while its response
+  is lost - the container is replaced mid-request - would otherwise leave the
+  browser holding a token the session no longer accepts, which needs a real
+  re-login. The window also covers two tabs refreshing at once, since the
+  client coalesces concurrent refreshes within a document but not across tabs.
+
+Bounded deliberately: an entry is retained for at most the grace window from
+its own rotation, an entry's deadline is never extended by a retry, and at most
+five retired hashes are kept per session. Outside the window a replayed token is
+rejected exactly as before. Widening the setting trades replay detection for
+tolerance of a longer outage; it does not make the outage free.
+
+The grace window does not make upgrades seamless. Requests still fail while no
+replica is serving, and the orchestrator remains a stop-first replacement that
+drops its WhatsApp sessions. Zero downtime needs a start-first procedure this
+Compose stack does not provide.
