@@ -1,5 +1,5 @@
 import { toDbDate } from "@wateaminbox/shared";
-import type { Kysely } from "kysely";
+import type { Kysely, RawBuilder, SqlBool } from "kysely";
 import { sql } from "kysely";
 import { normalizePhoneNumber } from "../lib/schemas.js";
 import { conversationIdForContact } from "./channel-workflow.service.js";
@@ -59,6 +59,8 @@ export interface ContactWithLastMessage {
   assigned_to: string | null;
   last_message_at: Date | null;
   unread_count: number | bigint;
+  /** Threads this customer is reachable on, including merged-away contacts. */
+  chat_count: number;
   conversation_status: "open" | "pending" | "resolved";
   active_case_id: string | null;
   is_online: boolean;
@@ -136,6 +138,8 @@ export async function getContactsWithLastMessage(
       connectionId,
       tagIds,
       contactTagsTable: sql.table(`${schemaName}.contact_tags`),
+      contactsTable: sql.table(`${schemaName}.contacts`),
+      contactAssignmentsTable: sql.table(`${schemaName}.contact_assignments`),
       assignedToMe,
       unassigned,
       userId,
@@ -166,6 +170,7 @@ export async function getContactsWithLastMessage(
     last_message_status: string | null;
     last_message_timestamp: Date | null;
     unread_count: string;
+    chat_count: number;
     is_online: boolean;
     last_seen: Date | null;
     connection_id: string | null;
@@ -201,7 +206,10 @@ export async function getContactsWithLastMessage(
       wc.phone_number as connection_phone_number,
       wc.status::text as connection_status,
       ca.assigned_to,
-      COALESCE(lmc.timestamp, lml.timestamp) as last_message_at,
+      GREATEST(
+        COALESCE(lmc.timestamp, lml.timestamp),
+        grp.last_message_at
+      ) as last_message_at,
       COALESCE(lmc.id, lml.id) as last_message_id,
       COALESCE(lmc.message_id, lml.message_id) as last_message_message_id,
       COALESCE(lmc.from_me, lml.from_me) as last_message_from_me,
@@ -211,7 +219,9 @@ export async function getContactsWithLastMessage(
       COALESCE(lmc.timestamp, lml.timestamp) as last_message_timestamp,
       COALESCE(lmc.sent_by_user_id, lml.sent_by_user_id)
         as last_message_sent_by_user_id,
-      COALESCE(csc.unread_count, csl.unread_count, 0)::bigint as unread_count,
+      (COALESCE(csc.unread_count, csl.unread_count, 0)
+        + COALESCE(grp.unread_count, 0))::bigint as unread_count,
+      (1 + COALESCE(grp.chat_count, 0))::int as chat_count,
       COALESCE(csc.status::text, csl.status::text, 'resolved')
         as conversation_status,
       COALESCE(csc.active_case_id, csl.active_case_id) as active_case_id
@@ -258,6 +268,31 @@ export async function getContactsWithLastMessage(
       ON conv.id IS NOT NULL AND csc.conversation_id = conv.id
     LEFT JOIN ${schema}.${sql.ref("conversation_states")} csl
       ON conv.id IS NULL AND csl.contact_id = c.id
+    -- Threads belonging to contacts merged into this one. They are hidden as
+    -- separate rows and reached through the chat switcher, so their unread
+    -- and activity have to surface here or a reply would look dropped.
+    --
+    -- A lateral over the partial merge-alias index rather than wider joins:
+    -- on a workspace with no merges it is an empty index probe per row, which
+    -- keeps the measured plan of the surrounding query intact.
+    LEFT JOIN LATERAL (
+      SELECT count(*)::int AS chat_count,
+             COALESCE(
+               SUM(COALESCE(mcsc.unread_count, mcsl.unread_count, 0)),
+               0
+             )::bigint AS unread_count,
+             MAX(COALESCE(mconv.last_message_at, mcsl.last_message_at))
+               AS last_message_at
+      FROM ${schema}.${sql.ref("contacts")} mc
+      LEFT JOIN ${schema}.${sql.ref("conversations")} mconv
+        ON mconv.legacy_contact_id = mc.id
+       AND mconv.archived_at IS NULL
+      LEFT JOIN ${schema}.${sql.ref("conversation_states")} mcsc
+        ON mconv.id IS NOT NULL AND mcsc.conversation_id = mconv.id
+      LEFT JOIN ${schema}.${sql.ref("conversation_states")} mcsl
+        ON mconv.id IS NULL AND mcsl.contact_id = mc.id
+      WHERE mc.merged_into_contact_id = c.id
+    ) grp ON TRUE
     ${hasWhereCondition ? sql`WHERE ${whereClause}` : sql``}
     ORDER BY last_message_at DESC NULLS LAST
     LIMIT ${limit}
@@ -305,6 +340,7 @@ export async function getContactsWithLastMessage(
       assigned_to: contact.assigned_to,
       last_message_at: contact.last_message_at,
       unread_count: BigInt(contact.unread_count),
+      chat_count: Number(contact.chat_count ?? 1),
       is_online: contact.is_online,
       last_seen: contact.last_seen,
       connection_id: contact.connection_id,
@@ -336,7 +372,34 @@ export async function getContactsWithLastMessage(
     )
     .select((eb) => eb.fn.count("contacts.id").as("total"));
 
-  let countQuery = baseCountQuery;
+  // The row query hides contacts merged into another customer, so the total
+  // has to hide them too or pagination reports a page that is not there.
+  //
+  // The same applies to every filter the row query answers from the merged
+  // group rather than from the surviving row alone: an assignment or an
+  // unread thread may sit on the hidden contact. Without the matching group
+  // terms here, "assigned to me" returns one row and a total of zero.
+  const mergedGroup = (predicate: RawBuilder<unknown>) => sql<SqlBool>`EXISTS (
+    SELECT 1
+    FROM ${schema}.${sql.ref("contacts")} mc
+    LEFT JOIN ${schema}.${sql.ref("contact_assignments")} mca
+      ON mca.contact_id = mc.id AND mca.unassigned_at IS NULL
+    LEFT JOIN ${schema}.${sql.ref("conversations")} mconv
+      ON mconv.legacy_contact_id = mc.id AND mconv.archived_at IS NULL
+    LEFT JOIN ${schema}.${sql.ref("conversation_states")} mcsc
+      ON mconv.id IS NOT NULL AND mcsc.conversation_id = mconv.id
+    LEFT JOIN ${schema}.${sql.ref("conversation_states")} mcsl
+      ON mconv.id IS NULL AND mcsl.contact_id = mc.id
+    WHERE mc.merged_into_contact_id = contacts.id
+      AND ${predicate}
+  )`;
+  const assignedInGroup = (assigneeId: string) =>
+    mergedGroup(sql`mca.assigned_to = ${assigneeId}`);
+  let countQuery = baseCountQuery.where(
+    "contacts.merged_into_contact_id",
+    "is",
+    null,
+  );
   if (!includeGroups) {
     countQuery = countQuery.where("contacts.is_group", "=", false);
   }
@@ -372,24 +435,17 @@ export async function getContactsWithLastMessage(
         .where("contact_tags.tag_id", "in", tagIds),
     );
   }
-  if (restrictToAssigned && userId) {
-    countQuery = countQuery.where(
-      "contact_assignments.assigned_to",
-      "=",
-      userId,
-    );
-  } else if (assignedToMe && userId) {
-    countQuery = countQuery.where(
-      "contact_assignments.assigned_to",
-      "=",
-      userId,
+  if ((restrictToAssigned || assignedToMe) && userId) {
+    countQuery = countQuery.where((eb) =>
+      eb.or([
+        eb("contact_assignments.assigned_to", "=", userId),
+        assignedInGroup(userId),
+      ]),
     );
   } else if (unassigned) {
-    countQuery = countQuery.where(
-      "contact_assignments.assigned_to",
-      "is",
-      null,
-    );
+    countQuery = countQuery
+      .where("contact_assignments.assigned_to", "is", null)
+      .where(sql<SqlBool>`NOT ${mergedGroup(sql`mca.assigned_to IS NOT NULL`)}`);
   }
   if (conversationStatus && conversationStatus !== "all") {
     countQuery = countQuery.where(
@@ -397,8 +453,11 @@ export async function getContactsWithLastMessage(
     );
   }
   if (unreadOnly) {
-    countQuery = countQuery.where(
-      sql<boolean>`COALESCE(conversation_states.unread_count, 0) > 0`,
+    countQuery = countQuery.where((eb) =>
+      eb.or([
+        sql<SqlBool>`COALESCE(conversation_states.unread_count, 0) > 0`,
+        mergedGroup(sql`COALESCE(mcsc.unread_count, mcsl.unread_count, 0) > 0`),
+      ]),
     );
   }
 

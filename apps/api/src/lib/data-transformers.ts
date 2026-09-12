@@ -32,6 +32,7 @@ export interface RawContactFromDb {
   notes_shared: string | null;
   last_message_at: Date | string | null;
   unread_count?: number | bigint | string;
+  chat_count?: number | string | null;
   assigned_to: string | null;
   is_online?: boolean | null;
   last_seen?: Date | string | null;
@@ -104,6 +105,12 @@ export interface TransformedContact {
     status: string;
   } | null;
   unreadCount: number;
+  /**
+   * Threads this customer is reachable on. Greater than one only after a
+   * merge, where the merged-away contacts keep their own conversations and
+   * the inbox shows one row for the customer.
+   */
+  chatCount: number;
   assignedTo: string | null;
   isOnline: boolean | null;
   lastSeen: Date | string | null;
@@ -191,6 +198,7 @@ export function transformContact(
         }
       : null,
     unreadCount: Number(contact.unread_count ?? 0),
+    chatCount: Number(contact.chat_count ?? 1),
     assignedTo: contact.assigned_to,
     isOnline: contact.is_online ?? null,
     lastSeen: contact.last_seen ?? null,

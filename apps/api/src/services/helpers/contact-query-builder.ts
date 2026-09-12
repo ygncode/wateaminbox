@@ -26,6 +26,37 @@ export interface ContactFilterOptions {
   conversationStatus?: "open" | "pending" | "resolved" | "all";
   /** Filter to conversations with unread messages. */
   unreadOnly?: boolean;
+  /** Schema-qualified contacts table used by raw tenant SQL. */
+  contactsTable?: RawBuilder<unknown>;
+  /** Schema-qualified contact_assignments table used by raw tenant SQL. */
+  contactAssignmentsTable?: RawBuilder<unknown>;
+}
+
+/**
+ * Whether any contact merged into `c` satisfies `predicate`.
+ *
+ * A merged customer is one inbox row, so a filter has to be answered by the
+ * group rather than by the surviving row alone. Hiding the merged-away row
+ * while leaving its assignment invisible would drop an assigned chat out of
+ * its own assignee's filter entirely.
+ *
+ * Written as a correlated EXISTS rather than widening the list query's joins:
+ * it reads the partial index on `merged_into_contact_id`, and on a workspace
+ * with no merges - which is every workspace today - it is an empty index
+ * probe that cannot change the plan of the surrounding query.
+ */
+function mergedGroupExists(
+  contactsTable: RawBuilder<unknown>,
+  joins: RawBuilder<unknown>,
+  predicate: RawBuilder<unknown>,
+): RawBuilder<unknown> {
+  return sql`EXISTS (
+    SELECT 1
+    FROM ${contactsTable} mc
+    ${joins}
+    WHERE mc.merged_into_contact_id = c.id
+      AND ${predicate}
+  )`;
 }
 
 /**
@@ -110,19 +141,54 @@ export function buildAssignmentClause(options: {
   unassigned?: boolean;
   userId?: string;
   restrictToAssigned?: boolean;
+  contactsTable?: RawBuilder<unknown>;
+  contactAssignmentsTable?: RawBuilder<unknown>;
 }): RawBuilder<unknown> {
-  const { assignedToMe, unassigned, userId, restrictToAssigned } = options;
+  const {
+    assignedToMe,
+    unassigned,
+    userId,
+    restrictToAssigned,
+    contactsTable,
+    contactAssignmentsTable,
+  } = options;
+
+  // The assignment may sit on a merged-away row, whose own list entry is
+  // hidden. Without the group term the surviving row answers "not mine" and
+  // the chat disappears from its assignee's filter.
+  const assignedInGroup = (assigneeId: string): RawBuilder<unknown> =>
+    contactsTable && contactAssignmentsTable
+      ? mergedGroupExists(
+          contactsTable,
+          sql`JOIN ${contactAssignmentsTable} mca
+                ON mca.contact_id = mc.id
+               AND mca.unassigned_at IS NULL`,
+          sql`mca.assigned_to = ${assigneeId}`,
+        )
+      : sql`FALSE`;
 
   if (restrictToAssigned && userId) {
-    return sql`ca.assigned_to = ${userId}`;
+    return sql`(ca.assigned_to = ${userId} OR ${assignedInGroup(userId)})`;
   }
 
   if (assignedToMe && userId) {
-    return sql`ca.assigned_to = ${userId}`;
+    return sql`(ca.assigned_to = ${userId} OR ${assignedInGroup(userId)})`;
   }
 
   if (unassigned) {
-    return sql`ca.assigned_to IS NULL`;
+    // Unassigned means nobody in the group holds it, not merely that the
+    // surviving row does not.
+    const anyoneAssigned =
+      contactsTable && contactAssignmentsTable
+        ? mergedGroupExists(
+            contactsTable,
+            sql`JOIN ${contactAssignmentsTable} mca
+                  ON mca.contact_id = mc.id
+                 AND mca.unassigned_at IS NULL`,
+            sql`mca.assigned_to IS NOT NULL`,
+          )
+        : sql`FALSE`;
+    return sql`(ca.assigned_to IS NULL AND NOT ${anyoneAssigned})`;
   }
 
   return sql``;
@@ -151,9 +217,16 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
     restrictToAssigned,
     conversationStatus,
     unreadOnly,
+    contactsTable,
+    contactAssignmentsTable,
   } = options;
 
   const conditions: RawBuilder<unknown>[] = [];
+  // A merged customer is one row in the inbox. The surviving contact carries
+  // the group; the rows merged into it stay reachable through the chat
+  // switcher rather than as separate entries. Their threads are untouched -
+  // a merge never moves a conversation.
+  conditions.push(sql`c.merged_into_contact_id IS NULL`);
   if (search) conditions.push(buildSearchClause(search));
   if (!includeGroups) conditions.push(buildGroupClause(includeGroups));
   if (connectionId) {
@@ -174,8 +247,13 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
     conditions.push(buildConversationStatusClause(conversationStatus));
   }
   if (unreadOnly) {
-    // A contact with no conversation_states row has nothing unread.
-    conditions.push(sql`COALESCE(csc.unread_count, csl.unread_count, 0) > 0`);
+    // A contact with no conversation_states row has nothing unread. Unread on
+    // a merged-away thread counts for the surviving row, which is where the
+    // operator now sees it.
+    conditions.push(
+      sql`(COALESCE(csc.unread_count, csl.unread_count, 0) > 0
+           OR COALESCE(grp.unread_count, 0) > 0)`,
+    );
   }
 
   const hasAssignmentFilter = Boolean(
@@ -188,6 +266,8 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
         unassigned,
         userId,
         restrictToAssigned,
+        contactsTable,
+        contactAssignmentsTable,
       }),
     );
   }
