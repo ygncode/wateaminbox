@@ -39,6 +39,19 @@ import { getMaxConnections } from "../services/whatsapp/connection.js";
 
 const logger = createLogger("ChannelAccounts");
 
+/**
+ * The base a provider calls back on.
+ *
+ * Separate from `APP_URL` because the two answer different questions: a
+ * webhook needs a publicly routable HTTPS address, while `APP_URL` is where a
+ * person opens the app - in local development a tunnel and localhost
+ * respectively. Sending invite or OAuth links to the tunnel would be wrong,
+ * and pointing a webhook at localhost simply never arrives.
+ */
+function channelIngressBaseUrl(): string {
+  return (env.CHANNEL_INGRESS_PUBLIC_URL || env.APP_URL).replace(/\/$/, "");
+}
+
 export const channelAccountRoutes = new Hono();
 channelAccountRoutes.use("/*", authMiddleware);
 channelAccountRoutes.use("/*", tenantMiddleware());
@@ -321,7 +334,7 @@ channelAccountRoutes.post(
         .execute();
     });
 
-    const webhookUrl = `${env.APP_URL.replace(/\/$/, "")}/api/channel-ingress/telegram_bot/${routeKey}`;
+    const webhookUrl = `${channelIngressBaseUrl()}/api/channel-ingress/telegram_bot/${routeKey}`;
     try {
       await configureTelegramWebhook(botToken, webhookUrl, webhookSecret);
     } catch {
@@ -578,7 +591,7 @@ channelAccountRoutes.post("/:id/resume", async (c) => {
       .execute();
   });
 
-  const webhookUrl = `${env.APP_URL.replace(/\/$/, "")}/api/channel-ingress/telegram_bot/${routeKey}`;
+  const webhookUrl = `${channelIngressBaseUrl()}/api/channel-ingress/telegram_bot/${routeKey}`;
   try {
     await configureTelegramWebhook(botToken, webhookUrl, webhookSecret);
   } catch {
