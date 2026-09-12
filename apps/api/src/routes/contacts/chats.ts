@@ -5,6 +5,7 @@ import {
   hasContactVisibility,
   requireContactVisibility,
 } from "../../middleware/resource-visibility.js";
+import { getAuthorizedMediaUrlOrNull } from "../../lib/storage.js";
 import { listCustomerChats } from "../../services/customer-chats.service.js";
 
 export const customerChatsRoutes = new Hono();
@@ -18,24 +19,31 @@ export const customerChatsRoutes = new Hono();
  * restricted member assigned to one of a merged customer's threads must not
  * learn about the others through the switcher.
  */
-customerChatsRoutes.get(
-  "/:id/chats",
-  requireContactVisibility(),
-  async (c) => {
-    const { tenantDb, permissions } = getRouteContext(c);
-    const chats = await listCustomerChats(tenantDb, c.req.param("id")!);
-    const visible = await Promise.all(
-      chats.map(async (chat) => {
-        // A neutral thread with no contact row has no assignment to check
-        // against, so it is shown only to a role that may see every chat
-        // rather than being treated as unrestricted.
-        const allowed =
-          chat.contactId === null
-            ? permissions.can_view_all_chats
-            : await hasContactVisibility(c, chat.contactId);
-        return allowed ? chat : null;
-      }),
-    );
-    return successData(c, { chats: visible.filter((chat) => chat !== null) });
-  },
-);
+customerChatsRoutes.get("/:id/chats", requireContactVisibility(), async (c) => {
+  const { tenantDb, permissions, companyId } = getRouteContext(c);
+  const chats = await listCustomerChats(tenantDb, c.req.param("id")!);
+  const visible = await Promise.all(
+    chats.map(async (chat) => {
+      // A neutral thread with no contact row has no assignment to check
+      // against, so it is shown only to a role that may see every chat
+      // rather than being treated as unrestricted.
+      const allowed =
+        chat.contactId === null
+          ? permissions.can_view_all_chats
+          : await hasContactVisibility(c, chat.contactId);
+      return allowed ? chat : null;
+    }),
+  );
+  // Signed here rather than in the service: a stored media reference is not
+  // fetchable by a browser, and the workspace the signature is scoped to is
+  // the route's to know.
+  const chatsWithAvatars = await Promise.all(
+    visible
+      .filter((chat) => chat !== null)
+      .map(async (chat) => ({
+        ...chat,
+        avatarUrl: await getAuthorizedMediaUrlOrNull(chat.avatarUrl, companyId),
+      })),
+  );
+  return successData(c, { chats: chatsWithAvatars });
+});

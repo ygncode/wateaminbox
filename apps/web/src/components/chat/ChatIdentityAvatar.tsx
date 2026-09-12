@@ -37,11 +37,23 @@ export function ChatIdentityAvatar({
   return (
     <span className={cn("relative inline-flex size-5 shrink-0", className)}>
       <span className="size-full overflow-hidden rounded-full bg-gray-100 dark:bg-dark-tertiary">
-        <IdentityAvatarFallback
-          displayName={label}
-          identity={chat?.chatId ?? label}
-          className="text-[9px]"
-        />
+        {chat?.avatarUrl ? (
+          // The face is how two threads of one customer are told apart at a
+          // glance; initials make every thread of a merged customer look the
+          // same when the names match, which is exactly when they are merged.
+          <img
+            src={chat.avatarUrl}
+            alt=""
+            className="size-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <IdentityAvatarFallback
+            displayName={label}
+            identity={chat?.chatId ?? label}
+            className="text-[9px]"
+          />
+        )}
       </span>
       {chat && KNOWN_CHANNELS.has(chat.channel) && (
         <ChannelAvatarBadge

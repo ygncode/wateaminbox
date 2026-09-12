@@ -182,6 +182,8 @@ export interface CustomerChat {
   /** The WhatsApp JID this thread sends on, when it has one. */
   jid: string | null;
   displayName: string | null;
+  /** The counterpart's picture, already signed for this workspace. */
+  avatarUrl: string | null;
   lastMessageAt: string | null;
   unreadCount: number;
 }

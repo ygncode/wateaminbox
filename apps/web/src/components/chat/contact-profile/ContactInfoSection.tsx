@@ -1,6 +1,8 @@
 import { AtSign, Phone, Smartphone, User } from "lucide-react";
 import { RightPanelSection } from "@/components/layout/right-panel";
-import { formatPhoneNumber } from "@/lib/utils";
+import type { CustomerChat } from "@/lib/api/contacts";
+import { formatPhoneLikeText, formatPhoneNumber } from "@/lib/utils";
+import { ChatIdentityAvatar } from "../ChatIdentityAvatar";
 import { channelLabel } from "../ChannelIdentity";
 import { ConnectionBadge, getConnectionPhone } from "../ConnectionIdentity";
 import type { ContactData } from "./types";
@@ -8,17 +10,55 @@ import { useTranslation } from "react-i18next";
 
 interface ContactInfoSectionProps {
   contact: ContactData;
+  /** Every thread this customer is reachable on, for a merged customer. */
+  chats?: CustomerChat[];
 }
 
 /**
  * Contact info section showing phone number and WhatsApp name
  */
-export function ContactInfoSection({ contact }: ContactInfoSectionProps) {
+export function ContactInfoSection({
+  contact,
+  chats = [],
+}: ContactInfoSectionProps) {
   const { t } = useTranslation();
   // A merged customer keeps whichever record survived, and that record can be
   // the Telegram one. Naming the network from the contact rather than from a
   // hardcoded string stops the panel captioning a Telegram handle "WhatsApp".
   const network = channelLabel(contact.channel);
+
+  // A merged customer is several identities, and this block described only
+  // the record that happened to survive: one number, one network, one name,
+  // for a person the operator reaches on two. Their addresses are listed per
+  // thread instead, each named by the network that reaches it.
+  if (chats.length > 1) {
+    return (
+      <RightPanelSection>
+        <div className="space-y-3">
+          {chats.map((chat) => (
+            <div key={chat.chatId} className="flex items-center gap-3">
+              <ChatIdentityAvatar chat={chat} className="size-8" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-gray-900 dark:text-dark-text-primary">
+                  {chat.address
+                    ? formatPhoneLikeText(chat.address)
+                    : (chat.displayName ??
+                      t("chat.switcher.unknownChat", {
+                        defaultValue: "Chat",
+                      }))}
+                </p>
+                <p className="truncate text-xs text-gray-500 dark:text-dark-text-tertiary">
+                  {[channelLabel(chat.channel), chat.accountName]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </RightPanelSection>
+    );
+  }
 
   return (
     <RightPanelSection>

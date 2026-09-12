@@ -102,7 +102,9 @@ export function ContactProfile({
               chatCount={customerChats.length}
             />
 
-            {contact ? <ContactInfoSection contact={contact} /> : null}
+            {contact ? (
+              <ContactInfoSection contact={contact} chats={customerChats} />
+            ) : null}
 
             {contact?.isGroup && (
               <GroupInfoSections

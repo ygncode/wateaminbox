@@ -6,7 +6,7 @@ import { EllipsisMenu } from "@/components/ui/ellipsis-menu";
 import { useMergeHistory } from "@/hooks/contact/useContactMerge";
 import { useCustomerChats } from "@/hooks/contact/useCustomerChats";
 import type { CustomerChat } from "@/lib/api/contacts";
-import { cn } from "@/lib/utils";
+import { cn, formatPhoneLikeText } from "@/lib/utils";
 import { ChatIdentityAvatar } from "../ChatIdentityAvatar";
 import { MergeEditDialog } from "./MergeEditDialog";
 import { MergeSuggestionsSection } from "./MergeSuggestionsSection";
@@ -147,9 +147,20 @@ function ThreadRow({
   const { t } = useTranslation();
   const name =
     chat.displayName ||
-    chat.address ||
+    formatPhoneLikeText(chat.address ?? "") ||
     t("chat.switcher.unknownChat", { defaultValue: "Chat" });
-  const secondary = chat.accountName || chat.address;
+  // The address is the thread's identity - the handle or the number that
+  // reaches this person on this network - and the account is where it lands.
+  // Naming only one of them left a merged customer's rows indistinguishable
+  // wherever the display names matched, which is when they get merged.
+  const secondary = [
+    chat.address && chat.address !== name
+      ? formatPhoneLikeText(chat.address)
+      : null,
+    chat.accountName,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const body = (
     <>
@@ -158,7 +169,7 @@ function ThreadRow({
         <span className="block truncate text-sm text-gray-900 dark:text-dark-text-primary">
           {name}
         </span>
-        {secondary && secondary !== name && (
+        {secondary && (
           <span className="block truncate text-[11px] text-gray-500 dark:text-dark-text-tertiary">
             {secondary}
           </span>

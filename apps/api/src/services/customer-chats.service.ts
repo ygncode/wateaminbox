@@ -51,6 +51,14 @@ export interface CustomerChat {
    */
   jid: string | null;
   displayName: string | null;
+  /**
+   * The counterpart's picture, as a stored media reference.
+   *
+   * Left unsigned here: signing needs the workspace, which the route has and
+   * the service deliberately does not. Two threads of one customer often
+   * differ by face before they differ by anything a label can say.
+   */
+  avatarUrl: string | null;
   lastMessageAt: Date | null;
   unreadCount: number;
 }
@@ -165,6 +173,8 @@ export async function listCustomerChats(
         "endpoint.address_display as address_display",
         "endpoint.normalized_address as normalized_address",
         "endpoint.display_name as display_name",
+        "endpoint.avatar_url as endpoint_avatar_url",
+        "legacy.profile_picture_url as legacy_avatar_url",
         "account.id as account_id",
         "account.display_name as account_name",
         "state.unread_count as unread_count",
@@ -192,6 +202,7 @@ export async function listCustomerChats(
         "contact.phone_number as phone_number",
         "contact.push_name as push_name",
         "contact.custom_name as custom_name",
+        "contact.profile_picture_url as profile_picture_url",
         "connection.id as connection_id",
         "connection.name as connection_name",
         "connection.status as connection_status",
@@ -230,6 +241,9 @@ export async function listCustomerChats(
         : null,
       jid: row.jid,
       displayName: row.display_name,
+      // The endpoint's own picture is the thread's face; the bridged contact's
+      // is the fallback for a thread whose endpoint was never fetched.
+      avatarUrl: row.endpoint_avatar_url ?? row.legacy_avatar_url,
       lastMessageAt: row.last_message_at,
       unreadCount: Number(row.unread_count ?? 0),
     });
@@ -260,6 +274,7 @@ export async function listCustomerChats(
         : null,
       jid: row.jid,
       displayName: row.custom_name ?? row.push_name,
+      avatarUrl: row.profile_picture_url,
       lastMessageAt: row.last_message_at,
       unreadCount: Number(row.unread_count ?? 0),
     });
