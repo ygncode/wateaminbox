@@ -12,11 +12,7 @@ import { api } from "./client";
 export type ConversationLifecycleStatus = "open" | "pending" | "resolved";
 
 export type ResolutionOutcome =
-  | "handled"
-  | "no_reply_needed"
-  | "spam"
-  | "duplicate"
-  | "other";
+  "handled" | "no_reply_needed" | "spam" | "duplicate" | "other";
 
 export interface ConversationCase {
   id: string;
@@ -71,6 +67,31 @@ export async function resolveConversation(
 ): Promise<ConversationCase> {
   return api.post<ConversationCase>(
     `/conversations/${contactId}/resolve`,
+    input,
+  );
+}
+
+/** What a customer-wide resolve did, and what it deliberately did not do. */
+export interface CustomerResolveResult {
+  canonicalContactId: string;
+  resolved: string[];
+  skipped: { threadId: string; unreadCount: number }[];
+}
+
+/**
+ * Resolve every thread of a merged customer at once.
+ *
+ * A thread holding unread inbound is left open and reported in `skipped`: a
+ * quiet thread reopens by itself when the customer writes again, but one
+ * already holding an unanswered question does not, so closing it would bury
+ * the question.
+ */
+export async function resolveCustomer(
+  chatId: string,
+  input: { outcome: ResolutionOutcome; notes?: string },
+): Promise<CustomerResolveResult> {
+  return api.post<CustomerResolveResult>(
+    `/contacts/${encodeURIComponent(chatId)}/resolve`,
     input,
   );
 }

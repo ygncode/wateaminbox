@@ -7,8 +7,10 @@ import {
   usePendingConversation,
   useReopenConversation,
   useResolveConversation,
+  useResolveCustomer,
   useResumeConversation,
 } from "@/hooks/useConversationLifecycle";
+import { useCustomerChats } from "@/hooks/contact/useCustomerChats";
 import type { ResolutionOutcome } from "@/lib/api/conversation-state";
 import { isResolveActionDisabled } from "./lifecycle-action-gating";
 import { resolveOpenOrReopenMode } from "./open-reopen-dialog-state";
@@ -44,7 +46,15 @@ export function ConversationLifecycleActions({
   const { can } = useWorkspace();
   const canManage = can("can_send_messages");
   const { data: state } = useConversationState(contactId);
-  const resolveMutation = useResolveConversation(contactId);
+  // A merged customer reads as one conversation, so resolving has to mean all
+  // of it - the server leaves any thread holding unread inbound open and says
+  // which. Everyone else resolves exactly the one conversation they are
+  // looking at.
+  const { data: customerChats = [] } = useCustomerChats(contactId);
+  const isMergedCustomer = customerChats.length > 1;
+  const singleResolve = useResolveConversation(contactId);
+  const customerResolve = useResolveCustomer(contactId);
+  const resolveMutation = isMergedCustomer ? customerResolve : singleResolve;
   const pendingMutation = usePendingConversation(contactId);
   const resumeMutation = useResumeConversation(contactId);
   const reopenMutation = useReopenConversation(contactId);
