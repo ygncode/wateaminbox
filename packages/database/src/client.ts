@@ -770,6 +770,7 @@ export interface ContactsTable {
   avatar_url: string | null;
   record_kind: "customer" | "legacy_group_projection" | null;
   merged_into_contact_id: string | null;
+  active_merge_event_id: string | null;
   archived_at: Date | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;

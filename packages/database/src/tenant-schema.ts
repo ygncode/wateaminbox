@@ -365,6 +365,7 @@ export const TENANT_SCHEMA_CONTRACT = {
     "avatar_url",
     "record_kind",
     "merged_into_contact_id",
+    "active_merge_event_id",
     "archived_at",
     "created_at",
     "updated_at",
