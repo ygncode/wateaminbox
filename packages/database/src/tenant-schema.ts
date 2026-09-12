@@ -2,6 +2,7 @@ import type { Kysely } from "kysely";
 import { sql } from "kysely";
 import { ensureChannelSpineTenantSchema } from "./channel-spine-schema.js";
 import type { TenantDatabase } from "./client";
+import { ensureConnectionAlertMessageIdSchema } from "./connection-alert-message-id-schema.js";
 import { ensureConnectionAlertSchema } from "./connection-alert-schema.js";
 import { ensureConnectionSystemNotificationSchema } from "./connection-system-notification-schema.js";
 import {
@@ -28,6 +29,7 @@ import {
 export const TENANT_SCHEMA_CONTRACT = {
   connection_email_alerts: [
     "notification_created_at",
+    "message_id",
     "id",
     "connection_id",
     "user_id",
@@ -1392,6 +1394,7 @@ export async function reconcileTenantSchema<Database>(
 
   await ensureConnectionAlertSchema(db, schemaName);
   await ensureConnectionSystemNotificationSchema(db, schemaName);
+  await ensureConnectionAlertMessageIdSchema(db, schemaName);
 
   await sql`
     CREATE TABLE IF NOT EXISTS ${table("whatsapp_connection_sessions")} (
