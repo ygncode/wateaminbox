@@ -37,6 +37,7 @@ import type { GroupParticipant } from "../../hooks/useGroups";
 import { useQuickReplySuggestions } from "../../hooks/useQuickReplies";
 import { uploadMedia } from "../../lib/api";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
+import { ChatSwitcher } from "./ChatSwitcher";
 import { ConnectionRoute } from "./ConnectionIdentity";
 import { useComposerFeatures } from "./composer-capabilities";
 import { shouldSendMessageOnEnter } from "./composer-keyboard";
@@ -160,6 +161,12 @@ interface MessageComposerProps {
   } | null;
   currentUserName?: string;
   mentionParticipants?: GroupParticipant[];
+  /**
+   * Opens another of this customer's threads. Absent when the surface has no
+   * router to hand - the switcher then stays hidden rather than rendering a
+   * control that cannot act.
+   */
+  onSelectChat?: (chatId: string) => void;
 }
 
 function AcknowledgedMessageComposer({
@@ -173,6 +180,7 @@ function AcknowledgedMessageComposer({
   connection,
   channelAccount,
   currentUserName,
+  onSelectChat,
   mentionParticipants = [],
 }: MessageComposerProps) {
   const { t } = useTranslation();
@@ -837,6 +845,15 @@ function AcknowledgedMessageComposer({
                 className="min-w-0 text-[11px]"
               />
             </>
+          )}
+          {/* Only rendered for a merged customer, who has a second thread to
+              switch to. It moves between conversations; it never redirects
+              this one's messages onto another. */}
+          {onSelectChat && contactId && (
+            <ChatSwitcher
+              currentChatId={contactId}
+              onSelectChat={onSelectChat}
+            />
           )}
         </div>
 

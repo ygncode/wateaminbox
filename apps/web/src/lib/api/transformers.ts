@@ -46,6 +46,8 @@ export interface ContactApiResponse {
     }[];
   } | null;
   unreadCount: number;
+  /** Threads this customer is reachable on; more than one only after a merge. */
+  chatCount?: number;
   assignedTo: string | null;
   isOnline: boolean;
   lastSeen: string | null;
@@ -126,6 +128,7 @@ export function transformContactToChat(contact: ContactApiResponse): Chat {
         }
       : undefined,
     unreadCount: contact.unreadCount,
+    chatCount: contact.chatCount,
     assignedTo: contact.assignedTo || undefined,
     isPinned: false,
     isMuted: false,

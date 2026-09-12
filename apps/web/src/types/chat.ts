@@ -72,6 +72,12 @@ export interface Chat {
   contact: Contact;
   lastMessage?: Message;
   unreadCount: number;
+  /**
+   * Threads this customer is reachable on. Only a merged customer has more
+   * than one; absent when the row came from a projection that does not carry
+   * it, which the chat switcher treats as "ask the server".
+   */
+  chatCount?: number;
   assignedTo?: string;
   isPinned: boolean;
   isMuted: boolean;

@@ -123,6 +123,76 @@ export interface MergeResult {
   targetContactId: string;
 }
 
+/** One merge that produced this customer. */
+export interface MergeHistoryEntry {
+  mergeEventId: string;
+  sourceContactId: string;
+  sourceName: string | null;
+  actorUserId: string;
+  reason: string;
+  mergedAt: string;
+  reversible: boolean;
+}
+
+/** What was merged into this customer, newest first. */
+export async function getMergeHistory(
+  contactId: string,
+): Promise<MergeHistoryEntry[]> {
+  // `fetchWithAuth` already unwraps the `{ data }` envelope, so this is the
+  // payload itself. Reading `.data` off it silently produced an empty list,
+  // which the section is indistinguishable from "nothing was merged".
+  const response = await fetchWithAuth<{ merges: MergeHistoryEntry[] }>(
+    `/contacts/${encodeURIComponent(contactId)}/merge-history`,
+  );
+  return response?.merges ?? [];
+}
+
+/** Reverse one merge, restoring the endpoints it moved. */
+export async function unmergeContact(
+  mergeEventId: string,
+  reason: string,
+): Promise<{ restoredEndpoints: number; skippedEndpoints: number }> {
+  return await fetchWithAuth<{
+    restoredEndpoints: number;
+    skippedEndpoints: number;
+  }>(`/contacts/merges/${encodeURIComponent(mergeEventId)}/unmerge`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+/** One thread a customer can be reached on. */
+export interface CustomerChat {
+  /** The id the chat route addresses - a contact id, or a conversation id. */
+  chatId: string;
+  conversationId: string | null;
+  contactId: string | null;
+  channel: string;
+  provider: string;
+  accountId: string | null;
+  accountName: string | null;
+  address: string | null;
+  displayName: string | null;
+  lastMessageAt: string | null;
+  unreadCount: number;
+}
+
+/**
+ * Every thread this customer is reachable on, newest activity first.
+ *
+ * More than one only after a merge: a merge combines identity and leaves the
+ * conversations alone, so a merged customer keeps a separate thread per
+ * endpoint and the composer switches between them.
+ */
+export async function getCustomerChats(
+  contactId: string,
+): Promise<CustomerChat[]> {
+  const response = await fetchWithAuth<{ chats: CustomerChat[] }>(
+    `/contacts/${encodeURIComponent(contactId)}/chats`,
+  );
+  return response?.chats ?? [];
+}
+
 /**
  * Candidates that share a normalized address with this customer.
  *
@@ -133,10 +203,10 @@ export interface MergeResult {
 export async function getMergeSuggestions(
   contactId: string,
 ): Promise<MergeSuggestion[]> {
-  const response = await fetchWithAuth<ApiResponse<MergeSuggestion[]>>(
+  const response = await fetchWithAuth<MergeSuggestion[]>(
     `/contacts/${encodeURIComponent(contactId)}/merge-suggestions`,
   );
-  return response.data ?? [];
+  return response ?? [];
 }
 
 /** Merge `sourceContactId` into `contactId`, which survives. */
@@ -145,12 +215,11 @@ export async function mergeContact(
   sourceContactId: string,
   reason: string,
 ): Promise<MergeResult> {
-  const response = await fetchWithAuth<ApiResponse<MergeResult>>(
+  return await fetchWithAuth<MergeResult>(
     `/contacts/${encodeURIComponent(contactId)}/merge`,
     {
       method: "POST",
       body: JSON.stringify({ sourceContactId, reason }),
     },
   );
-  return response.data as MergeResult;
 }

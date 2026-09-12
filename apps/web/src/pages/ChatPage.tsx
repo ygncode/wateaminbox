@@ -101,6 +101,7 @@ export function ChatPage() {
   const {
     // State
     selectedChatId,
+    selectedRowId,
     selectedContact,
     contactLoadError,
     isContactLoading,
@@ -118,6 +119,7 @@ export function ChatPage() {
 
     // Actions
     handleChatSelect,
+    handleThreadSelect,
     retryContactLoad,
     handleOpenProfile,
     handleOpenParticipantProfile,
@@ -296,7 +298,7 @@ export function ChatPage() {
   const sidebar = (
     <Sidebar className="flex-shrink-0">
       <ChatSidebar
-        selectedChatId={selectedChatId}
+        selectedChatId={selectedRowId}
         onChatSelect={handleChatSelect}
         activeView={sidebarView}
         onActiveViewChange={setSidebarView}
@@ -429,6 +431,7 @@ export function ChatPage() {
                   }}
                   currentUserName={user?.name}
                   mentionParticipants={selectedGroup?.participants}
+                  onSelectChat={handleThreadSelect}
                 />
               </ChannelComposerGate>
             ) : (
@@ -443,6 +446,7 @@ export function ChatPage() {
                 connection={selectedContact?.connection}
                 currentUserName={user?.name}
                 mentionParticipants={selectedGroup?.participants}
+                onSelectChat={handleThreadSelect}
               />
             )}
           </ComposerLifecycleArea>

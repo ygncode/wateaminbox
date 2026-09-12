@@ -45,6 +45,12 @@ export interface ContactDetail {
     name: string;
     color: string | null;
   }>;
+  /**
+   * Whether this workspace may execute a merge. Server-computed from the same
+   * gate the merge route applies, so the UI never offers an action the API
+   * would refuse. Absent on responses from an older API.
+   */
+  mergeEnabled?: boolean;
 }
 
 /**

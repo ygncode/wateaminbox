@@ -1,4 +1,5 @@
 import { formatChatListTime, isChannel } from "@wateaminbox/shared";
+import { MessagesSquare } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
@@ -254,6 +255,17 @@ export const ChatListItem = memo(function ChatListItem({
                 compact
                 className="max-w-[92px] shrink-0"
               />
+            )}
+            {/* A merged customer is one row here. This says how many threads
+                sit behind it, so the collapse never looks like a lost chat. */}
+            {(chat.chatCount ?? 1) > 1 && (
+              <span className="flex shrink-0 items-center gap-0.5 text-xs text-gray-500 dark:text-dark-text-secondary">
+                <MessagesSquare className="size-3" aria-hidden="true" />
+                {t("chat.chatCount", {
+                  count: chat.chatCount,
+                  defaultValue: "{{count}} chats",
+                })}
+              </span>
             )}
             {/* Message Status Icon for sent messages */}
             {lastMessage?.isFromMe && !lastMessage.isDeleted && (

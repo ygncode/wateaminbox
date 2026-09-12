@@ -23,6 +23,8 @@ import { ContactInfoSection } from "./ContactInfoSection";
 import { ContactProfileSkeleton } from "./ContactProfileSkeleton";
 import { EditableNameSection } from "./EditableNameSection";
 import { GroupInfoSections } from "./GroupInfoSections";
+import { ManualMergeSection } from "./ManualMergeSection";
+import { MergeHistorySection } from "./MergeHistorySection";
 import { MergeSuggestionsSection } from "./MergeSuggestionsSection";
 import {
   ConversationNotesSection,
@@ -103,6 +105,8 @@ export function ContactProfile({
 
             {contact ? <EditableNameSection contact={contact} /> : null}
             {contact ? <MergeSuggestionsSection contact={contact} /> : null}
+            {contact ? <ManualMergeSection contact={contact} /> : null}
+            {contact ? <MergeHistorySection contact={contact} /> : null}
             {contact ? (
               <SharedNotesSection contactId={contact.id} />
             ) : (
