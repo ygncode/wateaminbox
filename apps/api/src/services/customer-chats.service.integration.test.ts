@@ -158,8 +158,16 @@ describe("listCustomerChats", () => {
 
         const chats = await listCustomerChats(tenantDb, target.id);
         expect(chats).toHaveLength(2);
+        // The id must be the one an inbox row carries - the conversation when
+        // there is one. The switcher compares it against the open chat to mark
+        // the current thread and hands it back to the router to switch, so an
+        // inverted preference makes every neutral thread unrecognisable as the
+        // one already open.
+        expect(chats.map((chat) => chat.chatId)).toEqual(
+          chats.map((chat) => chat.conversationId ?? chat.contactId),
+        );
         // Newest thread first, and each keeps the id the chat route addresses.
-        expect(chats.map((chat) => chat.chatId)).toEqual([
+        expect(chats.map((chat) => chat.contactId ?? "")).toEqual([
           target.id,
           source.id,
         ]);
@@ -175,7 +183,7 @@ describe("listCustomerChats", () => {
         // Asking from the merged-away side answers for the same customer, so
         // an old chat URL still offers the whole switcher.
         const fromSource = await listCustomerChats(tenantDb, source.id);
-        expect(fromSource.map((chat) => chat.chatId)).toEqual([
+        expect(fromSource.map((chat) => chat.contactId ?? "")).toEqual([
           target.id,
           source.id,
         ]);

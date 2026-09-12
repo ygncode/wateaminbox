@@ -13,10 +13,9 @@ type ProvenanceDb = Kysely<TenantDatabase> | Transaction<TenantDatabase>;
  */
 export interface ThreadProvenance {
   /**
-   * The id the chat route addresses for this thread: the legacy contact when
-   * the thread still has one, the conversation otherwise. The same overloaded
-   * value the chat list and the switcher emit, so a client can navigate to it
-   * without a second lookup.
+   * The id the chat route addresses for this thread: the conversation when
+   * there is one, the contact otherwise. Must match what the chat list and the
+   * switcher use, or a channel heading cannot find the thread it names.
    */
   threadId: string;
   channel: string;
@@ -58,7 +57,7 @@ export async function resolveThreadProvenance(
     rows.map((row) => [
       row.conversation_id,
       {
-        threadId: row.legacy_contact_id ?? row.conversation_id,
+        threadId: row.conversation_id,
         // An account row is required by the schema, so a missing channel means
         // a conversation whose account was removed out from under it. Naming
         // the thread is still better than dropping it from the page.

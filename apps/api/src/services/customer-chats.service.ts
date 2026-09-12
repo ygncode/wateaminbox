@@ -8,10 +8,14 @@ type ChatsDb = Kysely<TenantDatabase> | Transaction<TenantDatabase>;
 /**
  * One reachable thread belonging to a customer.
  *
- * `chatId` is what the web router addresses, and it is deliberately the same
- * overloaded value the chat list emits: the legacy contact ID when the thread
- * still has one, the conversation ID otherwise. Emitting the conversation ID
- * for a bridged WhatsApp thread would route to a chat the list cannot select.
+ * `chatId` is what the web router addresses, and it has to be the same
+ * overloaded value an inbox row carries: the conversation when there is one,
+ * the contact otherwise - the order `transformContactToChat` uses.
+ *
+ * Preferring the contact instead inverted it for every neutral thread, so the
+ * switcher could not recognise the chat already open: it marked nothing as
+ * current, and selecting the open thread set a redirect to itself rather than
+ * clearing one.
  */
 export interface CustomerChat {
   chatId: string;
@@ -160,8 +164,12 @@ export async function listCustomerChats(
   ]);
 
   const chats = new Map<string, CustomerChat>();
+  // Threads the endpoint pass already described, by the contact that owns
+  // them. The fallback below is keyed by contact while these are keyed by
+  // conversation, so without this the same thread is returned twice.
+  const describedContacts = new Set<string>();
   for (const row of viaEndpoint) {
-    const chatId = row.legacy_contact_id ?? row.conversation_id;
+    const chatId = row.conversation_id ?? row.legacy_contact_id!;
     chats.set(chatId, {
       chatId,
       conversationId: row.conversation_id,
@@ -175,11 +183,14 @@ export async function listCustomerChats(
       lastMessageAt: row.last_message_at,
       unreadCount: Number(row.unread_count ?? 0),
     });
+    if (row.legacy_contact_id) describedContacts.add(row.legacy_contact_id);
   }
   for (const row of viaContact) {
     // A contact whose thread the endpoint pass already described is the same
     // chat, not a second one; the endpoint row carries the better identity.
-    if (chats.has(row.contact_id)) continue;
+    if (describedContacts.has(row.contact_id) || chats.has(row.contact_id)) {
+      continue;
+    }
     chats.set(row.contact_id, {
       chatId: row.contact_id,
       conversationId: null,
