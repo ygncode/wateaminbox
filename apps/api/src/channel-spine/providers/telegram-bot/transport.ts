@@ -8,7 +8,10 @@ import {
   getPresignedUrl,
   resolveMediaKeyForCompany,
 } from "../../../lib/storage.js";
-import { readChannelCredential } from "../../../services/channel-credential.service.js";
+import {
+  ChannelCredentialKeyError,
+  readChannelCredential,
+} from "../../../services/channel-credential.service.js";
 import { getTenantConnection } from "../../../services/tenant.service.js";
 import type { TelegramBotOutboundTransport } from "./adapter.js";
 import { telegramBotRequest } from "./api.js";
@@ -198,6 +201,18 @@ export function classifyTelegramSendFailure(
   ProviderSendResult,
   { outcome: "transient_failure" | "permanent_failure" | "uncertain" }
 > {
+  // A key the process was started without is a configuration fault: the stored
+  // credential is intact and Telegram is fine, so the send certainly never
+  // happened. Reporting it as an unknown outcome parks the intent for ever -
+  // uncertain outcomes are deliberately never retried, because Telegram has no
+  // idempotency key - and hides an operator-fixable problem behind the label
+  // reserved for "we could not tell what happened".
+  if (error instanceof ChannelCredentialKeyError) {
+    return {
+      outcome: "permanent_failure",
+      errorCode: "telegram_credential_key_unavailable",
+    };
+  }
   const message = error instanceof Error ? error.message : "";
   const localFailureCodes = new Set([
     "telegram_credential_unavailable",

@@ -9,6 +9,7 @@ import type {
   ProviderSendResult,
   ResolvedCapabilities,
 } from "@wateaminbox/shared";
+import { ChannelCredentialKeyError } from "../../../services/channel-credential.service.js";
 import { normalizeTelegramUpdate } from "./normalize.js";
 
 const SECRET_HEADER = "x-telegram-bot-api-secret-token";
@@ -56,7 +57,11 @@ export class TelegramBotAdapter implements ChannelAdapter {
     let expected: Awaited<ReturnType<TelegramWebhookSecretResolver>>;
     try {
       expected = await this.#resolveWebhookSecret(input.trustedContext);
-    } catch {
+    } catch (error) {
+      // A key this process was started without cannot be reported as a failed
+      // signature check: the sender is probably legitimate and the fix is an
+      // operator's, not a retry's.
+      if (error instanceof ChannelCredentialKeyError) throw error;
       throw new TelegramIngressVerificationError();
     }
     const presented = headerValue(input.headers, SECRET_HEADER);
