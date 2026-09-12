@@ -797,6 +797,7 @@ async function attachWorkflowContact(
     "endpoint.id as endpoint_id",
     "endpoint.contact_id as contact_id",
     "endpoint.endpoint_kind as endpoint_kind",
+    "endpoint.channel as channel",
     "endpoint.display_name as display_name",
     "endpoint.address_display as address_display",
     "endpoint.normalized_address as normalized_address",
@@ -864,15 +865,24 @@ async function attachWorkflowContact(
       .where("id", "=", endpoint.endpoint_id)
       .execute();
   }
-  // The inbox lists contacts and neutral conversations from two queries and
-  // reconciles them on this link. Creating the customer without it shows the
-  // same person twice: an empty contact row beside the real thread.
-  await trx
-    .updateTable("conversations")
-    .set({ legacy_contact_id: contactId, updated_at: new Date() })
-    .where("id", "=", conversationId)
-    .where("legacy_contact_id", "is", null)
-    .execute();
+  // `conversations.legacy_contact_id` is unique, so it can name this customer
+  // for one thread only. A customer reachable on several threads - the whole
+  // point of a merge, and what a reconnected account produces - keeps the link
+  // on whichever thread claimed it first; the rest are tied to the customer
+  // through their endpoint, which is what every merged read follows anyway.
+  const alreadyLinked = await trx
+    .selectFrom("conversations")
+    .select("id")
+    .where("legacy_contact_id", "=", contactId)
+    .executeTakeFirst();
+  if (!alreadyLinked) {
+    await trx
+      .updateTable("conversations")
+      .set({ legacy_contact_id: contactId, updated_at: new Date() })
+      .where("id", "=", conversationId)
+      .where("legacy_contact_id", "is", null)
+      .execute();
+  }
 
   // Workflow rows written before the thread had a customer are keyed only by
   // conversation. Routes that resolve a workflow identity prefer the contact
