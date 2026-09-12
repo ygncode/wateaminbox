@@ -134,9 +134,16 @@ target, since what may be sent differs by channel.
 
 ## One read path, two shapes
 
-The UI always calls the timeline; the server takes the cheap branch when the
-customer has one thread. A single-thread customer therefore pays what they pay
-today, and the merge only runs where it changes the answer.
+The server is one endpoint that takes the cheap branch when the customer has
+one thread, so the merge only runs where it changes the answer.
+
+The client is narrower, and deliberately: it reads the timeline only for a
+customer with more than one thread. The condition below - that a single-thread
+customer's realtime cache key must not change - cannot be honoured any other
+way. Moving every thread in the product onto the merged key would replace an
+optimistic cache insert with an invalidate-and-refetch for every workspace,
+including the ones that have never merged anything. The read path that matters
+for correctness is the server's, and that one is shared.
 
 Two read paths was the alternative, and it costs more than it looks. The
 existing message route does far more than fetch rows - quoted-message
