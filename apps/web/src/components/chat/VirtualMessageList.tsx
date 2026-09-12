@@ -9,6 +9,9 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import type { GroupParticipant } from "@/hooks/useGroups";
 import type { TeamMemberIdentity } from "@/hooks/useTeam";
 import type { VirtualItem as MessageListItem } from "../../hooks/chat/useMessageVirtualization";
+import { isChannel } from "@wateaminbox/shared";
+import { channelDisplayName } from "@/components/connections/channel-catalog";
+import { ChannelBadge } from "./ChannelIdentity";
 import { MessageBubble } from "./MessageBubble";
 import type { MessageNavigationTarget } from "./message-navigation";
 
@@ -22,12 +25,8 @@ interface VirtualMessageListProps {
   items: MessageListItem[];
   totalSize: number;
   isGroup?: boolean;
-  /**
-   * Marks each message with the channel it arrived on. Only a merged
-   * customer's history spans channels; marking every bubble in an ordinary
-   * single-channel thread is noise.
-   */
-  showChannelMarks?: boolean;
+  /** Thread id to the address it reaches, for the channel heading. */
+  threadLabels?: ReadonlyMap<string, string>;
   currentUserId: string;
   currentUserName?: string;
   currentUserAvatarUrl?: string;
@@ -69,7 +68,7 @@ export function VirtualMessageList({
   items,
   totalSize,
   isGroup = false,
-  showChannelMarks = false,
+  threadLabels,
   currentUserId,
   currentUserName,
   currentUserAvatarUrl,
@@ -223,6 +222,35 @@ export function VirtualMessageList({
             );
           }
 
+          if (item.type === "channel") {
+            const label = threadLabels?.get(item.threadId ?? "");
+            return (
+              <div
+                key={virtualRow.key}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                {/* Announces the channel the run below arrived on, the way the
+                    date separator announces a day. */}
+                <div className="my-3 flex items-center justify-center gap-1.5">
+                  {isChannel(item.channel) && (
+                    <ChannelBadge channel={item.channel} iconOnly compact />
+                  )}
+                  <span className="text-[11.5px] font-medium text-[#54656f] dark:text-dark-text-secondary">
+                    {channelDisplayName(item.channel)}
+                    {label ? ` · ${label}` : ""}
+                  </span>
+                </div>
+              </div>
+            );
+          }
+
           return (
             <div
               key={virtualRow.key}
@@ -242,7 +270,6 @@ export function VirtualMessageList({
                 albumExpectedCount={item.albumExpectedCount}
                 isOwn={item.message.senderType === "user"}
                 isGroup={isGroup}
-                showChannelMark={showChannelMarks}
                 currentUserId={currentUserId}
                 currentUserName={currentUserName}
                 currentUserAvatarUrl={currentUserAvatarUrl}

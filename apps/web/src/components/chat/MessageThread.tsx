@@ -145,6 +145,18 @@ export function MessageThread({
     error: remoteHistoryError,
   } = useRemoteHistory(conversationId);
 
+  // Address per thread, so a channel heading can say which account it means -
+  // two Telegram threads for one customer are otherwise indistinguishable.
+  const threadLabels = useMemo(
+    () =>
+      new Map(
+        customerChats
+          .filter((chat) => chat.address)
+          .map((chat) => [chat.chatId, chat.address!] as const),
+      ),
+    [customerChats],
+  );
+
   const messages = isMergedCustomer
     ? timelineQuery.messages
     : (conversationQuery.data?.messages ?? EMPTY_MESSAGES);
@@ -411,6 +423,7 @@ export function MessageThread({
         items={items}
         totalSize={totalSize}
         isGroup={isGroup}
+        threadLabels={threadLabels}
         currentUserId={currentUserId}
         currentUserName={currentUserName}
         currentUserAvatarUrl={currentUserAvatarUrl}

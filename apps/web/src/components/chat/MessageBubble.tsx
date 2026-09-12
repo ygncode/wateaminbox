@@ -1,6 +1,5 @@
 import type { Message } from "@wateaminbox/shared";
-import { formatMessageTime, isChannel } from "@wateaminbox/shared";
-import { ChannelBadge } from "./ChannelIdentity";
+import { formatMessageTime } from "@wateaminbox/shared";
 import type { TFunction } from "i18next";
 import { Smartphone } from "lucide-react";
 import { lazy, memo, Suspense, useCallback, useRef, useState } from "react";
@@ -83,8 +82,6 @@ interface MessageBubbleProps {
   albumMessages?: Message[];
   albumExpectedCount?: number;
   isOwn: boolean;
-  /** Marks the bubble with its channel, for a history that spans several. */
-  showChannelMark?: boolean;
   /** Whether the active conversation is a WhatsApp group. */
   isGroup?: boolean;
   /** Authenticated teammate viewing the thread. */
@@ -126,7 +123,6 @@ export const MessageBubble = memo(function MessageBubble({
   albumMessages = [message],
   albumExpectedCount = albumMessages.length,
   isOwn,
-  showChannelMark = false,
   isGroup = false,
   currentUserId,
   currentUserName,
@@ -292,14 +288,7 @@ export const MessageBubble = memo(function MessageBubble({
   // messenger does; media and system-ish rows keep their own meta row because
   // their content is not part of an inline formatting context.
   const hasInlineMeta = !message.isDeleted && message.messageType === "text";
-  const meta = (
-    <MessageMeta
-      message={message}
-      isOwn={isOwn}
-      variant="inline"
-      showChannelMark={showChannelMark}
-    />
-  );
+  const meta = <MessageMeta message={message} isOwn={isOwn} variant="inline" />;
 
   // A group event - someone joined, the title changed - is not anyone's
   // message. Rendering it as a bubble attributed to whoever triggered it made
@@ -434,12 +423,7 @@ export const MessageBubble = memo(function MessageBubble({
         {/* A failed send pushes its meta back below the retry banner, which
             would otherwise be separated from the status it explains. */}
         {(!hasInlineMeta || (message.status === "failed" && isOwn)) && (
-          <MessageMeta
-            message={message}
-            isOwn={isOwn}
-            variant="block"
-            showChannelMark={showChannelMark}
-          />
+          <MessageMeta message={message} isOwn={isOwn} variant="block" />
         )}
 
         {/* Reaction display */}
@@ -518,12 +502,10 @@ function MessageMeta({
   message,
   isOwn,
   variant,
-  showChannelMark = false,
 }: {
   message: Message;
   isOwn: boolean;
   variant: "inline" | "block";
-  showChannelMark?: boolean;
 }) {
   return (
     <span
@@ -538,12 +520,6 @@ function MessageMeta({
           : "mt-1 flex justify-end",
       )}
     >
-      {showChannelMark && message.channel && isChannel(message.channel) && (
-        // Which channel this message arrived on. A merged customer's history
-        // interleaves threads, so a row that does not say where it came from
-        // cannot be read against the one above it.
-        <ChannelBadge channel={message.channel} iconOnly compact />
-      )}
       <span className="tabular-nums">
         {formatMessageTime(message.createdAt)}
       </span>

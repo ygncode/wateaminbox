@@ -23,6 +23,14 @@ const DATE_SEPARATOR_HEIGHT = 48;
 
 export type VirtualItem =
   | { type: "date"; date: string; id: string }
+  /**
+   * The channel the following run of messages arrived on.
+   *
+   * Only ever emitted for a customer whose history spans more than one
+   * channel. Marking every bubble instead makes an ordinary thread noisy, and
+   * a run of twenty WhatsApp messages does not need the answer twenty times.
+   */
+  | { type: "channel"; channel: string; threadId: string | null; id: string }
   | {
       type: "message";
       message: Message;
@@ -96,7 +104,21 @@ export function useMessageVirtualization({
 
     const rows: (ReturnType<typeof groupMediaAlbumMessages>[number] | null)[] =
       [];
+    const channelRows = new Map<
+      number,
+      { channel: string; threadId: string | null }
+    >();
     let currentDate = "";
+    let currentChannel: string | null = null;
+    // Announced only where the history actually spans channels, which is only
+    // ever a merged customer. A single-channel thread would otherwise carry
+    // one pointless heading above its first message.
+    const spansChannels =
+      new Set(
+        messages
+          .map((message) => message.channel)
+          .filter((channel): channel is string => Boolean(channel)),
+      ).size > 1;
 
     groupMediaAlbumMessages(messages).forEach((album) => {
       const messageDate = new Date(album.primary.createdAt).toDateString();
@@ -104,6 +126,18 @@ export function useMessageVirtualization({
       // continue a run across the day boundary.
       if (messageDate !== currentDate) {
         currentDate = messageDate;
+        rows.push(null);
+      }
+      const channel = album.primary.channel ?? null;
+      if (spansChannels && channel && channel !== currentChannel) {
+        currentChannel = channel;
+        // Recorded by index rather than pushed as another `null`, so the date
+        // separator keeps its meaning: the row after a `null` is the first
+        // message of a day, and a channel heading must not be mistaken for it.
+        channelRows.set(rows.length, {
+          channel,
+          threadId: album.primary.threadId ?? null,
+        });
         rows.push(null);
       }
       rows.push(album);
@@ -115,6 +149,15 @@ export function useMessageVirtualization({
 
     return rows.map((album, index): VirtualItem => {
       if (!album) {
+        const channelRow = channelRows.get(index);
+        if (channelRow) {
+          return {
+            type: "channel",
+            channel: channelRow.channel,
+            threadId: channelRow.threadId,
+            id: `channel-${index}-${channelRow.channel}`,
+          };
+        }
         // A separator is always immediately followed by the first message of
         // the day it announces.
         const date = new Date(
@@ -137,7 +180,8 @@ export function useMessageVirtualization({
   const estimateSize = useCallback(
     (index: number) => {
       const item = items[index];
-      if (item?.type === "date") return DATE_SEPARATOR_HEIGHT;
+      if (item?.type === "date" || item?.type === "channel")
+        return DATE_SEPARATOR_HEIGHT;
       return ESTIMATED_MESSAGE_HEIGHT;
     },
     [items],

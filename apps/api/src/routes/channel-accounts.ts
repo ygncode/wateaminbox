@@ -22,8 +22,10 @@ import {
   ChannelAccountNotArchivedError,
   purgeArchivedChannelAccount,
 } from "../services/channel-account-purge.service.js";
+import { createLogger, formatError } from "../lib/logger.js";
 import {
   canStoreChannelCredentials,
+  ChannelCredentialKeyError,
   readChannelCredential,
   storeChannelCredential,
 } from "../services/channel-credential.service.js";
@@ -34,6 +36,8 @@ import {
 import { isChannelSpineTenantReady } from "../services/channel-spine-readiness.service.js";
 import { countUsedConnectionSlots } from "../services/connection-quota.service.js";
 import { getMaxConnections } from "../services/whatsapp/connection.js";
+
+const logger = createLogger("ChannelAccounts");
 
 export const channelAccountRoutes = new Hono();
 channelAccountRoutes.use("/*", authMiddleware);
@@ -691,28 +695,46 @@ channelAccountRoutes.delete("/:id", async (c) => {
   if (account.provider !== "telegram_bot") {
     return c.json({ error: "Use the provider-specific disconnect flow" }, 400);
   }
-  const botToken = await readChannelCredential(
-    tenantDb,
-    companyId,
-    account.id,
-    "telegram_bot_token",
-  );
-  if (!botToken)
-    return c.json({ error: "Channel credential unavailable" }, 503);
+  // An unreadable credential must not trap the account here. Removal is the
+  // one action an operator still needs when the key that sealed a token is
+  // gone, and refusing it leaves the workspace unable to disconnect or to
+  // connect a replacement - the account becomes permanent.
+  let botToken: string | null = null;
+  try {
+    botToken = await readChannelCredential(
+      tenantDb,
+      companyId,
+      account.id,
+      "telegram_bot_token",
+    );
+  } catch (error) {
+    if (!(error instanceof ChannelCredentialKeyError)) throw error;
+    logger.warn(
+      { err: formatError(error), companyId, channelAccountId: account.id },
+      "Removing a Telegram account whose credentials cannot be read",
+    );
+  }
   await tenantDb
     .updateTable("channel_accounts")
     .set({ status: "disabled", provider_status: "webhook_removal_pending" })
     .where("id", "=", account.id)
     .execute();
-  try {
-    await removeTelegramWebhook(botToken);
-  } catch {
-    await tenantDb
-      .updateTable("channel_accounts")
-      .set({ status: "connected", provider_status: "webhook_removal_failed" })
-      .where("id", "=", account.id)
-      .execute();
-    return c.json({ error: "Telegram webhook removal failed" }, 502);
+  // Without a token there is nothing to call Telegram with, so the webhook is
+  // left registered on their side and reported rather than silently assumed
+  // gone. Its deliveries stop at the ingress route revoked below.
+  let webhookRemoved = false;
+  if (botToken) {
+    try {
+      await removeTelegramWebhook(botToken);
+      webhookRemoved = true;
+    } catch {
+      await tenantDb
+        .updateTable("channel_accounts")
+        .set({ status: "connected", provider_status: "webhook_removal_failed" })
+        .where("id", "=", account.id)
+        .execute();
+      return c.json({ error: "Telegram webhook removal failed" }, 502);
+    }
   }
   const company = await db
     .selectFrom("companies")
@@ -748,7 +770,13 @@ channelAccountRoutes.delete("/:id", async (c) => {
       .where("channel_account_id", "=", account.id)
       .execute();
   });
-  return c.json({ success: true });
+  return c.json({
+    success: true,
+    // False when the credential could not be read: the account is gone from
+    // this workspace, but the operator still has to revoke the bot's webhook
+    // (or the whole bot) with the provider.
+    webhookRemoved,
+  });
 });
 
 channelAccountRoutes.post("/:id/purge", async (c) => {

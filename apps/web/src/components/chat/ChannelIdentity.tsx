@@ -1,4 +1,5 @@
 import type { Channel } from "@wateaminbox/shared";
+import { MessagesSquare } from "lucide-react";
 import type { ComponentType } from "react";
 import {
   EmailMark,
@@ -121,6 +122,35 @@ export function ChannelAvatarBadge({
       aria-label={`${label} channel`}
     >
       <Mark className="size-2.5" />
+    </span>
+  );
+}
+
+/**
+ * The badge for a customer reachable on more than one channel.
+ *
+ * A merged customer has no single channel to mark, and picking one of theirs
+ * would be a lie that changes with whichever thread spoke last. The product
+ * mark says what is true: this row is the inbox's own view of a person, not
+ * one network's.
+ */
+export function MergedCustomerAvatarBadge({
+  className,
+  channelCount,
+}: {
+  className?: string;
+  channelCount: number;
+}) {
+  return (
+    <span
+      className={cn(
+        "grid size-[18px] shrink-0 place-items-center rounded-full bg-whatsapp-green text-white ring-2 ring-white dark:ring-dark-secondary",
+        className,
+      )}
+      title={`Reachable on ${channelCount} channels`}
+      aria-label={`Reachable on ${channelCount} channels`}
+    >
+      <MessagesSquare className="size-2.5" strokeWidth={2.5} />
     </span>
   );
 }

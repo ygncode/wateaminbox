@@ -94,6 +94,25 @@ conversationRoutes.get("/", async (c) => {
     // This surface stays channel-only until WhatsApp actually reads through
     // the spine. Removing the filter is part of that switch, not before it.
     .where("account.legacy_whatsapp_connection_id", "is", null)
+    // A thread whose customer was merged away belongs to the surviving
+    // customer's row, which the contacts list already returns. Listing it here
+    // too puts the same person in the inbox twice - once as themselves and
+    // once as the record they were merged into - because the two lists are
+    // reconciled on ids the merge deliberately leaves alone.
+    .where((eb) =>
+      eb.or([
+        eb("conversation.legacy_contact_id", "is", null),
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom("contacts as merged")
+              .select("merged.id")
+              .whereRef("merged.id", "=", "conversation.legacy_contact_id")
+              .where("merged.merged_into_contact_id", "is not", null),
+          ),
+        ),
+      ]),
+    )
     .$if(tagIds.length > 0, (qb) =>
       qb.where((eb) =>
         eb.exists(
