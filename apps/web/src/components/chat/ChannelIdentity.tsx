@@ -61,6 +61,21 @@ const channelPresentation: Record<
 };
 
 /**
+ * The network's own name, for prose that would otherwise hardcode one.
+ *
+ * A merged customer's surviving record can be the Telegram one, so a label
+ * reading "WhatsApp username" beside a Telegram handle is simply wrong. An
+ * unknown channel yields null so the caller can drop the qualifier rather
+ * than guess a network.
+ */
+export function channelLabel(
+  channel: string | null | undefined,
+): string | null {
+  if (!channel) return null;
+  return channelPresentation[channel as Channel]?.label ?? null;
+}
+
+/**
  * The provider's own mark and brand colour, for the avatar corner badge.
  *
  * `viber` has no entry because nothing draws its mark yet; callers fall back
