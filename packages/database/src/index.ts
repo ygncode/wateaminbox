@@ -76,6 +76,7 @@ export type {
   PurgeCleanupItemsTable,
   PurgeCleanupKind,
   QuickRepliesTable,
+  RetiredRefreshToken,
   ScheduledMessagesTable,
   SlaPoliciesTable,
   StatusUpdatesTable,

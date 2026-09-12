@@ -178,6 +178,13 @@ services:
       CHANNEL_CREDENTIAL_ACTIVE_KEY_VERSION: ${CHANNEL_CREDENTIAL_ACTIVE_KEY_VERSION:-}
       JWT_ACCESS_EXPIRES_IN: 15m
       JWT_REFRESH_EXPIRES_IN: 7d
+      # How long a rotated refresh token stays acceptable. A deploy stops the
+      # API container before starting its replacement, and Compose has no
+      # start-first rolling update for this service, so a refresh issued into
+      # that gap can commit server-side while its response is lost on the way
+      # back. Without a grace window the browser is left holding a token the
+      # session has already retired and must sign in again. `0` disables.
+      JWT_REFRESH_REUSE_GRACE_SECONDS: ${JWT_REFRESH_REUSE_GRACE_SECONDS:-60}
       MAIL_DRIVER: ${MAIL_DRIVER:?set MAIL_DRIVER}
       # The selected provider's key arrives through the provider-neutral
       # mail_api_key mount, and only the provider whose host key file is

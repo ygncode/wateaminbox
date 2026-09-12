@@ -29,7 +29,13 @@ export function ProtectedRoute({
 }: ProtectedRouteProps) {
   const { t } = useTranslation();
 
-  const { isAuthenticated, isLoading: isAuthLoading, logout } = useAuth();
+  const {
+    isAuthenticated,
+    isLoading: isAuthLoading,
+    authUnavailable,
+    logout,
+    refreshSession,
+  } = useAuth();
   const {
     memberships,
     activeWorkspaceId,
@@ -57,6 +63,29 @@ export function ProtectedRoute({
             ? t("auth.restoringSetup", "Restoring workspace setup…")
             : t("auth.loadingWorkspaces", "Loading your workspaces…")
         }
+      />
+    );
+  }
+
+  // Checked before the redirect below. The session cannot be confirmed right
+  // now - the API is being replaced, or the network dropped - and sending the
+  // user to /login would discard a refresh cookie that is still good. A
+  // running deployment used to sign everyone out this way.
+  if (authUnavailable) {
+    return (
+      <OnboardingErrorScreen
+        eyebrow={t("auth.sessionUnverified", "Session unverified")}
+        title={t("auth.couldNotReachServer", "We couldn’t reach the server")}
+        hint={t(
+          "auth.sessionUnverifiedHint",
+          "You are still signed in. We just could not confirm it, which usually means the server is briefly restarting. Nothing has been lost.",
+        )}
+        message={t(
+          "auth.sessionUnverifiedMessage",
+          "WATeamInbox is unreachable. Try again in a moment.",
+        )}
+        onRetry={() => void refreshSession().catch(() => undefined)}
+        onSignOut={() => void logout()}
       />
     );
   }

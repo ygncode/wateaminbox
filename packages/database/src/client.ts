@@ -185,6 +185,19 @@ export interface CompanyStatsTable {
   updated_at: Generated<Date>;
 }
 
+/**
+ * One entry in `user_sessions.previous_refresh_tokens`.
+ *
+ * `expiresAt` is fixed when the rotation supersedes the hash and is never
+ * extended, so repeated retries cannot widen the replay window.
+ */
+export interface RetiredRefreshToken {
+  /** SHA-256 hash of the retired refresh token. */
+  hash: string;
+  /** ISO 8601 instant after which the hash is no longer accepted. */
+  expiresAt: string;
+}
+
 export interface UserSessionsTable {
   id: Generated<string>;
   user_id: string;
@@ -194,6 +207,18 @@ export interface UserSessionsTable {
   user_agent: string | null;
   /** SHA-256 hash of the current refresh token. */
   refresh_token: string;
+  /**
+   * Recently retired refresh-token hashes, newest last, each as
+   * `{ hash, expiresAt }`. A refresh presenting one of these within its grace
+   * window is a retry after a lost response or a concurrent tab, not a replay.
+   * See migration 105 and `lib/refresh-token-retention.ts`.
+   *
+   * Stored as jsonb and typed `unknown`, matching the `weekly_schedule` /
+   * `exceptions` pattern above: application code parses it into
+   * `RetiredRefreshToken[]` on read, because the column can outlive the shape
+   * written by this release.
+   */
+  previous_refresh_tokens: Generated<unknown>;
   last_active_at: Generated<Date>;
   created_at: Generated<Date>;
   expires_at: Date;

@@ -13,7 +13,7 @@ export const API_BASE_URL =
 // Token storage
 let accessToken: string | null = null;
 let companyId: string | null = null;
-let refreshPromise: Promise<boolean> | null = null;
+let refreshPromise: Promise<TokenRefreshOutcome> | null = null;
 let paymentRedirectStarted = false;
 
 const COMPANY_ID_STORAGE_KEY = "company_id";
@@ -106,6 +106,40 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
+/**
+ * Result of a refresh attempt.
+ *
+ * Only `rejected` means the session is actually gone: the API answered and
+ * refused the cookie, so the user has to sign in again. `unavailable` means no
+ * answer arrived at all - a container being replaced during a deployment, a
+ * dropped connection, a proxy reset - which says nothing about the session and
+ * must not be treated as a logout.
+ */
+export type TokenRefreshOutcome = "refreshed" | "rejected" | "unavailable";
+
+/**
+ * Attempts per refresh, and the pause between them.
+ *
+ * A deployment stops the API container before starting its replacement, so an
+ * immediate retry is cheap and usually lands after the new container is
+ * serving. The whole sequence stays well inside the request budget the caller
+ * already spends on a single API call.
+ */
+const REFRESH_ATTEMPTS = 3;
+const REFRESH_RETRY_BASE_DELAY_MS = 300;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function sessionRefreshUnavailableError(): ApiRequestError {
+  return new ApiRequestError(
+    503,
+    "SESSION_REFRESH_UNAVAILABLE",
+    "Could not reach the server to renew your session. Please try again.",
+  );
+}
+
 // Response handler
 export async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -166,7 +200,7 @@ export async function handleResponse<T>(response: Response): Promise<T> {
   return json as T;
 }
 
-async function performTokenRefresh(): Promise<boolean> {
+async function requestTokenRefresh(): Promise<TokenRefreshOutcome> {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: "POST",
@@ -176,19 +210,48 @@ async function performTokenRefresh(): Promise<boolean> {
     if (response.ok) {
       const data = (await response.json()) as RefreshResponse;
       setAuthToken(data.tokens.accessToken);
-      return true;
+      return "refreshed";
     }
-  } catch (error) {
-    console.error("[API] Token refresh failed:", error);
-  }
 
-  clearAuthTokens();
-  return false;
+    // The API answered and refused: this is the one outcome that means the
+    // session itself is unusable, so it is the one outcome that clears local
+    // auth state.
+    if (response.status === 401 || response.status === 403) {
+      return "rejected";
+    }
+
+    console.warn(
+      `[API] Token refresh unavailable: HTTP ${response.status} ${response.statusText}`,
+    );
+    return "unavailable";
+  } catch (error) {
+    console.warn("[API] Token refresh request failed:", error);
+    return "unavailable";
+  }
+}
+
+async function performTokenRefresh(): Promise<TokenRefreshOutcome> {
+  for (let attempt = 1; ; attempt += 1) {
+    const outcome = await requestTokenRefresh();
+
+    if (outcome !== "unavailable" || attempt >= REFRESH_ATTEMPTS) {
+      // Clearing on "rejected" is deliberate and is the only place this
+      // function discards state. Clearing on "unavailable" is what used to
+      // sign every user out whenever a request happened to land in the gap
+      // between two API containers during a deployment: the refresh cookie
+      // was still valid, but the client had already thrown away the token and
+      // the workspace it belonged to.
+      if (outcome === "rejected") clearAuthTokens();
+      return outcome;
+    }
+
+    await delay(REFRESH_RETRY_BASE_DELAY_MS * attempt);
+  }
 }
 
 // Coalesce simultaneous 401 responses so a single-use refresh cookie is only
 // rotated once.
-export function attemptTokenRefresh(): Promise<boolean> {
+export function attemptTokenRefresh(): Promise<TokenRefreshOutcome> {
   if (!refreshPromise) {
     refreshPromise = performTokenRefresh().finally(() => {
       refreshPromise = null;
@@ -226,8 +289,8 @@ export async function fetchWithAuth<T>(
 
   // Handle 401 - attempt token refresh via the HttpOnly cookie.
   if (response.status === 401 && endpoint !== "/auth/refresh") {
-    const refreshed = await attemptTokenRefresh();
-    if (refreshed) {
+    const outcome = await attemptTokenRefresh();
+    if (outcome === "refreshed") {
       // Retry the request with new token
       (headers as Record<string, string>).Authorization =
         `Bearer ${accessToken}`;
@@ -238,6 +301,9 @@ export async function fetchWithAuth<T>(
       });
       return handleResponse<T>(retryResponse);
     }
+    // Report the outage rather than the 401 that triggered it, so a caller
+    // does not read a deployment blip as a failed sign-in.
+    if (outcome === "unavailable") throw sessionRefreshUnavailableError();
   }
 
   return handleResponse<T>(response);
@@ -261,14 +327,16 @@ export async function fetchBlobWithAuth(
     credentials: "include",
   });
   if (response.status === 401) {
-    const refreshed = await attemptTokenRefresh();
-    if (refreshed) {
+    const outcome = await attemptTokenRefresh();
+    if (outcome === "refreshed") {
       if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
       response = await fetch(url, {
         ...options,
         headers,
         credentials: "include",
       });
+    } else if (outcome === "unavailable") {
+      throw sessionRefreshUnavailableError();
     }
   }
   if (!response.ok) await handleResponse<never>(response);
@@ -303,8 +371,8 @@ export async function fetchFormDataWithAuth<T>(
 
   // Handle 401 - attempt token refresh via the HttpOnly cookie.
   if (response.status === 401) {
-    const refreshed = await attemptTokenRefresh();
-    if (refreshed) {
+    const outcome = await attemptTokenRefresh();
+    if (outcome === "refreshed") {
       headers.Authorization = `Bearer ${accessToken}`;
       const retryResponse = await fetch(url, {
         method,
@@ -314,6 +382,7 @@ export async function fetchFormDataWithAuth<T>(
       });
       return handleResponse<T>(retryResponse);
     }
+    if (outcome === "unavailable") throw sessionRefreshUnavailableError();
   }
 
   return handleResponse<T>(response);
