@@ -11,7 +11,7 @@ export { TagsSection } from "./TagsSection";
 export { AssignmentSection } from "./AssignmentSection";
 export { AssignmentHistorySection } from "./AssignmentHistorySection";
 export { BlockStatusSection } from "./BlockStatusSection";
-export { ManualMergeSection } from "./ManualMergeSection";
+export { MergeEditDialog } from "./MergeEditDialog";
 export { UnmergeDialog } from "./UnmergeDialog";
 export { MergedChatsSection } from "./MergedChatsSection";
 export { MergeSuggestionsSection } from "./MergeSuggestionsSection";

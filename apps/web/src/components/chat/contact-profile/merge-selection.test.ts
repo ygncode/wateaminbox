@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { Chat } from "@/types/chat";
 import {
+  isEmptyPlan,
+  planMergeSelection,
   selectableMergeCandidates,
   shouldOfferManualMerge,
-} from "./ManualMergeSection";
+} from "./merge-selection";
 
 const base = {
   role: "owner" as string | null | undefined,
@@ -21,6 +23,55 @@ const chat = (id: string, isGroup = false): Chat =>
     id: `conversation-of-${id}`,
     contact: { id, name: id, phoneNumber: "", isGroup },
   }) as unknown as Chat;
+
+const member = (contactId: string, reversible = true) => ({
+  contactId,
+  mergeEventId: `event-${contactId}`,
+  reversible,
+});
+
+describe("planMergeSelection", () => {
+  test("reads a tick as a merge and an untick as an unmerge", () => {
+    // One Continue can mean both at once, which is the whole reason this is
+    // worked out from the history rather than from what the rows looked like.
+    const plan = planMergeSelection({
+      members: [member("a"), member("b")],
+      selected: new Set(["a", "c"]),
+    });
+    expect(plan.toMerge).toEqual(["c"]);
+    expect(plan.toUnmerge).toEqual([
+      { contactId: "b", mergeEventId: "event-b" },
+    ]);
+  });
+
+  test("leaves an unchanged selection alone", () => {
+    const plan = planMergeSelection({
+      members: [member("a")],
+      selected: new Set(["a"]),
+    });
+    expect(isEmptyPlan(plan)).toBe(true);
+  });
+
+  test("never schedules an unmerge the API would refuse", () => {
+    // Something merged this contact again since, so the event cannot be
+    // reversed; unticking it has to be a no-op rather than a failing call.
+    const plan = planMergeSelection({
+      members: [member("a", false)],
+      selected: new Set(),
+    });
+    expect(plan.toUnmerge).toEqual([]);
+    expect(isEmptyPlan(plan)).toBe(true);
+  });
+
+  test("merges everything ticked on a customer with no merges yet", () => {
+    const plan = planMergeSelection({
+      members: [],
+      selected: new Set(["a", "b"]),
+    });
+    expect(plan.toMerge).toEqual(["a", "b"]);
+    expect(plan.toUnmerge).toEqual([]);
+  });
+});
 
 describe("shouldOfferManualMerge", () => {
   test("offers a hand-picked merge to an owner or admin", () => {
@@ -64,5 +115,16 @@ describe("selectableMergeCandidates", () => {
       "a",
     );
     expect(candidates.map((candidate) => candidate.contact.id)).toEqual(["b"]);
+  });
+
+  test("never offers someone the picker already lists as merged in", () => {
+    // They appear at the top, ticked. Offering them again would show one
+    // person twice, with two different meanings for the same checkbox.
+    const candidates = selectableMergeCandidates(
+      [chat("b"), chat("c")],
+      "a",
+      new Set(["b"]),
+    );
+    expect(candidates.map((candidate) => candidate.contact.id)).toEqual(["c"]);
   });
 });

@@ -8,7 +8,7 @@ import { useCustomerChats } from "@/hooks/contact/useCustomerChats";
 import type { CustomerChat } from "@/lib/api/contacts";
 import { cn } from "@/lib/utils";
 import { ChatIdentityAvatar } from "../ChatIdentityAvatar";
-import { ManualMergeSection } from "./ManualMergeSection";
+import { MergeEditDialog } from "./MergeEditDialog";
 import { MergeSuggestionsSection } from "./MergeSuggestionsSection";
 import { UnmergeDialog } from "./UnmergeDialog";
 import type { ContactData } from "./types";
@@ -79,7 +79,7 @@ export function MergedChatsSection({
             items={[
               {
                 id: "edit",
-                label: t("contacts.manageEdit", "Merge a chat in"),
+                label: t("contacts.manageEdit", "Edit merged chats"),
                 icon: Merge,
                 // Seeing a merge already made is not the same permission as
                 // making one: a workspace whose merge flag is off keeps
@@ -118,7 +118,7 @@ export function MergedChatsSection({
 
       {canManage && (
         <>
-          <ManualMergeSection
+          <MergeEditDialog
             contact={contact}
             open={openTool === "edit"}
             onOpenChange={(next) => setOpenTool(next ? "edit" : null)}
