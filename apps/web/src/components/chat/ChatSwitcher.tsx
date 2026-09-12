@@ -1,12 +1,17 @@
 import type { Channel } from "@wateaminbox/shared";
-import { Check, MessagesSquare } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useCustomerChats } from "@/hooks/contact/useCustomerChats";
 import type { CustomerChat } from "@/lib/api/contacts";
 import { cn } from "@/lib/utils";
-import { ChannelBadge } from "./ChannelIdentity";
+import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
+import { ChannelAvatarBadge } from "./ChannelIdentity";
 
 interface ChatSwitcherProps {
   /** The chat currently open, as the router addresses it. */
@@ -36,6 +41,34 @@ export function shouldOfferChatSwitcher(chats: CustomerChat[]): boolean {
 }
 
 /**
+ * A thread's face: its avatar with the channel it runs on marked on it.
+ *
+ * The channel is the part that matters here - two threads of one customer
+ * differ by network before they differ by anything else - so it is drawn on
+ * the avatar rather than beside the name where it can be truncated away.
+ */
+function ChatIdentityAvatar({ chat }: { chat?: CustomerChat }) {
+  const label = chat?.displayName || chat?.address || "";
+  return (
+    <span className="relative inline-flex size-5 shrink-0">
+      <span className="size-5 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-tertiary">
+        <IdentityAvatarFallback
+          displayName={label}
+          identity={chat?.chatId ?? label}
+          className="text-[9px]"
+        />
+      </span>
+      {chat && KNOWN_CHANNELS.has(chat.channel) && (
+        <ChannelAvatarBadge
+          channel={chat.channel as Channel}
+          className="absolute -bottom-1 -right-1 size-3 ring-1"
+        />
+      )}
+    </span>
+  );
+}
+
+/**
  * Switch between the threads one customer is reachable on.
  *
  * Navigation, not routing: selecting a chat opens that conversation, which
@@ -61,17 +94,26 @@ export function ChatSwitcher({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex min-w-0 shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] text-[#667781] transition-colors hover:bg-black/[0.04] dark:text-dark-text-secondary dark:hover:bg-white/[0.06]"
+          className="inline-flex min-w-0 shrink-0 items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-1.5 text-[11px] text-[#667781] transition-colors hover:bg-black/[0.04] dark:text-dark-text-secondary dark:hover:bg-white/[0.06]"
           aria-haspopup="dialog"
           aria-expanded={open}
         >
-          <MessagesSquare className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="truncate">
-            {t("chat.switcher.trigger", {
-              count: chats.length,
-              defaultValue: "{{count}} chats",
-            })}
+          {/* The thread about to receive the reply, named and marked. A count
+              said how many threads exist but not which one is armed, which is
+              the only thing the operator needs before typing. */}
+          <ChatIdentityAvatar chat={current} />
+          <span className="max-w-40 truncate font-medium text-[#3b4a54] dark:text-dark-text-primary">
+            {current
+              ? current.displayName || current.address || currentChatId
+              : t("chat.switcher.trigger", {
+                  count: chats.length,
+                  defaultValue: "{{count}} chats",
+                })}
           </span>
+          <ChevronDown
+            className="size-3 shrink-0 opacity-60"
+            aria-hidden="true"
+          />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 p-1.5">
@@ -104,13 +146,7 @@ export function ChatSwitcher({
                     )}
                     aria-hidden="true"
                   />
-                  {KNOWN_CHANNELS.has(chat.channel) && (
-                    <ChannelBadge
-                      channel={chat.channel as Channel}
-                      iconOnly
-                      compact
-                    />
-                  )}
+                  <ChatIdentityAvatar chat={chat} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm text-[#111b21] dark:text-dark-text-primary">
                       {chat.displayName ||

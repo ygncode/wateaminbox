@@ -10,7 +10,6 @@ import {
 } from "@/hooks/useConversationLifecycle";
 import { AssignmentGateBar } from "./AssignmentGateBar";
 import { BlockedContactBar } from "./BlockedContactBar";
-import { ConversationLifecycleActions } from "./ConversationLifecycleActions";
 import { resolveOpenOrReopenMode } from "./open-reopen-dialog-state";
 import { OpenOrReopenConversationDialog } from "./ReopenConversationDialog";
 import { useTranslation } from "react-i18next";
@@ -76,7 +75,6 @@ function ComposerFooter({ children }: { children: ReactNode }) {
 export function ComposerLifecycleArea({
   contactId,
   access,
-  isSending = false,
   contactName,
   children,
 }: ComposerLifecycleAreaProps) {
@@ -184,18 +182,9 @@ export function ComposerLifecycleArea({
     );
   }
 
-  // "sendable"
-  return (
-    <ComposerFooter>
-      <div className="flex items-center justify-end border-t border-black/[0.06] bg-[#f0f2f5] px-2 py-1 dark:border-white/[0.06] dark:bg-dark-secondary sm:px-3 sm:py-1.5">
-        <ConversationLifecycleActions
-          contactId={contactId}
-          isSending={isSending}
-        />
-      </div>
-      {children}
-    </ComposerFooter>
-  );
+  // "sendable" - the actions live inside the composer's own context row, beside
+  // the thread they act on, rather than in a strip of their own above it.
+  return <ComposerFooter>{children}</ComposerFooter>;
 }
 
 export default ComposerLifecycleArea;

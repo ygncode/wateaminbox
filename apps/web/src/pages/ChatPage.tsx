@@ -41,6 +41,7 @@ import {
 import { useWorkspace } from "../contexts/workspace-context";
 import { useChatPageState } from "../hooks/chat";
 import type { WhatsAppConnectionIdentity } from "@wateaminbox/shared";
+import { ConversationLifecycleActions } from "../components/chat/ConversationLifecycleActions";
 import { useCustomerChats } from "../hooks/contact/useCustomerChats";
 import { useKeyboardInset } from "../hooks/ui";
 import { useChannelAccountCapabilities } from "../hooks/useChannelAccounts";
@@ -466,6 +467,13 @@ export function ChatPage() {
                   currentUserName={user?.name}
                   mentionParticipants={selectedGroup?.participants}
                   onSelectChat={handleThreadSelect}
+                  channelAddress={activeThread?.address}
+                  trailing={
+                    <ConversationLifecycleActions
+                      contactId={selectedChatId}
+                      isSending={isSending}
+                    />
+                  }
                 />
               </ChannelComposerGate>
             ) : (
@@ -495,6 +503,13 @@ export function ChatPage() {
                 currentUserName={user?.name}
                 mentionParticipants={selectedGroup?.participants}
                 onSelectChat={handleThreadSelect}
+                channelAddress={activeThread?.address}
+                trailing={
+                  <ConversationLifecycleActions
+                    contactId={selectedChatId}
+                    isSending={isSending}
+                  />
+                }
               />
             )}
           </ComposerLifecycleArea>
