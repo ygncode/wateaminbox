@@ -459,6 +459,7 @@ export function ChatPage() {
                   connection={null}
                   channelAccount={{
                     displayName: channelConversation.account.displayName,
+                    username: channelConversation.account.username,
                     channelName: channelDisplayName(
                       channelConversation.channel,
                     ),
@@ -467,7 +468,12 @@ export function ChatPage() {
                   currentUserName={user?.name}
                   mentionParticipants={selectedGroup?.participants}
                   onSelectChat={handleThreadSelect}
-                  channelAddress={activeThread?.address}
+                  // The account a reply leaves on, not the customer it reaches.
+                  channelAddress={
+                    channelConversation.account.username
+                      ? `@${channelConversation.account.username}`
+                      : null
+                  }
                   trailing={
                     <ConversationLifecycleActions
                       contactId={selectedChatId}
@@ -503,7 +509,7 @@ export function ChatPage() {
                 currentUserName={user?.name}
                 mentionParticipants={selectedGroup?.participants}
                 onSelectChat={handleThreadSelect}
-                channelAddress={activeThread?.address}
+                channelAddress={null}
                 trailing={
                   <ConversationLifecycleActions
                     contactId={selectedChatId}

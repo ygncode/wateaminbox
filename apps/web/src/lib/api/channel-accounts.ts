@@ -28,6 +28,11 @@ export interface ChannelAccount {
    * account. Telegram's BotFather privacy mode does this by default.
    */
   canReadAllGroupMessages?: boolean;
+  /**
+   * The handle the provider knows this account by - a Telegram bot username,
+   * for instance. What an operator recognises, unlike the numeric account id.
+   */
+  username?: string | null;
   connectedAt: string | null;
   lastSyncAt: string | null;
   createdAt: string;

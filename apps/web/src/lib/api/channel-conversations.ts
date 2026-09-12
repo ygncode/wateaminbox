@@ -17,6 +17,8 @@ export interface ChannelConversation {
   legacyContactId: string | null;
   account: {
     displayName: string | null;
+    /** The handle the provider knows this account by, e.g. a bot username. */
+    username: string | null;
     status: string;
   };
   /**

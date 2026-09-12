@@ -109,6 +109,13 @@ channelAccountRoutes.get("/", async (c) => {
       // its group inbox stays empty with nothing on screen to explain why.
       canReadAllGroupMessages:
         account.provider_metadata?.canReadAllGroupMessages === true,
+      // The handle the provider knows this account by. It is what an operator
+      // recognises and what a customer sees; the numeric account id is an
+      // internal detail that happened to be the only thing on screen.
+      username:
+        typeof account.provider_metadata?.username === "string"
+          ? account.provider_metadata.username
+          : null,
       connectedAt: account.connected_at,
       lastSyncAt: account.last_sync_at,
       createdAt: account.created_at,

@@ -156,6 +156,8 @@ interface MessageComposerProps {
    */
   channelAccount?: {
     displayName: string | null;
+    /** The provider handle, shown so a reply names the account it leaves on. */
+    username?: string | null;
     channelName: string;
     status: string;
   } | null;

@@ -163,7 +163,13 @@ export function ChannelAccountCard({
             {entry?.name ?? account.channel}
             {" · "}
             {STATUS_LABEL[account.status] ?? account.status}
-            {account.externalAccountId ? ` · ${account.externalAccountId}` : ""}
+            {/* The handle first: an operator recognises @a_bot, not 5326706984,
+                and it is what their customers see. */}
+            {account.username
+              ? ` · @${account.username}`
+              : account.externalAccountId
+                ? ` · ${account.externalAccountId}`
+                : ""}
           </p>
           {/* A provider status is the only clue when a webhook half-registered. */}
           {account.providerStatus && !isLive && (
