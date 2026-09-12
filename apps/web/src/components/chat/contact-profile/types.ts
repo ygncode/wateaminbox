@@ -12,6 +12,11 @@ export interface ContactProfileProps {
    * rather than becoming controls that do nothing.
    */
   onOpenParticipantProfile?: (participantContactId: string) => void;
+  /**
+   * Open one of the customer's other threads. Omitted where the host cannot
+   * switch chats, in which case the merged-chat rows stay plain text.
+   */
+  onSelectThread?: (chatId: string) => void;
 }
 
 export type ContactData = NonNullable<ReturnType<typeof useContact>["data"]>;

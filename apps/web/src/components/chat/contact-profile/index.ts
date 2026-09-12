@@ -13,4 +13,5 @@ export { AssignmentHistorySection } from "./AssignmentHistorySection";
 export { BlockStatusSection } from "./BlockStatusSection";
 export { ManualMergeSection } from "./ManualMergeSection";
 export { MergeHistorySection } from "./MergeHistorySection";
+export { MergedChatsSection } from "./MergedChatsSection";
 export { MergeSuggestionsSection } from "./MergeSuggestionsSection";

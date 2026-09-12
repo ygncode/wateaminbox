@@ -536,6 +536,7 @@ export function ChatPage() {
           : undefined
       }
       onOpenParticipantProfile={handleOpenParticipantProfile}
+      onSelectThread={handleThreadSelect}
     />
   );
 

@@ -1,4 +1,3 @@
-import type { Channel } from "@wateaminbox/shared";
 import { Check, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,24 +9,13 @@ import {
 import { useCustomerChats } from "@/hooks/contact/useCustomerChats";
 import type { CustomerChat } from "@/lib/api/contacts";
 import { cn } from "@/lib/utils";
-import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
-import { ChannelAvatarBadge } from "./ChannelIdentity";
+import { ChatIdentityAvatar } from "./ChatIdentityAvatar";
 
 interface ChatSwitcherProps {
   /** The chat currently open, as the router addresses it. */
   currentChatId: string;
   onSelectChat: (chatId: string) => void;
 }
-
-const KNOWN_CHANNELS: ReadonlySet<string> = new Set<Channel>([
-  "whatsapp",
-  "messenger",
-  "instagram",
-  "telegram",
-  "line",
-  "viber",
-  "email",
-]);
 
 /**
  * Whether the switcher has anything to offer.
@@ -38,34 +26,6 @@ const KNOWN_CHANNELS: ReadonlySet<string> = new Set<Channel>([
  */
 export function shouldOfferChatSwitcher(chats: CustomerChat[]): boolean {
   return chats.length > 1;
-}
-
-/**
- * A thread's face: its avatar with the channel it runs on marked on it.
- *
- * The channel is the part that matters here - two threads of one customer
- * differ by network before they differ by anything else - so it is drawn on
- * the avatar rather than beside the name where it can be truncated away.
- */
-function ChatIdentityAvatar({ chat }: { chat?: CustomerChat }) {
-  const label = chat?.displayName || chat?.address || "";
-  return (
-    <span className="relative inline-flex size-5 shrink-0">
-      <span className="size-5 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-tertiary">
-        <IdentityAvatarFallback
-          displayName={label}
-          identity={chat?.chatId ?? label}
-          className="text-[9px]"
-        />
-      </span>
-      {chat && KNOWN_CHANNELS.has(chat.channel) && (
-        <ChannelAvatarBadge
-          channel={chat.channel as Channel}
-          className="absolute -bottom-1 -right-1 size-3 ring-1"
-        />
-      )}
-    </span>
-  );
 }
 
 /**
