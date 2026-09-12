@@ -28,6 +28,20 @@ export interface CustomerChat {
   /** Display address of the endpoint this thread reaches, never a raw secret. */
   address: string | null;
   /**
+   * The WhatsApp connection that routes this thread, when one does.
+   *
+   * The connection is the authority on whether the phone is online - the
+   * mirrored channel account only refreshes when a message flows through the
+   * bridge - and the composer needs it for the thread it is about to write to,
+   * not for the customer's surviving contact.
+   */
+  connection: {
+    id: string;
+    name: string | null;
+    phoneNumber: string | null;
+    status: string;
+  } | null;
+  /**
    * The WhatsApp JID this thread is sent on, when it has one.
    *
    * Carried because the composer needs the identity of the thread being read,
@@ -130,8 +144,19 @@ export async function listCustomerChats(
       .leftJoin("contacts as legacy", (join) =>
         join.onRef("legacy.id", "=", "conversation.legacy_contact_id"),
       )
+      .leftJoin("whatsapp_connections as connection", (join) =>
+        join.onRef(
+          "connection.id",
+          "=",
+          "account.legacy_whatsapp_connection_id",
+        ),
+      )
       .select([
         "legacy.jid as jid",
+        "connection.id as connection_id",
+        "connection.name as connection_name",
+        "connection.phone_number as connection_phone_number",
+        "connection.status as connection_status",
         "conversation.id as conversation_id",
         "conversation.legacy_contact_id as legacy_contact_id",
         "conversation.last_message_at as last_message_at",
@@ -169,6 +194,7 @@ export async function listCustomerChats(
         "contact.custom_name as custom_name",
         "connection.id as connection_id",
         "connection.name as connection_name",
+        "connection.status as connection_status",
         "state.unread_count as unread_count",
         "state.last_message_at as last_message_at",
       ])
@@ -192,6 +218,16 @@ export async function listCustomerChats(
       accountId: row.account_id,
       accountName: row.account_name,
       address: row.address_display ?? row.normalized_address,
+      connection: row.connection_id
+        ? {
+            id: row.connection_id,
+            name: row.connection_name,
+            phoneNumber: row.connection_phone_number,
+            // Absent only for a row the bridge has not stamped yet; treated
+            // as offline rather than assumed live.
+            status: row.connection_status ?? "disconnected",
+          }
+        : null,
       jid: row.jid,
       displayName: row.display_name,
       lastMessageAt: row.last_message_at,
@@ -214,6 +250,14 @@ export async function listCustomerChats(
       accountId: row.connection_id,
       accountName: row.connection_name,
       address: row.phone_number ?? row.jid,
+      connection: row.connection_id
+        ? {
+            id: row.connection_id,
+            name: row.connection_name,
+            phoneNumber: row.phone_number,
+            status: row.connection_status ?? "disconnected",
+          }
+        : null,
       jid: row.jid,
       displayName: row.custom_name ?? row.push_name,
       lastMessageAt: row.last_message_at,

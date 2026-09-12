@@ -41,6 +41,16 @@ export function shouldDismissReplyHighlight(
 
 interface MessageThreadProps {
   conversationId: string | undefined;
+  /**
+   * The inbox row this thread belongs to.
+   *
+   * Customer-scoped reads key on this rather than on the open thread, so
+   * switching channels does not change their query key. Keyed on the thread,
+   * every switch emptied them for a moment, and the view fell back to the
+   * single-conversation read - a visible flash of the thread that was open
+   * before, on a history that had not changed at all.
+   */
+  customerRowId?: string;
   currentUserId: string;
   currentUserName?: string;
   currentUserAvatarUrl?: string;
@@ -64,6 +74,7 @@ interface MessageThreadProps {
 
 export function MessageThread({
   conversationId,
+  customerRowId,
   currentUserId,
   currentUserName,
   currentUserAvatarUrl,
@@ -121,14 +132,15 @@ export function MessageThread({
   // else keeps the single-conversation read, its cache key, and its optimistic
   // realtime insert exactly as they are. The chat list has usually already
   // loaded this, so it costs nothing extra on the common path.
-  const { data: customerChats = [] } = useCustomerChats(conversationId);
+  const customerKey = customerRowId ?? conversationId;
+  const { data: customerChats = [] } = useCustomerChats(customerKey);
   const isMergedCustomer = customerChats.length > 1;
 
   const conversationQuery = useInfiniteMessages(
     isMergedCustomer ? undefined : conversationId,
   );
   const timelineQuery = useCustomerTimeline(
-    isMergedCustomer ? conversationId : null,
+    isMergedCustomer ? customerKey : null,
   );
 
   const {

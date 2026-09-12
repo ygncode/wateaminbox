@@ -40,6 +40,7 @@ import {
 } from "../contexts/message-actions-context";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useChatPageState } from "../hooks/chat";
+import type { WhatsAppConnectionIdentity } from "@wateaminbox/shared";
 import { useCustomerChats } from "../hooks/contact/useCustomerChats";
 import { useKeyboardInset } from "../hooks/ui";
 import { useChannelAccountCapabilities } from "../hooks/useChannelAccounts";
@@ -394,6 +395,7 @@ export function ChatPage() {
             >
               <MessageThread
                 conversationId={selectedChatId}
+                customerRowId={selectedRowId}
                 currentUserId={user?.id || ""}
                 currentUserName={user?.name}
                 currentUserAvatarUrl={user?.avatarUrl}
@@ -453,7 +455,21 @@ export function ChatPage() {
                 onSendMessage={handleSendMessage}
                 onAttachFile={handleChannelAttachFile}
                 disabled={isSending}
-                connection={selectedContact?.connection}
+                // The thread's own connection, not the surviving customer's:
+                // a merged customer whose canonical contact arrived on another
+                // channel has none, which the composer read as "disconnected"
+                // and refused to send.
+                connection={
+                  activeThread?.connection
+                    ? {
+                        id: activeThread.connection.id,
+                        name: activeThread.connection.name,
+                        phoneNumber: activeThread.connection.phoneNumber,
+                        status: activeThread.connection
+                          .status as WhatsAppConnectionIdentity["status"],
+                      }
+                    : selectedContact?.connection
+                }
                 currentUserName={user?.name}
                 mentionParticipants={selectedGroup?.participants}
                 onSelectChat={handleThreadSelect}

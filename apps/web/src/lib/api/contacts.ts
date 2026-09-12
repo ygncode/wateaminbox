@@ -172,6 +172,13 @@ export interface CustomerChat {
   accountId: string | null;
   accountName: string | null;
   address: string | null;
+  /** The WhatsApp connection routing this thread, and whether it is live. */
+  connection: {
+    id: string;
+    name: string | null;
+    phoneNumber: string | null;
+    status: string;
+  } | null;
   /** The WhatsApp JID this thread sends on, when it has one. */
   jid: string | null;
   displayName: string | null;
