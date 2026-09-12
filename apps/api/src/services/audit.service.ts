@@ -25,6 +25,10 @@ export type AuditAction =
   | "contact.unassigned"
   | "contact.merged"
   | "contact.unmerged"
+  // A purge separates every customer merged into the contacts it deletes, and
+  // takes their merge records with them. This is the only surviving account of
+  // that, so it is its own action rather than a detail on the purge entry.
+  | "contact.separated_by_purge"
   | "contact.blocked"
   | "contact.unblocked"
   | "contact.note.created"

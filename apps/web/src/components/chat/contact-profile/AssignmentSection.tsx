@@ -20,6 +20,7 @@ import {
 } from "@/hooks/useConversationMetadata";
 import { useAssignContact, useUnassignContact } from "@/hooks/useContact";
 import { useTeamMemberIdentities } from "@/hooks/useTeam";
+import { useCustomerChats } from "@/hooks/contact/useCustomerChats";
 import type { ContactData } from "./types";
 
 interface AssignmentSectionProps {
@@ -54,9 +55,38 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
         : t("contacts.assignmentError", "Could not update assignment"),
     );
 
+  // A merged customer is one person with several threads, and assignment
+  // follows the person - the same choice resolving makes. Assigning only the
+  // surviving contact would leave their other threads unowned while the panel
+  // claimed otherwise.
+  const { data: threads = [] } = useCustomerChats(contact.id);
+  const assignmentTargets = (() => {
+    const ids = threads
+      .map((thread) => thread.contactId)
+      .filter((id): id is string => Boolean(id));
+    // The contact the panel is about goes first, so the operator's immediate
+    // intent lands even if a later thread fails.
+    return [...new Set([contact.id, ...ids])];
+  })();
+
+  /** Applies one assignment change across every thread, newest failure wins. */
+  const forEachThread = async (apply: (contactId: string) => Promise<void>) => {
+    let failure: unknown;
+    for (const contactId of assignmentTargets) {
+      try {
+        await apply(contactId);
+      } catch (error) {
+        failure = error;
+      }
+    }
+    if (failure) throw failure;
+  };
+
   const handleAssignToMe = async () => {
     try {
-      await assignContact.mutateAsync({ contactId: contact.id });
+      await forEachThread((contactId) =>
+        assignContact.mutateAsync({ contactId }).then(() => undefined),
+      );
       toast.success(t("contacts.assignedToYou", "Assigned to you"));
     } catch (error) {
       assignmentError(error);
@@ -68,17 +98,20 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
 
     try {
       if (target === UNASSIGNED_VALUE) {
-        await unassignContact.mutateAsync(contact.id);
+        await forEachThread((contactId) =>
+          unassignContact.mutateAsync(contactId).then(() => undefined),
+        );
         toast.success(
           t("contacts.unassignedSuccess", "Conversation unassigned"),
         );
         return;
       }
 
-      await assignContact.mutateAsync({
-        contactId: contact.id,
-        targetUserId: target,
-      });
+      await forEachThread((contactId) =>
+        assignContact
+          .mutateAsync({ contactId, targetUserId: target })
+          .then(() => undefined),
+      );
       const member = members.find((candidate) => candidate.userId === target);
       toast.success(
         target === user?.id

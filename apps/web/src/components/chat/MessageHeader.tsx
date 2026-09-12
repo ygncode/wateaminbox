@@ -1,4 +1,4 @@
-import type { Contact } from "@wateaminbox/shared";
+import type { Contact, WhatsAppConnectionIdentity } from "@wateaminbox/shared";
 import { formatLastSeen, isChannel } from "@wateaminbox/shared";
 import { ArrowLeft, Info, MoreVertical, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -7,8 +7,13 @@ import { useOptionalMobileLayout } from "@/components/layout/MobileLayout";
 import { IdentityAvatarFallback } from "@/components/ui/identity-avatar-fallback";
 import { useGroup } from "@/hooks/useGroups";
 import { cn, formatPhoneLikeText } from "@/lib/utils";
-import { ChannelBadge } from "./ChannelIdentity";
-import { ConnectionBadge, ConnectionRoute } from "./ConnectionIdentity";
+import type { CustomerChat } from "@/lib/api/contacts";
+import { ChannelBadge, channelLabel } from "./ChannelIdentity";
+import {
+  ChannelRoute,
+  ConnectionBadge,
+  ConnectionRoute,
+} from "./ConnectionIdentity";
 
 interface MessageHeaderProps {
   contact: Contact | undefined;
@@ -30,6 +35,18 @@ interface MessageHeaderProps {
   onBack?: () => void;
   /** Whether the contact is currently typing */
   isTyping?: boolean;
+  /**
+   * The thread actually on screen, when the customer has more than one.
+   *
+   * The header's name is the customer's, but everything to the right of it -
+   * the network, the account, the address a reply leaves from - belongs to
+   * one thread, and a merged customer has several. Answering those from the
+   * surviving contact described whichever record happened to survive, not the
+   * conversation being read.
+   */
+  thread?: CustomerChat;
+  /** How many threads this customer has; more than one only after a merge. */
+  threadCount?: number;
 }
 
 /**
@@ -47,6 +64,8 @@ export function MessageHeader({
   showBackButton,
   onBack,
   isTyping = false,
+  thread,
+  threadCount = 1,
 }: MessageHeaderProps) {
   const { t } = useTranslation();
 
@@ -63,6 +82,21 @@ export function MessageHeader({
   const displayName = formatPhoneLikeText(
     contact.customName || contact.name || contact.jid || "Unknown",
   );
+  // The thread is the authority on where this conversation runs; the contact
+  // is the fallback for a chat the switcher has not described.
+  const channel = thread?.channel ?? contact.channel;
+  const connection = thread?.connection
+    ? {
+        id: thread.connection.id,
+        name: thread.connection.name,
+        phoneNumber: thread.connection.phoneNumber,
+        // The switcher types the status as the string the API sent; the
+        // badge wants the union, and an unknown value reads as offline.
+        status: thread.connection
+          .status as WhatsAppConnectionIdentity["status"],
+      }
+    : contact.connection;
+  const isMerged = threadCount > 1;
   const lastSeenText = contact.isGroup
     ? group?.participantCount
       ? t("chat.participantCount", {
@@ -133,26 +167,39 @@ export function MessageHeader({
             </h2>
             {/* The account pill needs room to stay legible; on a phone the
                 same routing is carried by the status line below instead. */}
-            {(contact.channel || contact.connection) && (
+            {(channel || connection) && (
               <>
                 <ChannelBadge
-                  channel={
-                    contact.channel && isChannel(contact.channel)
-                      ? contact.channel
-                      : "whatsapp"
-                  }
+                  channel={channel && isChannel(channel) ? channel : "whatsapp"}
                   compact
                   iconOnly
                   className="hidden md:inline-flex"
                 />
-                {contact.connection && (
+                {connection ? (
                   <ConnectionBadge
-                    connection={contact.connection}
+                    connection={connection}
                     compact
                     className="hidden max-w-[110px] shrink md:inline-flex"
                   />
+                ) : (
+                  thread?.accountName && (
+                    <span className="hidden max-w-[110px] shrink truncate rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-700 dark:bg-dark-tertiary dark:text-dark-text-primary md:inline-flex">
+                      {thread.accountName}
+                    </span>
+                  )
                 )}
               </>
+            )}
+            {/* One customer, several threads: said here because the header is
+                where an operator checks who they are talking to before
+                replying, and the badges above describe only the open one. */}
+            {isMerged && (
+              <span className="hidden shrink-0 whitespace-nowrap text-[11px] text-[#667781] dark:text-dark-text-secondary md:inline">
+                {t("chat.mergedThreadCount", {
+                  count: threadCount,
+                  defaultValue: "· {{count}} chats",
+                })}
+              </span>
             )}
           </span>
 
@@ -171,7 +218,7 @@ export function MessageHeader({
                 </span>
               )
             )}
-            {contact.connection && (
+            {(connection || thread?.accountName) && (
               <>
                 {(isTyping || statusText) && (
                   <span
@@ -181,12 +228,23 @@ export function MessageHeader({
                 )}
                 {/* Phones get the account name only; the number returns
                     from `sm` up, where the line has room for both. */}
-                <ConnectionRoute
-                  connection={contact.connection}
-                  mode="receiving"
-                  compact
-                  className="min-w-0 truncate text-[12px]"
-                />
+                {connection ? (
+                  <ConnectionRoute
+                    connection={connection}
+                    mode="receiving"
+                    compact
+                    className="min-w-0 truncate text-[12px]"
+                  />
+                ) : (
+                  // A Telegram thread has no linked device to name, and
+                  // saying nothing left the line claiming the conversation
+                  // arrived nowhere.
+                  <ChannelRoute
+                    label={thread!.accountName!}
+                    address={channelLabel(channel)}
+                    className="min-w-0 truncate text-[12px]"
+                  />
+                )}
               </>
             )}
           </span>

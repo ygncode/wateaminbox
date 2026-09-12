@@ -5,6 +5,8 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { applyNormalizedChannelEvent } from "../channel-spine/application/event-processor.js";
 import { channelAdapterRegistry } from "../channel-spine/registry.js";
+import { createLogger, formatError } from "../lib/logger.js";
+import { ChannelCredentialKeyError } from "../services/channel-credential.service.js";
 import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
@@ -13,6 +15,8 @@ import { isChannelSpineTenantReady } from "../services/channel-spine-readiness.s
 import { getTenantConnection } from "../services/tenant.service.js";
 
 const MAX_INGRESS_BYTES = 1_048_576;
+const logger = createLogger("ChannelIngress");
+
 export const channelIngressRoutes = new Hono();
 
 channelIngressRoutes.post("/:provider/:routeKey", async (c) => {
@@ -97,7 +101,20 @@ channelIngressRoutes.post("/:provider/:routeKey", async (c) => {
           channelAccountId: route.channel_account_id,
         },
       });
-  } catch {
+  } catch (error) {
+    // A key this process was started without is a deployment fault, not a
+    // failed signature. Answering 401 tells the provider its secret is wrong
+    // and tells the operator nothing, so every webhook silently fails while
+    // the credential in the database is perfectly intact.
+    if (error instanceof ChannelCredentialKeyError) {
+      logger.error(
+        { err: formatError(error), companyId: route.company_id, provider },
+        "Channel ingress cannot read its credentials",
+      );
+      throw new HTTPException(503, {
+        message: "Channel credentials are unavailable",
+      });
+    }
     throw new HTTPException(401, {
       message: "Channel ingress verification failed",
     });

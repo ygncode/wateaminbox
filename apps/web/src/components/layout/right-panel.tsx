@@ -134,27 +134,39 @@ export function RightPanelContent({
 export interface RightPanelSectionProps
   extends React.HTMLAttributes<HTMLDivElement> {
   title?: string;
+  /**
+   * A control belonging to the heading, drawn at its right - the section's
+   * own "Manage"/"Show all" affordance. Sits on the title row so it does not
+   * cost a line of its own in a panel that is mostly headings.
+   */
+  titleAction?: React.ReactNode;
   children: React.ReactNode;
 }
 
 export function RightPanelSection({
   className,
   title,
+  titleAction,
   children,
   ...props
 }: RightPanelSectionProps) {
   return (
     <section
       className={cn(
-        "border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary p-4",
+        "border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary px-4 py-3",
         className,
       )}
       {...props}
     >
-      {title && (
-        <h3 className="mb-3 text-sm font-medium text-whatsapp-teal-green">
-          {title}
-        </h3>
+      {(title || titleAction) && (
+        <div className="mb-2 flex items-center justify-between gap-2">
+          {title && (
+            <h3 className="text-sm font-medium text-whatsapp-teal-green">
+              {title}
+            </h3>
+          )}
+          {titleAction}
+        </div>
       )}
       {children}
     </section>

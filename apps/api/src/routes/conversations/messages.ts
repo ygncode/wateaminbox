@@ -26,6 +26,7 @@ import {
   MEDIA_MESSAGE_TYPES,
 } from "../../lib/nats/index.js";
 import { successData, successWithMessage } from "../../lib/response.js";
+import { resolveThreadProvenance } from "../../services/message-provenance.service.js";
 import {
   listConversationMessagesQuerySchema,
   sendConversationMessageSchema,
@@ -311,12 +312,22 @@ messageRoutes.get(
       messages as MessageDbRow[],
       companyId,
     );
+    // Which thread each message arrived on. One query for the page: a merged
+    // customer's page spans several threads, and the alternative is a lookup
+    // per row on the hottest read in the product.
+    const threads = await resolveThreadProvenance(
+      tenantDb,
+      authorizedMessages
+        .map((message) => message.conversation_id)
+        .filter((id): id is string => Boolean(id)),
+    );
     const formattedMessages = formatMessagesForConversation(
       authorizedMessages,
       quotedMessagesMap,
       reactionsMap,
       userNames,
       userAvatarSources,
+      threads,
     );
 
     return successData(c, {

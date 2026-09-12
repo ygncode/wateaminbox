@@ -16,14 +16,17 @@ import { env } from "../lib/env.js";
 import { conflict, forbidden, notFound } from "../lib/errors.js";
 import { successData } from "../lib/response.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { createAuditLog, getClientIp } from "../services/audit.service.js";
 import { getRouteContext } from "../middleware/context.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
 import {
   ChannelAccountNotArchivedError,
   purgeArchivedChannelAccount,
 } from "../services/channel-account-purge.service.js";
+import { createLogger, formatError } from "../lib/logger.js";
 import {
   canStoreChannelCredentials,
+  ChannelCredentialKeyError,
   readChannelCredential,
   storeChannelCredential,
 } from "../services/channel-credential.service.js";
@@ -34,6 +37,21 @@ import {
 import { isChannelSpineTenantReady } from "../services/channel-spine-readiness.service.js";
 import { countUsedConnectionSlots } from "../services/connection-quota.service.js";
 import { getMaxConnections } from "../services/whatsapp/connection.js";
+
+const logger = createLogger("ChannelAccounts");
+
+/**
+ * The base a provider calls back on.
+ *
+ * Separate from `APP_URL` because the two answer different questions: a
+ * webhook needs a publicly routable HTTPS address, while `APP_URL` is where a
+ * person opens the app - in local development a tunnel and localhost
+ * respectively. Sending invite or OAuth links to the tunnel would be wrong,
+ * and pointing a webhook at localhost simply never arrives.
+ */
+function channelIngressBaseUrl(): string {
+  return (env.CHANNEL_INGRESS_PUBLIC_URL || env.APP_URL).replace(/\/$/, "");
+}
 
 export const channelAccountRoutes = new Hono();
 channelAccountRoutes.use("/*", authMiddleware);
@@ -61,8 +79,12 @@ channelAccountRoutes.get("/", async (c) => {
       "last_sync_at",
       "created_at",
       "updated_at",
+      "archived_at",
     ])
-    .where("archived_at", "is", null)
+    // Archived accounts are listed too. Hiding them removed the account from
+    // the connections page while its conversations stayed in the inbox, so a
+    // disconnected Telegram bot left threads behind that nothing could clean
+    // up - the operator could see the mess and had no way to reach it.
     // A linked-device WhatsApp account is a projection of a row in
     // `whatsapp_connections`, created by dual write and the backfill so the
     // spine has something to hang conversations off. The connections API
@@ -88,10 +110,20 @@ channelAccountRoutes.get("/", async (c) => {
       // its group inbox stays empty with nothing on screen to explain why.
       canReadAllGroupMessages:
         account.provider_metadata?.canReadAllGroupMessages === true,
+      // The handle the provider knows this account by. It is what an operator
+      // recognises and what a customer sees; the numeric account id is an
+      // internal detail that happened to be the only thing on screen.
+      username:
+        typeof account.provider_metadata?.username === "string"
+          ? account.provider_metadata.username
+          : null,
       connectedAt: account.connected_at,
       lastSyncAt: account.last_sync_at,
       createdAt: account.created_at,
       updatedAt: account.updated_at,
+      // Set once the account has been disconnected. Its threads survive until
+      // the account is purged, so the operator needs to see it to clean up.
+      archivedAt: account.archived_at,
     })),
   );
 });
@@ -317,7 +349,7 @@ channelAccountRoutes.post(
         .execute();
     });
 
-    const webhookUrl = `${env.APP_URL.replace(/\/$/, "")}/api/channel-ingress/telegram_bot/${routeKey}`;
+    const webhookUrl = `${channelIngressBaseUrl()}/api/channel-ingress/telegram_bot/${routeKey}`;
     try {
       await configureTelegramWebhook(botToken, webhookUrl, webhookSecret);
     } catch {
@@ -574,7 +606,7 @@ channelAccountRoutes.post("/:id/resume", async (c) => {
       .execute();
   });
 
-  const webhookUrl = `${env.APP_URL.replace(/\/$/, "")}/api/channel-ingress/telegram_bot/${routeKey}`;
+  const webhookUrl = `${channelIngressBaseUrl()}/api/channel-ingress/telegram_bot/${routeKey}`;
   try {
     await configureTelegramWebhook(botToken, webhookUrl, webhookSecret);
   } catch {
@@ -691,28 +723,46 @@ channelAccountRoutes.delete("/:id", async (c) => {
   if (account.provider !== "telegram_bot") {
     return c.json({ error: "Use the provider-specific disconnect flow" }, 400);
   }
-  const botToken = await readChannelCredential(
-    tenantDb,
-    companyId,
-    account.id,
-    "telegram_bot_token",
-  );
-  if (!botToken)
-    return c.json({ error: "Channel credential unavailable" }, 503);
+  // An unreadable credential must not trap the account here. Removal is the
+  // one action an operator still needs when the key that sealed a token is
+  // gone, and refusing it leaves the workspace unable to disconnect or to
+  // connect a replacement - the account becomes permanent.
+  let botToken: string | null = null;
+  try {
+    botToken = await readChannelCredential(
+      tenantDb,
+      companyId,
+      account.id,
+      "telegram_bot_token",
+    );
+  } catch (error) {
+    if (!(error instanceof ChannelCredentialKeyError)) throw error;
+    logger.warn(
+      { err: formatError(error), companyId, channelAccountId: account.id },
+      "Removing a Telegram account whose credentials cannot be read",
+    );
+  }
   await tenantDb
     .updateTable("channel_accounts")
     .set({ status: "disabled", provider_status: "webhook_removal_pending" })
     .where("id", "=", account.id)
     .execute();
-  try {
-    await removeTelegramWebhook(botToken);
-  } catch {
-    await tenantDb
-      .updateTable("channel_accounts")
-      .set({ status: "connected", provider_status: "webhook_removal_failed" })
-      .where("id", "=", account.id)
-      .execute();
-    return c.json({ error: "Telegram webhook removal failed" }, 502);
+  // Without a token there is nothing to call Telegram with, so the webhook is
+  // left registered on their side and reported rather than silently assumed
+  // gone. Its deliveries stop at the ingress route revoked below.
+  let webhookRemoved = false;
+  if (botToken) {
+    try {
+      await removeTelegramWebhook(botToken);
+      webhookRemoved = true;
+    } catch {
+      await tenantDb
+        .updateTable("channel_accounts")
+        .set({ status: "connected", provider_status: "webhook_removal_failed" })
+        .where("id", "=", account.id)
+        .execute();
+      return c.json({ error: "Telegram webhook removal failed" }, 502);
+    }
   }
   const company = await db
     .selectFrom("companies")
@@ -748,17 +798,46 @@ channelAccountRoutes.delete("/:id", async (c) => {
       .where("channel_account_id", "=", account.id)
       .execute();
   });
-  return c.json({ success: true });
+  return c.json({
+    success: true,
+    // False when the credential could not be read: the account is gone from
+    // this workspace, but the operator still has to revoke the bot's webhook
+    // (or the whole bot) with the provider.
+    webhookRemoved,
+  });
 });
 
 channelAccountRoutes.post("/:id/purge", async (c) => {
-  const { tenantDb, role } = getRouteContext(c);
+  const { tenantDb, role, companyId, user } = getRouteContext(c);
   if (role === "member") return forbidden(c);
   try {
-    const purged = await purgeArchivedChannelAccount(
-      tenantDb,
-      c.req.param("id"),
-    );
+    const accountId = c.req.param("id");
+    const purged = await purgeArchivedChannelAccount(tenantDb, accountId);
+    // The deletion has committed and cannot be retried, so a failed audit
+    // write must not be reported as a failed purge; it is loud in the logs
+    // instead. The separation is recorded because the merge history that
+    // would explain it went with the contacts it described.
+    if (purged.separatedContacts.length > 0) {
+      try {
+        await createAuditLog({
+          companyId,
+          userId: user.id,
+          action: "contact.separated_by_purge",
+          entityType: "channel_account",
+          entityId: accountId,
+          details: {
+            separatedCount: purged.separatedContacts.length,
+            separated: purged.separatedContacts,
+          },
+          ipAddress: getClientIp(c),
+        });
+      } catch (error) {
+        logger.error(
+          { accountId, err: formatError(error) },
+          "Channel account purge committed but its audit record could not be written",
+        );
+      }
+    }
     return successData(c, purged);
   } catch (error) {
     if (error instanceof ChannelAccountNotArchivedError) {

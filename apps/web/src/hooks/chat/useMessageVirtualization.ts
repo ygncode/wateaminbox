@@ -23,6 +23,14 @@ const DATE_SEPARATOR_HEIGHT = 48;
 
 export type VirtualItem =
   | { type: "date"; date: string; id: string }
+  /**
+   * The channel the following run of messages arrived on.
+   *
+   * Only ever emitted for a customer whose history spans more than one
+   * channel. Marking every bubble instead makes an ordinary thread noisy, and
+   * a run of twenty WhatsApp messages does not need the answer twenty times.
+   */
+  | { type: "channel"; channel: string; threadId: string | null; id: string }
   | {
       type: "message";
       message: Message;
@@ -32,6 +40,97 @@ export type VirtualItem =
       /** Position in its run of same-author messages; see message-grouping.ts. */
       groupPosition: BubbleGroupPosition;
     };
+
+/**
+ * The rows a message list renders: messages, day separators, and - only for a
+ * customer whose history spans channels - a heading above each run.
+ *
+ * Pure and separate from the hook because the interleaving is where this goes
+ * wrong. A day boundary and a channel change usually land on the same message,
+ * and code that assumed the row after a separator was a message crashed on the
+ * heading between them.
+ */
+export function buildMessageListItems(messages: Message[]): VirtualItem[] {
+  if (messages.length === 0) return [];
+
+  const rows: (ReturnType<typeof groupMediaAlbumMessages>[number] | null)[] =
+    [];
+  const channelRows = new Map<
+    number,
+    { channel: string; threadId: string | null }
+  >();
+  let currentDate = "";
+  let currentChannel: string | null = null;
+  // Announced only where the history actually spans channels, which is only
+  // ever a merged customer. A single-channel thread would otherwise carry
+  // one pointless heading above its first message.
+  const spansChannels =
+    new Set(
+      messages
+        .map((message) => message.channel)
+        .filter((channel): channel is string => Boolean(channel)),
+    ).size > 1;
+
+  groupMediaAlbumMessages(messages).forEach((album) => {
+    const messageDate = new Date(album.primary.createdAt).toDateString();
+    // A date separator is a `null` row so grouping sees it and refuses to
+    // continue a run across the day boundary.
+    if (messageDate !== currentDate) {
+      currentDate = messageDate;
+      rows.push(null);
+    }
+    const channel = album.primary.channel ?? null;
+    if (spansChannels && channel && channel !== currentChannel) {
+      currentChannel = channel;
+      // Recorded by index rather than pushed as another `null`, so the date
+      // separator keeps its meaning: the row after a `null` is the first
+      // message of a day, and a channel heading must not be mistaken for it.
+      channelRows.set(rows.length, {
+        channel,
+        threadId: album.primary.threadId ?? null,
+      });
+      rows.push(null);
+    }
+    rows.push(album);
+  });
+
+  const positions = resolveBubbleGroupPositions(
+    rows.map((album) => album?.primary ?? null),
+  );
+
+  return rows.map((album, index): VirtualItem => {
+    if (!album) {
+      const channelRow = channelRows.get(index);
+      if (channelRow) {
+        return {
+          type: "channel",
+          channel: channelRow.channel,
+          threadId: channelRow.threadId,
+          id: `channel-${index}-${channelRow.channel}`,
+        };
+      }
+      // The first message after this separator, skipping any heading that
+      // sits between them: a day boundary and a channel change land on the
+      // same message often - the first message of a day is frequently the
+      // one that switched channel - and reading the very next row assumed it
+      // was always a message, which threw on the heading.
+      let next = index + 1;
+      while (next < rows.length && !rows[next]) next++;
+      const announced = rows[next];
+      if (!announced) return { type: "date", date: "", id: `date-${index}` };
+      const date = new Date(announced.primary.createdAt).toDateString();
+      return { type: "date", date, id: `date-${date}` };
+    }
+    return {
+      type: "message",
+      message: album.primary,
+      albumMessages: album.messages,
+      albumExpectedCount: album.expectedCount,
+      id: album.id,
+      groupPosition: positions[index] ?? "single",
+    };
+  });
+}
 
 interface UseMessageVirtualizationOptions {
   messages: Message[];
@@ -91,53 +190,17 @@ export function useMessageVirtualization({
   const bottomPinRef = useRef(createBottomPin());
 
   // Group messages by date and flatten into virtual items - memoized to prevent re-renders
-  const items = useMemo<VirtualItem[]>(() => {
-    if (messages.length === 0) return [];
-
-    const rows: (ReturnType<typeof groupMediaAlbumMessages>[number] | null)[] =
-      [];
-    let currentDate = "";
-
-    groupMediaAlbumMessages(messages).forEach((album) => {
-      const messageDate = new Date(album.primary.createdAt).toDateString();
-      // A date separator is a `null` row so grouping sees it and refuses to
-      // continue a run across the day boundary.
-      if (messageDate !== currentDate) {
-        currentDate = messageDate;
-        rows.push(null);
-      }
-      rows.push(album);
-    });
-
-    const positions = resolveBubbleGroupPositions(
-      rows.map((album) => album?.primary ?? null),
-    );
-
-    return rows.map((album, index): VirtualItem => {
-      if (!album) {
-        // A separator is always immediately followed by the first message of
-        // the day it announces.
-        const date = new Date(
-          rows[index + 1]!.primary.createdAt,
-        ).toDateString();
-        return { type: "date", date, id: `date-${date}` };
-      }
-      return {
-        type: "message",
-        message: album.primary,
-        albumMessages: album.messages,
-        albumExpectedCount: album.expectedCount,
-        id: album.id,
-        groupPosition: positions[index] ?? "single",
-      };
-    });
-  }, [messages]);
+  const items = useMemo<VirtualItem[]>(
+    () => buildMessageListItems(messages),
+    [messages],
+  );
 
   // Memoize virtualizer callbacks to prevent re-renders
   const estimateSize = useCallback(
     (index: number) => {
       const item = items[index];
-      if (item?.type === "date") return DATE_SEPARATOR_HEIGHT;
+      if (item?.type === "date" || item?.type === "channel")
+        return DATE_SEPARATOR_HEIGHT;
       return ESTIMATED_MESSAGE_HEIGHT;
     },
     [items],

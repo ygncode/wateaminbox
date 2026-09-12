@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useFirstChatAcknowledgment } from "./FirstChatAcknowledgment";
 import { getCompanyId } from "@/lib/api/client";
 import type { Message, WhatsAppConnectionIdentity } from "@wateaminbox/shared";
@@ -9,7 +10,6 @@ import {
   Paperclip,
   Send,
   Smile,
-  UserRound,
   X,
 } from "lucide-react";
 import {
@@ -37,7 +37,8 @@ import type { GroupParticipant } from "../../hooks/useGroups";
 import { useQuickReplySuggestions } from "../../hooks/useQuickReplies";
 import { uploadMedia } from "../../lib/api";
 import { AttachmentPreviewDialog } from "./AttachmentPreviewDialog";
-import { ConnectionRoute } from "./ConnectionIdentity";
+import { ChatSwitcher } from "./ChatSwitcher";
+import { ChannelRoute, ConnectionRoute } from "./ConnectionIdentity";
 import { useComposerFeatures } from "./composer-capabilities";
 import { shouldSendMessageOnEnter } from "./composer-keyboard";
 import { pickPastedAttachment } from "./composer-paste";
@@ -155,11 +156,23 @@ interface MessageComposerProps {
    */
   channelAccount?: {
     displayName: string | null;
+    /** The provider handle, shown so a reply names the account it leaves on. */
+    username?: string | null;
     channelName: string;
     status: string;
   } | null;
   currentUserName?: string;
   mentionParticipants?: GroupParticipant[];
+  /**
+   * Opens another of this customer's threads. Absent when the surface has no
+   * router to hand - the switcher then stays hidden rather than rendering a
+   * control that cannot act.
+   */
+  onSelectChat?: (chatId: string) => void;
+  /** The address this thread reaches, shown beside the account it sends on. */
+  channelAddress?: string | null;
+  /** Conversation actions, hosted in the composer's context row. */
+  trailing?: ReactNode;
 }
 
 function AcknowledgedMessageComposer({
@@ -172,7 +185,9 @@ function AcknowledgedMessageComposer({
   disabled = false,
   connection,
   channelAccount,
-  currentUserName,
+  onSelectChat,
+  channelAddress,
+  trailing,
   mentionParticipants = [],
 }: MessageComposerProps) {
   const { t } = useTranslation();
@@ -813,30 +828,39 @@ function AcknowledgedMessageComposer({
           </div>
         )}
 
-        {/* Persistent sender and account context prevents wrong-identity replies. */}
-        <div className="flex min-h-8 min-w-0 items-center gap-1.5 border-b border-black/[0.055] bg-white/55 px-4 py-1 dark:border-white/[0.06] dark:bg-white/[0.025]">
-          <UserRound
-            className="size-3.5 shrink-0 text-[#667781] dark:text-dark-text-tertiary"
-            aria-hidden="true"
-          />
-          <span className="truncate text-[11px] text-[#667781] dark:text-dark-text-secondary">
-            Sending as{" "}
-            <strong className="font-semibold text-[#3b4a54] dark:text-dark-text-primary">
-              {currentUserName || "You"}
-            </strong>
-          </span>
-          {connection && (
-            <>
-              <span
-                className="size-0.5 shrink-0 rounded-full bg-[#aebac1] dark:bg-dark-border"
-                aria-hidden="true"
-              />
-              <ConnectionRoute
-                connection={connection}
-                mode="sending"
-                className="min-w-0 text-[11px]"
-              />
-            </>
+        {/* What this reply is about to do: which thread it leaves on, over
+            which account, and what can be done with the conversation. The
+            operator's own name used to lead this row, which is the one thing
+            they already know. */}
+        <div className="flex min-h-8 min-w-0 items-center gap-2 border-b border-black/[0.055] bg-white/55 px-3 py-1 dark:border-white/[0.06] dark:bg-white/[0.025]">
+          {/* Only rendered for a merged customer, who has a second thread to
+              switch to. It moves between conversations; it never redirects
+              this one's messages onto another. */}
+          {onSelectChat && contactId && (
+            <ChatSwitcher
+              currentChatId={contactId}
+              onSelectChat={onSelectChat}
+            />
+          )}
+          {connection ? (
+            <ConnectionRoute
+              connection={connection}
+              mode="sending"
+              className="min-w-0 text-[11px]"
+            />
+          ) : channelAccount ? (
+            // The same answer for a channel account. Without it a Telegram
+            // thread said nothing about where its reply was going.
+            <ChannelRoute
+              label={
+                channelAccount.displayName?.trim() || channelAccount.channelName
+              }
+              address={channelAddress}
+              className="min-w-0 text-[11px]"
+            />
+          ) : null}
+          {trailing && (
+            <div className="ml-auto flex shrink-0 items-center">{trailing}</div>
           )}
         </div>
 

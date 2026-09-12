@@ -3,6 +3,8 @@ import type { Contact, Message } from "@wateaminbox/shared";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router";
+import { useCustomerChats } from "../contact/useCustomerChats";
+import { activeThread, threadSearch, withoutThread } from "./chat-thread-param";
 import { toast } from "sonner";
 import { createWhatsAppAlbumId } from "../../components/chat/media-gallery";
 import { useWorkspace } from "../../contexts/workspace-context";
@@ -40,7 +42,10 @@ function mapContactDetailToContact(detail: ContactDetail): Contact {
 
 export interface ChatPageState {
   // Chat selection
+  /** The thread being read: the row's own, or one switched to within it. */
   selectedChatId: string | undefined;
+  /** The inbox row that owns the thread, for list selection only. */
+  selectedRowId: string | undefined;
   selectedContact: Contact | undefined;
   contactLoadError: Error | null;
   isContactLoading: boolean;
@@ -117,6 +122,9 @@ export interface ChatPageActions {
   // React to message
   handleReactMessage: (message: Message, emoji: string) => void;
 
+  /** Switch to another of this customer's threads, staying on their row. */
+  handleThreadSelect: (chatId: string) => void;
+
   // Forward message
   handleForwardMessage: (message: Message) => void;
   handleForwardToContact: (targetContactId: string) => void;
@@ -135,7 +143,15 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
   // back/forward gestures update `contactId` immediately; mirroring it in
   // component state via an effect leaves the mobile shell and its panels on
   // different routes for an extra render and can strand both panels offscreen.
-  const selectedChatId = contactId;
+  // A merged customer is one row in the inbox but several threads. The row
+  // stays in the path so the sidebar keeps it selected, and the thread being
+  // read rides in `?thread=`. Everything downstream - messages, composer,
+  // lifecycle actions, read receipts - is keyed on the active thread, which is
+  // what a merge never combines.
+  const activeThreadId = activeThread(search);
+  const selectedChatId = activeThreadId ?? contactId;
+  /** The inbox row this thread belongs to, for list selection only. */
+  const selectedRowId = contactId;
 
   // Panel visibility state
   const [isProfileOpen, setIsProfileOpen] = React.useState(false);
@@ -214,8 +230,16 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
   }, [refetchContact]);
 
   // Get typing indicators from store - use selector with specific conversation ID
-  // to avoid re-renders on typing changes in other conversations
-  const jid = contactDetail?.jid;
+  // to avoid re-renders on typing changes in other conversations.
+  //
+  // The JID has to be the open thread's. A contact read canonicalises to the
+  // surviving customer, whose JID is null when they arrived on another
+  // channel, so this matched nothing and "is typing" never appeared; for two
+  // merged WhatsApp threads it showed the other one's.
+  const { data: threadsForTyping = [] } = useCustomerChats(contactId);
+  const jid =
+    threadsForTyping.find((thread) => thread.chatId === selectedChatId)?.jid ??
+    contactDetail?.jid;
   const typingIndicators = useChatStore(
     React.useCallback(
       (state) => (jid ? state.typingIndicators.get(jid) : undefined),
@@ -284,12 +308,34 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
       // Carry the query string across: it holds the Chats/Groups filter, so
       // dropping it would silently send the user back to the Chats list when
       // they close a group they opened from Groups.
+      // Selecting a different chat abandons any thread switch: carrying
+      // `thread` across would open the previous customer's thread under the
+      // new one.
       navigate({
         pathname: workspacePath(activeWorkspaceId, "chat", chatId || undefined),
-        search,
+        search: withoutThread(search),
       });
     },
     [activeWorkspaceId, navigate, search],
+  );
+
+  /**
+   * Open another of this customer's threads without leaving their inbox row.
+   *
+   * The row stays in the path, so the sidebar selection and the merged
+   * customer's identity hold still while the conversation underneath changes -
+   * switching to a thread by navigating to it would land on a chat the list no
+   * longer shows, since a merged-away contact has no row of its own.
+   */
+  const handleThreadSelect = React.useCallback(
+    (chatId: string) => {
+      if (!activeWorkspaceId) return;
+      navigate({
+        pathname: workspacePath(activeWorkspaceId, "chat", contactId),
+        search: threadSearch(search, chatId, contactId),
+      });
+    },
+    [activeWorkspaceId, contactId, navigate, search],
   );
 
   // Profile panel handlers
@@ -579,6 +625,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
   return {
     // State
     selectedChatId,
+    selectedRowId,
     selectedContact,
     contactLoadError,
     isContactLoading,
@@ -598,6 +645,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
 
     // Actions
     handleChatSelect,
+    handleThreadSelect,
     retryContactLoad,
     handleOpenProfile,
     handleOpenParticipantProfile,

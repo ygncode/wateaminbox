@@ -145,6 +145,11 @@ export const env = {
   CHANNEL_SPINE_DEFAULT_REVISION: getEnv("CHANNEL_SPINE_DEFAULT_REVISION", ""),
   // Comma-separated key-version:base64(32-byte) entries. Required only when
   // channel-provider credentials are provisioned or consumed.
+  // Where a channel provider reaches this deployment, when that is not where
+  // humans open the app. A webhook must be publicly routable HTTPS, which in
+  // local development means a tunnel; `APP_URL` stays pointed at the app so
+  // email, OAuth consent, and invite links keep working.
+  CHANNEL_INGRESS_PUBLIC_URL: getEnv("CHANNEL_INGRESS_PUBLIC_URL", ""),
   CHANNEL_CREDENTIAL_ENCRYPTION_KEYS: getEnv(
     "CHANNEL_CREDENTIAL_ENCRYPTION_KEYS",
     "",

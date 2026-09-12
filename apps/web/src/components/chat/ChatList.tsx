@@ -35,7 +35,7 @@ import { usePrefetchContact } from "../../hooks/usePrefetch";
 import { useWhatsAppConnections } from "../../hooks/useWhatsAppConnections";
 import { mergeInboxChats } from "../../lib/api/transformers";
 import { workspacePath } from "../../lib/workspace-routes";
-import type { Chat, ChatListProps } from "../../types/chat";
+import type { ChatListProps } from "../../types/chat";
 import { BrandMark } from "../brand/BrandMark";
 import { AddContactDialog } from "../contacts/AddContactDialog";
 import { TagSearchInput } from "../tags/TagSearchInput";
@@ -52,9 +52,9 @@ import { ChatListSearch } from "./ChatListSearch";
 import { getConnectionLabel } from "./ConnectionIdentity";
 import {
   CONVERSATION_STATUS_OPTIONS,
+  chatMatchesAccount,
   dedupeInboxAccounts,
   readChatListFilters,
-  resolveOwningAccountId,
   writeChatListFilters,
 } from "./chat-list-filters";
 import { chatMatchesSearch } from "./chat-search";
@@ -217,11 +217,6 @@ export const ChatList = memo(function ChatList({
     ];
   }, [channelAccounts, connections]);
 
-  const owningAccountId = useCallback(
-    (chat: Chat) => resolveOwningAccountId(chat, channelConversations),
-    [channelConversations],
-  );
-
   // Filter archived chats for main view
   const visibleChats = useMemo(() => {
     return mergeInboxChats(chats ?? [], channelConversations).filter((chat) => {
@@ -234,7 +229,10 @@ export const ChatList = memo(function ChatList({
         return false;
       }
       if (assignmentFilter === "unread" && chat.unreadCount <= 0) return false;
-      if (accountFilter !== "all" && owningAccountId(chat) !== accountFilter) {
+      if (
+        accountFilter !== "all" &&
+        !chatMatchesAccount(chat, accountFilter, channelConversations)
+      ) {
         return false;
       }
       if (
@@ -251,7 +249,6 @@ export const ChatList = memo(function ChatList({
     channelConversations,
     chats,
     conversationStatusFilter,
-    owningAccountId,
     searchQuery,
   ]);
   const connectionState = resolveInboxConnectionState({

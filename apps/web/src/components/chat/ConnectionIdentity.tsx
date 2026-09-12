@@ -109,6 +109,43 @@ export function ConnectionBadge({
   );
 }
 
+/**
+ * The account a message will leave on, for any channel.
+ *
+ * The WhatsApp route above reads a linked device; a customer reachable on
+ * Telegram needs the same answer from its bot account, and a merged customer
+ * needs it most of all - the account changes as the thread does, and a
+ * composer that does not say which one is about to send is how a reply leaves
+ * on the wrong network.
+ */
+export function ChannelRoute({
+  label,
+  address,
+  className,
+}: {
+  label: string;
+  address?: string | null;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex min-w-0 items-center gap-1.5 text-xs text-gray-500 dark:text-dark-text-secondary",
+        className,
+      )}
+    >
+      <Radio className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span className="shrink-0">via</span>
+      <span className="truncate font-semibold text-gray-700 dark:text-dark-text-primary">
+        {label}
+      </span>
+      {address && address !== label && (
+        <span className="truncate font-mono text-[11px]">{address}</span>
+      )}
+    </span>
+  );
+}
+
 interface ConnectionRouteProps {
   connection: WhatsAppConnectionIdentity;
   mode: "receiving" | "sending";

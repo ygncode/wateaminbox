@@ -219,7 +219,15 @@ build_go_services() {
     print_status "Building Go services..."
 
     # Build WhatsApp worker
-    (cd services/whatsapp && go build -o whatsapp-worker.next main.go && mv whatsapp-worker.next whatsapp-worker)
+    # The re-sign is for macOS, where the Go linker's ad-hoc signature is
+    # sometimes rejected by the kernel even though `codesign -v` accepts it.
+    # A worker spawned from such a binary is SIGKILLed as "Code Signature
+    # Invalid" before it can print anything, which surfaces in the app as
+    # "signal: killed" with no cause.
+    (cd services/whatsapp && go build -o whatsapp-worker.next main.go &&
+        mv whatsapp-worker.next whatsapp-worker &&
+        { command -v codesign >/dev/null 2>&1 &&
+            codesign --force --sign - whatsapp-worker >/dev/null 2>&1 || true; })
     print_success "  WhatsApp worker built"
 
     # Build orchestrator (create tmp dir for air)

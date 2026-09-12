@@ -4,7 +4,12 @@ tmp_dir = "tmp"
 [build]
   # Build to a new inode before replacing the running executable. Overwriting a
   # mapped Mach-O in place can invalidate its macOS code signature.
-  cmd = "go build -o whatsapp-worker.next . && mv whatsapp-worker.next whatsapp-worker && echo '[air] WhatsApp worker binary rebuilt'"
+  # The re-sign is for macOS: the Go linker's ad-hoc signature is sometimes
+  # rejected by the kernel even though `codesign -v` accepts it, and the
+  # orchestrator's freshly spawned worker is SIGKILLed as "Code Signature
+  # Invalid" before it prints a line. That reads as the QR step failing with
+  # "signal: killed" and no cause. Harmless where codesign does not exist.
+  cmd = "go build -o whatsapp-worker.next . && mv whatsapp-worker.next whatsapp-worker && (command -v codesign >/dev/null 2>&1 && codesign --force --sign - whatsapp-worker >/dev/null 2>&1 || true) && echo '[air] WhatsApp worker binary rebuilt'"
   # We don't actually run the binary (orchestrator spawns workers)
   # Using 'true' as a no-op since air requires an entrypoint
   entrypoint = ["/usr/bin/true"]

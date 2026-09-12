@@ -5,14 +5,31 @@ import { env } from "../lib/env.js";
 import { getTenantConnection } from "./tenant.service.js";
 
 export type ChannelCredentialKind =
-  | "telegram_webhook_secret"
-  | "telegram_bot_token";
+  "telegram_webhook_secret" | "telegram_bot_token";
 
 interface EncryptedCredential {
   encryptedValue: Buffer;
   nonce: Buffer;
   authTag: Buffer;
   keyVersion: string;
+}
+
+/**
+ * The keyring cannot serve this credential.
+ *
+ * A distinct type because it is a deployment fault, not a provider one: the
+ * stored credential is intact and the remote service is fine, but this process
+ * was started without the key that opens it. Callers that would otherwise
+ * report "we could not tell what happened" - a send whose outcome is unknown,
+ * a webhook that looks unauthorized - must be able to tell the difference and
+ * say so, because the fix is an operator changing configuration rather than a
+ * retry or a reconnection.
+ */
+export class ChannelCredentialKeyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ChannelCredentialKeyError";
+  }
 }
 
 export class ChannelCredentialCipher {
@@ -24,7 +41,9 @@ export class ChannelCredentialCipher {
   ) {
     this.#keys = parseKeyring(serializedKeyring);
     if (!activeKeyVersion || !this.#keys.has(activeKeyVersion)) {
-      throw new Error("active channel credential key is unavailable");
+      throw new ChannelCredentialKeyError(
+        "active channel credential key is unavailable",
+      );
     }
   }
 
@@ -48,7 +67,11 @@ export class ChannelCredentialCipher {
 
   decrypt(encrypted: EncryptedCredential, associatedData: string): string {
     const key = this.#keys.get(encrypted.keyVersion);
-    if (!key) throw new Error("channel credential key version is unavailable");
+    if (!key) {
+      throw new ChannelCredentialKeyError(
+        "channel credential key version is unavailable",
+      );
+    }
     const decipher = createDecipheriv("aes-256-gcm", key, encrypted.nonce);
     decipher.setAAD(Buffer.from(associatedData));
     decipher.setAuthTag(encrypted.authTag);
@@ -130,7 +153,12 @@ export async function resolveTelegramWebhookSecret(context: {
       context.channelAccountId,
       "telegram_webhook_secret",
     );
-  } catch {
+  } catch (error) {
+    // A missing key is a deployment fault and must not be reported as "this
+    // account has no secret", which the caller can only read as a failed
+    // signature check. Everything else stays null: a genuinely absent
+    // credential is not exceptional.
+    if (error instanceof ChannelCredentialKeyError) throw error;
     return null;
   }
 }
@@ -174,15 +202,21 @@ function parseKeyring(serialized: string): ReadonlyMap<string, Buffer> {
   for (const entry of serialized.split(",")) {
     if (!entry.trim()) continue;
     const separator = entry.indexOf(":");
-    if (separator <= 0) throw new Error("invalid channel credential keyring");
+    if (separator <= 0) {
+      throw new ChannelCredentialKeyError("invalid channel credential keyring");
+    }
     const version = entry.slice(0, separator).trim();
     const encoded = entry.slice(separator + 1).trim();
     const key = Buffer.from(encoded, "base64");
     if (!version || key.length !== 32 || key.toString("base64") !== encoded) {
-      throw new Error("invalid channel credential encryption key");
+      throw new ChannelCredentialKeyError(
+        "invalid channel credential encryption key",
+      );
     }
     if (keys.has(version))
-      throw new Error("duplicate channel credential key version");
+      throw new ChannelCredentialKeyError(
+        "duplicate channel credential key version",
+      );
     keys.set(version, key);
   }
   return keys;
