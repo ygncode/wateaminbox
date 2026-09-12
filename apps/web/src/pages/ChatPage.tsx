@@ -238,7 +238,8 @@ export function ChatPage() {
       try {
         const destination = await createSharedContact.mutateAsync({
           phoneNumber,
-          connectionId: selectedContact?.connection?.id,
+          connectionId:
+            activeThread?.connection?.id ?? selectedContact?.connection?.id,
           customName: contact.displayName.slice(0, 100),
         });
         setSharedContactCard(null);
@@ -264,7 +265,13 @@ export function ChatPage() {
         );
       }
     },
-    [createSharedContact, handleChatSelect, selectedContact?.connection?.id, t],
+    [
+      activeThread?.connection?.id,
+      createSharedContact,
+      handleChatSelect,
+      selectedContact?.connection?.id,
+      t,
+    ],
   );
 
   const handleMessageProfileContact = useCallback(() => {
@@ -277,11 +284,20 @@ export function ChatPage() {
   // ComposerLifecycleArea below - both must agree on whether this user can
   // currently send, or the reply/react/retry affordances rendered here could
   // diverge from what the composer itself shows.
-  const { access: composerAccess } = useComposerAccess(selectedChatId ?? null);
+  // Assignment and blocked state belong to the thread being read. Asking
+  // about the surviving customer gates the wrong conversation: a thread
+  // assigned to someone else shows a live composer, and one assigned to this
+  // user shows the take-over bar that assigning cannot clear.
+  const { access: composerAccess } = useComposerAccess(
+    activeThread?.contactId ?? selectedChatId ?? null,
+  );
   const canSend = composerAccess.kind === "sendable";
+  // The thread's own JID decides this. A merged customer's surviving contact
+  // may be neutral and JID-less, which read as "not a group" and stripped
+  // mentions from a WhatsApp group thread the operator was actually in.
+  const threadJid = activeThread?.jid ?? threadContact?.jid;
   const isSelectedGroup = Boolean(
-    threadContact &&
-    (threadContact.isGroup || threadContact.jid?.endsWith("@g.us")),
+    threadContact && (threadContact.isGroup || threadJid?.endsWith("@g.us")),
   );
   const { data: selectedGroup } = useGroup(
     isSelectedGroup ? (selectedChatId ?? null) : null,
@@ -362,9 +378,15 @@ export function ChatPage() {
           />
           {isSearchOpen && (
             <ConversationSearch
-              contactId={selectedContact?.id}
+              // Scoped to the thread on screen. The canonical contact's id
+              // searched the surviving customer's other conversation, and the
+              // API prefers `contactId` when both are given, so results came
+              // from a thread whose messages are not even rendered.
+              contactId={activeThread?.contactId ?? selectedContact?.id}
               conversationId={
-                threadContact.conversationId ?? channelConversation?.id
+                activeThread?.conversationId ??
+                threadContact.conversationId ??
+                channelConversation?.id
               }
               onClose={handleCloseSearch}
               onNavigateToMessage={handleNavigateToMessage}

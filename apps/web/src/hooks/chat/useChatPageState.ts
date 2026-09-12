@@ -3,11 +3,8 @@ import type { Contact, Message } from "@wateaminbox/shared";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router";
-import {
-  activeThread,
-  threadSearch,
-  withoutThread,
-} from "./chat-thread-param";
+import { useCustomerChats } from "../contact/useCustomerChats";
+import { activeThread, threadSearch, withoutThread } from "./chat-thread-param";
 import { toast } from "sonner";
 import { createWhatsAppAlbumId } from "../../components/chat/media-gallery";
 import { useWorkspace } from "../../contexts/workspace-context";
@@ -233,8 +230,16 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
   }, [refetchContact]);
 
   // Get typing indicators from store - use selector with specific conversation ID
-  // to avoid re-renders on typing changes in other conversations
-  const jid = contactDetail?.jid;
+  // to avoid re-renders on typing changes in other conversations.
+  //
+  // The JID has to be the open thread's. A contact read canonicalises to the
+  // surviving customer, whose JID is null when they arrived on another
+  // channel, so this matched nothing and "is typing" never appeared; for two
+  // merged WhatsApp threads it showed the other one's.
+  const { data: threadsForTyping = [] } = useCustomerChats(contactId);
+  const jid =
+    threadsForTyping.find((thread) => thread.chatId === selectedChatId)?.jid ??
+    contactDetail?.jid;
   const typingIndicators = useChatStore(
     React.useCallback(
       (state) => (jid ? state.typingIndicators.get(jid) : undefined),
