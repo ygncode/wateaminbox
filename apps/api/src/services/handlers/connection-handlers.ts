@@ -66,6 +66,10 @@ export const PAIRED_SESSION_STOP_POLICIES = {
   admissionUnavailable: { unlink: false, endSession: false, archive: false },
   admissionRejected: { unlink: true, endSession: true, archive: false },
   identityRejected: { unlink: true, endSession: true, archive: true },
+  // A QR that expired unscanned never paired a device, so there is nothing to
+  // log out of and no account to archive: the worker is simply stopped and the
+  // dead setup attempt is closed.
+  qrExpired: { unlink: false, endSession: true, archive: false },
 } as const;
 
 type PairedSessionStopPolicy =
@@ -346,14 +350,69 @@ export async function handleConnectedEvent(
 /**
  * Handles WhatsApp disconnection events
  */
+/** whatsmeow's QR channel emits this once the last code in a batch expires. */
+const QR_TIMEOUT_REASON = "qr_timeout";
+
+/**
+ * A setup attempt whose QR expired unscanned is finished, and nothing else ends
+ * it. The worker keeps running with no paired device, answering health checks
+ * and holding a connection slot against the fleet cap until an operator
+ * notices, while the session row keeps `ended_at` null and so still reads as
+ * the connection's active session.
+ *
+ * Only an unscanned attempt qualifies. A session that ever reached `connected`
+ * owns real credentials, so a late or replayed timeout must leave it alone, and
+ * an already-ended session must not be stamped or killed twice -- JetStream
+ * redelivers, and `updateSessionStatus(..., "ended")` deliberately does not
+ * guard on `ended_at`.
+ */
+async function isUnscannedPairingAttempt(
+  tenantDb: Kysely<TenantDatabase>,
+  sessionId: string,
+): Promise<boolean> {
+  const session = await tenantDb
+    .selectFrom("whatsapp_connection_sessions")
+    .select(["connected_at", "ended_at"])
+    .where("id", "=", sessionId)
+    .executeTakeFirst();
+  return Boolean(session) && !session?.connected_at && !session?.ended_at;
+}
+
 export async function handleDisconnectedEvent(
   event: ConnectionEvent,
   // Injected so tests need no global module mock for the tenant database.
   // Mocking `tenant.service` swaps it for every test file in the run, which
   // breaks suites that need the real Kysely builder.
   tenantDb: Kysely<TenantDatabase> = getTenantConnection(event.companyId),
+  // Injected for the same reason: the stop path enqueues a NATS command.
+  stopSession: typeof stopPairedSession = stopPairedSession,
 ): Promise<void> {
   const { companyId, connectionId, sessionId, payload } = event;
+
+  // A logged-out device had credentials and is handled below; only the
+  // pairing-time timeout lands here.
+  if (
+    event.type === "disconnected" &&
+    payload.reason === QR_TIMEOUT_REASON &&
+    sessionId &&
+    (await isUnscannedPairingAttempt(tenantDb, sessionId))
+  ) {
+    logger.info(
+      { companyId, connectionId, sessionId },
+      "Ending pairing session whose QR expired unscanned",
+    );
+    await stopSession({
+      companyId,
+      connectionId,
+      sessionId,
+      reason: "The QR code expired before anyone scanned it.",
+      code: QR_TIMEOUT_REASON,
+      title: "WhatsApp setup expired",
+      commandReason: "QR pairing expired without a scan",
+      policy: PAIRED_SESSION_STOP_POLICIES.qrExpired,
+    });
+    return;
+  }
 
   // Both event types land here, but only one can recover on its own. A drop is
   // retried with backoff and usually heals unattended; whatsmeow emits
