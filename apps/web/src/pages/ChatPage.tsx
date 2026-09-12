@@ -371,6 +371,8 @@ export function ChatPage() {
         <>
           <MessageHeader
             contact={threadContact}
+            thread={activeThread}
+            threadCount={customerThreads.length}
             onOpenProfile={handleOpenProfile}
             onSearch={handleOpenSearch}
             isTyping={isContactTyping}
