@@ -132,6 +132,10 @@ export async function purgeArchivedChannelAccount(
       .where("channel_account_id", "=", accountId)
       .execute();
     await trx
+      .deleteFrom("message_reactions")
+      .where("channel_account_id", "=", accountId)
+      .execute();
+    await trx
       .deleteFrom("channel_accounts")
       .where("id", "=", accountId)
       .execute();
