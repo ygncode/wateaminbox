@@ -725,6 +725,8 @@ export interface ConnectionEmailAlertsTable {
   next_attempt_at: Date;
   attempts: Generated<number>;
   sent_at: Date | null;
+  /** Provider identifier for the accepted send; null until mail is accepted. */
+  message_id: string | null;
 }
 
 export interface WhatsAppConnectionsTable {

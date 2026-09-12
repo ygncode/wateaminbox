@@ -137,7 +137,7 @@ export async function processConnectionEmailAlerts(
         throw new Error("Mail provider did not accept connection alert");
       await tenantDb
         .updateTable("connection_email_alerts")
-        .set({ sent_at: new Date() })
+        .set({ sent_at: new Date(), message_id: result.messageId ?? null })
         .where("id", "=", alert.id)
         .execute();
       logger.info(

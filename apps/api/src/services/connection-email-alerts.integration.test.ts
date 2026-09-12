@@ -186,6 +186,37 @@ describe("durable connection emails", () => {
       }),
   );
   integration(
+    "records the provider message id and drops it when escalation rearms the alert",
+    () =>
+      fixture(async (f) => {
+        await f.update({ status: "disconnected" });
+        await f.due();
+        await processConnectionEmailAlerts(f.tenant, f.companyId, {
+          sender: async (mail) => ({
+            success: true,
+            messageId: `msg-${mail.to}`,
+          }),
+        });
+        const sent = await f.rows();
+        expect(sent.map((r) => r.message_id)).toEqual(
+          sent.map(
+            (r) => `msg-${f.users.find((u) => u.id === r.user_id)?.email}`,
+          ),
+        );
+        // Escalation rotates the alert id, so the earlier send must not stay
+        // attributed to the new incident.
+        await f.update({ logged_out_at: new Date() });
+        expect((await f.rows()).every((r) => r.message_id === null)).toBe(true);
+        // A provider that accepts without an id still records the send.
+        await processConnectionEmailAlerts(f.tenant, f.companyId, {
+          sender: async () => ({ success: true }),
+        });
+        expect(
+          (await f.rows()).every((r) => r.sent_at && r.message_id === null),
+        ).toBe(true);
+      }),
+  );
+  integration(
     "competing replicas claim recipients once and failed mail retries independently",
     () =>
       fixture(async (f) => {
