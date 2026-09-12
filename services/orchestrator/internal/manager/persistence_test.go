@@ -175,6 +175,36 @@ func TestRestartCountLookupIsScopedToTenantAndLaunch(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+func TestRestartBudgetResetIsScopedToTheLiveGenerationAndSkipsAnUnspentBudget(t *testing.T) {
+	registry, mock := newMockRegistry(t)
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET restart_count = 0\n\t\tWHERE connection_id = $1 AND company_id = $2 AND launch_id = $3 AND desired_state = $4\n\t\t  AND restart_count <> 0")).
+		WithArgs("connection", "company", "launch", DesiredStateRunning).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	reset, err := registry.ResetRestartCountLaunch(
+		context.Background(), "connection", "company", "launch",
+	)
+	require.NoError(t, err)
+	assert.True(t, reset)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRestartBudgetResetReportsNoRowWhenNothingMatched(t *testing.T) {
+	registry, mock := newMockRegistry(t)
+	// A superseded launch, a stopped connection, or a budget already at zero all
+	// land here: the statement is a no-op rather than an error.
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET restart_count = 0")).
+		WithArgs("connection", "company", "launch-old", DesiredStateRunning).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	reset, err := registry.ResetRestartCountLaunch(
+		context.Background(), "connection", "company", "launch-old",
+	)
+	require.NoError(t, err)
+	assert.False(t, reset)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestRuntimeStatusUpdateIsGenerationNodeAndLifecycleScoped(t *testing.T) {
 	registry, mock := newMockRegistry(t)
 	mock.ExpectExec(regexp.QuoteMeta("UPDATE worker_registry SET status = $1 WHERE connection_id = $2 AND company_id = $3 AND launch_id = $4 AND node_id = $5 AND desired_state = 'running' AND status IN ('starting', 'connecting', 'connected', 'disconnected') AND status IS DISTINCT FROM $1")).

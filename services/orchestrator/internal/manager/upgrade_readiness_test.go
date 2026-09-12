@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"sync"
 	"testing"
@@ -345,4 +346,131 @@ func TestRecoverWorkerUpgradeOwnsWriterGateBeforeReturning(t *testing.T) {
 		return true
 	}, time.Second, 10*time.Millisecond)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// resetRecorder captures the durable restart-budget resets a readiness chain
+// triggers, standing in for the registry so the path runs without a database.
+type resetRecorder struct {
+	mu    sync.Mutex
+	calls [][3]string
+	err   error
+}
+
+func (r *resetRecorder) reset(_ context.Context, connectionID, companyID, launchID string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, [3]string{connectionID, companyID, launchID})
+	return r.err == nil, r.err
+}
+
+func (r *resetRecorder) recorded() [][3]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([][3]string(nil), r.calls...)
+}
+
+// completeReadinessChain drives the three signals that make a generation ready.
+func completeReadinessChain(manager *Manager, company, connection, launch, version string) {
+	for _, status := range []string{
+		sharednats.WorkerRuntimeStatusProcessReady,
+		sharednats.WorkerRuntimeStatusConnected,
+		sharednats.WorkerRuntimeStatusAuthenticated,
+	} {
+		manager.RecordWorkerRuntimeStatus(runtimeStatus(company, connection, launch, version, status))
+	}
+}
+
+func readyManager(t *testing.T, restartCount int) (*Manager, *resetRecorder) {
+	t.Helper()
+	manager := New(Config{})
+	recorder := &resetRecorder{}
+	manager.resetWorkerRestartCount = recorder.reset
+	manager.workers["connection"] = &WorkerProcess{
+		CompanyID: "company", ConnectionID: "connection", LaunchID: "launch",
+		ArtifactVersion: "v2", RestartCount: restartCount, readinessToken: testReadinessToken,
+	}
+	return manager, recorder
+}
+
+func TestFullReadinessClearsTheRestartBudget(t *testing.T) {
+	manager, recorder := readyManager(t, 4)
+
+	completeReadinessChain(manager, "company", "connection", "launch", "v2")
+
+	worker, ok := manager.GetWorkerStatus("connection")
+	require.True(t, ok)
+	assert.Equal(t, 0, worker.RestartCount, "a fully ready generation keeps no spent budget")
+	assert.Equal(
+		t,
+		[][3]string{{"connection", "company", "launch"}},
+		recorder.recorded(),
+		"the durable reset names the exact generation, once",
+	)
+}
+
+func TestReadinessWithNoSpentBudgetSkipsTheDurableReset(t *testing.T) {
+	manager, recorder := readyManager(t, 0)
+
+	completeReadinessChain(manager, "company", "connection", "launch", "v2")
+	// A steady connection re-announcing readiness must stay free.
+	completeReadinessChain(manager, "company", "connection", "launch", "v2")
+
+	assert.Empty(t, recorder.recorded(), "an unspent budget needs no database round trip")
+}
+
+func TestPartialReadinessLeavesTheRestartBudgetAlone(t *testing.T) {
+	manager, recorder := readyManager(t, 4)
+
+	// Connected and authenticated, but the process never reported ready: the
+	// chain is incomplete, so nothing has been proven about this generation.
+	manager.RecordWorkerRuntimeStatus(runtimeStatus("company", "connection", "launch", "v2", sharednats.WorkerRuntimeStatusConnected))
+	manager.RecordWorkerRuntimeStatus(runtimeStatus("company", "connection", "launch", "v2", sharednats.WorkerRuntimeStatusAuthenticated))
+
+	worker, ok := manager.GetWorkerStatus("connection")
+	require.True(t, ok)
+	assert.Equal(t, 4, worker.RestartCount)
+	assert.Empty(t, recorder.recorded())
+}
+
+func TestSupersededGenerationCannotClearTheRestartBudget(t *testing.T) {
+	manager, recorder := readyManager(t, 4)
+
+	// Every signal carries a launch ID the manager no longer owns.
+	completeReadinessChain(manager, "company", "connection", "launch-old", "v2")
+
+	worker, ok := manager.GetWorkerStatus("connection")
+	require.True(t, ok)
+	assert.Equal(t, 4, worker.RestartCount, "a stale generation must not refill a live budget")
+	assert.Empty(t, recorder.recorded())
+}
+
+func TestRestartBudgetResetSurvivesARegistryFailure(t *testing.T) {
+	manager, recorder := readyManager(t, 4)
+	recorder.err = errors.New("registry unavailable")
+
+	completeReadinessChain(manager, "company", "connection", "launch", "v2")
+
+	worker, ok := manager.GetWorkerStatus("connection")
+	require.True(t, ok)
+	assert.Equal(t, 0, worker.RestartCount, "the worker is healthy whatever the registry says")
+	assert.Len(t, recorder.recorded(), 1)
+	assert.True(t, worker.ProcessReady && worker.RuntimeConnected && worker.Authenticated,
+		"a bookkeeping failure must not break the readiness chain")
+}
+
+func TestRestartBudgetIsClearedAgainAfterAReconnect(t *testing.T) {
+	manager, recorder := readyManager(t, 2)
+
+	completeReadinessChain(manager, "company", "connection", "launch", "v2")
+	// A drop invalidates the chain; the next crash spends budget again.
+	manager.RecordWorkerRuntimeStatus(runtimeStatus("company", "connection", "launch", "v2", sharednats.WorkerRuntimeStatusDisconnected))
+	manager.mu.Lock()
+	manager.workers["connection"].RestartCount = 3
+	manager.mu.Unlock()
+	completeReadinessChain(manager, "company", "connection", "launch", "v2")
+
+	worker, ok := manager.GetWorkerStatus("connection")
+	require.True(t, ok)
+	assert.Equal(t, 0, worker.RestartCount)
+	assert.Len(t, recorder.recorded(), 2, "each recovery to full readiness clears the budget")
 }
