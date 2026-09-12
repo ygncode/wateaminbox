@@ -54,6 +54,7 @@ import { firstChatAcknowledgmentRoutes } from "./first-chat-acknowledgment.js";
 import { assignmentRoutes } from "./assignment.js";
 import { customerChatsRoutes } from "./chats.js";
 import { mergeRoutes } from "./merge.js";
+import { customerLifecycleRoutes } from "./lifecycle.js";
 import { timelineRoutes } from "./timeline.js";
 import { importRoutes } from "./import.js";
 // Import sub-routes
@@ -75,6 +76,7 @@ contactRoutes.route("/", assignmentRoutes);
 contactRoutes.route("/", mergeRoutes);
 contactRoutes.route("/", customerChatsRoutes);
 contactRoutes.route("/", timelineRoutes);
+contactRoutes.route("/", customerLifecycleRoutes);
 contactRoutes.route("/", firstChatAcknowledgmentRoutes);
 
 // Direct contact resources must honor assignment visibility.
