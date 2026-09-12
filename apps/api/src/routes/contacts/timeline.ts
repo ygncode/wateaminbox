@@ -3,8 +3,10 @@ import { z } from "zod";
 import { badRequest, notFound } from "../../lib/errors.js";
 import {
   authorizeMessageMedia,
+  buildQuotedMessageData,
   formatMessagesForConversation,
   type MessageDbRow,
+  type QuotedMessageData,
 } from "../../lib/message-formatters.js";
 import { loadMessageReactions } from "../../lib/message-reactions.js";
 import { successData } from "../../lib/response.js";
@@ -98,6 +100,7 @@ timelineRoutes.get(
       kept as MessageDbRow[],
       companyId,
     );
+    const quotes = await loadThreadScopedQuotes(tenantDb, authorized);
     const reactions = await loadMessageReactions(tenantDb, authorized);
     const userNames = await getUserNames(
       authorized
@@ -114,6 +117,7 @@ timelineRoutes.get(
         userNames,
         new Map(),
         threads,
+        (message) => quotes.get(message.id) ?? null,
       ).reverse(),
       canonicalContactId: resolved.canonicalContactId,
       hasMore: page.hasMore,
@@ -121,3 +125,71 @@ timelineRoutes.get(
     });
   },
 );
+
+/**
+ * The quoted message behind each reply, keyed by the replying message.
+ *
+ * Keyed by the reply rather than by the quote reference, because a timeline
+ * spans threads and two threads can carry the same provider message id. The
+ * lookup also refuses to cross threads: a quote is only attached when the
+ * quoted row sits in the same conversation as the reply, so a merged view
+ * never renders one thread's message as context in another.
+ */
+async function loadThreadScopedQuotes(
+  tenantDb: ReturnType<typeof getRouteContext>["tenantDb"],
+  messages: MessageDbRow[],
+): Promise<Map<string, QuotedMessageData>> {
+  const rowIds = [
+    ...new Set(
+      messages
+        .map((message) => message.reply_to_message_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const externalIds = [
+    ...new Set(
+      messages
+        .map((message) => message.quoted_message_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  if (rowIds.length === 0 && externalIds.length === 0) return new Map();
+
+  const candidates = (await tenantDb
+    .selectFrom("messages")
+    .selectAll()
+    .where((eb) =>
+      eb.or(
+        [
+          rowIds.length > 0 ? eb("id", "in", rowIds) : null,
+          externalIds.length > 0 ? eb("message_id", "in", externalIds) : null,
+        ].filter((clause) => clause !== null),
+      ),
+    )
+    .execute()) as unknown as MessageDbRow[];
+
+  const userNames = await getUserNames(
+    candidates
+      .map((message) => message.sent_by_user_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  const quotes = new Map<string, QuotedMessageData>();
+  for (const message of messages) {
+    const match = candidates.find(
+      (candidate) =>
+        (message.reply_to_message_id
+          ? candidate.id === message.reply_to_message_id
+          : false) ||
+        (message.quoted_message_id
+          ? candidate.message_id === message.quoted_message_id
+          : false),
+    );
+    if (!match) continue;
+    if ((match.conversation_id ?? null) !== (message.conversation_id ?? null)) {
+      continue;
+    }
+    quotes.set(message.id, buildQuotedMessageData(match, userNames));
+  }
+  return quotes;
+}

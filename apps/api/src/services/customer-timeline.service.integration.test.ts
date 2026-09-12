@@ -242,6 +242,34 @@ describe("listCustomerTimeline", () => {
         expect([...walked].sort()).toEqual([...sent].sort());
         expect(walked).toEqual(all.messages.map((message) => message.id));
 
+        // A quote never reaches across threads. The WhatsApp reply below
+        // references a Telegram message id; rendering it would show one
+        // thread's message as context in another.
+        const crossThreadReply = crypto.randomUUID();
+        await tenantDb
+          .insertInto("messages")
+          .values({
+            id: crossThreadReply,
+            contact_id: target.id,
+            conversation_id: threads.whatsapp!,
+            channel_account_id: whatsappAccount,
+            from_me: true,
+            message_type: "text",
+            content: "quoting the other channel",
+            reply_to_message_id: sent[1]!,
+            timestamp: new Date(Date.UTC(2026, 8, 8, 13, 0)),
+          })
+          .execute();
+        const withReply = await listCustomerTimeline(tenantDb, {
+          threads: resolved!.threads,
+          limit: 50,
+        });
+        const reply = withReply.messages.find(
+          (message) => message.id === crossThreadReply,
+        );
+        expect(reply).toBeDefined();
+        expect(reply!.conversation_id).toBe(threads.whatsapp!);
+
         // A customer with one thread reads the same way.
         const single = await resolveCustomerThreads(
           tenantDb,
@@ -254,7 +282,8 @@ describe("listCustomerTimeline", () => {
           ),
           limit: 50,
         });
-        expect(narrowed.messages).toHaveLength(4);
+        // Four seeded WhatsApp messages plus the reply added above.
+        expect(narrowed.messages).toHaveLength(5);
       } finally {
         await teardown(fixture);
       }
