@@ -78,8 +78,12 @@ channelAccountRoutes.get("/", async (c) => {
       "last_sync_at",
       "created_at",
       "updated_at",
+      "archived_at",
     ])
-    .where("archived_at", "is", null)
+    // Archived accounts are listed too. Hiding them removed the account from
+    // the connections page while its conversations stayed in the inbox, so a
+    // disconnected Telegram bot left threads behind that nothing could clean
+    // up - the operator could see the mess and had no way to reach it.
     // A linked-device WhatsApp account is a projection of a row in
     // `whatsapp_connections`, created by dual write and the backfill so the
     // spine has something to hang conversations off. The connections API
@@ -109,6 +113,9 @@ channelAccountRoutes.get("/", async (c) => {
       lastSyncAt: account.last_sync_at,
       createdAt: account.created_at,
       updatedAt: account.updated_at,
+      // Set once the account has been disconnected. Its threads survive until
+      // the account is purged, so the operator needs to see it to clean up.
+      archivedAt: account.archived_at,
     })),
   );
 });

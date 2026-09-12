@@ -18,6 +18,9 @@ interface ChannelAccountCardProps {
   account: ChannelAccount;
   onDisconnect: () => void;
   isDisconnecting: boolean;
+  /** Erase an already-disconnected account and the history it brought in. */
+  onPurge: () => void;
+  isPurging: boolean;
   onRename: (displayName: string) => void;
   isRenaming: boolean;
   onPause: () => void;
@@ -41,6 +44,8 @@ export function ChannelAccountCard({
   account,
   onDisconnect,
   isDisconnecting,
+  onPurge,
+  isPurging,
   onRename,
   isRenaming,
   onPause,
@@ -58,6 +63,11 @@ export function ChannelAccountCard({
   const name = account.displayName?.trim() || entry?.name || account.channel;
   const [showMenu, setShowMenu] = useState(false);
   const [unlinkOpen, setUnlinkOpen] = useState(false);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  // A disconnected account keeps its conversations, so it stays listed as the
+  // only handle on them. Everything it can still do is different from a live
+  // account: it cannot send, pause, or resume - only be erased.
+  const isArchived = Boolean(account.archivedAt);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(name);
 
@@ -248,12 +258,15 @@ export function ChannelAccountCard({
                   type="button"
                   className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30"
                   onClick={() => {
-                    setUnlinkOpen(true);
+                    if (isArchived) setPurgeOpen(true);
+                    else setUnlinkOpen(true);
                     setShowMenu(false);
                   }}
                 >
                   <Trash2 className="h-4 w-4" />
-                  {t("connections.archiveUnlink", "Archive & unlink")}
+                  {isArchived
+                    ? t("connections.deletePermanently", "Delete permanently")
+                    : t("connections.archiveUnlink", "Archive & unlink")}
                 </button>
               </div>
             </>
@@ -270,6 +283,26 @@ export function ChannelAccountCard({
           Direct chats are unaffected.
         </p>
       )}
+
+      <ConfirmationDialog
+        open={purgeOpen}
+        onOpenChange={setPurgeOpen}
+        title={t("connections.deletePermanentlyConfirm", {
+          defaultValue: "Permanently delete {{name}}?",
+          name,
+        })}
+        description={t("connections.channelPurgeDescription", {
+          defaultValue:
+            "This erases the conversations, messages, and customers this account brought in. Disconnecting kept them; this does not. It cannot be undone.",
+        })}
+        confirmText={t("connections.deletePermanentlyAction", "Delete data")}
+        onConfirm={() => {
+          onPurge();
+          setPurgeOpen(false);
+        }}
+        isLoading={isPurging}
+        isDestructive
+      />
 
       <ConfirmationDialog
         open={unlinkOpen}

@@ -3,6 +3,7 @@ import { db } from "@wateaminbox/database";
 import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
 import { sql } from "kysely";
 import { mergeContacts } from "./contact-merge.service.js";
+import { purgeArchivedChannelAccount } from "./channel-account-purge.service.js";
 import { purgeArchivedConnection } from "./whatsapp/connection.js";
 import {
   clearTenantConnection,
@@ -152,6 +153,79 @@ describe("purging a connection after a merge", () => {
             .selectFrom("contact_endpoint_reassignment_events")
             .select("id")
             .execute(),
+        ).toEqual([]);
+        // The channel-account purge deletes contacts the same way and had the
+        // same trap. Proven on a second account so the two paths cannot drift.
+        const neutralAccount = crypto.randomUUID();
+        await tenantDb
+          .insertInto("channel_accounts")
+          .values({
+            id: neutralAccount,
+            channel: "telegram",
+            provider: "telegram_bot",
+            display_name: "Bot",
+            status: "archived",
+            archived_at: new Date(),
+          })
+          .execute();
+        const first = await tenantDb
+          .insertInto("contacts")
+          .values({ push_name: "Bo" })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        const second = await tenantDb
+          .insertInto("contacts")
+          .values({ push_name: "Bo 2" })
+          .returning("id")
+          .executeTakeFirstOrThrow();
+        for (const contactId of [first.id, second.id]) {
+          const endpoint = await tenantDb
+            .insertInto("contact_endpoints")
+            .values({
+              contact_id: contactId,
+              channel: "telegram",
+              provider: "telegram_bot",
+              channel_account_id: neutralAccount,
+              endpoint_kind: "person",
+              external_id: `tg-${contactId}`,
+              identity_scope: "account",
+            })
+            .returning("id")
+            .executeTakeFirstOrThrow();
+          const conversation = await tenantDb
+            .insertInto("conversations")
+            .values({
+              channel_account_id: neutralAccount,
+              client_thread_key: `telegram:${crypto.randomUUID()}`,
+              kind: "direct",
+              legacy_contact_id: contactId,
+            })
+            .returning("id")
+            .executeTakeFirstOrThrow();
+          await tenantDb
+            .insertInto("conversation_participants")
+            .values({
+              conversation_id: conversation.id,
+              contact_endpoint_id: endpoint.id,
+              participant_kind: "external",
+              role: "member",
+            })
+            .execute();
+        }
+        await mergeContacts(tenantDb, {
+          sourceContactId: second.id,
+          targetContactId: first.id,
+          actorUserId: ownerId,
+          reason: "Same customer",
+        });
+
+        const purged = await purgeArchivedChannelAccount(
+          tenantDb,
+          neutralAccount,
+        );
+        expect(purged.contactIds.sort()).toEqual([first.id, second.id].sort());
+        expect(
+          await tenantDb.selectFrom("contacts").select("id").execute(),
         ).toEqual([]);
       } finally {
         clearTenantConnection(companyId);
