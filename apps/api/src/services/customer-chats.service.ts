@@ -62,6 +62,10 @@ export async function resolveMergedContactIds(
 /**
  * The threads a customer can be reached on, newest activity first.
  *
+ * Reachable is the operative word: a thread whose channel account has been
+ * archived is history, not a way to contact anyone, and is left out. Its
+ * messages still belong to the customer and still appear in their timeline.
+ *
  * Resolved through endpoints rather than by walking merge aliases: endpoints
  * are what a merge actually moves, every conversation carries exactly one
  * endpoint-linked participant, and that path also covers a neutral thread that
@@ -126,6 +130,11 @@ export async function listCustomerChats(
       .where("endpoint.contact_id", "in", contactIds)
       .where("conversation.archived_at", "is", null)
       .where("participant.left_at", "is", null)
+      // A thread whose account was archived cannot be written to: the
+      // credentials are gone and the dispatcher will never claim its intents.
+      // Offering it in the switcher queues a message that sits pending for
+      // ever with no error, which reads as the product losing the message.
+      .where("account.archived_at", "is", null)
       .execute(),
     db
       .selectFrom("contacts as contact")
