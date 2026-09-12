@@ -57,6 +57,9 @@ export function MergedChatsSection({
   const { t } = useTranslation();
   const { data: chats = [] } = useCustomerChats(contact.id);
   const { data: merges = [] } = useMergeHistory(canManage ? contact.id : null);
+  // History outlives the merge itself: a reversed merge keeps its event. Only
+  // a merge still in effect can be undone, so only that enables the item.
+  const reversible = merges.filter((entry) => entry.reversible);
   const [openTool, setOpenTool] = useState<"edit" | "unmerge" | null>(null);
 
   if (!shouldShowMergedChats({ chatCount: chats.length, canManage })) {
@@ -94,7 +97,7 @@ export function MergedChatsSection({
                 destructive: true,
                 // Nothing merged in means nothing to split; the item stays
                 // visible so the menu does not change shape per customer.
-                disabled: merges.length === 0,
+                disabled: reversible.length === 0,
                 onClick: () => setOpenTool("unmerge"),
               },
             ]}

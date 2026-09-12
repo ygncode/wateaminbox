@@ -27,6 +27,7 @@ import { cn, formatPhoneLikeText } from "@/lib/utils";
 import type { Chat } from "@/types/chat";
 import { ChannelBadge } from "../ChannelIdentity";
 import {
+  currentMembers,
   isEmptyPlan,
   type MergedMember,
   planMergeSelection,
@@ -73,12 +74,7 @@ export function MergeEditDialog({
   const unmerge = useUnmergeContact();
 
   const members: MergedMember[] = useMemo(
-    () =>
-      merges.map((entry) => ({
-        contactId: entry.sourceContactId,
-        mergeEventId: entry.mergeEventId,
-        reversible: entry.reversible,
-      })),
+    () => currentMembers(merges),
     [merges],
   );
   const memberIds = useMemo(
@@ -286,17 +282,6 @@ export function MergeEditDialog({
                   <PickerRow
                     name={nameOfMerge(merges, member.contactId)}
                     checked={selected.has(member.contactId)}
-                    // A merge that has been merged again cannot be reversed,
-                    // so unticking it could only fail.
-                    disabled={!member.reversible}
-                    hint={
-                      member.reversible
-                        ? undefined
-                        : t(
-                            "contacts.unmergeUnavailable",
-                            "This one can no longer be reversed - the contact has been merged again since.",
-                          )
-                    }
                     onToggle={() => toggle(member.contactId)}
                   />
                 </li>
@@ -388,15 +373,11 @@ function PickerRow({
   chat,
   name,
   checked,
-  disabled,
-  hint,
   onToggle,
 }: {
   chat?: Chat;
   name: string;
   checked: boolean;
-  disabled?: boolean;
-  hint?: string;
   onToggle: () => void;
 }) {
   const contact = chat?.contact;
@@ -404,13 +385,8 @@ function PickerRow({
     <button
       type="button"
       onClick={onToggle}
-      disabled={disabled}
       aria-pressed={checked}
-      title={hint}
-      className={cn(
-        "flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent",
-        disabled && "cursor-not-allowed opacity-60",
-      )}
+      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent"
     >
       <span className="size-9 shrink-0 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-tertiary">
         {contact?.avatarUrl ? (
@@ -433,11 +409,6 @@ function PickerRow({
         {contact?.phoneNumber && (
           <span className="block truncate text-xs text-muted-foreground">
             {formatPhoneLikeText(contact.phoneNumber)}
-          </span>
-        )}
-        {hint && (
-          <span className="block truncate text-xs text-muted-foreground">
-            {hint}
           </span>
         )}
       </span>

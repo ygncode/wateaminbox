@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Chat } from "@/types/chat";
 import {
+  currentMembers,
   isEmptyPlan,
   planMergeSelection,
   selectableMergeCandidates,
@@ -126,5 +127,26 @@ describe("selectableMergeCandidates", () => {
       new Set(["b"]),
     );
     expect(candidates.map((candidate) => candidate.contact.id)).toEqual(["c"]);
+  });
+});
+
+describe("currentMembers", () => {
+  test("counts only the merges still in effect", () => {
+    // A reversed merge keeps its event as history. Reading it as membership
+    // listed someone who had already been separated back out.
+    expect(
+      currentMembers([
+        { sourceContactId: "a", mergeEventId: "e1", reversible: true },
+        { sourceContactId: "b", mergeEventId: "e2", reversible: false },
+      ]),
+    ).toEqual([{ contactId: "a", mergeEventId: "e1", reversible: true }]);
+  });
+
+  test("has no members for a customer whose merges were all undone", () => {
+    expect(
+      currentMembers([
+        { sourceContactId: "a", mergeEventId: "e1", reversible: false },
+      ]),
+    ).toEqual([]);
   });
 });

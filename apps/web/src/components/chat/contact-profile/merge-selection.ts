@@ -10,6 +10,30 @@ export interface MergedMember {
   reversible: boolean;
 }
 
+/**
+ * The merges still in effect, as the picker's ticked rows.
+ *
+ * A merge event is history and outlives the merge itself: once reversed, the
+ * row stays with `reversible: false`. Reading every event as a current member
+ * listed people who had already been separated - ticked, undismissable, and
+ * captioned with an explanation of why they could not be removed again.
+ */
+export function currentMembers(
+  merges: ReadonlyArray<{
+    sourceContactId: string;
+    mergeEventId: string;
+    reversible: boolean;
+  }>,
+): MergedMember[] {
+  return merges
+    .filter((entry) => entry.reversible)
+    .map((entry) => ({
+      contactId: entry.sourceContactId,
+      mergeEventId: entry.mergeEventId,
+      reversible: true,
+    }));
+}
+
 export interface MergeSelectionPlan {
   /** Contacts to fold in, in the order the picker offered them. */
   toMerge: string[];

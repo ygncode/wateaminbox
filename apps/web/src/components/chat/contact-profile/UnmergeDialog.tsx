@@ -41,7 +41,10 @@ export function UnmergeDialog({
   onOpenChange,
 }: UnmergeDialogProps) {
   const { t } = useTranslation();
-  const { data: merges = [] } = useMergeHistory(open ? contact.id : null);
+  const all = useMergeHistory(open ? contact.id : null).data ?? [];
+  // A reversed merge keeps its event as history; offering it here would be an
+  // action that can only fail. Only merges still in effect are listed.
+  const merges = all.filter((entry) => entry.reversible);
   const unmerge = useUnmergeContact();
   const [pendingId, setPendingId] = useState<string | null>(null);
 
@@ -115,26 +118,17 @@ export function UnmergeDialog({
                   {new Date(entry.mergedAt).toLocaleDateString()} ·{" "}
                   {entry.reason}
                 </p>
-                {entry.reversible ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-3 w-full"
-                    onClick={() => run(entry)}
-                    disabled={unmerge.isPending}
-                  >
-                    {pendingId === entry.mergeEventId
-                      ? t("contacts.unmergeInProgress", "Separating...")
-                      : t("contacts.unmergeAction", "Separate them again")}
-                  </Button>
-                ) : (
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    {t(
-                      "contacts.unmergeUnavailable",
-                      "This one can no longer be reversed - the contact has been merged again since.",
-                    )}
-                  </p>
-                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 w-full"
+                  onClick={() => run(entry)}
+                  disabled={unmerge.isPending}
+                >
+                  {pendingId === entry.mergeEventId
+                    ? t("contacts.unmergeInProgress", "Separating...")
+                    : t("contacts.unmergeAction", "Separate them again")}
+                </Button>
               </li>
             ))}
             {merges.length === 0 && (
@@ -157,15 +151,7 @@ export function UnmergeDialog({
             <Button
               variant="destructive"
               onClick={() => run(single)}
-              disabled={!single.reversible || unmerge.isPending}
-              title={
-                single.reversible
-                  ? undefined
-                  : t(
-                      "contacts.unmergeUnavailable",
-                      "This one can no longer be reversed - the contact has been merged again since.",
-                    )
-              }
+              disabled={unmerge.isPending}
             >
               {unmerge.isPending
                 ? t("contacts.unmergeInProgress", "Separating...")
