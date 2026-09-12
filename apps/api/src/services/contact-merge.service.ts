@@ -7,7 +7,31 @@ import {
   ValidationError,
 } from "../lib/errors.js";
 
+import { getChannelSpineWorkspaceAuthority } from "./channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "./channel-spine-readiness.service.js";
+
 type MergeDb = Kysely<TenantDatabase> | Transaction<TenantDatabase>;
+
+/**
+ * Whether this workspace may execute merges.
+ *
+ * The RFC blocks executing merges until inbox workflow ownership is
+ * conversation-scoped for the workspace. One function so the route that
+ * refuses the merge and the UI that offers it cannot disagree: a second copy
+ * of the gate would eventually offer an action the API always rejects.
+ *
+ * Fails closed through both underlying checks - a missing, invalid, or
+ * unavailable flag row resolves to legacy authority, and an unreadable index
+ * catalog reports not ready.
+ */
+export async function isContactMergeEnabled(
+  tenantDb: Kysely<TenantDatabase>,
+  companyId: string,
+): Promise<boolean> {
+  const authority = await getChannelSpineWorkspaceAuthority(companyId);
+  if (authority.writeAuthority !== "neutral") return false;
+  return isChannelSpineTenantReady(tenantDb, companyId);
+}
 
 /**
  * Follow `merged_into_contact_id` to the surviving contact.
@@ -167,6 +191,68 @@ export interface UnmergeInput {
   mergeEventId: string;
   actorUserId: string;
   reason: string;
+}
+
+export interface MergeHistoryEntry {
+  mergeEventId: string;
+  sourceContactId: string;
+  /** Name the merged-away customer had, for an operator deciding to reverse. */
+  sourceName: string | null;
+  actorUserId: string;
+  reason: string;
+  mergedAt: Date;
+  /** False once the source has been merged on again or already restored. */
+  reversible: boolean;
+}
+
+/**
+ * The merges that produced this customer, newest first.
+ *
+ * A merge is hard to see after the fact: the merged-away customer stops
+ * appearing anywhere, so without this the operator has no way to know which
+ * records were folded together, who decided it, or what to reverse. Showing
+ * the event id is not enough - the name is what makes the decision legible.
+ *
+ * `reversible` mirrors what the unmerge path will actually accept: the source
+ * must still point at this target. A source that was merged on again, or
+ * already restored, is reported as a fact of history rather than as an action.
+ */
+export async function listMergeHistory(
+  db: MergeDb,
+  targetContactId: string,
+): Promise<MergeHistoryEntry[]> {
+  const rows = await db
+    .selectFrom("contact_merge_events as event")
+    .leftJoin("contacts as source", "source.id", "event.source_contact_id")
+    .select([
+      "event.id as merge_event_id",
+      "event.source_contact_id as source_contact_id",
+      "event.actor_user_id as actor_user_id",
+      "event.reason as reason",
+      "event.created_at as created_at",
+      "source.custom_name as custom_name",
+      "source.push_name as push_name",
+      "source.display_name as display_name",
+      "source.phone_number as phone_number",
+      "source.merged_into_contact_id as merged_into_contact_id",
+    ])
+    .where("event.target_contact_id", "=", targetContactId)
+    .orderBy("event.created_at", "desc")
+    .execute();
+  return rows.map((row) => ({
+    mergeEventId: row.merge_event_id,
+    sourceContactId: row.source_contact_id,
+    sourceName:
+      row.custom_name ??
+      row.display_name ??
+      row.push_name ??
+      row.phone_number ??
+      null,
+    actorUserId: row.actor_user_id,
+    reason: row.reason,
+    mergedAt: row.created_at,
+    reversible: row.merged_into_contact_id === targetContactId,
+  }));
 }
 
 /**

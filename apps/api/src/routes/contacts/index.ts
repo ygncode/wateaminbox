@@ -39,7 +39,10 @@ import { requireContactVisibility } from "../../middleware/resource-visibility.j
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
-import { resolveCanonicalContactId } from "../../services/contact-merge.service.js";
+import {
+  isContactMergeEnabled,
+  resolveCanonicalContactId,
+} from "../../services/contact-merge.service.js";
 import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
 import {
   type FindOrCreateContactByPhoneResult,
@@ -49,6 +52,7 @@ import {
 } from "../../services/contact.service.js";
 import { firstChatAcknowledgmentRoutes } from "./first-chat-acknowledgment.js";
 import { assignmentRoutes } from "./assignment.js";
+import { customerChatsRoutes } from "./chats.js";
 import { mergeRoutes } from "./merge.js";
 import { importRoutes } from "./import.js";
 // Import sub-routes
@@ -68,6 +72,7 @@ contactRoutes.route("/", notesRoutes);
 contactRoutes.route("/", tagsRoutes);
 contactRoutes.route("/", assignmentRoutes);
 contactRoutes.route("/", mergeRoutes);
+contactRoutes.route("/", customerChatsRoutes);
 contactRoutes.route("/", firstChatAcknowledgmentRoutes);
 
 // Direct contact resources must honor assignment visibility.
@@ -294,6 +299,10 @@ contactRoutes.get("/:id", async (c) => {
       (contact.whatsapp_connection_id ? "whatsapp_linked_device" : null),
     assignment: assignmentWithNames,
     tags,
+    // Whether this workspace may execute a merge at all. The client hides the
+    // action rather than offering one the API would refuse; it is not a
+    // permission check, which the route still applies on its own.
+    mergeEnabled: await isContactMergeEnabled(tenantDb, companyId),
   });
 });
 

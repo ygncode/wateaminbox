@@ -5,10 +5,12 @@ import { z } from "zod";
 import { successData } from "../../lib/response.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
-import { getChannelSpineWorkspaceAuthority } from "../../services/channel-spine-authority.service.js";
-import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
+import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
 import {
+  isContactMergeEnabled,
+  listMergeHistory,
   mergeContacts,
+  resolveCanonicalContactId,
   suggestContactMerges,
   unmergeContacts,
 } from "../../services/contact-merge.service.js";
@@ -53,11 +55,7 @@ mergeRoutes.post("/:id/merge", zValidator("json", mergeSchema), async (c) => {
   // conversation-scoped for this workspace. Fail closed on missing, invalid,
   // or unavailable flags rather than merging against legacy contact-scoped
   // workflow rows.
-  const authority = await getChannelSpineWorkspaceAuthority(companyId);
-  if (
-    authority.writeAuthority !== "neutral" ||
-    !(await isChannelSpineTenantReady(tenantDb, companyId))
-  ) {
+  if (!(await isContactMergeEnabled(tenantDb, companyId))) {
     return c.json(
       { error: "Contact merge is not enabled for this workspace" },
       409,
@@ -83,6 +81,32 @@ mergeRoutes.post("/:id/merge", zValidator("json", mergeSchema), async (c) => {
 });
 
 /**
+ * What was merged into this customer.
+ *
+ * Read-only history, and outside the execution gate for the same reason
+ * suggestions are: a workspace that may no longer merge must still be able to
+ * see what it already did.
+ */
+mergeRoutes.get("/:id/merge-history", async (c) => {
+  const { tenantDb, role } = getRouteContext(c);
+  if (role === "member") {
+    return c.json({ error: "Forbidden" }, 403);
+  }
+  // The profile panel is opened with whatever id the chat list used, which is
+  // the conversation for a neutral thread, and history is recorded against the
+  // surviving customer.
+  const requestedId = c.req.param("id")!;
+  const workflowContactId =
+    (await resolveWorkflowContactId(tenantDb, requestedId)) ?? requestedId;
+  const contactId =
+    (await resolveCanonicalContactId(tenantDb, workflowContactId)) ??
+    workflowContactId;
+  return successData(c, {
+    merges: await listMergeHistory(tenantDb, contactId),
+  });
+});
+
+/**
  * Correct a merge. Addressed by merge event rather than by contact, because
  * the correction has to name the specific decision being undone: a customer
  * may have been merged more than once, and only the merge currently in effect
@@ -98,11 +122,7 @@ mergeRoutes.post(
     }
     // Same gate as executing a merge: a workspace that may not merge must not
     // be able to reach into merge history either.
-    const authority = await getChannelSpineWorkspaceAuthority(companyId);
-    if (
-      authority.writeAuthority !== "neutral" ||
-      !(await isChannelSpineTenantReady(tenantDb, companyId))
-    ) {
+    if (!(await isContactMergeEnabled(tenantDb, companyId))) {
       return c.json(
         { error: "Contact merge is not enabled for this workspace" },
         409,

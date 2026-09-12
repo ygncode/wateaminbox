@@ -5,6 +5,7 @@ import { forbidden, notFound } from "../../lib/errors.js";
 import { created, successData, successMessage } from "../../lib/response.js";
 import { assignContactSchema } from "../../lib/schemas/index.js";
 import { getRouteContext } from "../../middleware/context.js";
+import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
 import { requireContactVisibility } from "../../middleware/resource-visibility.js";
 import { requirePermission } from "../../middleware/tenant.js";
 import { broadcastContactAssignmentEvent } from "../../services/assignment-broadcast.service.js";
@@ -295,7 +296,13 @@ assignmentRoutes.get(
   requireContactVisibility(),
   async (c) => {
     const { tenantDb } = getRouteContext(c);
-    const contactId = c.req.param("id")!;
+    // The profile panel is opened with whatever id the chat list used, which
+    // is the conversation for a channel-neutral thread. Looking that up in
+    // `contacts` found nothing and answered 404, so every such conversation
+    // showed "Failed to load history" in place of its assignments.
+    const requestedId = c.req.param("id")!;
+    const contactId =
+      (await resolveWorkflowContactId(tenantDb, requestedId)) ?? requestedId;
 
     // Check if contact exists
     const contact = await tenantDb
