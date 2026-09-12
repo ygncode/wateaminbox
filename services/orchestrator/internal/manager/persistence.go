@@ -808,6 +808,33 @@ func (r *WorkerRegistry) IncrementRestartCountLaunch(ctx context.Context, connec
 	return affected == 1, err
 }
 
+// ResetRestartCountLaunch clears a generation's auto-restart budget once that
+// generation has proven it is fully up: process ready, connected, and
+// authenticated to WhatsApp.
+//
+// Without this the count only ever grows, so the budget measures failures over
+// a connection's whole lifetime rather than consecutive ones. Every connection
+// then exhausts it eventually, however healthy it is, and recovery responds by
+// publishing "failed" and deleting the registry row -- the connection stops
+// consuming WhatsApp messages with nothing running to notice.
+//
+// Scoped to the exact launch, like every other budget write, so a late signal
+// from a superseded generation cannot refill a newer one's budget. The
+// restart_count <> 0 predicate makes a repeated readiness signal a no-op in the
+// database rather than a write.
+func (r *WorkerRegistry) ResetRestartCountLaunch(ctx context.Context, connectionID, companyID, launchID string) (bool, error) {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE worker_registry SET restart_count = 0
+		WHERE connection_id = $1 AND company_id = $2 AND launch_id = $3 AND desired_state = $4
+		  AND restart_count <> 0
+	`, connectionID, companyID, launchID, DesiredStateRunning)
+	if err != nil {
+		return false, fmt.Errorf("failed to reset restart count: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	return affected == 1, err
+}
+
 func (r *WorkerRegistry) SetDesiredState(ctx context.Context, connectionID, companyID, launchID, desiredState string) (bool, error) {
 	result, err := r.db.ExecContext(ctx, `
 		UPDATE worker_registry SET desired_state = $1

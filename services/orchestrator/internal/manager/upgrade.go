@@ -1011,6 +1011,17 @@ func (m *Manager) RecordWorkerRuntimeStatus(status sharednats.WorkerRuntimeStatu
 	}
 	worker.LastRuntimeSignalAt = signalTime
 	complete := worker.ProcessReady && worker.RuntimeConnected && worker.Authenticated
+	// A generation that is fully up has earned a fresh restart budget. Clearing
+	// it here is what makes the budget count consecutive failures instead of
+	// every failure in the connection's history; see ResetRestartCountLaunch.
+	//
+	// Gated on a non-zero count so a steady connection re-announcing readiness
+	// costs no database round trip, and so the durable write below runs only
+	// when there is something to clear.
+	clearRestartBudget := complete && worker.RestartCount != 0
+	if clearRestartBudget {
+		worker.RestartCount = 0
+	}
 	m.mu.Unlock()
 
 	if complete {
@@ -1020,6 +1031,32 @@ func (m *Manager) RecordWorkerRuntimeStatus(status sharednats.WorkerRuntimeStatu
 			delete(m.readiness, status.LaunchID)
 		}
 		m.readinessMu.Unlock()
+	}
+
+	// Bookkeeping, so a failure is logged rather than surfaced: the worker is
+	// demonstrably healthy, and refusing the readiness edge over a registry
+	// write would turn a database blip into a worse outcome than the stale
+	// budget it is trying to correct. The next readiness signal retries it.
+	if clearRestartBudget && m.resetWorkerRestartCount != nil {
+		baseCtx := m.ctx
+		if baseCtx == nil {
+			baseCtx = context.Background()
+		}
+		resetCtx, cancelReset := context.WithTimeout(baseCtx, workerRuntimePersistenceTimeout)
+		_, err := m.resetWorkerRestartCount(
+			resetCtx,
+			status.ConnectionID,
+			status.CompanyID,
+			status.LaunchID,
+		)
+		cancelReset()
+		if err != nil {
+			log.Printf(
+				"Warning: failed to reset worker %s restart budget: %v",
+				status.ConnectionID,
+				err,
+			)
+		}
 	}
 
 	if durableStatus != "" && m.persistWorkerRuntimeStatus != nil {

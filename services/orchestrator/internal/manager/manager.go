@@ -105,6 +105,12 @@ type Manager struct {
 	// status path testable without a database.
 	persistWorkerRuntimeStatus func(context.Context, string, string, string, string) error
 
+	// resetWorkerRestartCount clears a generation's durable auto-restart budget
+	// once it reaches full runtime readiness. It is wired to the registry when
+	// persistence initialises, and is a field rather than a direct registry call
+	// so the readiness path can be exercised without a database.
+	resetWorkerRestartCount func(context.Context, string, string, string) (bool, error)
+
 	// checkConnectionAllowances names the subset of the given companies that may
 	// no longer run any connection. It is wired to the registry when persistence
 	// initialises, and is a field rather than a direct registry call so
@@ -226,6 +232,7 @@ func (m *Manager) Start(ctx context.Context) error {
 			m.markWorkersRecovering = registry.MarkWorkersRecovering
 			m.recordWorkerHeartbeat = registry.UpdateHeartbeatLaunch
 			m.persistWorkerRuntimeStatus = registry.UpdateRuntimeStatusLaunch
+			m.resetWorkerRestartCount = registry.ResetRestartCountLaunch
 			m.checkConnectionAllowances = registry.CompaniesWithoutConnectionAllowance
 			log.Println("Worker registry initialized successfully")
 
