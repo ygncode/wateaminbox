@@ -28,7 +28,7 @@ export async function ensureChannelSpineTenantSchema<Database>(
     // this one. The forward walk reads by primary key, so the foreign key
     // alone serves it; the chat list and the chat switcher ask the opposite
     // question once per listed contact and had nothing to use. Partial,
-    // because merged rows are rare by construction. Migration 105 adds the
+    // because merged rows are rare by construction. Migration 107 adds the
     // same index to schemas created before it.
     await sql`
       CREATE INDEX IF NOT EXISTS ${sql.ref(`${schemaName}_merged_into_idx`)}
