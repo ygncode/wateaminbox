@@ -1,3 +1,4 @@
+import { REMOTE_HISTORY_RESPONSE_TIMEOUT_MS } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import { badRequest, notFound } from "../../lib/errors.js";
@@ -24,6 +25,7 @@ import {
 } from "../../services/customer-timeline.service.js";
 import { resolveThreadProvenance } from "../../services/message-provenance.service.js";
 import { getUserNames } from "../../services/user.service.js";
+import { failStaleRemoteHistoryRequest } from "../conversations/messages.js";
 
 export const timelineRoutes = new Hono();
 
@@ -108,6 +110,8 @@ timelineRoutes.get(
         .filter((id): id is string => Boolean(id)),
     );
 
+    const remoteHistory = await resolveRemoteHistory(tenantDb, visible);
+
     return successData(c, {
       // Oldest first, the order the thread renders in.
       messages: formatMessagesForConversation(
@@ -120,6 +124,7 @@ timelineRoutes.get(
         (message) => quotes.get(message.id) ?? null,
       ).reverse(),
       canonicalContactId: resolved.canonicalContactId,
+      remoteHistory,
       hasMore: page.hasMore,
       nextCursor: page.nextCursor,
     });
@@ -192,4 +197,61 @@ async function loadThreadScopedQuotes(
     quotes.set(message.id, buildQuotedMessageData(match, userNames));
   }
   return quotes;
+}
+
+/**
+ * Which thread can still load older history from a linked phone, if any.
+ *
+ * Reported per customer rather than per thread, because the timeline shows one
+ * history and can offer only one "load older" affordance. The contact is named
+ * alongside the status so the client asks the thread that can actually answer
+ * - only a WhatsApp linked device can, and a merged customer's surviving
+ * contact is not necessarily the WhatsApp one.
+ *
+ * A request left hanging past the timeout is failed here exactly as the
+ * conversation route does, so the two surfaces cannot disagree about whether a
+ * customer is still waiting.
+ */
+async function resolveRemoteHistory(
+  tenantDb: ReturnType<typeof getRouteContext>["tenantDb"],
+  threads: CustomerThread[],
+): Promise<{ status: string; contactId: string | null }> {
+  const contactIds = [
+    ...new Set(
+      threads
+        .map((thread) => thread.contactId)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  if (contactIds.length === 0) return { status: "unknown", contactId: null };
+
+  const rows = await tenantDb
+    .selectFrom("contacts")
+    .select(["id", "remote_history_status", "remote_history_updated_at"])
+    .where("id", "in", contactIds)
+    .execute();
+
+  // A thread still waiting outranks one that finished, which outranks one that
+  // never asked: the affordance should reflect the most active request.
+  const rank = (status: string) =>
+    status === "requesting" ? 0 : status === "unknown" ? 2 : 1;
+  const chosen = [...rows].sort(
+    (left, right) =>
+      rank(left.remote_history_status ?? "unknown") -
+      rank(right.remote_history_status ?? "unknown"),
+  )[0];
+  if (!chosen) return { status: "unknown", contactId: null };
+
+  let status = chosen.remote_history_status ?? "unknown";
+  if (
+    status === "requesting" &&
+    (!chosen.remote_history_updated_at ||
+      chosen.remote_history_updated_at.getTime() <=
+        Date.now() - REMOTE_HISTORY_RESPONSE_TIMEOUT_MS)
+  ) {
+    status = (await failStaleRemoteHistoryRequest(tenantDb, chosen.id))
+      ? "failed"
+      : "requesting";
+  }
+  return { status, contactId: chosen.id };
 }
