@@ -1,9 +1,7 @@
-import { Merge, ShieldCheck } from "lucide-react";
+import { ChevronRight, Merge, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { RightPanelSection } from "@/components/layout/right-panel";
-import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useWorkspace } from "@/contexts/workspace-context";
 import {
@@ -109,58 +107,53 @@ export function MergeSuggestionsSection({
 
   return (
     <>
-      <RightPanelSection
-        title={t("contacts.mergeSuggestions", "Possible duplicates")}
-      >
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            {t(
-              "contacts.mergeSuggestionsHint",
-              "These customers were seen at the same phone number or email address. Merging keeps every conversation and note exactly where it is.",
-            )}
-          </p>
-          {suggestions.map((suggestion) => (
-            <div
-              key={suggestion.contactId}
-              className="rounded-md border border-border p-3 text-sm"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium break-all">
-                  {suggestion.matchedAddress}
-                </span>
-                {suggestion.verified && (
-                  <span
-                    className="flex shrink-0 items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400"
-                    title={t(
-                      "contacts.mergeVerifiedHint",
-                      "The matching endpoint is verified by the provider",
-                    )}
-                  >
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                    {t("contacts.mergeVerified", "Verified")}
-                  </span>
+      {/* Beeper-style prompt: the operator is being offered one thing - to see
+          these chats as one customer - so the row says that, and the detail
+          that earned the suggestion sits under it rather than above it in a
+          paragraph nobody reads twice. */}
+      <div className="mt-2 space-y-1.5">
+        {suggestions.map((suggestion) => (
+          <button
+            key={suggestion.contactId}
+            type="button"
+            onClick={() => setPending(suggestion)}
+            disabled={merge.isPending}
+            className="flex w-full items-center gap-2 rounded-lg border border-dashed border-gray-300 px-2.5 py-2 text-left transition-colors hover:bg-black/[0.03] disabled:opacity-60 dark:border-dark-border dark:hover:bg-white/[0.04]"
+          >
+            <Merge
+              className="size-4 shrink-0 text-whatsapp-teal-green"
+              aria-hidden="true"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm text-gray-900 dark:text-dark-text-primary">
+                {t(
+                  "contacts.mergeSuggestionPrompt",
+                  "View all these chats together",
                 )}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {suggestion.channels.join(", ")}
+              </span>
+              <span className="block truncate text-[11px] text-gray-500 dark:text-dark-text-tertiary">
+                {suggestion.matchedAddress} · {suggestion.channels.join(", ")}
                 {suggestion.sameChannel
                   ? ` · ${t("contacts.mergeSameChannel", "same channel")}`
                   : ""}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3 w-full"
-                onClick={() => setPending(suggestion)}
-                disabled={merge.isPending}
-              >
-                <Merge className="mr-2 h-4 w-4" />
-                {t("contacts.mergeIntoThis", "Merge into this contact")}
-              </Button>
-            </div>
-          ))}
-        </div>
-      </RightPanelSection>
+              </span>
+            </span>
+            {suggestion.verified && (
+              <ShieldCheck
+                className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                aria-label={t(
+                  "contacts.mergeVerifiedHint",
+                  "The matching endpoint is verified by the provider",
+                )}
+              />
+            )}
+            <ChevronRight
+              className="size-4 shrink-0 opacity-50"
+              aria-hidden="true"
+            />
+          </button>
+        ))}
+      </div>
 
       <ConfirmationDialog
         open={pending !== null}

@@ -26,6 +26,12 @@ import type { ContactData } from "./types";
 
 interface ManualMergeSectionProps {
   contact: ContactData;
+  /**
+   * Drive the picker from outside - the merged-chats "Manage" menu owns this
+   * action now, so the section itself renders only the dialog.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 /** The word an admin types to confirm. Deliberately not localized. */
@@ -124,10 +130,20 @@ function CandidateIdentity({ chat }: { chat: Chat }) {
  * asks for a reason and a typed confirmation, and it says plainly what a merge
  * does and does not do before it happens.
  */
-export function ManualMergeSection({ contact }: ManualMergeSectionProps) {
+export function ManualMergeSection({
+  contact,
+  open,
+  onOpenChange,
+}: ManualMergeSectionProps) {
   const { t } = useTranslation();
   const { activeWorkspace } = useWorkspace();
-  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const controlled = open !== undefined;
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isPickerOpen = controlled ? open : uncontrolledOpen;
+  const setIsPickerOpen = (next: boolean) => {
+    if (controlled) onOpenChange?.(next);
+    else setUncontrolledOpen(next);
+  };
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Chat | null>(null);
   const [reason, setReason] = useState("");
@@ -198,27 +214,32 @@ export function ManualMergeSection({ contact }: ManualMergeSectionProps) {
 
   return (
     <>
-      <RightPanelSection
-        title={t("contacts.manualMergeTitle", "Same person, another contact?")}
-      >
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            {t(
-              "contacts.manualMergeHint",
-              "Pick the other contact yourself when you know two records are the same customer. Their channels move here; every conversation stays where it is.",
-            )}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={() => setIsPickerOpen(true)}
-          >
-            <Merge className="mr-2 h-4 w-4" />
-            {t("contacts.manualMergeAction", "Merge another contact in")}
-          </Button>
-        </div>
-      </RightPanelSection>
+      {!controlled && (
+        <RightPanelSection
+          title={t(
+            "contacts.manualMergeTitle",
+            "Same person, another contact?",
+          )}
+        >
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "contacts.manualMergeHint",
+                "Pick the other contact yourself when you know two records are the same customer. Their channels move here; every conversation stays where it is.",
+              )}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => setIsPickerOpen(true)}
+            >
+              <Merge className="mr-2 h-4 w-4" />
+              {t("contacts.manualMergeAction", "Merge another contact in")}
+            </Button>
+          </div>
+        </RightPanelSection>
+      )}
 
       <Dialog
         open={isPickerOpen}

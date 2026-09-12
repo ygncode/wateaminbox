@@ -1,5 +1,5 @@
 import * as React from "react";
-import { MoreVertical } from "lucide-react";
+import { ChevronDown, MoreVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import { useClickOutside } from "@/hooks/ui";
@@ -70,6 +70,14 @@ export interface EllipsisMenuProps {
    * @default "More options"
    */
   ariaLabel?: string;
+  /**
+   * Render the trigger as this text instead of an ellipsis icon.
+   *
+   * A section heading's own menu reads as a word ("Manage"), not as a floating
+   * glyph: the icon alone gives no clue what it governs when it sits next to a
+   * title rather than on the row it acts on.
+   */
+  triggerLabel?: string;
 }
 
 /**
@@ -105,6 +113,7 @@ export function EllipsisMenu({
   open: controlledOpen,
   onOpenChange,
   ariaLabel,
+  triggerLabel,
 }: EllipsisMenuProps) {
   const { t } = useTranslation();
 
@@ -218,18 +227,35 @@ export function EllipsisMenu({
 
   return (
     <div ref={containerRef} className="relative" onKeyDown={handleKeyDown}>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        onClick={handleToggle}
-        aria-label={ariaLabel ?? t("common.moreOptions", "More options")}
-        aria-haspopup="menu"
-        aria-expanded={isOpen}
-        className={cn(buttonSize, triggerClassName)}
-      >
-        <MoreVertical className={iconSize} />
-      </Button>
+      {triggerLabel ? (
+        <button
+          type="button"
+          onClick={handleToggle}
+          aria-label={ariaLabel ?? triggerLabel}
+          aria-haspopup="menu"
+          aria-expanded={isOpen}
+          className={cn(
+            "inline-flex items-center gap-0.5 text-xs font-medium text-whatsapp-teal-green hover:underline",
+            triggerClassName,
+          )}
+        >
+          {triggerLabel}
+          <ChevronDown className="size-3.5" aria-hidden="true" />
+        </button>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={handleToggle}
+          aria-label={ariaLabel ?? t("common.moreOptions", "More options")}
+          aria-haspopup="menu"
+          aria-expanded={isOpen}
+          className={cn(buttonSize, triggerClassName)}
+        >
+          <MoreVertical className={iconSize} />
+        </Button>
+      )}
 
       {isOpen && (
         <div

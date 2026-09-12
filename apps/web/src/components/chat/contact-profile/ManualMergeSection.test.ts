@@ -54,10 +54,7 @@ describe("shouldOfferManualMerge", () => {
 
 describe("selectableMergeCandidates", () => {
   test("never offers the contact being merged into", () => {
-    const candidates = selectableMergeCandidates(
-      [chat("a"), chat("b")],
-      "a",
-    );
+    const candidates = selectableMergeCandidates([chat("a"), chat("b")], "a");
     expect(candidates.map((candidate) => candidate.contact.id)).toEqual(["b"]);
   });
 

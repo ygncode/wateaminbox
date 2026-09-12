@@ -1,19 +1,22 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { Merge, Split } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RightPanelSection } from "@/components/layout/right-panel";
+import { EllipsisMenu } from "@/components/ui/ellipsis-menu";
+import { useMergeHistory } from "@/hooks/contact/useContactMerge";
 import { useCustomerChats } from "@/hooks/contact/useCustomerChats";
 import type { CustomerChat } from "@/lib/api/contacts";
 import { cn } from "@/lib/utils";
 import { ChatIdentityAvatar } from "../ChatIdentityAvatar";
+import { ManualMergeSection } from "./ManualMergeSection";
+import { MergeSuggestionsSection } from "./MergeSuggestionsSection";
+import { UnmergeDialog } from "./UnmergeDialog";
 import type { ContactData } from "./types";
 
 interface MergedChatsSectionProps {
   contact: ContactData;
   /** Open one of these threads. Absent where the host cannot switch chats. */
   onSelectThread?: (chatId: string) => void;
-  /** Whether the merge tools below are currently unfolded. */
-  isManaging: boolean;
-  onToggleManage: () => void;
   /** Whether this viewer may merge or separate at all. */
   canManage: boolean;
 }
@@ -49,12 +52,12 @@ export function shouldShowMergedChats(input: {
 export function MergedChatsSection({
   contact,
   onSelectThread,
-  isManaging,
-  onToggleManage,
   canManage,
 }: MergedChatsSectionProps) {
   const { t } = useTranslation();
   const { data: chats = [] } = useCustomerChats(contact.id);
+  const { data: merges = [] } = useMergeHistory(canManage ? contact.id : null);
+  const [openTool, setOpenTool] = useState<"edit" | "unmerge" | null>(null);
 
   if (!shouldShowMergedChats({ chatCount: chats.length, canManage })) {
     return null;
@@ -71,19 +74,31 @@ export function MergedChatsSection({
       }
       titleAction={
         canManage ? (
-          <button
-            type="button"
-            onClick={onToggleManage}
-            aria-expanded={isManaging}
-            className="inline-flex items-center gap-0.5 text-xs font-medium text-whatsapp-teal-green hover:underline"
-          >
-            {t("contacts.manageMerges", "Manage")}
-            {isManaging ? (
-              <ChevronDown className="size-3.5" aria-hidden="true" />
-            ) : (
-              <ChevronRight className="size-3.5" aria-hidden="true" />
-            )}
-          </button>
+          <EllipsisMenu
+            triggerLabel={t("contacts.manageMerges", "Manage")}
+            items={[
+              {
+                id: "edit",
+                label: t("contacts.manageEdit", "Merge a chat in"),
+                icon: Merge,
+                // Seeing a merge already made is not the same permission as
+                // making one: a workspace whose merge flag is off keeps
+                // Unmerge and loses only this.
+                disabled: contact.mergeEnabled !== true,
+                onClick: () => setOpenTool("edit"),
+              },
+              {
+                id: "unmerge",
+                label: t("contacts.manageUnmerge", "Unmerge"),
+                icon: Split,
+                destructive: true,
+                // Nothing merged in means nothing to split; the item stays
+                // visible so the menu does not change shape per customer.
+                disabled: merges.length === 0,
+                onClick: () => setOpenTool("unmerge"),
+              },
+            ]}
+          />
         ) : undefined
       }
     >
@@ -99,6 +114,22 @@ export function MergedChatsSection({
           </li>
         )}
       </ul>
+      <MergeSuggestionsSection contact={contact} />
+
+      {canManage && (
+        <>
+          <ManualMergeSection
+            contact={contact}
+            open={openTool === "edit"}
+            onOpenChange={(next) => setOpenTool(next ? "edit" : null)}
+          />
+          <UnmergeDialog
+            contact={contact}
+            open={openTool === "unmerge"}
+            onOpenChange={(next) => setOpenTool(next ? "unmerge" : null)}
+          />
+        </>
+      )}
     </RightPanelSection>
   );
 }

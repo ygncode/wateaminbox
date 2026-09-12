@@ -25,10 +25,7 @@ import { ContactInfoSection } from "./ContactInfoSection";
 import { ContactProfileSkeleton } from "./ContactProfileSkeleton";
 import { EditableNameSection } from "./EditableNameSection";
 import { GroupInfoSections } from "./GroupInfoSections";
-import { ManualMergeSection } from "./ManualMergeSection";
 import { MergedChatsSection } from "./MergedChatsSection";
-import { MergeHistorySection } from "./MergeHistorySection";
-import { MergeSuggestionsSection } from "./MergeSuggestionsSection";
 import {
   ConversationNotesSection,
   PrivateNotesSection,
@@ -69,9 +66,6 @@ export function ContactProfile({
     error: groupError,
   } = useGroup(contact?.isGroup ? contactId : null);
   const [showExportDialog, setShowExportDialog] = useState(false);
-  // The merge tools stay folded until asked for: merging is an occasional
-  // decision, and their explanatory copy was the bulk of this panel.
-  const [isManagingMerges, setIsManagingMerges] = useState(false);
   const { data: customerChats = [] } = useCustomerChats(contact?.id ?? null);
   const canManageMerges =
     (activeWorkspace?.role === "owner" || activeWorkspace?.role === "admin") &&
@@ -120,21 +114,12 @@ export function ContactProfile({
             )}
 
             {contact ? <EditableNameSection contact={contact} /> : null}
-            {contact ? <MergeSuggestionsSection contact={contact} /> : null}
             {contact ? (
               <MergedChatsSection
                 contact={contact}
                 onSelectThread={onSelectThread}
-                isManaging={isManagingMerges}
-                onToggleManage={() => setIsManagingMerges((open) => !open)}
                 canManage={canManageMerges}
               />
-            ) : null}
-            {contact && isManagingMerges ? (
-              <>
-                <ManualMergeSection contact={contact} />
-                <MergeHistorySection contact={contact} />
-              </>
             ) : null}
             {contact ? (
               <SharedNotesSection contactId={contact.id} />
