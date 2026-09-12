@@ -136,6 +136,33 @@ export async function purgeArchivedChannelAccount(
       .where("id", "=", accountId)
       .execute();
     if (contactIds.length > 0) {
+      // Merge history describes these customers and its foreign keys are
+      // RESTRICT, so leaving it behind pins the rows and fails the purge. The
+      // records go with the customers they are about; an audit trail naming
+      // rows that no longer exist is worse than none.
+      await trx
+        .deleteFrom("contact_endpoint_reassignment_events")
+        .where((eb) =>
+          eb.or([
+            eb("previous_contact_id", "in", contactIds),
+            eb("new_contact_id", "in", contactIds),
+          ]),
+        )
+        .execute();
+      await trx
+        .deleteFrom("contact_merge_events")
+        .where((eb) =>
+          eb.or([
+            eb("source_contact_id", "in", contactIds),
+            eb("target_contact_id", "in", contactIds),
+          ]),
+        )
+        .execute();
+      await trx
+        .updateTable("contacts")
+        .set({ merged_into_contact_id: null, updated_at: new Date() })
+        .where("merged_into_contact_id", "in", contactIds)
+        .execute();
       await trx.deleteFrom("contacts").where("id", "in", contactIds).execute();
     }
     return {

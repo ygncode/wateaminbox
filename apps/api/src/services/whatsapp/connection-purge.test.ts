@@ -143,6 +143,15 @@ describe("permanent connection purge", () => {
     // conversation_cases cascade from contacts, so contacts may only go once
     // their messages are gone.
     expect(at("delete messages")).toBeLessThan(at("delete contacts"));
+    // Merge history holds RESTRICT keys to the customers it describes, so it
+    // pins them until it is gone. A single merge otherwise made the whole
+    // connection impossible to purge.
+    expect(at("delete contact_merge_events")).toBeLessThan(
+      at("delete contacts"),
+    );
+    expect(at("delete contact_endpoint_reassignment_events")).toBeLessThan(
+      at("delete contacts"),
+    );
     // group_participants and group_join_requests both cascade from groups,
     // which cascade from contacts.
     expect(at("delete group_participants")).toBeLessThan(at("delete groups"));
@@ -184,6 +193,9 @@ describe("permanent connection purge", () => {
       "delete channel_ingress_routes",
       "delete conversations",
       "delete channel_accounts",
+      "delete contact_endpoint_reassignment_events",
+      "delete contact_merge_events",
+      "update contacts",
       "delete contacts",
       "delete status_updates",
       "delete catalog_products",

@@ -429,6 +429,41 @@ export async function purgeArchivedConnection(
       .where("id", "=", connectionId)
       .where("legacy_whatsapp_connection_id", "=", connectionId)
       .execute();
+    // Merge history is an audit trail about these customers, and its foreign
+    // keys are RESTRICT, so it pins them: once any contact on this connection
+    // had been merged, the purge could not delete it and the whole operation
+    // failed with a foreign key violation. A purge erases the customers the
+    // records describe, so the records go with them - keeping them would leave
+    // an audit trail naming rows that no longer exist.
+    const purgedContacts = trx
+      .selectFrom("contacts")
+      .select("id")
+      .where("whatsapp_connection_id", "=", connectionId);
+    await trx
+      .deleteFrom("contact_endpoint_reassignment_events")
+      .where((eb) =>
+        eb.or([
+          eb("previous_contact_id", "in", purgedContacts),
+          eb("new_contact_id", "in", purgedContacts),
+        ]),
+      )
+      .execute();
+    await trx
+      .deleteFrom("contact_merge_events")
+      .where((eb) =>
+        eb.or([
+          eb("source_contact_id", "in", purgedContacts),
+          eb("target_contact_id", "in", purgedContacts),
+        ]),
+      )
+      .execute();
+    // A customer merged into one of these but living on another connection
+    // would still point at a row about to disappear.
+    await trx
+      .updateTable("contacts")
+      .set({ merged_into_contact_id: null, updated_at: new Date() })
+      .where("merged_into_contact_id", "in", purgedContacts)
+      .execute();
     await trx
       .deleteFrom("contacts")
       .where("whatsapp_connection_id", "=", connectionId)
