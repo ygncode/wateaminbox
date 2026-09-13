@@ -12,8 +12,8 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1127.0",
-    "@aws-sdk/s3-request-presigner": "^3.1127.0",
+    "@aws-sdk/client-s3": "^3.1129.0",
+    "@aws-sdk/s3-request-presigner": "^3.1129.0",
     "@hono/mcp": "^0.3.2",
     "@hono/zod-validator": "^0.9.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
@@ -24,7 +24,7 @@
     "fflate": "^0.8.2",
     "hono": "^4.13.7",
     "jose": "^6.2.12",
-    "meilisearch": "^0.60.0",
+    "meilisearch": "^0.62.0",
     "nats": "^2.29.3",
     "pino": "^10.1.0",
     "web-push": "^3.6.7",
