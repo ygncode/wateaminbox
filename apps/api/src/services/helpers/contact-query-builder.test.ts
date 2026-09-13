@@ -10,6 +10,7 @@ import {
   sql,
 } from "kysely";
 import {
+  buildContactWhereClause,
   buildSearchClause,
   phoneSearchDigits,
 } from "./contact-query-builder.js";
@@ -86,5 +87,81 @@ describe("buildSearchClause", () => {
       "%Software%",
       "%Software%",
     ]);
+  });
+});
+
+function compiledWhere(
+  options: Parameters<typeof buildContactWhereClause>[0],
+): string {
+  const { whereClause } = buildContactWhereClause(options);
+  return compiler
+    .selectFrom("contacts")
+    .select("id")
+    .where(sql<SqlBool>`${whereClause}`)
+    .compile().sql;
+}
+
+const tenantTable = (name: string) => sql.table(`tenant_x.${name}`);
+
+describe("buildContactWhereClause merge collapse", () => {
+  test("hides contacts that were merged into another customer", () => {
+    // A merged customer is one inbox row. The merged-away contact keeps its
+    // conversation, which stays reachable through the chat switcher.
+    expect(compiledWhere({})).toContain("c.merged_into_contact_id IS NULL");
+  });
+
+  test("keeps an assigned chat in its assignee's filter after a merge", () => {
+    // The assignment may sit on the merged-away row, whose own entry is now
+    // hidden. Answering from the surviving row alone would drop the chat out
+    // of "assigned to me" entirely.
+    const withGroup = compiledWhere({
+      assignedToMe: true,
+      userId: "user-1",
+      contactsTable: tenantTable("contacts"),
+      contactAssignmentsTable: tenantTable("contact_assignments"),
+    });
+    expect(withGroup).toContain("EXISTS");
+    expect(withGroup).toContain("mc.merged_into_contact_id = c.id");
+  });
+
+  test("treats unassigned as nobody in the group holding it", () => {
+    const unassigned = compiledWhere({
+      unassigned: true,
+      contactsTable: tenantTable("contacts"),
+      contactAssignmentsTable: tenantTable("contact_assignments"),
+    });
+    expect(unassigned).toContain("ca.assigned_to IS NULL");
+    expect(unassigned).toContain("NOT EXISTS");
+  });
+
+  test("counts unread on a merged-away thread toward the surviving row", () => {
+    expect(compiledWhere({ unreadOnly: true })).toContain("grp.unread_count");
+  });
+
+  test("keeps a merged customer under an account only a hidden thread is on", () => {
+    // The surviving row may be the Telegram one, carrying no WhatsApp
+    // connection at all. Matching it alone hid the customer from the filter
+    // of an account they are plainly reachable on.
+    const byConnection = compiledWhere({
+      connectionId: "conn-1",
+      contactsTable: tenantTable("contacts"),
+    });
+    expect(byConnection).toContain("c.whatsapp_connection_id = ");
+    expect(byConnection).toContain("mc.whatsapp_connection_id = ");
+    expect(byConnection).toContain("mc.merged_into_contact_id = c.id");
+  });
+
+  test("falls back to the surviving row when no tenant tables are passed", () => {
+    const byConnection = compiledWhere({ connectionId: "conn-1" });
+    expect(byConnection).toContain("c.whatsapp_connection_id = ");
+    expect(byConnection).not.toContain("mc.whatsapp_connection_id");
+  });
+
+  test("omits the group term when the caller passes no tenant tables", () => {
+    // The helper is also used by callers that compile the clause without a
+    // schema to qualify; those must not emit a half-built subquery.
+    const withoutTables = compiledWhere({ assignedToMe: true, userId: "u" });
+    expect(withoutTables).not.toContain("merged_into_contact_id = c.id");
+    expect(withoutTables).toContain("FALSE");
   });
 });

@@ -72,6 +72,17 @@ export interface Chat {
   contact: Contact;
   lastMessage?: Message;
   unreadCount: number;
+  /**
+   * Threads this customer is reachable on. Only a merged customer has more
+   * than one; absent when the row came from a projection that does not carry
+   * it, which the chat switcher treats as "ask the server".
+   */
+  chatCount?: number;
+  /**
+   * Every account this customer's threads run on. A merged customer belongs to
+   * more than one, so an account filter keeps them if any thread matches.
+   */
+  accountIds?: string[];
   assignedTo?: string;
   isPinned: boolean;
   isMuted: boolean;

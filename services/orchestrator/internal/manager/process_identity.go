@@ -59,6 +59,15 @@ func (m *Manager) isExpectedWorkerProcessAtPathWithCredentials(
 		return false, fmt.Errorf("check PID %d liveness: %w", pid, err)
 	}
 
+	// An exited-but-unreaped process still answers signal 0 above, yet its
+	// executable and environment are already gone. Stop here rather than
+	// comparing whatever ps prints for a corpse ("[worker] <defunct>"), which
+	// never matches the expected path and is indistinguishable from a genuinely
+	// reused PID.
+	if processIsZombie(pid) {
+		return false, nil
+	}
+
 	procExecutable := fmt.Sprintf("/proc/%d/exe", pid)
 	executable, executableErr := os.Readlink(procExecutable)
 	if executableErr != nil {
@@ -150,6 +159,13 @@ func waitForProcessExit(ctx context.Context, pid int, timeout time.Duration) err
 		if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
 			return nil
 		}
+		// A zombie has exited; only the reap is outstanding. Signal-0 keeps
+		// succeeding until its parent collects it, so waiting for ESRCH here
+		// would burn the whole grace period and then escalate to SIGKILL
+		// against a process that is already gone.
+		if processIsZombie(pid) {
+			return nil
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -169,7 +185,7 @@ func processIsAlive(pid int) (bool, error) {
 		return false, nil
 	}
 	if err = process.Signal(syscall.Signal(0)); err == nil {
-		return true, nil
+		return !processIsZombie(pid), nil
 	}
 	if errors.Is(err, os.ErrProcessDone) || errors.Is(err, syscall.ESRCH) {
 		return false, nil

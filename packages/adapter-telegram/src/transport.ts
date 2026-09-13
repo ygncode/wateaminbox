@@ -20,6 +20,13 @@ interface TelegramMessageResult {
  */
 export const TELEGRAM_LOCAL_FAILURE_CODES = [
   "telegram_credential_unavailable",
+  // A key the process was started without is a configuration fault: the stored
+  // credential is intact and Telegram is fine, so the send certainly never
+  // happened. Reporting it as an unknown outcome parks the intent for ever -
+  // uncertain outcomes are deliberately never retried, because Telegram has no
+  // idempotency key - and hides an operator-fixable problem behind the label
+  // reserved for "we could not tell what happened".
+  "telegram_credential_key_unavailable",
   "telegram_conversation_unavailable",
   "telegram_conversation_invalid",
   "telegram_attachment_missing",

@@ -16,6 +16,7 @@ import {
   type ResolutionOutcome,
   reopenConversation,
   resolveConversation,
+  resolveCustomer,
   resumeConversation,
   setConversationPending,
 } from "@/lib/api/conversation-state";
@@ -68,6 +69,48 @@ export function useResolveConversation(contactId: string) {
     onError: (err) => {
       toast.error(
         err instanceof Error ? err.message : "Could not resolve conversation",
+      );
+    },
+  });
+}
+
+/**
+ * Resolve every thread of a merged customer.
+ *
+ * The server leaves a thread holding unread inbound open, and says which. That
+ * is reported rather than swallowed: a partial result presented as a complete
+ * one is how an unanswered question gets buried, which is the exact failure
+ * this rule exists to prevent.
+ */
+export function useResolveCustomer(chatId: string) {
+  const invalidate = useInvalidateLifecycleCaches(chatId);
+  return useMutation({
+    mutationFn: (input: { outcome: ResolutionOutcome; notes?: string }) =>
+      resolveCustomer(chatId, input),
+    onSuccess: (result) => {
+      invalidate();
+      const closed = result.resolved.length + result.alreadyResolved.length;
+      if (result.skipped.length === 0) {
+        toast.success(
+          closed > 1 ? `Resolved ${closed} chats` : "Conversation resolved",
+        );
+        return;
+      }
+      const unread = result.skipped.reduce(
+        (total, thread) => total + thread.unreadCount,
+        0,
+      );
+      toast.success(
+        `Resolved ${closed} of ${closed + result.skipped.length} chats`,
+        {
+          description: `${result.skipped.length} chat(s) stayed open with ${unread} unread message(s).`,
+          duration: 12_000,
+        },
+      );
+    },
+    onError: (err) => {
+      toast.error(
+        err instanceof Error ? err.message : "Could not resolve this customer",
       );
     },
   });

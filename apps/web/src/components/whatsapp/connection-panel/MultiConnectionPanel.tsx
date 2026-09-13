@@ -13,6 +13,7 @@ import {
   useChannelProviderAvailability,
   useConnectTelegramBot,
   useDisconnectChannelAccount,
+  usePurgeChannelAccount,
   usePauseChannelAccount,
   useRenameChannelAccount,
   useResumeChannelAccount,
@@ -80,6 +81,7 @@ export function MultiConnectionPanel({
     useChannelProviderAvailability();
   const connectTelegram = useConnectTelegramBot();
   const disconnectChannelAccount = useDisconnectChannelAccount();
+  const purgeChannelAccount = usePurgeChannelAccount();
   const renameChannelAccount = useRenameChannelAccount();
   const pauseChannelAccount = usePauseChannelAccount();
   const resumeChannelAccount = useResumeChannelAccount();
@@ -99,6 +101,7 @@ export function MultiConnectionPanel({
   const [disconnectingAccountId, setDisconnectingAccountId] = useState<
     string | null
   >(null);
+  const [purgingAccountId, setPurgingAccountId] = useState<string | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [setupConnectionId, setSetupConnectionId] = useState<string | null>(
     null,
@@ -472,6 +475,13 @@ export function MultiConnectionPanel({
               key={account.id}
               account={account}
               isDisconnecting={disconnectingAccountId === account.id}
+              isPurging={purgingAccountId === account.id}
+              onPurge={() => {
+                setPurgingAccountId(account.id);
+                purgeChannelAccount.mutate(account.id, {
+                  onSettled: () => setPurgingAccountId(null),
+                });
+              }}
               isRenaming={renamingAccountId === account.id}
               isPausing={pausingAccountId === account.id}
               isResuming={resumingAccountId === account.id}

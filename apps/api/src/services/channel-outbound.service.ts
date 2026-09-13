@@ -166,184 +166,198 @@ export async function dispatchNextChannelOutbound(): Promise<number> {
     .orderBy("id")
     .execute();
   for (const company of companies) {
-    const authority = await getChannelSpineWorkspaceAuthority(company.id);
-    if (authority.writeAuthority !== "neutral") continue;
-    const tenantDb = await getTenantConnection(company.id);
-    if (!(await isChannelSpineTenantReady(tenantDb, company.id))) continue;
-    const claim = await tenantDb.transaction().execute(async (trx) => {
-      const row = await trx
-        .selectFrom("outbound_message_intents as intent")
-        .innerJoin(
-          "channel_accounts as account",
-          "account.id",
-          "intent.channel_account_id",
-        )
-        .innerJoin(
-          "conversations as conversation",
-          "conversation.id",
-          "intent.conversation_id",
-        )
-        .select([
-          "intent.id",
-          "intent.channel_account_id",
-          "intent.conversation_id",
-          "intent.message_id",
-          "intent.operation",
-          "intent.idempotency_key",
-          "intent.request_fingerprint",
-          "intent.normalized_payload",
-          "intent.attempts",
-          "account.channel",
-          "account.provider",
-        ])
-        .where("intent.status", "=", "pending")
-        .where("intent.next_attempt_at", "<=", new Date())
-        .where("account.archived_at", "is", null)
-        // A linked-device account mirrors a WhatsApp connection, and the
-        // connection is the authority for whether that phone is online. The
-        // mirror only refreshes when a message flows through the bridge, so a
-        // phone that reconnected quietly left it reading "disconnected" - and
-        // filtering on it here meant the intent was never claimed at all. It
-        // would sit pending for ever while the inbox showed a sent message.
-        .where((eb) =>
-          eb.or([
-            eb.and([
-              eb("account.legacy_whatsapp_connection_id", "is", null),
-              eb("account.status", "=", "connected"),
-            ]),
-            eb.and([
-              eb("account.legacy_whatsapp_connection_id", "is not", null),
-              eb.exists(
-                eb
-                  .selectFrom("whatsapp_connections as live")
-                  .select("live.id")
-                  .whereRef(
-                    "live.id",
-                    "=",
-                    "account.legacy_whatsapp_connection_id",
-                  )
-                  .where("live.status", "=", "connected"),
-              ),
-            ]),
-          ]),
-        )
-        .where("conversation.archived_at", "is", null)
-        .where("account.provider", "in", authority.enabledProviders)
-        .orderBy("intent.next_attempt_at")
-        .orderBy("intent.created_at")
-        .forUpdate("intent")
-        .skipLocked()
-        .executeTakeFirst();
-      if (!row || !isChannel(row.channel) || !isChannelProvider(row.provider))
-        return null;
-      if (!isChannelProviderEnabled(authority, row.provider)) return null;
-      const leaseToken = crypto.randomUUID();
-      const updated = await trx
-        .updateTable("outbound_message_intents")
-        .set({
-          status: "dispatching",
-          lease_token: leaseToken,
-          lease_expires_at: new Date(Date.now() + LEASE_MS),
-          attempts: sql`attempts + 1`,
-          updated_at: new Date(),
-        })
-        .where("id", "=", row.id)
-        .where("status", "=", "pending")
-        .returning("id")
-        .executeTakeFirst();
-      if (!updated) return null;
-      return {
-        id: row.id,
-        companyId: company.id,
-        channelAccountId: row.channel_account_id,
-        conversationId: row.conversation_id,
-        messageId: row.message_id ?? undefined,
-        operation: row.operation,
-        idempotencyKey: row.idempotency_key,
-        requestFingerprint: row.request_fingerprint,
-        normalizedPayload: row.normalized_payload,
-        attemptKey: `${row.id}:${Number(row.attempts) + 1}`,
-        leaseToken,
-        provider: row.provider,
-        channel: row.channel,
-      };
-    });
-    if (!claim) continue;
-
-    let result: ProviderSendResult;
-    if (!(await isClaimStillAuthorized(claim))) {
-      result = {
-        outcome: "permanent_failure",
-        errorCode: "authorization_or_resource_state_revoked",
-      };
-      await completeClaim(company.id, claim, result);
-      return 1;
-    }
+    // Isolated per workspace: the loop walks every active company in id
+    // order, so one workspace that throws would silently starve every
+    // workspace ordered after it - their outbound messages would sit pending
+    // for ever with nothing logged against them.
     try {
-      // Capability resolution is part of the fail-closed dispatch path, not a
-      // UI-only hint. Invalid provider capability state cannot send.
-      const capabilities = await resolveAdapterCapabilities(
-        channelAdapterRegistry,
-        claim.channel,
-        claim.provider,
-        {
+      const authority = await getChannelSpineWorkspaceAuthority(company.id);
+      if (authority.writeAuthority !== "neutral") continue;
+      const tenantDb = await getTenantConnection(company.id);
+      if (!(await isChannelSpineTenantReady(tenantDb, company.id))) continue;
+      const claim = await tenantDb.transaction().execute(async (trx) => {
+        const row = await trx
+          .selectFrom("outbound_message_intents as intent")
+          .innerJoin(
+            "channel_accounts as account",
+            "account.id",
+            "intent.channel_account_id",
+          )
+          .innerJoin(
+            "conversations as conversation",
+            "conversation.id",
+            "intent.conversation_id",
+          )
+          .select([
+            "intent.id",
+            "intent.channel_account_id",
+            "intent.conversation_id",
+            "intent.message_id",
+            "intent.operation",
+            "intent.idempotency_key",
+            "intent.request_fingerprint",
+            "intent.normalized_payload",
+            "intent.attempts",
+            "account.channel",
+            "account.provider",
+          ])
+          .where("intent.status", "=", "pending")
+          .where("intent.next_attempt_at", "<=", new Date())
+          .where("account.archived_at", "is", null)
+          // A linked-device account mirrors a WhatsApp connection, and the
+          // connection is the authority for whether that phone is online. The
+          // mirror only refreshes when a message flows through the bridge, so a
+          // phone that reconnected quietly left it reading "disconnected" - and
+          // filtering on it here meant the intent was never claimed at all. It
+          // would sit pending for ever while the inbox showed a sent message.
+          .where((eb) =>
+            eb.or([
+              eb.and([
+                eb("account.legacy_whatsapp_connection_id", "is", null),
+                eb("account.status", "=", "connected"),
+              ]),
+              eb.and([
+                eb("account.legacy_whatsapp_connection_id", "is not", null),
+                eb.exists(
+                  eb
+                    .selectFrom("whatsapp_connections as live")
+                    .select("live.id")
+                    .whereRef(
+                      "live.id",
+                      "=",
+                      "account.legacy_whatsapp_connection_id",
+                    )
+                    .where("live.status", "=", "connected"),
+                ),
+              ]),
+            ]),
+          )
+          .where("conversation.archived_at", "is", null)
+          .where("account.provider", "in", authority.enabledProviders)
+          .orderBy("intent.next_attempt_at")
+          .orderBy("intent.created_at")
+          .forUpdate("intent")
+          .skipLocked()
+          .executeTakeFirst();
+        if (!row || !isChannel(row.channel) || !isChannelProvider(row.provider))
+          return null;
+        if (!isChannelProviderEnabled(authority, row.provider)) return null;
+        const leaseToken = crypto.randomUUID();
+        const updated = await trx
+          .updateTable("outbound_message_intents")
+          .set({
+            status: "dispatching",
+            lease_token: leaseToken,
+            lease_expires_at: new Date(Date.now() + LEASE_MS),
+            attempts: sql`attempts + 1`,
+            updated_at: new Date(),
+          })
+          .where("id", "=", row.id)
+          .where("status", "=", "pending")
+          .returning("id")
+          .executeTakeFirst();
+        if (!updated) return null;
+        return {
+          id: row.id,
           companyId: company.id,
-          channelAccountId: claim.channelAccountId,
-          conversationId: claim.conversationId,
-          messageId: claim.messageId,
-          now: new Date().toISOString(),
-        },
-      );
-      if (!capabilities.outboundInitiation && claim.operation === "initiate") {
+          channelAccountId: row.channel_account_id,
+          conversationId: row.conversation_id,
+          messageId: row.message_id ?? undefined,
+          operation: row.operation,
+          idempotencyKey: row.idempotency_key,
+          requestFingerprint: row.request_fingerprint,
+          normalizedPayload: row.normalized_payload,
+          attemptKey: `${row.id}:${Number(row.attempts) + 1}`,
+          leaseToken,
+          provider: row.provider,
+          channel: row.channel,
+        };
+      });
+      if (!claim) continue;
+
+      let result: ProviderSendResult;
+      if (!(await isClaimStillAuthorized(claim))) {
         result = {
           outcome: "permanent_failure",
-          errorCode: "outbound_initiation_unsupported",
+          errorCode: "authorization_or_resource_state_revoked",
         };
-      } else if (claim.operation.startsWith("action:")) {
-        const action = await channelAdapterRegistry
-          .get(claim.channel, claim.provider)
-          .perform({
-            companyId: claim.companyId,
+        await completeClaim(company.id, claim, result);
+        return 1;
+      }
+      try {
+        // Capability resolution is part of the fail-closed dispatch path, not a
+        // UI-only hint. Invalid provider capability state cannot send.
+        const capabilities = await resolveAdapterCapabilities(
+          channelAdapterRegistry,
+          claim.channel,
+          claim.provider,
+          {
+            companyId: company.id,
             channelAccountId: claim.channelAccountId,
             conversationId: claim.conversationId,
-            operation: claim.operation.slice("action:".length),
-            idempotencyKey: claim.idempotencyKey,
-            payload: claim.normalizedPayload,
-          });
-        if (action.outcome === "accepted" || action.outcome === "confirmed") {
+            messageId: claim.messageId,
+            now: new Date().toISOString(),
+          },
+        );
+        if (
+          !capabilities.outboundInitiation &&
+          claim.operation === "initiate"
+        ) {
           result = {
-            outcome: action.outcome,
-            providerRequestId: action.providerRequestId,
+            outcome: "permanent_failure",
+            errorCode: "outbound_initiation_unsupported",
           };
+        } else if (claim.operation.startsWith("action:")) {
+          const action = await channelAdapterRegistry
+            .get(claim.channel, claim.provider)
+            .perform({
+              companyId: claim.companyId,
+              channelAccountId: claim.channelAccountId,
+              conversationId: claim.conversationId,
+              operation: claim.operation.slice("action:".length),
+              idempotencyKey: claim.idempotencyKey,
+              payload: claim.normalizedPayload,
+            });
+          if (action.outcome === "accepted" || action.outcome === "confirmed") {
+            result = {
+              outcome: action.outcome,
+              providerRequestId: action.providerRequestId,
+            };
+          } else {
+            const actionFailure = action as Exclude<
+              ProviderActionResult,
+              { outcome: "accepted" | "confirmed" }
+            >;
+            result = {
+              outcome:
+                actionFailure.outcome === "transient_failure"
+                  ? "transient_failure"
+                  : actionFailure.outcome === "uncertain"
+                    ? "uncertain"
+                    : "permanent_failure",
+              errorCode: actionFailure.errorCode,
+              retryAfterMs: actionFailure.retryAfterMs,
+            };
+          }
         } else {
-          const actionFailure = action as Exclude<
-            ProviderActionResult,
-            { outcome: "accepted" | "confirmed" }
-          >;
-          result = {
-            outcome:
-              actionFailure.outcome === "transient_failure"
-                ? "transient_failure"
-                : actionFailure.outcome === "uncertain"
-                  ? "uncertain"
-                  : "permanent_failure",
-            errorCode: actionFailure.errorCode,
-            retryAfterMs: actionFailure.retryAfterMs,
-          };
+          result = await channelAdapterRegistry
+            .get(claim.channel, claim.provider)
+            .send(claim);
         }
-      } else {
-        result = await channelAdapterRegistry
-          .get(claim.channel, claim.provider)
-          .send(claim);
+      } catch {
+        result = {
+          outcome: "uncertain",
+          errorCode: "adapter_outcome_unknown",
+        };
       }
-    } catch {
-      result = {
-        outcome: "uncertain",
-        errorCode: "adapter_outcome_unknown",
-      };
+      await completeClaim(company.id, claim, result);
+      return 1;
+    } catch (error) {
+      logger.warn(
+        { err: formatError(error), companyId: company.id },
+        "Outbound dispatch skipped a workspace",
+      );
     }
-    await completeClaim(company.id, claim, result);
-    return 1;
   }
   return 0;
 }
@@ -584,19 +598,31 @@ async function recoverExpiredLeases(): Promise<void> {
     .where("status", "=", "active")
     .execute();
   for (const company of companies) {
-    const tenantDb = await getTenantConnection(company.id);
-    await tenantDb
-      .updateTable("outbound_message_intents")
-      .set({
-        status: "uncertain",
-        lease_token: null,
-        lease_expires_at: null,
-        last_error_code: "dispatch_lease_expired_outcome_unknown",
-        updated_at: new Date(),
-      })
-      .where("status", "=", "dispatching")
-      .where("lease_expires_at", "<", new Date())
-      .execute();
+    // One unusable workspace must not stop lease recovery for the rest. This
+    // runs once at startup and its rejection previously escaped as an
+    // unhandled promise, taking the dispatch loop with it: a workspace whose
+    // schema was missing or half-built left every other workspace's outbound
+    // messages sitting pending for ever, with nothing logged against them.
+    try {
+      const tenantDb = await getTenantConnection(company.id);
+      await tenantDb
+        .updateTable("outbound_message_intents")
+        .set({
+          status: "uncertain",
+          lease_token: null,
+          lease_expires_at: null,
+          last_error_code: "dispatch_lease_expired_outcome_unknown",
+          updated_at: new Date(),
+        })
+        .where("status", "=", "dispatching")
+        .where("lease_expires_at", "<", new Date())
+        .execute();
+    } catch (error) {
+      logger.warn(
+        { err: formatError(error), companyId: company.id },
+        "Outbound lease recovery skipped a workspace",
+      );
+    }
   }
 }
 

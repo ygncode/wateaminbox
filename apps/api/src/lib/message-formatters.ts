@@ -17,6 +17,10 @@ import {
   resolveDownloadFileName,
 } from "./media-download-name.js";
 import {
+  legacyProvenance,
+  type ThreadProvenance,
+} from "../services/message-provenance.service.js";
+import {
   getAuthorizedMediaUrl,
   type SignedResponseOverrides,
 } from "./storage.js";
@@ -28,6 +32,8 @@ export interface MessageDbRow {
   id: string;
   message_id: string | null;
   contact_id: string;
+  /** Null on a legacy WhatsApp row that never reached the channel spine. */
+  conversation_id?: string | null;
   whatsapp_connection_id: string | null;
   from_me: boolean;
   sender_jid: string | null;
@@ -342,15 +348,39 @@ export function formatMessageForConversation(
   reactionsMap: Map<string, ReactionData[]>,
   userNames: Map<string, string> = new Map(),
   userAvatarSources: Map<string, MessageUserAvatarSources> = new Map(),
+  threads: Map<string, ThreadProvenance> = new Map(),
+  /**
+   * Resolves this message's quote when the flat map cannot.
+   *
+   * A merged timeline carries messages from several threads at once, and the
+   * map is keyed by quote reference alone - two threads referencing the same
+   * provider id would collide. Callers that span threads pass a resolver that
+   * answers per message and refuses to reach outside the message's own thread.
+   */
+  resolveQuote?: (message: MessageDbRow) => QuotedMessageData | null,
 ) {
+  // Which thread this message arrived on. A page that spans one conversation
+  // repeats the same answer; a merged customer's page does not, which is the
+  // reason this is resolved per message rather than once per request.
+  const provenance = msg.conversation_id
+    ? threads.get(msg.conversation_id)
+    : msg.contact_id
+      ? legacyProvenance(msg.contact_id)
+      : undefined;
   return {
     id: msg.id,
     // Keep the legacy response key while also exposing the canonical shared
     // Message field used to match unresolved WhatsApp reply references.
     messageId: msg.message_id,
     whatsappMessageId: msg.message_id || undefined,
+    // Historically the contact id, not the conversation. Correcting it is a
+    // separate change with its own blast radius; `threadId` is the field that
+    // actually names the thread.
     conversationId: msg.contact_id,
     contactId: msg.contact_id,
+    threadId: provenance?.threadId ?? null,
+    channel: provenance?.channel ?? null,
+    provider: provenance?.provider ?? null,
     senderId: msg.sent_by_user_id || msg.sender_jid || "",
     senderType: msg.from_me ? "user" : "contact",
     senderJid: msg.sender_jid,
@@ -374,6 +404,7 @@ export function formatMessageForConversation(
     replyToMessageId:
       msg.quoted_message_id || msg.reply_to_message_id || undefined,
     replyToMessage: (() => {
+      if (resolveQuote) return resolveQuote(msg) ?? undefined;
       const quotedKey = msg.quoted_message_id || msg.reply_to_message_id;
       return quotedKey ? quotedMessagesMap.get(quotedKey) || null : undefined;
     })(),
@@ -401,6 +432,8 @@ export function formatMessagesForConversation(
   reactionsMap: Map<string, ReactionData[]>,
   userNames: Map<string, string> = new Map(),
   userAvatarSources: Map<string, MessageUserAvatarSources> = new Map(),
+  threads: Map<string, ThreadProvenance> = new Map(),
+  resolveQuote?: (message: MessageDbRow) => QuotedMessageData | null,
 ) {
   return messages.map((msg) =>
     formatMessageForConversation(
@@ -409,6 +442,8 @@ export function formatMessagesForConversation(
       reactionsMap,
       userNames,
       userAvatarSources,
+      threads,
+      resolveQuote,
     ),
   );
 }

@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import {
   connectTelegramBot,
   disconnectChannelAccount,
+  purgeChannelAccount,
   getChannelAccountCapabilities,
   getChannelAccounts,
   getChannelProviderAvailability,
@@ -126,6 +127,39 @@ export function useDisconnectChannelAccount() {
      */
     onError: (error: unknown) => {
       toast.error(mutationErrorMessage(error, "Could not unlink this account"));
+    },
+  });
+}
+
+/**
+ * Erase a disconnected account and the history it brought in.
+ *
+ * Separate from disconnecting: that stops the account and keeps its threads,
+ * which is why a disconnected Telegram bot leaves conversations in the inbox.
+ * This is the only way to clear them, and the customers it created go too.
+ */
+export function usePurgeChannelAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: purgeChannelAccount,
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.channelAccounts.all,
+      });
+      // The threads and customers it owned are gone, so every list that drew
+      // them is stale.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.contacts.all });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.channelConversations.lists(),
+      });
+      toast.success(
+        result.contactIds.length > 0
+          ? `Deleted the account and ${result.contactIds.length} customer(s) it created`
+          : "Deleted the account",
+      );
+    },
+    onError: (error: unknown) => {
+      toast.error(mutationErrorMessage(error, "Could not delete this account"));
     },
   });
 }

@@ -40,6 +40,9 @@ import {
 } from "../contexts/message-actions-context";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useChatPageState } from "../hooks/chat";
+import type { WhatsAppConnectionIdentity } from "@wateaminbox/shared";
+import { ConversationLifecycleActions } from "../components/chat/ConversationLifecycleActions";
+import { useCustomerChats } from "../hooks/contact/useCustomerChats";
 import { useKeyboardInset } from "../hooks/ui";
 import { useChannelAccountCapabilities } from "../hooks/useChannelAccounts";
 import { useChannelConversation } from "../hooks/useChannelConversations";
@@ -101,6 +104,7 @@ export function ChatPage() {
   const {
     // State
     selectedChatId,
+    selectedRowId,
     selectedContact,
     contactLoadError,
     isContactLoading,
@@ -118,6 +122,7 @@ export function ChatPage() {
 
     // Actions
     handleChatSelect,
+    handleThreadSelect,
     retryContactLoad,
     handleOpenProfile,
     handleOpenParticipantProfile,
@@ -148,6 +153,15 @@ export function ChatPage() {
     [channelConversation],
   );
   const threadContact = selectedContact ?? conversationContact;
+  // The thread being read, as the switcher describes it. A contact read
+  // canonicalises to the surviving customer, so for a merged customer it
+  // answers with the wrong thread's identity - and with no JID at all when
+  // that customer arrived on a channel other than WhatsApp, which left the
+  // composer with nothing to address and so removed it from the screen.
+  const { data: customerThreads = [] } = useCustomerChats(selectedRowId);
+  const activeThread = customerThreads.find(
+    (thread) => thread.chatId === selectedChatId,
+  );
   const isThreadLoading =
     Boolean(selectedChatId) &&
     !threadContact &&
@@ -225,7 +239,8 @@ export function ChatPage() {
       try {
         const destination = await createSharedContact.mutateAsync({
           phoneNumber,
-          connectionId: selectedContact?.connection?.id,
+          connectionId:
+            activeThread?.connection?.id ?? selectedContact?.connection?.id,
           customName: contact.displayName.slice(0, 100),
         });
         setSharedContactCard(null);
@@ -251,7 +266,13 @@ export function ChatPage() {
         );
       }
     },
-    [createSharedContact, handleChatSelect, selectedContact?.connection?.id, t],
+    [
+      activeThread?.connection?.id,
+      createSharedContact,
+      handleChatSelect,
+      selectedContact?.connection?.id,
+      t,
+    ],
   );
 
   const handleMessageProfileContact = useCallback(() => {
@@ -264,11 +285,20 @@ export function ChatPage() {
   // ComposerLifecycleArea below - both must agree on whether this user can
   // currently send, or the reply/react/retry affordances rendered here could
   // diverge from what the composer itself shows.
-  const { access: composerAccess } = useComposerAccess(selectedChatId ?? null);
+  // Assignment and blocked state belong to the thread being read. Asking
+  // about the surviving customer gates the wrong conversation: a thread
+  // assigned to someone else shows a live composer, and one assigned to this
+  // user shows the take-over bar that assigning cannot clear.
+  const { access: composerAccess } = useComposerAccess(
+    activeThread?.contactId ?? selectedChatId ?? null,
+  );
   const canSend = composerAccess.kind === "sendable";
+  // The thread's own JID decides this. A merged customer's surviving contact
+  // may be neutral and JID-less, which read as "not a group" and stripped
+  // mentions from a WhatsApp group thread the operator was actually in.
+  const threadJid = activeThread?.jid ?? threadContact?.jid;
   const isSelectedGroup = Boolean(
-    threadContact &&
-      (threadContact.isGroup || threadContact.jid?.endsWith("@g.us")),
+    threadContact && (threadContact.isGroup || threadJid?.endsWith("@g.us")),
   );
   const { data: selectedGroup } = useGroup(
     isSelectedGroup ? (selectedChatId ?? null) : null,
@@ -296,7 +326,7 @@ export function ChatPage() {
   const sidebar = (
     <Sidebar className="flex-shrink-0">
       <ChatSidebar
-        selectedChatId={selectedChatId}
+        selectedChatId={selectedRowId}
         onChatSelect={handleChatSelect}
         activeView={sidebarView}
         onActiveViewChange={setSidebarView}
@@ -341,6 +371,8 @@ export function ChatPage() {
         <>
           <MessageHeader
             contact={threadContact}
+            thread={activeThread}
+            threadCount={customerThreads.length}
             onOpenProfile={handleOpenProfile}
             onSearch={handleOpenSearch}
             isTyping={isContactTyping}
@@ -349,9 +381,15 @@ export function ChatPage() {
           />
           {isSearchOpen && (
             <ConversationSearch
-              contactId={selectedContact?.id}
+              // Scoped to the thread on screen. The canonical contact's id
+              // searched the surviving customer's other conversation, and the
+              // API prefers `contactId` when both are given, so results came
+              // from a thread whose messages are not even rendered.
+              contactId={activeThread?.contactId ?? selectedContact?.id}
               conversationId={
-                threadContact.conversationId ?? channelConversation?.id
+                activeThread?.conversationId ??
+                threadContact.conversationId ??
+                channelConversation?.id
               }
               onClose={handleCloseSearch}
               onNavigateToMessage={handleNavigateToMessage}
@@ -382,6 +420,7 @@ export function ChatPage() {
             >
               <MessageThread
                 conversationId={selectedChatId}
+                customerRowId={selectedRowId}
                 currentUserId={user?.id || ""}
                 currentUserName={user?.name}
                 currentUserAvatarUrl={user?.avatarUrl}
@@ -422,6 +461,7 @@ export function ChatPage() {
                   connection={null}
                   channelAccount={{
                     displayName: channelConversation.account.displayName,
+                    username: channelConversation.account.username,
                     channelName: channelDisplayName(
                       channelConversation.channel,
                     ),
@@ -429,20 +469,55 @@ export function ChatPage() {
                   }}
                   currentUserName={user?.name}
                   mentionParticipants={selectedGroup?.participants}
+                  onSelectChat={handleThreadSelect}
+                  // The account a reply leaves on, not the customer it reaches.
+                  channelAddress={
+                    channelConversation.account.username
+                      ? `@${channelConversation.account.username}`
+                      : null
+                  }
+                  trailing={
+                    <ConversationLifecycleActions
+                      contactId={selectedChatId}
+                      isSending={isSending}
+                    />
+                  }
                 />
               </ChannelComposerGate>
             ) : (
               <MessageComposer
-                conversationId={threadContact.jid}
-                contactId={selectedChatId}
+                conversationId={activeThread?.jid ?? threadContact.jid}
+                contactId={activeThread?.contactId ?? selectedChatId}
                 replyToMessage={replyToMessage}
                 onClearReply={handleClearReply}
                 onSendMessage={handleSendMessage}
                 onAttachFile={handleChannelAttachFile}
                 disabled={isSending}
-                connection={selectedContact?.connection}
+                // The thread's own connection, not the surviving customer's:
+                // a merged customer whose canonical contact arrived on another
+                // channel has none, which the composer read as "disconnected"
+                // and refused to send.
+                connection={
+                  activeThread?.connection
+                    ? {
+                        id: activeThread.connection.id,
+                        name: activeThread.connection.name,
+                        phoneNumber: activeThread.connection.phoneNumber,
+                        status: activeThread.connection
+                          .status as WhatsAppConnectionIdentity["status"],
+                      }
+                    : selectedContact?.connection
+                }
                 currentUserName={user?.name}
                 mentionParticipants={selectedGroup?.participants}
+                onSelectChat={handleThreadSelect}
+                channelAddress={null}
+                trailing={
+                  <ConversationLifecycleActions
+                    contactId={selectedChatId}
+                    isSending={isSending}
+                  />
+                }
               />
             )}
           </ComposerLifecycleArea>
@@ -463,6 +538,7 @@ export function ChatPage() {
           : undefined
       }
       onOpenParticipantProfile={handleOpenParticipantProfile}
+      onSelectThread={handleThreadSelect}
     />
   );
 

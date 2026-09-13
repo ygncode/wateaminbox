@@ -22,6 +22,8 @@ function fakeTenantDb(rows: {
     count?: number;
   }>;
   deletedMessageCount?: number;
+  /** Customers the purge detaches from a contact it is about to delete. */
+  separated?: Array<{ id: string; name: string | null }>;
 }) {
   const statements: string[] = [];
 
@@ -47,6 +49,12 @@ function fakeTenantDb(rows: {
   const writeBuilder = (statement: string) => {
     const builder = {
       set: () => builder,
+      returning: () => ({
+        execute: async () => {
+          statements.push(statement);
+          return rows.separated ?? [];
+        },
+      }),
       values: () => builder,
       columns: () => builder,
       expression: () => builder,
@@ -117,6 +125,7 @@ describe("permanent connection purge", () => {
       contacts: [{ id: "contact-1" }, { id: "contact-2" }],
       scheduled_messages: [{ bulk_job_id: "job-1", status: "sent", count: 1 }],
       deletedMessageCount: 7,
+      separated: [{ id: "contact-3", name: "Ada" }],
     });
 
     const result = await purgeArchivedConnection(fake.tenantDb, "connection-1");
@@ -125,6 +134,9 @@ describe("permanent connection purge", () => {
       contactIds: ["contact-1", "contact-2"],
       deletedMessageCount: 7,
       affectedBulkJobIds: ["job-1"],
+      // The customers this purge un-merged, named so the caller can record a
+      // separation whose own merge record is about to be deleted.
+      separatedContacts: [{ id: "contact-3", name: "Ada" }],
     });
 
     const at = (statement: string) => {
@@ -143,6 +155,15 @@ describe("permanent connection purge", () => {
     // conversation_cases cascade from contacts, so contacts may only go once
     // their messages are gone.
     expect(at("delete messages")).toBeLessThan(at("delete contacts"));
+    // Merge history holds RESTRICT keys to the customers it describes, so it
+    // pins them until it is gone. A single merge otherwise made the whole
+    // connection impossible to purge.
+    expect(at("delete contact_merge_events")).toBeLessThan(
+      at("delete contacts"),
+    );
+    expect(at("delete contact_endpoint_reassignment_events")).toBeLessThan(
+      at("delete contacts"),
+    );
     // group_participants and group_join_requests both cascade from groups,
     // which cascade from contacts.
     expect(at("delete group_participants")).toBeLessThan(at("delete groups"));
@@ -184,6 +205,9 @@ describe("permanent connection purge", () => {
       "delete channel_ingress_routes",
       "delete conversations",
       "delete channel_accounts",
+      "delete contact_endpoint_reassignment_events",
+      "delete contact_merge_events",
+      "update contacts",
       "delete contacts",
       "delete status_updates",
       "delete catalog_products",

@@ -75,6 +75,7 @@ conversationRoutes.get("/", async (c) => {
       "account.channel",
       "account.provider",
       "account.display_name as account_display_name",
+      "account.provider_metadata as account_provider_metadata",
       "account.status as account_status",
       "state.unread_count",
       "state.last_message_preview",
@@ -94,6 +95,25 @@ conversationRoutes.get("/", async (c) => {
     // This surface stays channel-only until WhatsApp actually reads through
     // the spine. Removing the filter is part of that switch, not before it.
     .where("account.legacy_whatsapp_connection_id", "is", null)
+    // A thread whose customer was merged away belongs to the surviving
+    // customer's row, which the contacts list already returns. Listing it here
+    // too puts the same person in the inbox twice - once as themselves and
+    // once as the record they were merged into - because the two lists are
+    // reconciled on ids the merge deliberately leaves alone.
+    .where((eb) =>
+      eb.or([
+        eb("conversation.legacy_contact_id", "is", null),
+        eb.not(
+          eb.exists(
+            eb
+              .selectFrom("contacts as merged")
+              .select("merged.id")
+              .whereRef("merged.id", "=", "conversation.legacy_contact_id")
+              .where("merged.merged_into_contact_id", "is not", null),
+          ),
+        ),
+      ]),
+    )
     .$if(tagIds.length > 0, (qb) =>
       qb.where((eb) =>
         eb.exists(
@@ -174,6 +194,9 @@ conversationRoutes.get("/", async (c) => {
       legacyContactId: conversation.legacy_contact_id,
       account: {
         displayName: conversation.account_display_name,
+        // The handle the provider knows this account by, so a composer can say
+        // which account a reply leaves on rather than naming the customer.
+        username: accountUsername(conversation.account_provider_metadata),
         status: conversation.account_status,
       },
       counterpart: {
@@ -223,6 +246,7 @@ conversationRoutes.get("/:id", requireConversationVisibility(), async (c) => {
       "account.channel",
       "account.provider",
       "account.display_name as account_display_name",
+      "account.provider_metadata as account_provider_metadata",
       "account.status as account_status",
       "state.unread_count",
       "state.last_message_preview",
@@ -272,6 +296,7 @@ conversationRoutes.get("/:id", requireConversationVisibility(), async (c) => {
     legacyContactId: conversation.legacy_contact_id,
     account: {
       displayName: conversation.account_display_name,
+      username: accountUsername(conversation.account_provider_metadata),
       status: conversation.account_status,
     },
     counterpart: await authorizeCounterpartAvatar(
@@ -306,3 +331,9 @@ conversationRoutes.route("/", conversationAssignmentRoutes);
 conversationRoutes.route("/", messageRoutes);
 conversationRoutes.route("/", metadataRoutes);
 conversationRoutes.route("/", neutralActionRoutes);
+
+/** The provider handle stored when the account was connected, if any. */
+function accountUsername(metadata: unknown): string | null {
+  const username = (metadata as { username?: unknown } | null)?.username;
+  return typeof username === "string" && username ? username : null;
+}

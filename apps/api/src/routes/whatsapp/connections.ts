@@ -380,6 +380,24 @@ connectionRoutes.post(
         },
         ipAddress: getClientIp(c),
       });
+      // A purge of a merged customer's surviving record separates everyone
+      // merged into it, and the merge history that would explain that is
+      // deleted with the contact it describes. Without this the customer
+      // simply stops being merged and nothing anywhere says why.
+      if (purged.separatedContacts.length > 0) {
+        await createAuditLog({
+          companyId,
+          userId: c.get("user").id,
+          action: "contact.separated_by_purge",
+          entityType: "whatsapp_connection",
+          entityId: connectionId,
+          details: {
+            separatedCount: purged.separatedContacts.length,
+            separated: purged.separatedContacts,
+          },
+          ipAddress: getClientIp(c),
+        });
+      }
     } catch (error) {
       logger.error(
         { connectionId, err: formatError(error) },
@@ -425,8 +443,7 @@ connectionRoutes.post(
       // the caller there instead.
       if (connection.archivedAt) {
         throw new HTTPException(409, {
-          message:
-            "This account is archived. Relink it to connect it again.",
+          message: "This account is archived. Relink it to connect it again.",
         });
       }
 
@@ -453,7 +470,8 @@ connectionRoutes.post(
       }
 
       await tenantDb.transaction().execute(async (trx) => {
-        const sessionId = activeSession?.id ??
+        const sessionId =
+          activeSession?.id ??
           (await whatsappService.createConnectionSession(
             trx,
             connectionId,
@@ -471,11 +489,8 @@ connectionRoutes.post(
           .where("id", "=", connectionId)
           .execute();
         await updateSessionStatus(trx, sessionId, "connecting");
-        await enqueueSessionCommand(
-          trx,
-          companyId,
-          sessionId,
-          (publisher) => publisher.spawn(),
+        await enqueueSessionCommand(trx, companyId, sessionId, (publisher) =>
+          publisher.spawn(),
         );
       });
 

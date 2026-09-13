@@ -9,8 +9,13 @@ import {
   getPresignedUrl,
   resolveMediaKeyForCompany,
 } from "../../../lib/storage.js";
-import { readChannelCredential } from "../../../services/channel-credential.service.js";
+import {
+  ChannelCredentialKeyError,
+  readChannelCredential,
+} from "../../../services/channel-credential.service.js";
 import { getTenantConnection } from "../../../services/tenant.service.js";
+import type { TenantDatabase } from "@wateaminbox/database";
+import type { Kysely } from "kysely";
 
 /**
  * The application half of Telegram outbound sending.
@@ -29,12 +34,7 @@ async function resolveOutboundContext(
 ): Promise<TelegramOutboundContext> {
   const tenantDb = await getTenantConnection(target.companyId);
   const [token, conversation] = await Promise.all([
-    readChannelCredential(
-      tenantDb,
-      target.companyId,
-      target.channelAccountId,
-      "telegram_bot_token",
-    ),
+    readBotToken(tenantDb, target),
     tenantDb
       .selectFrom("conversations as conversation")
       .innerJoin(
@@ -70,6 +70,35 @@ async function resolveOutboundContext(
     messageThreadId,
     externalThreadId: conversation.external_thread_id,
   };
+}
+
+/**
+ * The bot token, with a missing keyring translated into the adapter's protocol.
+ *
+ * The adapter classifies by code and knows nothing of this application's error
+ * types. Left untranslated, a key the process was started without falls through
+ * to "uncertain" - never retried, because Telegram has no idempotency key - so
+ * an operator-fixable fault would park the send for ever.
+ */
+async function readBotToken(
+  tenantDb: Kysely<TenantDatabase>,
+  target: TelegramOutboundTarget,
+): Promise<string | null> {
+  try {
+    return await readChannelCredential(
+      tenantDb,
+      target.companyId,
+      target.channelAccountId,
+      "telegram_bot_token",
+    );
+  } catch (error) {
+    if (error instanceof ChannelCredentialKeyError) {
+      throw new TelegramLocalFailureError(
+        "telegram_credential_key_unavailable",
+      );
+    }
+    throw error;
+  }
 }
 
 async function resolveAttachmentUrl(

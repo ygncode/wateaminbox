@@ -137,6 +137,38 @@ export function writeChatListFilters(
  * selector names. `null` means the chat cannot be attributed to any account,
  * so it belongs only to the unscoped view.
  */
+/**
+ * Whether a row belongs to the account the inbox is narrowed to.
+ *
+ * A merged customer is one row covering several threads, and those threads can
+ * run on different accounts. Asking which single account "owns" the row picked
+ * one of them, so the customer vanished from every other account's filter even
+ * though they are reachable there.
+ */
+/**
+ * Whether an inbox row belongs under a given channel-account filter.
+ *
+ * A merged customer covers several threads on several accounts, so it has no
+ * single owning account: filtering by the one the row happens to be keyed on
+ * hid it from every other account's filter. The server sends the full set of
+ * accounts the row's threads live on; the single-owner rule stays as the
+ * fallback for rows from a server that does not send it yet.
+ */
+export function chatMatchesAccount(
+  chat: {
+    accountIds?: string[];
+    contact: {
+      connection?: { id: string } | null;
+      conversationId?: string | null;
+    };
+  },
+  accountId: string,
+  channelConversations: ReadonlyArray<{ id: string; channelAccountId: string }>,
+): boolean {
+  if (chat.accountIds?.includes(accountId)) return true;
+  return resolveOwningAccountId(chat, channelConversations) === accountId;
+}
+
 export function resolveOwningAccountId(
   chat: {
     contact: {

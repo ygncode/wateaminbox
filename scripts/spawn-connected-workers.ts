@@ -81,27 +81,57 @@ async function main(): Promise<void> {
     connectionId: string;
   }> = [];
 
+  const skipped: string[] = [];
+
   for (const { id: companyId } of companies) {
     const schemaName = schemaNameFor(companyId);
-    const result = await pool.query<{
-      connection_id: string;
-      session_id: string;
-    }>(
-      `SELECT c.id AS connection_id, s.id AS session_id
-       FROM "${schemaName}".whatsapp_connections c
-       JOIN "${schemaName}".whatsapp_connection_sessions s
-         ON s.whatsapp_connection_id = c.id
-        AND s.ended_at IS NULL
-       WHERE c.status = 'connected'`,
+    // A workspace whose schema was never finished - a failed signup, a
+    // half-dropped test tenant - carries a row in `companies` but no tables.
+    // Querying it threw and aborted the whole sweep, so one dead tenant left
+    // every other workspace without a worker after dev-start, with nothing but
+    // a "could not auto-respawn" warning to say why.
+    const present = await pool.query<{ table: string | null }>(
+      `SELECT to_regclass($1) AS table`,
+      [`"${schemaName}".whatsapp_connections`],
     );
-    for (const row of result.rows) {
-      targets.push({
-        companyId,
-        schemaName,
-        sessionId: row.session_id,
-        connectionId: row.connection_id,
-      });
+    if (!present.rows[0]?.table) {
+      skipped.push(schemaName);
+      continue;
     }
+    try {
+      const result = await pool.query<{
+        connection_id: string;
+        session_id: string;
+      }>(
+        `SELECT c.id AS connection_id, s.id AS session_id
+         FROM "${schemaName}".whatsapp_connections c
+         JOIN "${schemaName}".whatsapp_connection_sessions s
+           ON s.whatsapp_connection_id = c.id
+          AND s.ended_at IS NULL
+         WHERE c.status = 'connected'`,
+      );
+      for (const row of result.rows) {
+        targets.push({
+          companyId,
+          schemaName,
+          sessionId: row.session_id,
+          connectionId: row.connection_id,
+        });
+      }
+    } catch (error) {
+      // One unreadable workspace must not cost every other workspace its
+      // worker; the sweep reports it and carries on.
+      console.warn(
+        `Skipping ${schemaName}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      skipped.push(schemaName);
+    }
+  }
+
+  if (skipped.length > 0) {
+    console.warn(
+      `Skipped ${skipped.length} workspace schema(s) with no readable connections: ${skipped.join(", ")}`,
+    );
   }
 
   await pool.end();

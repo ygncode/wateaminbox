@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { TelegramLocalFailureError } from "@wateaminbox/adapter-telegram";
+import { ChannelCredentialCipher } from "../../../services/channel-credential.service.js";
 import { sql } from "kysely";
 import {
   canStoreChannelCredentials,
@@ -111,7 +112,7 @@ describe("telegramTransportPorts.resolveOutboundContext", () => {
         // A thread id the Bot API cannot address is a permanent refusal, not
         // an attempt against a chat id parsed out of a malformed string.
         const malformed = await conversationId("not-a-chat-id");
-        expect(
+        await expect(
           telegramTransportPorts.resolveOutboundContext({
             companyId,
             channelAccountId: accountId,
@@ -124,7 +125,7 @@ describe("telegramTransportPorts.resolveOutboundContext", () => {
         // A conversation the spine never gave an external thread has nowhere
         // to send, and so does one on an archived conversation.
         const unmapped = await conversationId(null);
-        expect(
+        await expect(
           telegramTransportPorts.resolveOutboundContext({
             companyId,
             channelAccountId: accountId,
@@ -138,7 +139,7 @@ describe("telegramTransportPorts.resolveOutboundContext", () => {
           .set({ archived_at: new Date() })
           .where("id", "=", direct)
           .execute();
-        expect(
+        await expect(
           telegramTransportPorts.resolveOutboundContext({
             companyId,
             channelAccountId: accountId,
@@ -155,7 +156,7 @@ describe("telegramTransportPorts.resolveOutboundContext", () => {
           .set({ status: "disabled" })
           .where("id", "=", accountId)
           .execute();
-        expect(
+        await expect(
           telegramTransportPorts.resolveOutboundContext({
             companyId,
             channelAccountId: accountId,
@@ -190,7 +191,7 @@ describe("telegramTransportPorts.resolveOutboundContext", () => {
           "telegram_bot_token",
           token,
         );
-        expect(
+        await expect(
           telegramTransportPorts.resolveOutboundContext({
             companyId,
             channelAccountId: otherAccountId,
@@ -206,7 +207,7 @@ describe("telegramTransportPorts.resolveOutboundContext", () => {
           .deleteFrom("channel_account_credentials")
           .where("channel_account_id", "=", accountId)
           .execute();
-        expect(
+        await expect(
           telegramTransportPorts.resolveOutboundContext({
             companyId,
             channelAccountId: accountId,
@@ -214,6 +215,32 @@ describe("telegramTransportPorts.resolveOutboundContext", () => {
           }),
         ).rejects.toThrow(
           new TelegramLocalFailureError("telegram_credential_unavailable"),
+        );
+        // A credential stored under a key version this process no longer holds
+        // must surface as the adapter's own code. Untranslated it would reach
+        // classifyTelegramSendFailure as an unrecognised error and be called
+        // "uncertain", which is never retried - parking the send for ever over
+        // a fault an operator can fix.
+        const strandedKey = new ChannelCredentialCipher(
+          `retired:${Buffer.alloc(32, 9).toString("base64")}`,
+          "retired",
+        );
+        await storeChannelCredential(
+          tenantDb,
+          companyId,
+          accountId,
+          "telegram_bot_token",
+          token,
+          strandedKey,
+        );
+        await expect(
+          telegramTransportPorts.resolveOutboundContext({
+            companyId,
+            channelAccountId: accountId,
+            conversationId: topic,
+          }),
+        ).rejects.toThrow(
+          new TelegramLocalFailureError("telegram_credential_key_unavailable"),
         );
       } finally {
         await clearTenantConnection(companyId);

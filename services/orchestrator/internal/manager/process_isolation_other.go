@@ -4,6 +4,8 @@ package manager
 
 import (
 	"fmt"
+	"os/exec"
+	"strings"
 	"syscall"
 )
 
@@ -39,4 +41,19 @@ func workerProcessCredentialsMatch(_ int, expectedUID, expectedGID int) (bool, e
 		return false, fmt.Errorf("durable worker credential validation is supported only on Linux")
 	}
 	return true, nil
+}
+
+// processIsZombie reports whether a PID has exited but has not yet been reaped.
+// See the Linux implementation for why this matters; without /proc the state
+// comes from ps.
+func processIsZombie(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	output, err := exec.Command("ps", "-p", fmt.Sprint(pid), "-o", "state=").Output()
+	if err != nil {
+		return false
+	}
+	state := strings.TrimSpace(string(output))
+	return strings.HasPrefix(state, "Z")
 }

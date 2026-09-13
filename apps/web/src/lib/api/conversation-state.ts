@@ -75,6 +75,33 @@ export async function resolveConversation(
   );
 }
 
+/** What a customer-wide resolve did, and what it deliberately did not do. */
+export interface CustomerResolveResult {
+  canonicalContactId: string;
+  resolved: string[];
+  /** Threads that had nothing to resolve; not a failure of the action. */
+  alreadyResolved: string[];
+  skipped: { threadId: string; unreadCount: number }[];
+}
+
+/**
+ * Resolve every thread of a merged customer at once.
+ *
+ * A thread holding unread inbound is left open and reported in `skipped`: a
+ * quiet thread reopens by itself when the customer writes again, but one
+ * already holding an unanswered question does not, so closing it would bury
+ * the question.
+ */
+export async function resolveCustomer(
+  chatId: string,
+  input: { outcome: ResolutionOutcome; notes?: string },
+): Promise<CustomerResolveResult> {
+  return api.post<CustomerResolveResult>(
+    `/contacts/${encodeURIComponent(chatId)}/resolve`,
+    input,
+  );
+}
+
 export async function reopenConversation(
   contactId: string,
   input: { reason: string },

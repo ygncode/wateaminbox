@@ -1,7 +1,26 @@
 import { describe, expect, test } from "bun:test";
-import { classifyTelegramSendFailure } from "./transport";
+import {
+  classifyTelegramSendFailure,
+  TelegramLocalFailureError,
+} from "./transport";
 
 describe("Telegram send outcome classification", () => {
+  test("fails a missing credential key outright instead of calling it unknown", () => {
+    // The stored credential is intact and Telegram is fine; this process was
+    // started without the key that opens it, so the send certainly never
+    // happened. Calling that uncertain parks the intent for ever, because an
+    // uncertain outcome is deliberately never retried - and it hides an
+    // operator-fixable fault behind the label for "we could not tell".
+    expect(
+      classifyTelegramSendFailure(
+        new TelegramLocalFailureError("telegram_credential_key_unavailable"),
+      ),
+    ).toEqual({
+      outcome: "permanent_failure",
+      errorCode: "telegram_credential_key_unavailable",
+    });
+  });
+
   test("does not retry an ambiguous transport outcome", () => {
     expect(
       classifyTelegramSendFailure(new Error("Telegram Bot API is unavailable")),

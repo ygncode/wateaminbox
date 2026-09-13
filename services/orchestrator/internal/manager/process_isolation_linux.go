@@ -93,3 +93,29 @@ func processCredentialsMatch(pid, expectedUID, expectedGID int) (bool, error) {
 	}
 	return uid == expectedUID && gid == expectedGID, nil
 }
+
+// processIsZombie reports whether a PID has exited but has not yet been reaped
+// by its parent.
+//
+// A zombie still answers `kill(pid, 0)`, so signal-0 liveness probing cannot
+// see that it is gone, while `/proc/<pid>/exe` and `/proc/<pid>/environ` have
+// already been torn down. Callers that ask "is this still my worker?" would
+// otherwise read the missing identity as a reused PID and refuse to act on a
+// process that has in fact already exited.
+func processIsZombie(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	stat, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return false
+	}
+	// The comm field is parenthesised and may itself contain spaces, so the
+	// state character is the first field after the final ')'.
+	closing := strings.LastIndexByte(string(stat), ')')
+	if closing < 0 {
+		return false
+	}
+	fields := strings.Fields(string(stat)[closing+1:])
+	return len(fields) > 0 && fields[0] == "Z"
+}

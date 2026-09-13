@@ -3,6 +3,7 @@ import {
   CHAT_LIST_FILTERS_KEY,
   CONVERSATION_STATUS_OPTIONS,
   DEFAULT_CHAT_LIST_FILTERS,
+  chatMatchesAccount,
   dedupeInboxAccounts,
   readChatListFilters,
   resolveOwningAccountId,
@@ -259,5 +260,28 @@ describe("dedupeInboxAccounts", () => {
     expect(dedupeInboxAccounts([], [telegram]).channelAccounts).toEqual([
       telegram,
     ]);
+  });
+});
+
+describe("chatMatchesAccount", () => {
+  const conversations = [{ id: "conv-tg", channelAccountId: "tg" }];
+
+  it("keeps a merged customer under every account it has a thread on", () => {
+    // The row is keyed on its Telegram thread, so the single-owner rule would
+    // drop it from the WhatsApp filter even though the customer has a
+    // WhatsApp thread too.
+    const chat = {
+      accountIds: ["tg", "wa"],
+      contact: { connection: null, conversationId: "conv-tg" },
+    };
+    expect(chatMatchesAccount(chat, "tg", conversations)).toBe(true);
+    expect(chatMatchesAccount(chat, "wa", conversations)).toBe(true);
+    expect(chatMatchesAccount(chat, "other", conversations)).toBe(false);
+  });
+
+  it("falls back to the owning account when no set is sent", () => {
+    const chat = { contact: { connection: { id: "wa" } } };
+    expect(chatMatchesAccount(chat, "wa", conversations)).toBe(true);
+    expect(chatMatchesAccount(chat, "tg", conversations)).toBe(false);
   });
 });

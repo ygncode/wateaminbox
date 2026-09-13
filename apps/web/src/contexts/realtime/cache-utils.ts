@@ -10,6 +10,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { Message, PaginatedMessages } from "@wateaminbox/shared";
 import { isOptimisticTwin } from "../../hooks/messages/optimistic-message";
 import { queryKeys } from "../../hooks/query-keys";
+import { customerTimelineKeys } from "../../hooks/chat/useCustomerTimeline";
 import { chatKeys } from "../../hooks/useChats";
 import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
 
@@ -199,6 +200,20 @@ export function updateContactDetailsByJid(
  *
  * @param queryClient - TanStack Query client
  */
+/**
+ * Refresh any open merged-customer history.
+ *
+ * A merged customer's view is keyed by the chat the reader opened, not by the
+ * conversation a message arrived on, so the per-conversation cache write that
+ * serves an ordinary thread silently no-ops against it. Invalidating is enough
+ * and is deliberately not a cache insert: placing a row into an interleaved
+ * history by hand risks putting it in the wrong place, which is
+ * indistinguishable from a pagination bug.
+ */
+export function invalidateCustomerTimelines(queryClient: QueryClient): void {
+  queryClient.invalidateQueries({ queryKey: customerTimelineKeys.all });
+}
+
 export function invalidateChatList(queryClient: QueryClient): void {
   queryClient.invalidateQueries({
     queryKey: chatKeys.lists(),

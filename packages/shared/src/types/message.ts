@@ -14,7 +14,20 @@ export interface MessageReaction {
 
 export interface Message {
   id: string;
+  /**
+   * Historically the contact id rather than the conversation. `threadId` is
+   * the field that names the thread a message arrived on.
+   */
   conversationId: string;
+  /**
+   * The thread this message arrived on, addressed the way the chat route
+   * addresses it. Set once the message has been resolved to a thread; a
+   * merged customer's history carries several distinct values at once.
+   */
+  threadId?: string | null;
+  /** The channel the thread runs over, for a history that spans several. */
+  channel?: string | null;
+  provider?: string | null;
   senderId: string;
   senderType: SenderType;
   /** WhatsApp participant identity for group messages. */
@@ -61,11 +74,7 @@ export type MessageType =
   | "template";
 
 export type MessageStatus =
-  | "pending"
-  | "sent"
-  | "delivered"
-  | "read"
-  | "failed";
+  "pending" | "sent" | "delivered" | "read" | "failed";
 
 const MESSAGE_STATUS_RANK: Record<Exclude<MessageStatus, "failed">, number> = {
   pending: 0,
@@ -93,12 +102,7 @@ export function advanceMessageStatus(
 }
 
 export type ScheduledMessageStatus =
-  | "scheduled"
-  | "processing"
-  | "sent"
-  | "failed"
-  | "canceled"
-  | "skipped";
+  "scheduled" | "processing" | "sent" | "failed" | "canceled" | "skipped";
 
 /**
  * An outbound message queued for future delivery. Timestamps are ISO 8601 UTC
@@ -133,11 +137,7 @@ export interface ScheduledMessage {
 }
 
 export type MediaDownloadStatus =
-  | "pending"
-  | "downloading"
-  | "completed"
-  | "failed"
-  | null;
+  "pending" | "downloading" | "completed" | "failed" | null;
 
 export interface MessageMetadata {
   /**

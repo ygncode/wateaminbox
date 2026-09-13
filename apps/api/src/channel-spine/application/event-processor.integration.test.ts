@@ -77,22 +77,44 @@ integration(
       expect((await applyNormalizedChannelEvent(tenantDb, event)).outcome).toBe(
         "applied",
       );
-      expect(
-        Number(
-          (
-            await tenantDb
-              .selectFrom("contacts")
-              .select((eb) => eb.fn.countAll<string>().as("count"))
-              .executeTakeFirstOrThrow()
-          ).count,
-        ),
-      ).toBe(0);
+      // A direct inbound message from a person now resolves to a customer.
+      // This assertion previously required zero contacts, from when the spine
+      // deliberately created none: that left every non-WhatsApp person owned
+      // by nobody, and therefore impossible to merge, since a merge moves
+      // endpoints between customers.
+      const customer = await tenantDb
+        .selectFrom("contacts")
+        .select(["id", "push_name", "username", "record_kind", "is_group"])
+        .executeTakeFirstOrThrow();
+      expect(customer.push_name).toBe("Ada");
+      expect(customer.record_kind).toBe("customer");
+      expect(customer.is_group).toBe(false);
       const stored = await tenantDb
         .selectFrom("messages")
         .select(["contact_id", "conversation_id"])
         .executeTakeFirstOrThrow();
-      expect(stored.contact_id).toBeNull();
+      expect(stored.contact_id).toBe(customer.id);
       expect(stored.conversation_id).toBeTruthy();
+      // Both links are required: the endpoint one is what a merge moves, and
+      // the conversation one is what stops the inbox listing this person twice.
+      expect(
+        (
+          await tenantDb
+            .selectFrom("contact_endpoints")
+            .select("contact_id")
+            .where("external_id", "=", "user-30")
+            .executeTakeFirstOrThrow()
+        ).contact_id,
+      ).toBe(customer.id);
+      expect(
+        (
+          await tenantDb
+            .selectFrom("conversations")
+            .select("legacy_contact_id")
+            .where("id", "=", stored.conversation_id!)
+            .executeTakeFirstOrThrow()
+        ).legacy_contact_id,
+      ).toBe(customer.id);
       expect(
         Number(
           (
@@ -104,6 +126,8 @@ integration(
           ).count,
         ),
       ).toBe(1);
+      // The workflow row now carries the customer as well, which is what the
+      // contact-scoped inbox filters read.
       expect(
         (
           await tenantDb
@@ -112,7 +136,7 @@ integration(
             .where("conversation_id", "=", stored.conversation_id!)
             .executeTakeFirstOrThrow()
         ).contact_id,
-      ).toBeNull();
+      ).toBe(customer.id);
       expect((await applyNormalizedChannelEvent(tenantDb, event)).outcome).toBe(
         "duplicate",
       );
