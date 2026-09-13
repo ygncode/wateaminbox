@@ -3,7 +3,7 @@ import { sql } from "kysely";
 import {
   downloadTelegramFile,
   getTelegramProfilePhotoFileId,
-} from "../channel-spine/providers/telegram-bot/api.js";
+} from "@wateaminbox/adapter-telegram";
 import { createLogger, formatError } from "../lib/logger.js";
 import { uploadMedia } from "../lib/storage.js";
 import { readChannelCredential } from "./channel-credential.service.js";

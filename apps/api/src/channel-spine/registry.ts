@@ -1,7 +1,13 @@
+import {
+  TelegramBotAdapter,
+  TelegramBotApiTransport,
+} from "@wateaminbox/adapter-telegram";
 import { ChannelAdapterRegistry } from "./application/adapter-registry.js";
-import { resolveTelegramWebhookSecret } from "../services/channel-credential.service.js";
-import { TelegramBotAdapter } from "./providers/telegram-bot/adapter.js";
-import { TelegramBotApiTransport } from "./providers/telegram-bot/transport.js";
+import {
+  ChannelCredentialKeyError,
+  resolveTelegramWebhookSecret,
+} from "../services/channel-credential.service.js";
+import { telegramTransportPorts } from "./providers/telegram-bot/ports.js";
 import { WhatsAppLinkedDeviceAdapter } from "./providers/whatsapp-linked-device/adapter.js";
 import { LinkedDeviceNatsTransport } from "./providers/whatsapp-linked-device/transport.js";
 
@@ -13,6 +19,8 @@ channelAdapterRegistry.register(
 channelAdapterRegistry.register(
   new TelegramBotAdapter({
     resolveWebhookSecret: resolveTelegramWebhookSecret,
-    outboundTransport: new TelegramBotApiTransport(),
+    isCredentialUnavailable: (error) =>
+      error instanceof ChannelCredentialKeyError,
+    outboundTransport: new TelegramBotApiTransport(telegramTransportPorts),
   }),
 );

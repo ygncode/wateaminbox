@@ -11,7 +11,7 @@
     "preview:connection-emails": "bun --preload ./apps/api/src/test-env.ts scripts/preview-connection-emails.ts",
     "dev": "turbo dev",
     "lint": "biome lint apps/api apps/web packages && ./scripts/lint-go.sh",
-    "typecheck": "bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
+    "typecheck": "bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build && bun run --filter @wateaminbox/adapter-telegram build && tsc -p apps/api/tsconfig.json --noEmit && tsc -p apps/web/tsconfig.json --noEmit",
     "check:unused": "knip",
     "format": "biome format --write apps/api apps/web packages",
     "test": "./scripts/run-tests.sh",
