@@ -8,8 +8,10 @@ import {
   type ProviderSendResult,
   type ResolvedCapabilities,
 } from "@wateaminbox/shared";
-import { TelegramBotAdapter } from "../providers/telegram-bot/adapter";
-import { classifyTelegramSendFailure } from "../providers/telegram-bot/transport";
+import {
+  classifyTelegramSendFailure,
+  TelegramBotAdapter,
+} from "@wateaminbox/adapter-telegram";
 import { WhatsAppLinkedDeviceAdapter } from "../providers/whatsapp-linked-device/adapter";
 import { storedContentType } from "../../services/channel-attachment-fetch.service";
 import {
