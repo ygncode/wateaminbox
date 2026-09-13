@@ -317,7 +317,17 @@ func (m *Manager) stopWorkerInternal(
 
 	// Recovered workers have no exec.Cmd. Verify the PID still belongs to the
 	// configured worker binary before signaling it, mitigating PID reuse.
-	if worker.cmd == nil {
+	//
+	// A process that has exited but not yet been reaped is exempt. It still
+	// answers signal 0, so it reaches this check looking alive, but its
+	// executable and environment are already gone and the identity check can
+	// only report "not my worker" - which here would mean refusing to stop a
+	// worker whose process has in fact already exited, stranding it in the map
+	// with its durable record left mid-flight. There is also nothing to signal:
+	// a corpse discards every signal. Fall through to the exit wait, which
+	// returns as soon as the reap lands, and finish the stop normally.
+	alreadyExited := processIsZombie(pid)
+	if worker.cmd == nil && !alreadyExited {
 		matches, err := m.isExpectedWorkerProcess(pid, worker.CompanyID, worker.ConnectionID)
 		if err != nil {
 			return fmt.Errorf("verify recovered worker %s: %w", connectionID, err)
@@ -331,15 +341,19 @@ func (m *Manager) stopWorkerInternal(
 	if err != nil {
 		return fmt.Errorf("find worker %s process: %w", connectionID, err)
 	}
-	if pgid, pgErr := syscall.Getpgid(pid); pgErr == nil && pgid == pid {
-		err = syscall.Kill(-pgid, stopSignal)
+	if alreadyExited {
+		log.Printf("Worker %s (PID %d) had already exited; skipping %s", connectionID, pid, stopSignal)
 	} else {
-		err = process.Signal(stopSignal)
+		if pgid, pgErr := syscall.Getpgid(pid); pgErr == nil && pgid == pid {
+			err = syscall.Kill(-pgid, stopSignal)
+		} else {
+			err = process.Signal(stopSignal)
+		}
+		if err != nil && !errors.Is(err, os.ErrProcessDone) && !errors.Is(err, syscall.ESRCH) {
+			return fmt.Errorf("signal worker %s: %w", connectionID, err)
+		}
+		log.Printf("Sent %s signal to worker %s", stopSignal, connectionID)
 	}
-	if err != nil && !errors.Is(err, os.ErrProcessDone) && !errors.Is(err, syscall.ESRCH) {
-		return fmt.Errorf("signal worker %s: %w", connectionID, err)
-	}
-	log.Printf("Sent %s signal to worker %s", stopSignal, connectionID)
 
 	gracePeriod := 5 * time.Second
 	if stopSignal == syscall.SIGUSR1 {
