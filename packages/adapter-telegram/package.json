@@ -1,0 +1,31 @@
+{
+  "name": "@wateaminbox/adapter-telegram",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Telegram Bot API channel adapter for the channel-neutral spine",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "lint": "bunx biome lint src",
+    "format": "bunx biome format --write src",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@wateaminbox/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "tsup": "^8.0.1",
+    "typescript": "^5.7.2"
+  }
+}

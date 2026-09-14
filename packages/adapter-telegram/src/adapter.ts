@@ -9,7 +9,6 @@ import type {
   ProviderSendResult,
   ResolvedCapabilities,
 } from "@wateaminbox/shared";
-import { ChannelCredentialKeyError } from "../../../services/channel-credential.service.js";
 import { normalizeTelegramUpdate } from "./normalize.js";
 
 const SECRET_HEADER = "x-telegram-bot-api-secret-token";
@@ -32,6 +31,16 @@ export interface TelegramBotOutboundTransport {
 export interface TelegramBotAdapterDependencies {
   resolveWebhookSecret: TelegramWebhookSecretResolver;
   outboundTransport?: TelegramBotOutboundTransport;
+  /**
+   * Whether a resolver failure is the host's fault rather than a bad signature.
+   *
+   * The adapter cannot recognise the host's error types, and the distinction
+   * matters: a key this process was started without must reach the caller
+   * intact so it can answer 503, while anything else is a verification
+   * failure. Without this, a deployment fault is reported to the provider as
+   * "your secret is wrong" and to the operator as nothing at all.
+   */
+  isCredentialUnavailable?: (error: unknown) => boolean;
 }
 
 export class TelegramIngressVerificationError extends Error {
@@ -47,10 +56,13 @@ export class TelegramBotAdapter implements ChannelAdapter {
 
   readonly #resolveWebhookSecret: TelegramWebhookSecretResolver;
   readonly #outboundTransport?: TelegramBotOutboundTransport;
+  readonly #isCredentialUnavailable: (error: unknown) => boolean;
 
   constructor(dependencies: TelegramBotAdapterDependencies) {
     this.#resolveWebhookSecret = dependencies.resolveWebhookSecret;
     this.#outboundTransport = dependencies.outboundTransport;
+    this.#isCredentialUnavailable =
+      dependencies.isCredentialUnavailable ?? (() => false);
   }
 
   async verifyAndNormalizeIngress(input: ProviderIngress) {
@@ -60,8 +72,9 @@ export class TelegramBotAdapter implements ChannelAdapter {
     } catch (error) {
       // A key this process was started without cannot be reported as a failed
       // signature check: the sender is probably legitimate and the fix is an
-      // operator's, not a retry's.
-      if (error instanceof ChannelCredentialKeyError) throw error;
+      // operator's, not a retry's. The host recognises its own error and the
+      // original instance is rethrown, so the route can answer 503.
+      if (this.#isCredentialUnavailable(error)) throw error;
       throw new TelegramIngressVerificationError();
     }
     const presented = headerValue(input.headers, SECRET_HEADER);

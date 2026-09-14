@@ -24,6 +24,10 @@
       ],
       "project": ["src/**/*.ts"]
     },
+    "packages/adapter-telegram": {
+      "entry": ["src/**/*.test.ts"],
+      "project": ["src/**/*.ts"]
+    },
     "packages/shared": {
       "entry": ["src/**/*.test.ts"],
       "project": ["src/**/*.ts"]

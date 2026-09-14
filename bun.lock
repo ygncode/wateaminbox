@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "wateaminbox",
@@ -20,6 +19,7 @@
         "@hono/mcp": "^0.3.2",
         "@hono/zod-validator": "^0.9.1",
         "@modelcontextprotocol/sdk": "^1.30.0",
+        "@wateaminbox/adapter-telegram": "workspace:*",
         "@wateaminbox/database": "workspace:*",
         "@wateaminbox/shared": "workspace:*",
         "bcrypt": "^6.0.0",
@@ -88,6 +88,18 @@
         "tailwindcss": "^4.0.0",
         "typescript": "^5.7.2",
         "vite": "^7.3.6",
+      },
+    },
+    "packages/adapter-telegram": {
+      "name": "@wateaminbox/adapter-telegram",
+      "version": "0.0.1",
+      "dependencies": {
+        "@wateaminbox/shared": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "tsup": "^8.0.1",
+        "typescript": "^5.7.2",
       },
     },
     "packages/database": {
@@ -673,6 +685,8 @@
     "@types/web-push": ["@types/web-push@3.6.4", "", { "dependencies": { "@types/node": "*" } }, "sha512-GnJmSr40H3RAnj0s34FNTcJi1hmWFV5KXugE0mYWnYhgTAHLJ/dJKAwDmvPJYMke0RplY2XE9LnM4hqSqKIjhQ=="],
 
     "@vitejs/plugin-react": ["@vitejs/plugin-react@5.2.0", "", { "dependencies": { "@babel/core": "^7.29.0", "@babel/plugin-transform-react-jsx-self": "^7.27.1", "@babel/plugin-transform-react-jsx-source": "^7.27.1", "@rolldown/pluginutils": "1.0.0-rc.3", "@types/babel__core": "^7.20.5", "react-refresh": "^0.18.0" }, "peerDependencies": { "vite": "^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0" } }, "sha512-YmKkfhOAi3wsB1PhJq5Scj3GXMn3WvtQ/JC0xoopuHoXSdmtdStOpFrYaT1kie2YgFBcIe64ROzMYRjCrYOdYw=="],
+
+    "@wateaminbox/adapter-telegram": ["@wateaminbox/adapter-telegram@workspace:packages/adapter-telegram"],
 
     "@wateaminbox/api": ["@wateaminbox/api@workspace:apps/api"],
 

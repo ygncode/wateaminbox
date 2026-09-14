@@ -10,7 +10,7 @@ import {
   configureTelegramWebhook,
   getTelegramBotIdentity,
   removeTelegramWebhook,
-} from "../channel-spine/providers/telegram-bot/api.js";
+} from "@wateaminbox/adapter-telegram";
 import { channelAdapterRegistry } from "../channel-spine/registry.js";
 import { env } from "../lib/env.js";
 import { conflict, forbidden, notFound } from "../lib/errors.js";

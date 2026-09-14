@@ -17,6 +17,7 @@
     "@hono/mcp": "^0.3.2",
     "@hono/zod-validator": "^0.9.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "@wateaminbox/adapter-telegram": "workspace:*",
     "@wateaminbox/database": "workspace:*",
     "@wateaminbox/shared": "workspace:*",
     "bcrypt": "^6.0.0",

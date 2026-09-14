@@ -6,6 +6,7 @@ WORKDIR /app
 COPY package.json bun.lock turbo.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
+COPY packages/adapter-telegram/package.json packages/adapter-telegram/package.json
 COPY packages/database/package.json packages/database/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/ui/package.json packages/ui/package.json
@@ -16,10 +17,12 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 
 FROM workspace AS build
 COPY apps/api apps/api
+COPY packages/adapter-telegram packages/adapter-telegram
 COPY packages/database packages/database
 COPY packages/shared packages/shared
 RUN bun run --filter @wateaminbox/shared build \
  && bun run --filter @wateaminbox/database build \
+ && bun run --filter @wateaminbox/adapter-telegram build \
  && bun run --filter @wateaminbox/api build
 
 FROM workspace AS production-dependencies

@@ -1,6 +1,6 @@
 import { db } from "@wateaminbox/database";
 import { sql } from "kysely";
-import { downloadTelegramFile } from "../channel-spine/providers/telegram-bot/api.js";
+import { downloadTelegramFile } from "@wateaminbox/adapter-telegram";
 import { createLogger, formatError } from "../lib/logger.js";
 import { deleteMedia, uploadMedia } from "../lib/storage.js";
 import {

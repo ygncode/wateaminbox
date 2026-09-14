@@ -37,6 +37,11 @@ export DATABASE_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:54
 # validation and are never used for signing or authentication in tests.
 export JWT_SECRET="${JWT_SECRET:-integration-test-only-not-a-secret-at-least-32-chars}"
 export CENTRIFUGO_TOKEN_HMAC_SECRET="${CENTRIFUGO_TOKEN_HMAC_SECRET:-integration-test-only-realtime-not-a-secret-32-chars}"
+# Synthetic channel-credential keyring: the provider adapters read encrypted
+# credentials through the configured cipher, so suites covering them need a
+# well-formed ring. Fixed, non-secret, and never used outside tests.
+export CHANNEL_CREDENTIAL_ENCRYPTION_KEYS="${CHANNEL_CREDENTIAL_ENCRYPTION_KEYS:-v1:BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=}"
+export CHANNEL_CREDENTIAL_ACTIVE_KEY_VERSION="${CHANNEL_CREDENTIAL_ACTIVE_KEY_VERSION:-v1}"
 
 # Run each file in its own Bun process. Several integration suites intentionally
 # cache membership/configuration at module scope; combining every file in one

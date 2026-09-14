@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { ChannelCredentialKeyError } from "../../../services/channel-credential.service";
-import { classifyTelegramSendFailure } from "./transport";
+import {
+  classifyTelegramSendFailure,
+  TelegramLocalFailureError,
+} from "./transport";
 
 describe("Telegram send outcome classification", () => {
   test("fails a missing credential key outright instead of calling it unknown", () => {
@@ -11,9 +13,7 @@ describe("Telegram send outcome classification", () => {
     // operator-fixable fault behind the label for "we could not tell".
     expect(
       classifyTelegramSendFailure(
-        new ChannelCredentialKeyError(
-          "active channel credential key is unavailable",
-        ),
+        new TelegramLocalFailureError("telegram_credential_key_unavailable"),
       ),
     ).toEqual({
       outcome: "permanent_failure",
