@@ -6,6 +6,7 @@ WORKDIR /app
 COPY package.json bun.lock turbo.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY apps/api/package.json apps/api/package.json
+COPY packages/adapter-telegram/package.json packages/adapter-telegram/package.json
 COPY packages/database/package.json packages/database/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY packages/ui/package.json packages/ui/package.json
