@@ -91,11 +91,13 @@ jobs:
 
       - run: bun install --frozen-lockfile
       - name: Build internal TypeScript dependencies
-        run: bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build
+        run: bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build && bun run --filter @wateaminbox/adapter-telegram build
       - name: API unit tests
         run: cd apps/api && bun test
       - name: Web unit tests
         run: cd apps/web && bun test
+      - name: Telegram adapter unit tests
+        run: cd packages/adapter-telegram && bun test
       - name: Shared unit tests
         run: cd packages/shared && bun test
 
@@ -154,7 +156,7 @@ jobs:
 
       - run: bun install --frozen-lockfile
       - name: Build internal TypeScript dependencies
-        run: bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build
+        run: bun run --filter @wateaminbox/shared build && bun run --filter @wateaminbox/database build && bun run --filter @wateaminbox/adapter-telegram build
       - run: bun run db:migrate
 
       - name: Run all TypeScript integration tests (recursive discovery)
