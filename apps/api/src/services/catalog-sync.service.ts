@@ -186,46 +186,6 @@ export async function getCatalogProducts(
 }
 
 /**
- * Get a single product by product ID and catalog ID
- */
-export async function getProductByProductId(
-  tenantDb: Kysely<TenantDatabase>,
-  productId: string,
-  catalogId: string,
-  connectionId: string,
-): Promise<SyncedProduct | null> {
-  const product = await tenantDb
-    .selectFrom("catalog_products")
-    .selectAll()
-    .where("product_id", "=", productId)
-    .where("catalog_id", "=", catalogId)
-    .where("whatsapp_connection_id", "=", connectionId)
-    .executeTakeFirst();
-
-  if (!product) return null;
-
-  return {
-    id: product.id,
-    connectionId: product.whatsapp_connection_id,
-    productId: product.product_id,
-    catalogId: product.catalog_id,
-    name: product.name,
-    description: product.description,
-    price: product.price,
-    currency: product.currency,
-    imageUrls: product.image_urls,
-    sku: product.sku,
-    category: product.category,
-    availability: product.availability,
-    visibility: product.visibility,
-    url: product.url,
-    retailerId: product.retailer_id,
-    createdAt: product.created_at,
-    updatedAt: product.updated_at,
-  };
-}
-
-/**
  * Sync WhatsApp catalogs from Go service into the database
  * This processes catalogs fetched from WhatsApp Business API
  */
