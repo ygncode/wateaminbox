@@ -5,12 +5,16 @@
  */
 
 import { zValidator } from "../../lib/validator.js";
+import type { TenantDatabase } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
 import type { Context } from "hono";
 import { Hono } from "hono";
-import { sql } from "kysely";
+import { type Kysely, sql } from "kysely";
 import type { z } from "zod";
-import { shadowLinkedDeviceLegacyMutation } from "../../channel-spine/providers/whatsapp-linked-device/shadow.js";
+import {
+  shadowLinkedDeviceLegacyMutation,
+  shadowLinkedDeviceWorkflow,
+} from "../../channel-spine/providers/whatsapp-linked-device/shadow.js";
 import { badRequest, notFound } from "../../lib/errors.js";
 import { buildOutboundMediaColumns } from "../../lib/message-formatters.js";
 import { isConfirmedQuote } from "../../lib/message-quote.js";
@@ -72,6 +76,36 @@ const messageSendRateLimiter = createConditionalRateLimiter(
 
 type SendMessageBody = z.infer<typeof sendMessageSchema>;
 
+/**
+ * The conversation for a contact, building the bridge first when the contact
+ * does not have one yet.
+ *
+ * The bridge is otherwise only ever written as a shadow of a legacy message,
+ * so a contact that has never exchanged a message has no conversation row -
+ * which is exactly the state the outbound "new chat" flow leaves behind, since
+ * it inserts nothing but the `contacts` row. Under neutral write authority the
+ * send needs that conversation, and refusing it here made the first outgoing
+ * message to a new contact impossible while every later one succeeded.
+ *
+ * Unlike `shadowLinkedDeviceLegacyMutation`, this is not best-effort: the send
+ * depends on the conversation, so a bridge that cannot be resolved fails the
+ * request instead of being journalled. Every identity in the bridge is
+ * deterministic and every write upserts, so two first sends racing each other
+ * converge on the same conversation.
+ */
+async function ensureChannelConversationId(
+  tenantDb: Kysely<TenantDatabase>,
+  companyId: string,
+  contactId: string,
+): Promise<string | null> {
+  const existing = await conversationIdForContact(tenantDb, contactId);
+  if (existing) return existing;
+  return tenantDb.transaction().execute(async (trx) => {
+    const bridged = await shadowLinkedDeviceWorkflow(trx, companyId, contactId);
+    return bridged.status === "ready" ? bridged.bridge.conversationId : null;
+  });
+}
+
 async function sendChannelContactMessage(
   c: Context,
   contact: { id: string },
@@ -79,7 +113,11 @@ async function sendChannelContactMessage(
   mentionedJids?: string[],
 ) {
   const { tenantDb, user, companyId } = getRouteContext(c);
-  const conversationId = await conversationIdForContact(tenantDb, contact.id);
+  const conversationId = await ensureChannelConversationId(
+    tenantDb,
+    companyId,
+    contact.id,
+  );
   if (!conversationId) return notFound(c, "Contact or JID");
   const conversation = await tenantDb
     .selectFrom("conversations")
