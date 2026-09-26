@@ -2,12 +2,16 @@
 
 A multi-user WhatsApp team inbox for managing customer conversations, assignments, contacts, groups, and team workflows from one web application.
 
+[![Watch WATeamInbox in 90 seconds](docs/assets/wateaminbox-explainer.jpg)](https://youtu.be/9lEBHOMYueA)
+
+<sub>▶ **WATeamInbox in 90 seconds:** connecting WhatsApp, assignments, notes and handoffs, quick replies, broadcasts, and Cloud or self-hosting.</sub>
+
 > [!WARNING]
 > **Open-source beta:** interfaces, migrations, and behavior may change without backward compatibility. The development defaults are not production-hardened. Evaluate the software, its unofficial WhatsApp integration, data handling, backups, monitoring, and account-risk implications before any production use.
 
 WATeamInbox is an independent project and is not affiliated with, endorsed by, or sponsored by WhatsApp or Meta. It uses an unofficial WhatsApp client library; use may be affected by WhatsApp policy or protocol changes and can result in account restrictions or bans. No account-safety guarantee is provided. Third-party names are used only to describe interoperability; all trademarks belong to their respective owners.
 
-**Service status:** self-hosting this beta is currently the only product path in this repository. A separate public marketing site and Cloud interest waitlist may exist outside this monorepo; they are not part of the self-hostable application and do not promise pricing, launch date, feature set, SLA, account, or support entitlements for a managed Cloud product.
+**Service status:** this repository is the self-hostable application. A managed service, [WATeamInbox Cloud](https://wateaminbox.com/), is operated separately; its plans, pricing, and billing are not part of this repository, and nothing here promises an SLA, account, or support entitlement for it.
 
 ## Features
 
