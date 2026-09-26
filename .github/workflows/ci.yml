@@ -133,10 +133,13 @@ jobs:
       - name: Start NATS and MinIO integration services
         run: |
           docker run -d --name nats-ci -p 4448:4222 nats:2.10-alpine -js
+          # MinIO's own images on quay.io and Docker Hub now require a login.
+          # Chainguard publishes MinIO (with mc) publicly; pin the digest so a
+          # moving tag cannot change the test backend underneath us.
           docker run -d --name minio-ci -p 4450:9000 \
             -e MINIO_ROOT_USER=minioadmin \
             -e MINIO_ROOT_PASSWORD=minioadmin \
-            quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+            cgr.dev/chainguard/minio@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1 server /data
           for attempt in {1..30}; do
             if curl --fail --silent http://127.0.0.1:4450/minio/health/live >/dev/null; then
               break
@@ -148,8 +151,8 @@ jobs:
             fi
             sleep 1
           done
-          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:latest \
-            -c 'mc alias set local http://127.0.0.1:4450 minioadmin minioadmin && mc mb --ignore-existing local/whatsapp-media'
+          docker exec minio-ci sh -c \
+            'mc alias set local http://127.0.0.1:9000 minioadmin minioadmin && mc mb --ignore-existing local/whatsapp-media'
 
       - name: Configure test database URL
         run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/wateaminbox" >> "$GITHUB_ENV"
@@ -239,7 +242,7 @@ jobs:
           docker run -d --name minio-ci -p 4450:9000 \
             -e MINIO_ROOT_USER=minioadmin \
             -e MINIO_ROOT_PASSWORD=minioadmin \
-            quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z server /data
+            cgr.dev/chainguard/minio@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1 server /data
           for attempt in {1..30}; do
             if curl --fail --silent http://127.0.0.1:4450/minio/health/live >/dev/null; then
               break
@@ -251,8 +254,8 @@ jobs:
             fi
             sleep 1
           done
-          docker run --rm --network host --entrypoint /bin/sh quay.io/minio/mc:latest \
-            -c 'mc alias set local http://127.0.0.1:4450 minioadmin minioadmin && mc mb --ignore-existing local/whatsapp-media'
+          docker exec minio-ci sh -c \
+            'mc alias set local http://127.0.0.1:9000 minioadmin minioadmin && mc mb --ignore-existing local/whatsapp-media'
 
       - name: Configure test database URL
         run: echo "DATABASE_URL=postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports[5432] }}/wateaminbox" >> "$GITHUB_ENV"

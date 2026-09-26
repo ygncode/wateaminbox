@@ -99,8 +99,13 @@ services:
       retries: 5
 
   minio:
-    image: quay.io/minio/minio:latest
+    # MinIO's own images on quay.io and Docker Hub now require a login;
+    # Chainguard's public build is the same server and ships with mc.
+    image: cgr.dev/chainguard/minio:latest
     container_name: wateaminbox-minio
+    # The image defaults to a non-root user, which cannot open data volumes
+    # created by the previous root-run image.
+    user: "0:0"
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minioadmin
@@ -118,7 +123,7 @@ services:
 
   # Create default bucket on startup
   minio-init:
-    image: quay.io/minio/mc:latest
+    image: cgr.dev/chainguard/minio:latest
     container_name: wateaminbox-minio-init
     depends_on:
       minio:
