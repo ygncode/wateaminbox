@@ -27,9 +27,9 @@
     "db:generate": "turbo db:generate"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.12",
-    "knip": "6.34.0",
-    "turbo": "^2.10.12",
+    "@biomejs/biome": "2.5.14",
+    "knip": "6.38.0",
+    "turbo": "^2.11.3",
     "typescript": "^5.7.2"
   },
   "overrides": {
