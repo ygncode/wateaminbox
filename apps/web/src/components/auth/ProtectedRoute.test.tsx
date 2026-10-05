@@ -27,11 +27,22 @@ let auth: AuthStub = {
 
 const navigateTargets: string[] = [];
 
+// `mock.module` replaces a module for every test file that runs after this one
+// in the same process, so each stub keeps the real exports and overrides only
+// what this test needs. A partial stub here made later files fail on missing
+// exports such as `initReactI18next` and `useHasRole`.
+const realAuthContext = await import("../../contexts/auth-context");
+const realWorkspaceContext = await import("../../contexts/workspace-context");
+const realI18next = await import("react-i18next");
+const realRouter = await import("react-router");
+
 mock.module("../../contexts/auth-context", () => ({
+  ...realAuthContext,
   useAuth: () => auth,
 }));
 
 mock.module("../../contexts/workspace-context", () => ({
+  ...realWorkspaceContext,
   useWorkspace: () => ({
     memberships: [{ companyId: "company-1" }],
     activeWorkspaceId: "company-1",
@@ -44,12 +55,14 @@ mock.module("../../contexts/workspace-context", () => ({
 }));
 
 mock.module("react-i18next", () => ({
+  ...realI18next,
   useTranslation: () => ({
     t: (_key: string, fallback?: string) => fallback ?? _key,
   }),
 }));
 
 mock.module("react-router", () => ({
+  ...realRouter,
   Navigate: ({ to }: { to: string }) => {
     navigateTargets.push(to);
     return null;
