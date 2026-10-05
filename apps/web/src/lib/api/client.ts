@@ -18,17 +18,20 @@ let paymentRedirectStarted = false;
 
 const COMPANY_ID_STORAGE_KEY = "company_id";
 
-function redirectToBillingOnPaymentRequired(status: number): void {
+function redirectToBillingOnPaymentRequired(
+  status: number,
+  workspaceId: string | null = companyId,
+): void {
   if (
     status !== 402 ||
     paymentRedirectStarted ||
-    !companyId ||
+    !workspaceId ||
     typeof window === "undefined"
   ) {
     return;
   }
 
-  const billingUrl = getWorkspaceBillingUrl(companyId, { onboarding: true });
+  const billingUrl = getWorkspaceBillingUrl(workspaceId, { onboarding: true });
   if (!billingUrl) return;
 
   paymentRedirectStarted = true;
@@ -141,12 +144,17 @@ function sessionRefreshUnavailableError(): ApiRequestError {
 }
 
 // Response handler
-export async function handleResponse<T>(response: Response): Promise<T> {
+export async function handleResponse<T>(
+  response: Response,
+  requestCompanyId: string | null = companyId,
+): Promise<T> {
   if (!response.ok) {
     // A private deployment may require billing before workspace APIs become
     // available. Keep the OSS client commercial-logic-free: HTTP 402 plus the
     // generic configured billing URL is the complete redirect contract.
-    redirectToBillingOnPaymentRequired(response.status);
+    // Bill the workspace the request was sent for: the active workspace can
+    // change while it is in flight, e.g. when switching to a new workspace.
+    redirectToBillingOnPaymentRequired(response.status, requestCompanyId);
     let errorData: {
       code: string;
       message: string;
@@ -277,8 +285,9 @@ export async function fetchWithAuth<T>(
   }
 
   // Add company ID header for multi-tenant support
-  if (companyId) {
-    (headers as Record<string, string>)["X-Company-ID"] = companyId;
+  const requestCompanyId = companyId;
+  if (requestCompanyId) {
+    (headers as Record<string, string>)["X-Company-ID"] = requestCompanyId;
   }
 
   const response = await fetch(url, {
@@ -299,14 +308,14 @@ export async function fetchWithAuth<T>(
         headers,
         credentials: "include",
       });
-      return handleResponse<T>(retryResponse);
+      return handleResponse<T>(retryResponse, requestCompanyId);
     }
     // Report the outage rather than the 401 that triggered it, so a caller
     // does not read a deployment blip as a failed sign-in.
     if (outcome === "unavailable") throw sessionRefreshUnavailableError();
   }
 
-  return handleResponse<T>(response);
+  return handleResponse<T>(response, requestCompanyId);
 }
 
 /** Fetch an authenticated binary response, including token-refresh retry. */
@@ -319,7 +328,8 @@ export async function fetchBlobWithAuth(
     ...(options.headers as Record<string, string> | undefined),
   };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-  if (companyId) headers["X-Company-ID"] = companyId;
+  const requestCompanyId = companyId;
+  if (requestCompanyId) headers["X-Company-ID"] = requestCompanyId;
 
   let response = await fetch(url, {
     ...options,
@@ -339,7 +349,7 @@ export async function fetchBlobWithAuth(
       throw sessionRefreshUnavailableError();
     }
   }
-  if (!response.ok) await handleResponse<never>(response);
+  if (!response.ok) await handleResponse<never>(response, requestCompanyId);
   return response.blob();
 }
 
@@ -358,8 +368,9 @@ export async function fetchFormDataWithAuth<T>(
     headers.Authorization = `Bearer ${accessToken}`;
   }
 
-  if (companyId) {
-    headers["X-Company-ID"] = companyId;
+  const requestCompanyId = companyId;
+  if (requestCompanyId) {
+    headers["X-Company-ID"] = requestCompanyId;
   }
 
   const response = await fetch(url, {
@@ -380,12 +391,12 @@ export async function fetchFormDataWithAuth<T>(
         body: formData,
         credentials: "include",
       });
-      return handleResponse<T>(retryResponse);
+      return handleResponse<T>(retryResponse, requestCompanyId);
     }
     if (outcome === "unavailable") throw sessionRefreshUnavailableError();
   }
 
-  return handleResponse<T>(response);
+  return handleResponse<T>(response, requestCompanyId);
 }
 
 // Build query string from params
