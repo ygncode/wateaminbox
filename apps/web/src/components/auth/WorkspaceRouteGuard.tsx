@@ -21,8 +21,11 @@ export function WorkspaceRouteGuard() {
   );
 
   React.useEffect(() => {
+    // While a switch is in flight the route still names the previous
+    // workspace. Following it here would undo the switch midway.
     if (
       isLoading ||
+      isSwitching ||
       !workspaceId ||
       !hasMembership ||
       activeWorkspaceId === workspaceId
@@ -35,6 +38,7 @@ export function WorkspaceRouteGuard() {
     activeWorkspaceId,
     hasMembership,
     isLoading,
+    isSwitching,
     switchWorkspace,
     workspaceId,
   ]);

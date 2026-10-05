@@ -147,3 +147,48 @@ describe("fetchWithAuth refresh handling", () => {
     expect(getAccessToken()).toBe("expired");
   });
 });
+
+describe("payment-required redirect", () => {
+  test("bills the workspace the request was sent for", async () => {
+    // Switching workspaces can change the active workspace while a request is
+    // in flight. Its 402 belongs to the workspace in its X-Company-ID header.
+    const replaced: string[] = [];
+    const originalWindow = (globalThis as { window?: unknown }).window;
+    const originalBillingUrl = process.env.VITE_BILLING_URL;
+    (globalThis as { window?: unknown }).window = {
+      location: {
+        origin: "https://app.example.com",
+        replace: (url: string) => replaced.push(url),
+      },
+    };
+    process.env.VITE_BILLING_URL = "/billing";
+
+    let respond: (response: Response) => void = () => undefined;
+    let sentCompanyId = null as string | null;
+    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
+      sentCompanyId = (init?.headers as Record<string, string>)["X-Company-ID"];
+      return new Promise<Response>((resolve) => {
+        respond = resolve;
+      });
+    }) as unknown as typeof fetch;
+
+    try {
+      setCompanyId("new-workspace");
+      const request = fetchWithAuth("/companies");
+      setCompanyId("previous-workspace");
+      respond(
+        Response.json({ error: "SUBSCRIPTION_RESTRICTED" }, { status: 402 }),
+      );
+
+      await expect(request).rejects.toThrow();
+      expect(sentCompanyId).toBe("new-workspace");
+      expect(replaced).toEqual([
+        "/billing?companyId=new-workspace&mode=onboarding",
+      ]);
+    } finally {
+      (globalThis as { window?: unknown }).window = originalWindow;
+      if (originalBillingUrl === undefined) delete process.env.VITE_BILLING_URL;
+      else process.env.VITE_BILLING_URL = originalBillingUrl;
+    }
+  });
+});
