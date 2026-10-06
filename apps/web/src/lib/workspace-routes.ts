@@ -1,5 +1,12 @@
 import type { MemberPermissions } from "@wateaminbox/shared";
 
+/** Account-level page for choosing a workspace; it belongs to no workspace. */
+export const WORKSPACE_CHOOSER_PATH = "/workspaces";
+
+export function isWorkspaceChooserPath(pathname: string): boolean {
+  return pathname.replace(/\/+$/, "") === WORKSPACE_CHOOSER_PATH;
+}
+
 export function resolveInitialWorkspaceId(
   availableWorkspaceIds: string[],
   routeWorkspaceId: string | null,

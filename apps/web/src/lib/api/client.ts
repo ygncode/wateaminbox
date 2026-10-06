@@ -4,6 +4,7 @@
  */
 
 import { getWorkspaceBillingUrl } from "../billing-url.js";
+import { isWorkspaceChooserPath } from "../workspace-routes.js";
 import type { RefreshResponse } from "./types.js";
 
 // API Configuration
@@ -30,6 +31,14 @@ function redirectToBillingOnPaymentRequired(
   ) {
     return;
   }
+  // A 402 for a workspace the user has since left is stale: following it
+  // would pull them back into the workspace they just switched away from.
+  // This relies on WorkspaceRouteGuard not reverting a switch in flight;
+  // otherwise a new workspace's 402 could arrive after a revert and be dropped.
+  if (workspaceId !== companyId) return;
+  // The chooser is the way out of a workspace that needs payment, so it must
+  // never redirect back into that workspace's billing page.
+  if (isWorkspaceChooserPath(window.location.pathname)) return;
 
   const billingUrl = getWorkspaceBillingUrl(workspaceId, { onboarding: true });
   if (!billingUrl) return;
