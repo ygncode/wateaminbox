@@ -1,61 +1,100 @@
 # WATeamInbox
 
-A multi-user WhatsApp team inbox for managing customer conversations, assignments, contacts, groups, and team workflows from one web application.
+An open-source, multi-user omnichannel team inbox for managing customer conversations, assignments, contacts, and team workflows from one web application.
+
+WATeamInbox supports **WhatsApp linked devices** and **Telegram Bot accounts** today. Its channel-neutral messaging spine is designed for additional providers without forcing every channel into WhatsApp-specific identities, capabilities, or delivery semantics.
 
 > [!WARNING]
-> **Open-source beta:** interfaces, migrations, and behavior may change without backward compatibility. The development defaults are not production-hardened. Evaluate the software, its unofficial WhatsApp integration, data handling, backups, monitoring, and account-risk implications before any production use.
+> **Open-source beta:** interfaces, migrations, and behavior may change without backward compatibility. The development defaults are not production-hardened. Evaluate each enabled channel integration, credential model, data handling, backups, monitoring, provider policy, and account-risk implications before any production use.
 
-WATeamInbox is an independent project and is not affiliated with, endorsed by, or sponsored by WhatsApp or Meta. It uses an unofficial WhatsApp client library; use may be affected by WhatsApp policy or protocol changes and can result in account restrictions or bans. No account-safety guarantee is provided. Third-party names are used only to describe interoperability; all trademarks belong to their respective owners.
+WATeamInbox is an independent project and is not affiliated with, endorsed by, or sponsored by WhatsApp, Telegram, or Meta. The linked-device WhatsApp provider uses an unofficial client library; WhatsApp policy or protocol changes can interrupt service and may result in account restrictions or bans. No account-safety guarantee is provided. Third-party names are used only to describe interoperability; all trademarks belong to their respective owners.
 
 **Service status:** self-hosting this beta is currently the only product path in this repository. A separate public marketing site and Cloud interest waitlist may exist outside this monorepo; they are not part of the self-hostable application and do not promise pricing, launch date, feature set, SLA, account, or support entitlements for a managed Cloud product.
 
+## Channel support
+
+| Channel | Provider | Status | Connection model |
+| --- | --- | --- | --- |
+| WhatsApp | Linked device (`whatsapp_linked_device`) | Available | QR pairing through the whatsmeow worker runtime |
+| Telegram | Bot API (`telegram_bot`) | Available when configured | BotFather token, verified webhooks, and HTTPS Bot API calls |
+| WhatsApp | Cloud API (`meta_cloud`) | Planned | Official Meta-hosted API |
+| Email | Gmail, Microsoft Graph, IMAP/SMTP | Planned | Provider-specific OAuth or mailbox credentials |
+| Messenger | Meta | Planned | Meta OAuth and webhooks |
+| Instagram | Meta | Planned | Meta OAuth and webhooks |
+
+“Planned” describes architectural direction, not a release date or compatibility promise. Available channels can expose different capabilities because the inbox follows each provider's actual contract rather than pretending every network behaves the same way.
+
 ## Features
 
-- Multi-account WhatsApp connectivity powered by whatsmeow
-- Shared realtime inbox with message status, reactions, media, presence, and typing indicators
+- One shared realtime inbox across supported channels and connected accounts
+- WhatsApp linked-device connectivity powered by whatsmeow
+- Telegram Bot connectivity through verified webhooks and the Telegram Bot API
+- Capability-aware composition, message actions, attachments, reactions, presence, and typing behavior
 - Contact assignment and role-based conversation visibility
-- Contact profiles, notes, tags, labels, and bulk import/export
+- Unified customer profiles with channel endpoints, notes, tags, labels, and bulk import/export
 - Groups, quick replies, search, analytics, audit logs, and team management
 - In-app notification center, desktop notifications, realtime toasts, and optional Web Push
 - Tenant-isolated PostgreSQL schemas
-- Durable commands and events through NATS JetStream
+- Durable provider commands, events, retries, and reconciliation
 
 ## Architecture
 
 ```mermaid
 flowchart TB
     web["React web app"]
-    api["Hono API<br/>(Bun)"]
+    api["Hono API + channel-neutral spine<br/>(Bun)"]
     centrifugo["Centrifugo"]
-    nats["NATS JetStream"]
-    postgres["PostgreSQL"]
+    postgres["PostgreSQL<br/>public + tenant schemas"]
     storage["S3-compatible media storage"]
-    orchestrator["Go orchestrator"]
-    worker["WhatsApp worker<br/>(whatsmeow)"]
+    search["Meilisearch"]
 
-    web <-->|HTTP| api
-    web -->|WebSocket| centrifugo
-    api -->|HTTP publish| centrifugo
-    api <-->|durable commands/events| nats
+    telegramAdapter["Telegram Bot adapter"]
+    telegram["Telegram Bot API"]
+
+    nats["NATS JetStream"]
+    orchestrator["Go orchestrator"]
+    worker["WhatsApp linked-device worker<br/>(whatsmeow)"]
+    whatsapp["WhatsApp linked device"]
+
+    planned["Planned adapters<br/>WhatsApp Cloud · Email<br/>Messenger · Instagram"]
+
+    web <-->|authenticated REST| api
+    web <-->|WebSocket| centrifugo
+    api -->|realtime publish| centrifugo
     centrifugo <-->|NATS broker| nats
-    api <-->|application data| postgres
+    api <-->|normalized application data| postgres
     api <-->|media| storage
+    api <-->|search projections| search
+
+    api <-->|adapter contract| telegramAdapter
+    telegram -->|verified webhooks| telegramAdapter
+    telegramAdapter -->|HTTPS actions| telegram
+
+    api <-->|durable commands/events| nats
     nats --> orchestrator
     orchestrator -->|manages| worker
-    worker <-->|sessions/messages| postgres
+    worker <-->|sessions and messages| postgres
     worker <-->|media| storage
+    worker <-->|provider protocol| whatsapp
+
+    api -.->|same versioned adapter boundary| planned
 ```
+
+The channel-neutral spine separates a **channel** (for example, WhatsApp or Telegram) from a concrete **provider** (for example, linked device, Cloud API, or Bot API). It normalizes durable concepts such as channel accounts, customer endpoints, conversations, messages, attachments, and delivery outcomes while keeping provider-specific credentials and capabilities behind adapters.
+
+Telegram runs through the Bun API as a webhook/HTTPS adapter. Linked-device WhatsApp keeps its specialized Go worker and orchestrator runtime, connected to the API through durable NATS commands and events. Planned providers extend the adapter boundary; they are not implemented merely because they appear in the diagram.
 
 ### Repository layout
 
 | Path | Purpose |
 | --- | --- |
 | `apps/web` | React 19, Vite, Tailwind CSS, TanStack Query |
-| `apps/api` | Hono API running on Bun |
+| `apps/api` | Hono API, channel ingress, normalized messaging services, and provider dispatch running on Bun |
+| `packages/adapter-telegram` | Telegram Bot normalization, capability contract, and outbound transport |
 | `packages/database` | Kysely database client and migrations |
-| `packages/shared` | Shared TypeScript types and utilities |
+| `packages/shared` | Shared types, including versioned channel and provider contracts |
 | `packages/ui` | Shared React components |
-| `services/orchestrator` | Go process manager for WhatsApp workers |
+| `services/orchestrator` | Go process manager for linked-device WhatsApp workers |
 | `services/whatsapp` | Go WhatsApp worker using whatsmeow |
 | `services/shared` | Shared Go packages |
 
@@ -63,10 +102,12 @@ flowchart TB
 
 - The production topology can run multiple homogeneous API replicas behind its internal readiness-aware router, but all services still share one host; this is not host HA. Horizontal orchestrator scaling is not supported.
 - Multi-replica API deployments use shared PostgreSQL rate limiting and database-fenced background work. Memory limiting remains available only for a single API process.
+- Channel capabilities are provider-specific. Telegram bots, linked-device WhatsApp accounts, and future providers do not have identical rules for initiation, groups, receipts, typing, reactions, media, editing, or deletion.
 - WhatsApp history depends on what the primary device and protocol make available. Protocol changes can interrupt pairing, sync, or delivery.
-- Durable messaging is at-least-once. A crash after WhatsApp accepts a send but before the result is recorded can leave delivery outcome uncertain and requires operator reconciliation.
+- Durable messaging is at-least-once. A crash after a provider accepts a send but before the result is recorded can leave delivery outcome uncertain and require operator reconciliation.
+- WhatsApp Cloud API, email, Messenger, and Instagram are roadmap items, not available integrations in this repository today.
 - Scheduled and bulk sends are paced and capped, but those controls do not establish recipient consent or guarantee account safety. Media uploads are capped at 50 MiB.
-- Operators remain responsible for backups, restores, monitoring, retention, privacy/compliance, abuse prevention, dependency updates, and incident response.
+- Operators remain responsible for backups, restores, monitoring, retention, privacy/compliance, abuse prevention, provider terms, dependency updates, and incident response.
 
 ## Prerequisites
 
@@ -152,7 +193,9 @@ The main development endpoints are:
 - API health: <http://localhost:4445/api/health>
 - Orchestrator: <http://localhost:8080>
 
-The root development command builds the WhatsApp worker before starting the orchestrator. The orchestrator then manages worker processes for active WhatsApp connections.
+The root development command builds the linked-device WhatsApp worker before starting the orchestrator. The orchestrator then manages worker processes for active linked-device connections.
+
+Telegram Bot runs inside the API through the channel adapter. Connecting a bot locally requires channel-credential encryption keys and a publicly reachable HTTPS `APP_URL` so Telegram can deliver webhooks; `localhost` alone is not sufficient. See [channel-neutral spine operations](docs/operations/channel-neutral-spine.md#connecting-a-channel-locally).
 
 ## Web Push notifications
 
@@ -193,7 +236,7 @@ Restart the API and rebuild/restart the web app after changing these values. Web
 5. Confirm these requests succeed in the Network panel:
    - `GET /api/notifications/push/status`
    - `POST /api/notifications/push/subscribe`
-6. Close all application tabs and send an incoming WhatsApp message from another device.
+6. Close all application tabs and send an incoming message through a connected channel.
 7. Click the OS notification and verify that it opens the correct conversation.
 
 The receiving user must be assigned to the contact or have permission to view all chats. Disabled notifications, quiet hours, and muted contacts suppress delivery.
@@ -286,7 +329,7 @@ docker compose --profile debug up -d nats-box
 
 ## Security and support
 
-- Never commit `.env` files, JWT/Centrifugo secrets, VAPID private keys, mail provider keys, WhatsApp session data, or production storage credentials.
+- Never commit `.env` files, JWT/Centrifugo secrets, VAPID private keys, mail provider keys, Telegram bot tokens, channel credentials, WhatsApp session data, or production storage credentials.
 - Keep `VITE_*` variables limited to values safe for browsers and use HTTPS for non-local deployments.
 - Report suspected vulnerabilities privately according to [SECURITY.md](SECURITY.md); do not open a public security issue.
 - Before publishing a fork or changing repository visibility, use the [public repository release checklist](docs/public-release-checklist.md).
@@ -303,7 +346,7 @@ bun run test
 bun run build
 ```
 
-Run integration tests when changing database migrations, NATS behavior, the orchestrator, WhatsApp worker, or end-to-end messaging flows.
+Run integration tests when changing database migrations, channel adapters, provider ingress or dispatch, NATS behavior, the orchestrator, WhatsApp worker, or end-to-end messaging flows.
 
 ## License
 

@@ -1,6 +1,6 @@
 # WATeamInbox Technical Overview
 
-WATeamInbox is a multi-tenant collaborative WhatsApp inbox. Teams can manage connections, conversations, contacts, assignments, notes, labels, catalogs, notifications, audit logs, and analytics.
+WATeamInbox is a multi-tenant collaborative omnichannel inbox. Teams can manage WhatsApp linked-device and Telegram Bot conversations today through one set of contacts, assignments, notes, notifications, audit logs, and analytics. Additional providers are expected to join through the same channel-neutral boundary rather than by expanding WhatsApp-specific models.
 
 ## Architecture
 
@@ -8,26 +8,31 @@ WATeamInbox is a multi-tenant collaborative WhatsApp inbox. Teams can manage con
 React 19 + Vite
     | authenticated REST                    | Centrifugo WebSocket
     v                                       v
-Hono API on Bun ---- publish API ----> Centrifugo
-    | Kysely                 | NATS JetStream / broker
-    v                        v
-PostgreSQL             Go orchestrator -> WhatsApp worker -> WhatsApp
-    |
-    +-> tenant schemas
+Hono API on Bun + channel-neutral spine --> Centrifugo
+    | Kysely             | adapter contract        | NATS JetStream
+    v                    v                         v
+PostgreSQL       Telegram Bot adapter       Go orchestrator
+    |                    |                         |
+    +-> tenant schemas   +-> Telegram API          +-> WhatsApp worker -> WhatsApp
 
 Supporting services: Meilisearch, R2/MinIO, Resend or Cloudflare Email Service
 ```
+
+The spine models channels, providers, channel accounts, customer endpoints, conversations, messages, attachments, and delivery outcomes separately. Provider adapters normalize ingress and advertise capabilities to the UI and outbound dispatcher. This keeps Telegram's Bot API semantics and linked-device WhatsApp's worker lifecycle out of generic inbox workflows.
+
+WhatsApp Cloud API, email, Messenger, and Instagram are planned adapter families, not currently available integrations.
 
 ## Monorepo
 
 | Path | Responsibility |
 | --- | --- |
 | `apps/web` | React inbox and administration UI |
-| `apps/api` | Hono REST API, auth, business services, NATS consumers, Centrifugo publishing |
+| `apps/api` | Hono REST API, auth, channel ingress/dispatch, business services, NATS consumers, Centrifugo publishing |
+| `packages/adapter-telegram` | Telegram Bot normalization, capabilities, and outbound transport |
 | `packages/database` | Kysely types, clients, and migrations |
-| `packages/shared` | Shared TypeScript types and utilities |
+| `packages/shared` | Shared TypeScript types, including channel/provider contracts |
 | `packages/ui` | Shared React primitives |
-| `services/orchestrator` | Go worker lifecycle manager |
+| `services/orchestrator` | Go linked-device worker lifecycle manager |
 | `services/whatsapp` | Go/whatsmeow connection worker |
 | `services/shared` | Shared Go configuration and NATS contracts |
 
@@ -39,7 +44,7 @@ Cross-tenant identity and membership data lives in PostgreSQL's `public` schema.
 2. Validates company membership, role, and permissions.
 3. Uses a schema-qualified Kysely handle backed by one bounded shared pool.
 
-Tenant schemas contain contacts, messages, reactions, groups, connection state, assignments, notes, audit logs, notifications, and WhatsApp metadata.
+Tenant schemas contain channel accounts, customer endpoints, conversations, contacts, messages, attachments, delivery state, reactions, groups, assignments, notes, audit logs, notifications, and provider-specific compatibility metadata.
 
 ## Authentication
 
@@ -61,17 +66,23 @@ PostgreSQL remains the source of truth. Centrifugo updates local caches or trigg
 
 See [Realtime Architecture](realtime-flow.md).
 
-## WhatsApp services
+## Channel providers
 
-The API sends commands through NATS. The orchestrator manages one isolated worker process per WhatsApp connection. Workers use whatsmeow, persist session state in PostgreSQL, upload media to S3-compatible storage, and publish normalized events back to the API.
+### Telegram Bot
+
+Telegram ingress reaches an unguessable account route, verifies Telegram's webhook secret, and is normalized by `packages/adapter-telegram` before any tenant mutation. Bot tokens and webhook secrets are encrypted at rest. Outbound actions use leased, idempotency-aware intents; ambiguous provider outcomes are surfaced rather than blindly retried because Telegram does not provide a send idempotency key.
+
+### WhatsApp linked device
+
+The API sends linked-device commands through NATS. The orchestrator manages one isolated worker process per WhatsApp connection. Workers use whatsmeow, persist session state in PostgreSQL, upload media to S3-compatible storage, and publish events back through the durable channel bridge.
 
 JetStream uses durable, explicitly acknowledged consumers for at-least-once delivery. API commands are first committed to a tenant-local transactional outbox and published with the outbox ID as the JetStream deduplication ID. Message, contact, and reaction constraints make redelivery safe.
 
 ## Sending messages
 
-`POST /api/messages` is the canonical send endpoint. It accepts a tenant contact ID, resolves that contact's owning WhatsApp connection, and commits the pending message and command outbox entry in one transaction. Every send, forward, and retry route requires `can_send_messages`.
+Conversation sends resolve the owning channel account and its provider capabilities before creating durable outbound state. Neutral providers use the channel outbound intent dispatcher; linked-device WhatsApp retains its transactional NATS outbox handoff. Every send, forward, and retry route requires `can_send_messages`, and no route may fall back to an arbitrary active account.
 
-`POST /api/conversations/:id/messages` remains temporarily available with HTTP deprecation headers. The old JID-based action, legacy WhatsApp, and connection-specific send endpoints return `410 Gone` with a link to `/api/messages`; they cannot fall back to an arbitrary active connection.
+Legacy contact-ID routes remain as a compatibility façade while the application completes its channel-neutral transition. New provider work should use conversation and channel-account identities rather than WhatsApp JIDs or connection IDs.
 
 ## Local development
 
@@ -112,4 +123,5 @@ CI runs a frozen install followed by all three commands and a forced clean build
 - [WhatsApp Connection Flow](whatsapp-connection-flow.md)
 - [WhatsApp Synchronization Flow](whatsapp-sync-flow.md)
 - [Typing Indicator Flow](typing-indicator-flow.md)
-- [Channel-neutral messaging spine (RFC)](channel-neutral-spine-rfc.md) — proposed architecture; [channel-neutral spine operations](operations/channel-neutral-spine.md) cover the gated, default-off implementation
+- [Channel-neutral messaging spine (RFC)](channel-neutral-spine-rfc.md) — architecture and migration rationale
+- [Channel-neutral spine operations](operations/channel-neutral-spine.md) — provider configuration, rollout controls, reconciliation, and rollback
