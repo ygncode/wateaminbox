@@ -56,6 +56,9 @@ export function ProtectedRoute({
         />
       );
     }
+    if (location.pathname === "/workspaces") {
+      return <PageSkeleton variant="workspace-chooser" />;
+    }
     return (
       <OnboardingLoadingScreen
         message={
