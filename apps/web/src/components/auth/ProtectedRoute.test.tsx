@@ -26,6 +26,7 @@ let auth: AuthStub = {
 };
 
 const navigateTargets: string[] = [];
+let pathname = "/inbox";
 
 // `mock.module` replaces a module for every test file that runs after this one
 // in the same process, so each stub keeps the real exports and overrides only
@@ -67,15 +68,17 @@ mock.module("react-router", () => ({
     navigateTargets.push(to);
     return null;
   },
-  useLocation: () => ({ pathname: "/inbox" }),
+  useLocation: () => ({ pathname }),
 }));
 
 const { ProtectedRoute } = await import("./ProtectedRoute");
 
-function render(): string {
+function render(
+  workspaceMode: "required" | "chooser" | "setup" = "required",
+): string {
   navigateTargets.length = 0;
   return renderToStaticMarkup(
-    <ProtectedRoute>
+    <ProtectedRoute workspaceMode={workspaceMode}>
       <p>protected content</p>
     </ProtectedRoute>,
   );
@@ -105,5 +108,16 @@ describe("ProtectedRoute session handling", () => {
 
     expect(navigateTargets).toEqual([]);
     expect(markup).toContain("protected content");
+  });
+
+  test("keeps the workspace chooser visible while the session restores", () => {
+    pathname = "/workspaces";
+    auth = { ...auth, isLoading: true };
+    const markup = render("chooser");
+
+    expect(navigateTargets).toEqual([]);
+    expect(markup).toContain('aria-label="Loading your workspaces…"');
+    expect(markup).toContain("WATeamInbox");
+    expect(markup).not.toContain("We’re restoring your session");
   });
 });

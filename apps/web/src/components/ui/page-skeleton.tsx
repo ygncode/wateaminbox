@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { BrandMark } from "../brand/BrandMark";
 import { Skeleton } from "./skeleton";
 
 export type PageSkeletonVariant =
@@ -8,7 +9,8 @@ export type PageSkeletonVariant =
   | "settings"
   | "dashboard"
   | "auth"
-  | "team";
+  | "team"
+  | "workspace-chooser";
 
 /**
  * The skeleton a protected path should show while its guards resolve.
@@ -62,6 +64,8 @@ export function PageSkeleton({
         return <AuthPageSkeleton className={className} />;
       case "team":
         return <TeamPageSkeleton className={className} />;
+      case "workspace-chooser":
+        return <WorkspaceChooserSkeleton className={className} />;
       default:
         return <DefaultPageSkeleton className={className} />;
     }
@@ -381,6 +385,65 @@ function DashboardPageSkeleton({ className }: { className?: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Workspace chooser skeleton - preserves the chooser's frame while auth and
+ * memberships restore. This route used to borrow the onboarding/auth loading
+ * screen, which looked like a brief jump back to login before the chooser
+ * appeared.
+ */
+function WorkspaceChooserSkeleton({ className }: { className?: string }) {
+  const { t } = useTranslation();
+
+  return (
+    <main
+      className={cn(
+        "relative min-h-dvh overflow-hidden bg-[#f5f7f4] px-5 py-10 text-[#10211b] dark:bg-dark-primary dark:text-dark-text-primary",
+        className,
+      )}
+      role="status"
+      aria-label={t("auth.loadingWorkspaces", "Loading your workspaces…")}
+    >
+      <div
+        className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-[#dcefe7] blur-3xl dark:bg-emerald-500/10"
+        aria-hidden="true"
+      />
+      <div className="relative mx-auto max-w-2xl">
+        <div className="mb-10 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <BrandMark className="h-10 w-10 shrink-0 rounded-xl object-contain" />
+            <span className="text-sm font-semibold tracking-tight">
+              WATeamInbox
+            </span>
+          </div>
+          <Skeleton className="h-9 w-24 rounded-lg" />
+        </div>
+
+        <Skeleton className="h-3 w-36 rounded-full bg-[#0b7a55]/20 dark:bg-emerald-400/15" />
+        <Skeleton className="mt-5 h-10 w-full max-w-md rounded-lg" />
+        <Skeleton className="mt-4 h-5 w-full max-w-lg rounded-md" />
+
+        <div className="mt-9 grid gap-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div
+              key={index}
+              className="flex items-center gap-4 rounded-2xl border border-[#dce3de] bg-white p-4 shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:border-dark-border dark:bg-dark-elevated"
+            >
+              <Skeleton className="h-12 w-12 shrink-0 rounded-xl" />
+              <div className="min-w-0 flex-1">
+                <Skeleton
+                  className={cn("h-4", index === 1 ? "w-36" : "w-28")}
+                />
+                <Skeleton className="mt-2 h-3 w-14" />
+              </div>
+              <Skeleton className="h-5 w-5 shrink-0 rounded-md" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </main>
   );
 }
 
