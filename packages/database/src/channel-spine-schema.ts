@@ -22,6 +22,7 @@ export async function ensureChannelSpineTenantSchema<Database>(
       ["record_kind", "TEXT"],
       ["merged_into_contact_id", "UUID"],
       ["archived_at", "TIMESTAMPTZ"],
+      ["active_merge_event_id", "UUID"],
     ]);
 
     // The merge alias in its reverse direction: which rows were merged into
@@ -574,6 +575,16 @@ export async function ensureChannelSpineTenantSchema<Database>(
       db,
       schemaName,
       "contacts",
+      "contacts_active_merge_event_fk",
+      sql`ALTER TABLE ${table("contacts")}
+        ADD CONSTRAINT contacts_active_merge_event_fk
+        FOREIGN KEY (active_merge_event_id) REFERENCES ${table("contact_merge_events")}(id)
+        ON DELETE RESTRICT NOT VALID`,
+    );
+    await addConstraintIfMissing(
+      db,
+      schemaName,
+      "contacts",
       "contacts_record_kind_check",
       sql`ALTER TABLE ${table("contacts")}
         ADD CONSTRAINT contacts_record_kind_check
@@ -723,6 +734,12 @@ async function ensureIndexes<Database>(
         sql`CREATE INDEX ${sql.ref(`${schemaName}_csrj_due_idx`)}
         ON ${table("channel_spine_reconciliation_journal")} (status, next_attempt_at, created_at)`,
       ],
+      [
+        "contacts_active_merge_event_uidx",
+        sql`CREATE UNIQUE INDEX ${sql.ref(`${schemaName}_c_ame_uidx`)}
+        ON ${table("contacts")} (active_merge_event_id)
+        WHERE active_merge_event_id IS NOT NULL`,
+      ],
     ];
 
   const existing = await sql<{ indexname: string }>`
@@ -750,6 +767,7 @@ function indexNameFor(logicalName: string, schemaName: string): string {
     outbound_intents_send_message_uidx: "omi_send_msg_uidx",
     contact_suppressions_active_idx: "csup_active_idx",
     channel_spine_reconciliation_due_idx: "csrj_due_idx",
+    contacts_active_merge_event_uidx: "c_ame_uidx",
   };
   return `${schemaName}_${suffixes[logicalName]}`;
 }
