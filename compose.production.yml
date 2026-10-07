@@ -163,6 +163,10 @@ services:
       PORT: "4445"
       APP_URL: https://${APP_DOMAIN:?set APP_DOMAIN}
       CORS_ORIGINS: https://${APP_DOMAIN:?set APP_DOMAIN}
+      # Hosted deployments may opt new workspaces into provider-neutral
+      # messaging. Empty defaults preserve the self-hosted legacy path.
+      CHANNEL_SPINE_DEFAULT_PROVIDERS: ${CHANNEL_SPINE_DEFAULT_PROVIDERS:-}
+      CHANNEL_SPINE_DEFAULT_REVISION: ${CHANNEL_SPINE_DEFAULT_REVISION:-}
       JWT_SECRET_FILE: /run/secrets/jwt_secret
       # Envelope key for provider credentials (a Telegram bot token, and any
       # future token-based adapter). Optional: a linked-device-only host stores
