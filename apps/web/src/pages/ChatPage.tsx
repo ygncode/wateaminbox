@@ -1,3 +1,4 @@
+import type { WhatsAppConnectionIdentity } from "@wateaminbox/shared";
 import {
   ArrowLeft,
   ArrowRight,
@@ -6,16 +7,17 @@ import {
   MessagesSquare,
   QrCode,
   RotateCcw,
+  Send,
   UsersRound,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
-import { ChatSidebar, type SidebarView } from "../components/chat/ChatSidebar";
-import { channelDisplayName } from "../components/connections/channel-catalog";
 import { ChannelComposerGate } from "../components/chat/ChannelComposerGate";
+import { ChatSidebar, type SidebarView } from "../components/chat/ChatSidebar";
 import { ComposerLifecycleArea } from "../components/chat/ComposerLifecycleArea";
+import { ConversationLifecycleActions } from "../components/chat/ConversationLifecycleActions";
 import { ConversationSearch } from "../components/chat/ConversationSearch";
 import { ContactProfile } from "../components/chat/contact-profile";
 import { DeleteMessageDialog } from "../components/chat/DeleteMessageDialog";
@@ -28,6 +30,7 @@ import { MessageComposer } from "../components/chat/MessageComposer";
 import { MessageHeader } from "../components/chat/MessageHeader";
 import { MessageThread } from "../components/chat/MessageThread";
 import { SharedContactSheet } from "../components/chat/SharedContactSheet";
+import { channelDisplayName } from "../components/connections/channel-catalog";
 import { AppLayout, ResponsiveLayout } from "../components/layout/app-layout";
 import { CONVERSATION_HEADER_INSET_CLASS } from "../components/layout/conversation-chrome";
 import { MainContent } from "../components/layout/main-content";
@@ -40,20 +43,21 @@ import {
 } from "../contexts/message-actions-context";
 import { useWorkspace } from "../contexts/workspace-context";
 import { useChatPageState } from "../hooks/chat";
-import type { WhatsAppConnectionIdentity } from "@wateaminbox/shared";
-import { ConversationLifecycleActions } from "../components/chat/ConversationLifecycleActions";
 import { useCustomerChats } from "../hooks/contact/useCustomerChats";
 import { useKeyboardInset } from "../hooks/ui";
-import { useChannelAccountCapabilities } from "../hooks/useChannelAccounts";
+import {
+  useChannelAccountCapabilities,
+  useChannelAccounts,
+} from "../hooks/useChannelAccounts";
 import { useChannelConversation } from "../hooks/useChannelConversations";
 import { useComposerAccess } from "../hooks/useComposerAccess";
 import { useCreateContact } from "../hooks/useContact";
 import { useGroup } from "../hooks/useGroups";
 import { useWhatsAppConnectionsList } from "../hooks/whatsapp";
 import { sendChannelMessage } from "../lib/api/channel-conversations";
-import { transformChannelConversationToChat } from "../lib/api/transformers";
-import { uploadMedia } from "../lib/api/messages";
 import { ApiRequestError } from "../lib/api/client";
+import { uploadMedia } from "../lib/api/messages";
+import { transformChannelConversationToChat } from "../lib/api/transformers";
 import { cn } from "../lib/utils";
 import {
   parseChatView,
@@ -76,13 +80,19 @@ export function ChatPage() {
     isLoading: areConnectionsLoading,
     isError: areConnectionsUnavailable,
   } = useWhatsAppConnectionsList();
+  const {
+    data: channelAccounts = [],
+    isLoading: areChannelAccountsLoading,
+    isError: areChannelAccountsUnavailable,
+  } = useChannelAccounts();
   const inboxConnectionState = resolveInboxConnectionState({
     connections,
-    isLoading: areConnectionsLoading,
-    isError: areConnectionsUnavailable,
+    channelAccounts,
+    isLoading: areConnectionsLoading || areChannelAccountsLoading,
+    isError: areConnectionsUnavailable || areChannelAccountsUnavailable,
   });
   const canManageConnections = can("can_manage_connections");
-  const handleConnectWhatsApp = useCallback(() => {
+  const handleConnectChannels = useCallback(() => {
     if (!activeWorkspace || !canManageConnections) return;
     navigate(workspacePath(activeWorkspace.id, "settings", "connections"));
   }, [activeWorkspace, canManageConnections, navigate]);
@@ -344,7 +354,7 @@ export function ChatPage() {
       {!selectedChatId && inboxConnectionState === "no-connections" && (
         <InboxFirstRunState
           canManageConnections={canManageConnections}
-          onConnect={handleConnectWhatsApp}
+          onConnect={handleConnectChannels}
         />
       )}
 
@@ -721,7 +731,7 @@ function InboxConnectionLoadingState() {
     <div
       className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#f6f8f9] dark:bg-[#0b141a]"
       role="status"
-      aria-label={t("chat.checkingWhatsapp", "Checking WhatsApp connection")}
+      aria-label={t("chat.checkingChannels", "Checking connected channels")}
       aria-busy="true"
     >
       <div
@@ -768,31 +778,28 @@ function InboxFirstRunState({
         aria-hidden="true"
       />
 
-      <section className="relative grid w-full max-w-4xl overflow-hidden rounded-[2rem] border border-[#d7e2dc] bg-white/90 shadow-[0_28px_80px_-44px_rgba(16,58,44,0.55)] backdrop-blur-sm dark:border-white/[0.09] dark:bg-[#111d22]/95 dark:shadow-black/50 lg:grid-cols-[1.08fr_0.92fr]">
+      <section className="relative grid w-full max-w-4xl overflow-hidden rounded-[2rem] border border-[#d7e2dc] bg-white/90 shadow-[0_28px_80px_-44px_rgba(16,58,44,0.55)] backdrop-blur-sm dark:border-white/[0.09] dark:bg-[#111d22]/95 dark:shadow-black/50 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="flex flex-col justify-center px-7 py-9 sm:px-10 sm:py-12 lg:px-12">
           <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#cfe3da] bg-[#eef7f3] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.15em] text-[#167459] dark:border-[#00a884]/20 dark:bg-[#00a884]/10 dark:text-[#53d7b8]">
             <span className="relative flex size-2">
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#27a780] opacity-40" />
               <span className="relative inline-flex size-2 rounded-full bg-[#168264]" />
             </span>
-            {t("chat.connectWhatsappEyebrow", "One-minute setup")}
+            {t("chat.sharedInboxSetup", "Shared inbox setup")}
           </div>
 
           <h1 className="mt-6 max-w-lg text-[2rem] font-semibold leading-[1.08] tracking-[-0.045em] text-[#19372d] dark:text-dark-text-primary sm:text-[2.55rem]">
-            {t(
-              "chat.connectWhatsappTitle",
-              "Bring WhatsApp into your team inbox",
-            )}
+            {t("chat.connectChannelsTitle", "Connect your first channel")}
           </h1>
           <p className="mt-5 max-w-lg text-[15px] leading-7 text-[#61736c] dark:text-dark-text-secondary">
             {canManageConnections
               ? t(
-                  "chat.connectWhatsappHint",
-                  "Link your WhatsApp account once. Conversations will sync here so your team can reply, assign, and follow up together.",
+                  "chat.connectChannelsHint",
+                  "Bring WhatsApp and Telegram into one team inbox. Messages, assignments, and follow-ups stay together as you add more channels.",
                 )
               : t(
-                  "chat.askAdminToConnect",
-                  "Ask a workspace owner or admin to connect WhatsApp. Conversations will appear here once an account is linked.",
+                  "chat.askAdminToConnectChannel",
+                  "Ask a workspace owner or admin to connect a channel. Conversations will appear here once an account is linked.",
                 )}
           </p>
 
@@ -802,7 +809,7 @@ function InboxFirstRunState({
               onClick={onConnect}
               className="mt-8 inline-flex h-12 w-fit items-center gap-3 rounded-xl bg-[#14795e] px-5 text-sm font-semibold text-white shadow-[0_14px_30px_-16px_rgba(20,121,94,0.9)] transition-all hover:-translate-y-0.5 hover:bg-[#0f684f] hover:shadow-[0_18px_34px_-16px_rgba(20,121,94,0.95)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 dark:bg-[#20b68e] dark:text-[#071b16] dark:hover:bg-[#35c59e] dark:focus-visible:ring-offset-[#111d22]"
             >
-              {t("chat.connectWhatsapp", "Connect WhatsApp")}
+              {t("chat.connectChannels", "Connect channels")}
               <span className="grid size-6 place-items-center rounded-md bg-white/15 dark:bg-black/10">
                 <ArrowRight className="size-4" aria-hidden="true" />
               </span>
@@ -813,61 +820,100 @@ function InboxFirstRunState({
             <CheckCheck className="mt-0.5 size-4 shrink-0 text-[#168264] dark:text-[#42c8a7]" />
             <span>
               {t(
-                "chat.securePairingHint",
-                "Secure QR pairing—your phone stays in control of the account.",
+                "chat.channelCredentialsHint",
+                "Channel credentials are encrypted, and each connected account stays under your control.",
               )}
             </span>
           </div>
         </div>
 
         <div className="relative flex min-h-[27rem] flex-col border-t border-[#d7e2dc] bg-[#eaf4ef] p-7 dark:border-white/[0.08] dark:bg-[#0d2824] lg:border-l lg:border-t-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-[#27483d] dark:text-[#d5e8e1]">
-                {t("chat.onYourPhone", "On your phone")}
-              </p>
-              <p className="mt-0.5 text-xs text-[#72847c] dark:text-[#88a39a]">
-                {t("chat.keepPhoneNearby", "Keep WhatsApp nearby")}
-              </p>
-            </div>
-            <span className="rounded-full border border-[#c9ddd4] bg-white/65 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-[#517267] dark:border-white/10 dark:bg-white/[0.06] dark:text-[#9ab9af]">
-              {t("chat.aboutOneMinute", "≈ 1 minute")}
-            </span>
+          <div>
+            <p className="text-sm font-semibold text-[#27483d] dark:text-[#d5e8e1]">
+              {t("chat.chooseChannelTitle", "Choose where to start")}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-[#72847c] dark:text-[#88a39a]">
+              {t(
+                "chat.chooseChannelHint",
+                "Connect the channels your customers already use.",
+              )}
+            </p>
           </div>
 
-          <div className="relative mx-auto my-7 w-44" aria-hidden="true">
-            <div className="absolute -inset-8 rounded-full bg-[#7dcdb0]/20 blur-2xl dark:bg-[#00a884]/15" />
-            <div className="relative rotate-2 rounded-[2.25rem] border border-[#c7d9d1] bg-white p-3 shadow-[0_24px_55px_-30px_rgba(20,80,61,0.65)] dark:border-white/10 dark:bg-[#172c30] dark:shadow-black/50">
-              <div className="rounded-[1.65rem] bg-[#f3f8f5] px-4 pb-5 pt-3 dark:bg-[#0b171b]">
-                <span className="mx-auto block h-1 w-10 rounded-full bg-[#bdcbc5] dark:bg-white/15" />
-                <div className="mx-auto mt-6 grid size-24 place-items-center rounded-2xl border border-[#d6e5de] bg-white text-[#14795e] shadow-sm dark:border-white/10 dark:bg-[#15272b] dark:text-[#53d7b8]">
-                  <QrCode className="size-14" strokeWidth={1.4} />
+          <div className="my-7 grid gap-3">
+            <div className="group relative overflow-hidden rounded-2xl border border-[#c8ddd4] bg-white/70 p-4 shadow-[0_14px_34px_-28px_rgba(18,86,64,0.8)] dark:border-white/10 dark:bg-white/[0.045]">
+              <div className="absolute -right-8 -top-8 size-24 rounded-full bg-[#25d366]/10 blur-2xl" />
+              <div className="relative flex items-center gap-4">
+                <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#e6f7ef] text-[#12845f] ring-1 ring-[#cbe8dc] dark:bg-[#25d366]/10 dark:text-[#55df9a] dark:ring-[#25d366]/15">
+                  <QrCode
+                    className="size-6"
+                    strokeWidth={1.7}
+                    aria-hidden="true"
+                  />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-[#24483c] dark:text-[#d9ebe4]">
+                      {t("chat.whatsappChannel", "WhatsApp")}
+                    </p>
+                    <span className="rounded-full bg-[#e7f6ef] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[#167459] dark:bg-[#25d366]/10 dark:text-[#62dfa1]">
+                      {t("chat.readyNow", "Ready now")}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-[#71827b] dark:text-[#8da79e]">
+                    {t(
+                      "chat.whatsappConnectHint",
+                      "Pair securely with a QR code",
+                    )}
+                  </p>
                 </div>
-                <span className="mx-auto mt-5 block h-1.5 w-16 rounded-full bg-[#d9e3de] dark:bg-white/10" />
-                <span className="mx-auto mt-2 block h-1.5 w-10 rounded-full bg-[#e5ece8] dark:bg-white/[0.06]" />
+              </div>
+            </div>
+
+            <div className="group relative overflow-hidden rounded-2xl border border-[#c8dce1] bg-white/70 p-4 shadow-[0_14px_34px_-28px_rgba(33,112,145,0.75)] dark:border-white/10 dark:bg-white/[0.045]">
+              <div className="absolute -right-8 -top-8 size-24 rounded-full bg-[#229ed9]/10 blur-2xl" />
+              <div className="relative flex items-center gap-4">
+                <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#e9f5fa] text-[#1684b7] ring-1 ring-[#cee6f0] dark:bg-[#229ed9]/10 dark:text-[#62c7f5] dark:ring-[#229ed9]/15">
+                  <Send
+                    className="size-6"
+                    strokeWidth={1.7}
+                    aria-hidden="true"
+                  />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-[#24483c] dark:text-[#d9ebe4]">
+                      {t("chat.telegramChannel", "Telegram Bot")}
+                    </p>
+                    <span className="rounded-full bg-[#e9f5fa] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[#187da9] dark:bg-[#229ed9]/10 dark:text-[#6bcaf3]">
+                      {t("chat.readyNow", "Ready now")}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-[#71827b] dark:text-[#8da79e]">
+                    {t(
+                      "chat.telegramConnectHint",
+                      "Add a bot token from BotFather",
+                    )}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
-          <ol className="mt-auto grid grid-cols-3 gap-2">
-            {[
-              t("chat.openWhatsappStep", "Open WhatsApp"),
-              t("chat.linkedDevicesStep", "Linked devices"),
-              t("chat.scanCodeStep", "Scan code"),
-            ].map((label, index) => (
-              <li
-                key={label}
-                className="rounded-xl border border-[#cbded6] bg-white/55 px-2.5 py-3 text-center dark:border-white/[0.08] dark:bg-white/[0.035]"
-              >
-                <span className="mx-auto grid size-5 place-items-center rounded-full bg-[#14795e] text-[10px] font-bold text-white dark:bg-[#20b68e] dark:text-[#071b16]">
-                  {index + 1}
-                </span>
-                <span className="mt-2 block text-[11px] font-semibold leading-4 text-[#436158] dark:text-[#b7cec6]">
-                  {label}
-                </span>
-              </li>
-            ))}
-          </ol>
+          <div className="mt-auto flex items-center gap-3 rounded-2xl border border-dashed border-[#bfd7cd] bg-white/35 px-4 py-3 dark:border-white/10 dark:bg-white/[0.025]">
+            <span className="flex -space-x-1.5" aria-hidden="true">
+              {["#df8b63", "#7b9bd1", "#b58bca"].map((color) => (
+                <span
+                  key={color}
+                  className="size-5 rounded-full border-2 border-[#eef6f2] dark:border-[#102824]"
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </span>
+            <p className="text-[11px] font-semibold text-[#577168] dark:text-[#9ab6ac]">
+              {t("chat.moreChannelsSoon", "More channels are on the way")}
+            </p>
+          </div>
         </div>
       </section>
     </div>

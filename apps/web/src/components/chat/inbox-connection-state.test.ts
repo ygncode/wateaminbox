@@ -45,4 +45,23 @@ describe("resolveInboxConnectionState", () => {
       }),
     ).toBe("offline");
   });
+
+  it("never shows first-run setup when any provider account is already known", () => {
+    expect(
+      resolveInboxConnectionState({
+        connections: [],
+        channelAccounts: [{ status: "connected" }],
+        isLoading: true,
+        isError: false,
+      }),
+    ).toBe("connected");
+    expect(
+      resolveInboxConnectionState({
+        connections: [],
+        channelAccounts: [{ status: "paused" }],
+        isLoading: false,
+        isError: true,
+      }),
+    ).toBe("offline");
+  });
 });
