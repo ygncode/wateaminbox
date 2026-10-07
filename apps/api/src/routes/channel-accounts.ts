@@ -165,7 +165,7 @@ channelAccountRoutes.get("/providers", async (c) => {
         storageReady &&
         canStoreSecrets,
       unavailableReason: !neutralWrites
-        ? "Channel-neutral writes are not enabled for this workspace"
+        ? "Telegram is not available for this workspace yet"
         : !isChannelProviderEnabled(authority, "telegram_bot")
           ? "Telegram Bot is not enabled for this workspace"
           : !storageReady
