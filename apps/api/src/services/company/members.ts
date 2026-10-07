@@ -144,21 +144,6 @@ export async function getMemberRole(
   return (member?.role as "owner" | "admin" | "member") || null;
 }
 
-/**
- * Checks if a user has permission to perform an action
- */
-export async function hasPermission(
-  companyId: string,
-  userId: string,
-  requiredRole: "owner" | "admin" | "member",
-): Promise<boolean> {
-  const role = await getMemberRole(companyId, userId);
-  if (!role) return false;
-
-  const roleHierarchy = { owner: 3, admin: 2, member: 1 };
-  return roleHierarchy[role] >= roleHierarchy[requiredRole];
-}
-
 /** Hierarchy policy shared by role changes and member removal. */
 export function canManageMember(
   actorRole: "owner" | "admin" | "member",

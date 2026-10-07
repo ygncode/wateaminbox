@@ -221,37 +221,6 @@ export async function inviteMember(
   return invitation as unknown as Invitation;
 }
 
-/**
- * Gets pending invitations for a company
- */
-export async function getPendingInvitations(
-  companyId: string,
-): Promise<Invitation[]> {
-  const invitations = await db
-    .selectFrom("invitations as i")
-    .innerJoin("users as inviter", "inviter.id", "i.invited_by")
-    .select([
-      "i.id",
-      "i.company_id",
-      "i.email",
-      "i.role",
-      "i.permissions",
-      "i.token",
-      "i.invited_by",
-      "inviter.name as inviter_name",
-      "inviter.email as inviter_email",
-      "i.expires_at",
-      "i.accepted_at",
-      "i.created_at",
-    ])
-    .where("i.company_id", "=", companyId)
-    .where("i.accepted_at", "is", null)
-    .where("i.expires_at", ">", toDbDate())
-    .execute();
-
-  return invitations as unknown as Invitation[];
-}
-
 export interface ListPendingInvitationsOptions {
   search?: string;
   role?: "all" | "admin" | "member";
