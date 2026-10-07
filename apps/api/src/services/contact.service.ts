@@ -616,25 +616,6 @@ export async function unassignContact(
 }
 
 /**
- * Ensures a contact is assigned to a user if not already assigned
- * This is used for "Assign to me on first reply"
- */
-export async function ensureContactAssignment(
-  tenantDb: Kysely<TenantDatabase>,
-  contactId: string,
-  userId: string,
-): Promise<boolean> {
-  const currentAssignment = await getCurrentAssignment(tenantDb, contactId);
-
-  if (!currentAssignment) {
-    await assignContactToUser(tenantDb, contactId, userId, userId);
-    return true;
-  }
-
-  return false;
-}
-
-/**
  * Why a phone number could not be turned into a usable contact.
  *
  * Callers map these to their own transport: HTTP routes to 400/409, MCP tools

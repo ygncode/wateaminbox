@@ -81,10 +81,9 @@ export interface SendAccessOptions {
  * takeover can never land invisibly in the middle of an in-flight send,
  * and a send can never slip through mid-takeover.
  *
- * IMPORTANT: callers must NOT call `ensureContactAssignment` (or any other
- * assignment claim) before starting the transaction this function runs
- * in - that would auto-claim OUTSIDE this lock and reopen exactly the race
- * this function exists to close.
+ * IMPORTANT: callers must NOT call any assignment claim before starting
+ * the transaction this function runs in - that would auto-claim OUTSIDE
+ * this lock and reopen exactly the race this function exists to close.
  */
 export async function requireSendAccess(
   trx: Transaction<TenantDatabase>,
