@@ -103,7 +103,11 @@ export const ChatList = memo(function ChatList({
     isLoading: areConnectionsLoading,
     isError: areConnectionsUnavailable,
   } = useWhatsAppConnections();
-  const { data: channelAccounts = [] } = useChannelAccounts();
+  const {
+    data: channelAccounts = [],
+    isLoading: areChannelAccountsLoading,
+    isError: areChannelAccountsUnavailable,
+  } = useChannelAccounts();
 
   useEffect(() => {
     if (
@@ -253,8 +257,9 @@ export const ChatList = memo(function ChatList({
   ]);
   const connectionState = resolveInboxConnectionState({
     connections,
-    isLoading: areConnectionsLoading,
-    isError: areConnectionsUnavailable,
+    channelAccounts,
+    isLoading: areConnectionsLoading || areChannelAccountsLoading,
+    isError: areConnectionsUnavailable || areChannelAccountsUnavailable,
   });
   const isFirstRun =
     connectionState === "no-connections" && visibleChats.length === 0;
@@ -750,9 +755,9 @@ export const ChatList = memo(function ChatList({
             </div>
           )}
 
-        {/* First-run state - WhatsApp has not been linked yet. This is also
-            the primary mobile onboarding surface, where the main pane is not
-            visible until a conversation is selected. */}
+        {/* First-run state - no provider account has been linked yet. This is
+            also the primary mobile onboarding surface, where the main pane is
+            not visible until a conversation is selected. */}
         {!isLoading &&
           !isError &&
           isFirstRun &&
@@ -783,12 +788,12 @@ export const ChatList = memo(function ChatList({
               <p className="mt-2 text-sm leading-6 text-[#6b7b75] dark:text-dark-text-secondary">
                 {can("can_manage_connections")
                   ? t(
-                      "chat.connectWhatsappSidebarHint",
-                      "Connect one WhatsApp account and conversations will begin appearing here automatically.",
+                      "chat.connectChannelsSidebarHint",
+                      "Connect WhatsApp or Telegram and conversations will begin appearing here automatically.",
                     )
                   : t(
-                      "chat.askAdminToConnectShort",
-                      "Ask a workspace owner or admin to connect a WhatsApp account.",
+                      "chat.askAdminToConnectChannelShort",
+                      "Ask a workspace owner or admin to connect a channel.",
                     )}
               </p>
 
@@ -800,14 +805,14 @@ export const ChatList = memo(function ChatList({
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-[#304d43] dark:text-[#d0e1db]">
                       {t(
-                        "chat.sidebarConnectStep",
-                        "Connect a WhatsApp account",
+                        "chat.sidebarConnectChannelStep",
+                        "Connect your first channel",
                       )}
                     </p>
                     <p className="mt-1 text-xs leading-5 text-[#7a8983] dark:text-dark-text-tertiary">
                       {t(
-                        "chat.sidebarConnectStepHint",
-                        "Pair securely by scanning a QR code",
+                        "chat.sidebarConnectChannelStepHint",
+                        "Choose WhatsApp or Telegram to start",
                       )}
                     </p>
                   </div>
@@ -835,7 +840,7 @@ export const ChatList = memo(function ChatList({
                   )}
                   className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#14795e] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#0f684f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 dark:bg-[#20b68e] dark:text-[#071b16] dark:hover:bg-[#35c59e] dark:focus-visible:ring-offset-dark-secondary md:hidden"
                 >
-                  {t("chat.connectWhatsapp", "Connect WhatsApp")}
+                  {t("chat.connectChannels", "Connect channels")}
                   <ArrowRight className="size-4" aria-hidden="true" />
                 </Link>
               )}
