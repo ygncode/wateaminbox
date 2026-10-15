@@ -299,9 +299,13 @@ export function ChatPage() {
   // about the surviving customer gates the wrong conversation: a thread
   // assigned to someone else shows a live composer, and one assigned to this
   // user shows the take-over bar that assigning cannot clear.
-  const { access: composerAccess } = useComposerAccess(
-    activeThread?.contactId ?? selectedChatId ?? null,
-  );
+  // Contact reads accept a conversation UUID and resolve it to a contact, but
+  // contact mutations do not. Keep the thread's real contact UUID once it has
+  // been resolved so Take over/Unblock never POST a conversation UUID to a
+  // `/contacts/:id/*` route (which responds with "Contact not found").
+  const composerContactId =
+    activeThread?.contactId ?? selectedContact?.id ?? selectedChatId ?? null;
+  const { access: composerAccess } = useComposerAccess(composerContactId);
   const canSend = composerAccess.kind === "sendable";
   // The thread's own JID decides this. A merged customer's surviving contact
   // may be neutral and JID-less, which read as "not a group" and stripped
@@ -450,7 +454,7 @@ export function ChatPage() {
             </MessageActionsProvider>
           </div>
           <ComposerLifecycleArea
-            contactId={selectedChatId}
+            contactId={composerContactId!}
             access={composerAccess}
             isSending={isSending}
             contactName={threadContact.name}
