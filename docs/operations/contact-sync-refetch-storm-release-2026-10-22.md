@@ -113,6 +113,19 @@ docker compose --env-file /opt/wateaminbox-cloud-control/.env.production \
   interrupted.
 - Existing tabs must reload once to execute the corrected web bundle.
 
+One old tab continued running the pre-release bundle after the deploy and kept
+issuing roughly 600 authenticated contact requests per minute. With owner
+approval, only the session identified by the incident report's access token was
+confirmed active and deleted from `user_sessions`; no other session was
+changed. The client then received 401 responses and stopped. In the final
+one-minute recovery sample:
+
+- `/api/contacts` fell to three requests, all HTTP 200;
+- contact-list median latency recovered to 182 ms;
+- API readiness had a 50 ms median and no failure;
+- HAProxy recorded no backend-down event, 502, or 503; and
+- host load fell from above 20 to 7.95 and continued trending down.
+
 ## Rollback
 
 The prior web image remains pinned as `wateaminbox/web:62f418f.693cd01` at
