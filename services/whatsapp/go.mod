@@ -1,6 +1,6 @@
 module github.com/ygncode-lab/whatsapp-web/services/whatsapp
 
-go 1.25.0
+go 1.26.10
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
@@ -14,7 +14,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/ygncode-lab/whatsapp-web/services/shared v0.0.0
 	go.mau.fi/whatsmeow v0.0.0-20260813204424-197e61747d53
-	golang.org/x/sync v0.22.0
+	golang.org/x/sync v0.23.0
 	google.golang.org/protobuf v1.36.12
 )
 
@@ -47,10 +47,10 @@ require (
 	go.mau.fi/libsignal v0.2.2 // indirect
 	go.mau.fi/util v0.9.12-0.20260717235539-f9ffa7eca58d // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/crypto v0.54.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 )
 
 replace github.com/ygncode-lab/whatsapp-web/services/shared => ../shared

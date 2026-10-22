@@ -1,6 +1,6 @@
 module github.com/ygncode-lab/whatsapp-web/services/shared
 
-go 1.25.0
+go 1.26.10
 
 require github.com/nats-io/nats.go v1.53.1
 

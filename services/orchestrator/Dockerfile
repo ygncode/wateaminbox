@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-ARG GO_VERSION=1.25.0
+ARG GO_VERSION=1.26.10
 
 FROM golang:${GO_VERSION}-alpine AS orchestrator-build
 WORKDIR /src

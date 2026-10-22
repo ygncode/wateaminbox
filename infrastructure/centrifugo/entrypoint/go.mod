@@ -1,3 +1,3 @@
 module github.com/ygncode-lab/wateaminbox/infrastructure/centrifugo/entrypoint
 
-go 1.25.0
+go 1.26.10

@@ -24,7 +24,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.25.x"
+          go-version: "1.26.10"
           cache-dependency-path: |
             services/shared/go.sum
             services/orchestrator/go.sum
@@ -175,7 +175,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.25.x"
+          go-version: "1.26.10"
           cache-dependency-path: |
             services/shared/go.sum
             services/orchestrator/go.sum
@@ -198,7 +198,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.25.x"
+          go-version: "1.26.10"
           cache-dependency-path: |
             services/shared/go.sum
             services/orchestrator/go.sum
@@ -231,7 +231,7 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: "1.25.x"
+          go-version: "1.26.10"
           cache-dependency-path: |
             services/shared/go.sum
             services/orchestrator/go.sum
@@ -275,9 +275,9 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          # Explicitly require the first 1.25 patch containing the standard-library
-          # fixes reported by govulncheck (GO-2026-6090 and GO-2026-5972).
-          go-version: "1.25.13"
+          # Pin the patched toolchain because govulncheck reports reachable
+          # standard-library vulnerabilities from the Go version itself.
+          go-version: "1.26.10"
           cache-dependency-path: |
             services/shared/go.sum
             services/orchestrator/go.sum
