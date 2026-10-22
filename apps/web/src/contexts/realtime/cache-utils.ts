@@ -8,9 +8,9 @@
 
 import type { QueryClient } from "@tanstack/react-query";
 import type { Message, PaginatedMessages } from "@wateaminbox/shared";
+import { customerTimelineKeys } from "../../hooks/chat/useCustomerTimeline";
 import { isOptimisticTwin } from "../../hooks/messages/optimistic-message";
 import { queryKeys } from "../../hooks/query-keys";
-import { customerTimelineKeys } from "../../hooks/chat/useCustomerTimeline";
 import { chatKeys } from "../../hooks/useChats";
 import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
 
@@ -214,15 +214,24 @@ export function invalidateCustomerTimelines(queryClient: QueryClient): void {
   queryClient.invalidateQueries({ queryKey: customerTimelineKeys.all });
 }
 
-export function invalidateChatList(queryClient: QueryClient): void {
-  queryClient.invalidateQueries({
-    queryKey: chatKeys.lists(),
-  });
+export function invalidateChatList(
+  queryClient: QueryClient,
+  options: { cancelRefetch?: boolean } = {},
+): void {
+  queryClient.invalidateQueries(
+    {
+      queryKey: chatKeys.lists(),
+    },
+    options,
+  );
   // The Groups tab is a second projection of the same conversations. New
   // messages and read events must refresh both projections together.
-  queryClient.invalidateQueries({
-    queryKey: queryKeys.groups.lists(),
-  });
+  queryClient.invalidateQueries(
+    {
+      queryKey: queryKeys.groups.lists(),
+    },
+    options,
+  );
 }
 
 /**

@@ -1,4 +1,3 @@
-import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
 import type { QueryClient } from "@tanstack/react-query";
 import type {
   BulkJobUpdatedPayload,
@@ -19,6 +18,7 @@ import type {
 import { advanceMessageStatus } from "@wateaminbox/shared";
 import type { Dispatch, SetStateAction } from "react";
 import { queryKeys } from "../../hooks/query-keys";
+import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
 import { markConversationAsRead } from "../../lib/api/conversations";
 import { bindEvent, bindUserEvent } from "../../lib/realtime";
 import { showRealtimeToast } from "../../lib/toast-notifications";
@@ -98,6 +98,90 @@ interface RealtimeEventHandlerOptions {
   removeTypingIndicator: (conversationId: string, userId: string) => void;
   setTypingTimeout: (conversationId: string, userId: string) => void;
   clearTypingTimeout: (conversationId: string, userId: string) => void;
+  contactRefreshTiming?: { quietMs: number; maxWaitMs: number };
+}
+
+type ContactRefreshKind = "metadata" | "profile-picture";
+
+const DEFAULT_CONTACT_REFRESH_TIMING = {
+  quietMs: 500,
+  maxWaitMs: 5_000,
+};
+
+/**
+ * Coalesce the hundreds or thousands of contact events emitted by a history
+ * sync. Each event used to restart every mounted /contacts query; the database
+ * kept doing the abandoned work until both API replicas failed health checks.
+ */
+function createContactRefreshBatch(
+  queryClient: QueryClient,
+  timing = DEFAULT_CONTACT_REFRESH_TIMING,
+): {
+  cancel: () => void;
+  flush: (cancelRefetch: boolean) => boolean;
+  queue: (kind: ContactRefreshKind) => void;
+} {
+  let pending = false;
+  let profilePicturePending = false;
+  let quietTimer: ReturnType<typeof setTimeout> | undefined;
+  let maxWaitTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const clearTimers = () => {
+    if (quietTimer) clearTimeout(quietTimer);
+    if (maxWaitTimer) clearTimeout(maxWaitTimer);
+    quietTimer = undefined;
+    maxWaitTimer = undefined;
+  };
+
+  const flush = (cancelRefetch: boolean): boolean => {
+    if (!pending) return false;
+
+    const refreshProfilePictures = profilePicturePending;
+    pending = false;
+    profilePicturePending = false;
+    clearTimers();
+
+    // A max-wait flush can land while the previous expensive list request is
+    // still running. Do not cancel and replace that request: its transaction
+    // began after the event that scheduled it. sync:complete uses true for one
+    // authoritative final refresh after every imported row has committed.
+    const invalidateOptions = { cancelRefetch };
+    invalidateChatList(queryClient, invalidateOptions);
+    queryClient.invalidateQueries(
+      {
+        queryKey: refreshProfilePictures
+          ? queryKeys.groups.all
+          : queryKeys.groups.details(),
+      },
+      invalidateOptions,
+    );
+    if (refreshProfilePictures) {
+      queryClient.invalidateQueries(
+        { queryKey: queryKeys.contacts.details() },
+        invalidateOptions,
+      );
+    }
+    return true;
+  };
+
+  const queue = (kind: ContactRefreshKind) => {
+    pending = true;
+    profilePicturePending ||= kind === "profile-picture";
+
+    if (quietTimer) clearTimeout(quietTimer);
+    quietTimer = setTimeout(() => flush(false), timing.quietMs);
+    maxWaitTimer ??= setTimeout(() => flush(false), timing.maxWaitMs);
+  };
+
+  return {
+    cancel: () => {
+      pending = false;
+      profilePicturePending = false;
+      clearTimers();
+    },
+    flush,
+    queue,
+  };
 }
 
 /** Register typed, company-scoped handlers and return their cleanup functions. */
@@ -110,8 +194,12 @@ export function registerRealtimeEventHandlers({
   removeTypingIndicator,
   setTypingTimeout,
   clearTypingTimeout,
+  contactRefreshTiming,
 }: RealtimeEventHandlerOptions): (() => void)[] {
+  const contactRefresh = createContactRefreshBatch(qc, contactRefreshTiming);
+
   return [
+    contactRefresh.cancel,
     bindEvent("notification:toast", (data) => {
       const payload =
         data.payload && typeof data.payload === "object"
@@ -335,8 +423,7 @@ export function registerRealtimeEventHandlers({
       },
     ),
     bindUserEvent<{ contactId?: string }>("contact:updated", (data) => {
-      invalidateChatList(qc);
-      qc.invalidateQueries({ queryKey: queryKeys.groups.details() });
+      contactRefresh.queue("metadata");
       // A reassignment (including a takeover) changes who can send here -
       // invalidate this contact's detail (assignment) immediately so the
       // composer's assignment gate reflects it without waiting on a
@@ -395,9 +482,9 @@ export function registerRealtimeEventHandlers({
     bindUserEvent<ProfilePicturePayload>("contact:profile_picture", () => {
       // Re-fetch through visibility-checked HTTP routes so the API can issue a
       // fresh private-storage URL; realtime channels never carry media URLs.
-      invalidateChatList(qc);
-      qc.invalidateQueries({ queryKey: queryKeys.groups.all });
-      qc.invalidateQueries({ queryKey: queryKeys.contacts.details() });
+      // History sync can publish one of these per contact, so fold the burst
+      // into the same bounded refresh as contact metadata.
+      contactRefresh.queue("profile-picture");
     }),
     bindUserEvent<MessageDeletedPayload>("message:deleted", (data) => {
       const payload = data.payload;
@@ -494,8 +581,12 @@ export function registerRealtimeEventHandlers({
     bindEvent<SyncStatusPayload>("sync:complete", (data) => {
       const connectionId = data.connectionId || "unknown";
       setSyncingConnections((previous) => endSync(previous, connectionId));
-      invalidateChatList(qc);
-      qc.invalidateQueries({ queryKey: queryKeys.groups.details() });
+      // Flush the whole import once. If no contact event reached this browser,
+      // retain the normal sync-complete reconciliation.
+      if (!contactRefresh.flush(true)) {
+        invalidateChatList(qc);
+        qc.invalidateQueries({ queryKey: queryKeys.groups.details() });
+      }
       const selectedId = useChatStore.getState().selectedConversationId;
       if (selectedId) refetchConversationMessages(qc, selectedId);
     }),
