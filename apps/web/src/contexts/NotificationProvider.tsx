@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   NewMessagePayload,
   NotificationPayload,
+  WhatsAppConnectedPayload,
+  WorkerConnectionStatusPayload,
 } from "@wateaminbox/shared";
 import {
   createContext,
@@ -11,6 +13,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { queryKeys } from "../hooks/query-keys";
@@ -48,7 +51,6 @@ import {
 import { useAuth } from "./auth-context";
 import { useRealtimeContext } from "./RealtimeProvider";
 import { useWorkspace } from "./workspace-context";
-import { useTranslation } from "react-i18next";
 
 export interface NotificationContextValue {
   settings: NotificationSettings;
@@ -145,7 +147,7 @@ export function NotificationProvider({
   const queryClient = useQueryClient();
   const { isAuthenticated, user } = useAuth();
   const { activeWorkspaceId: currentCompanyId } = useWorkspace();
-  const { subscribeUser, isConnected } = useRealtimeContext();
+  const { subscribe, subscribeUser, isConnected } = useRealtimeContext();
   setNotificationSettingsScope(currentCompanyId, user?.id ?? null);
   const [settings, setSettings] = useState(getNotificationSettings);
   const [permission, setPermission] = useState(getNotificationPermission);
@@ -273,6 +275,27 @@ export function NotificationProvider({
       void invalidateNotificationQueries(queryClient);
     });
   }, [enabled, isConnected, queryClient, subscribeUser]);
+
+  useEffect(() => {
+    if (!enabled || !isConnected) return;
+    const refreshNotifications = () => {
+      void invalidateNotificationQueries(queryClient);
+    };
+    const unsubscribeConnected = subscribe<WhatsAppConnectedPayload>(
+      "connected",
+      refreshNotifications,
+    );
+    const unsubscribeWorkerStatus = subscribe<WorkerConnectionStatusPayload>(
+      "connection:status",
+      (payload) => {
+        if (payload.status === "connected") refreshNotifications();
+      },
+    );
+    return () => {
+      unsubscribeConnected();
+      unsubscribeWorkerStatus();
+    };
+  }, [enabled, isConnected, queryClient, subscribe]);
 
   useEffect(() => {
     if (!enabled || !isConnected) return;

@@ -40,6 +40,17 @@ describe("global notification architecture", () => {
     expect(center.match(/useNotificationCenter\(/g)?.length).toBe(1);
   });
 
+  test("connection recovery refreshes persistent notifications", async () => {
+    const provider = await readSource(
+      "../../contexts/NotificationProvider.tsx",
+    );
+    expect(provider).toContain("subscribe<WhatsAppConnectedPayload>");
+    expect(provider).toContain('"connected"');
+    expect(provider).toContain("subscribe<WorkerConnectionStatusPayload>");
+    expect(provider).toContain('payload.status === "connected"');
+    expect(provider).toContain("invalidateNotificationQueries(queryClient)");
+  });
+
   test("presents the panel as a sheet with modal semantics", async () => {
     const center = await readSource("./NotificationCenter.tsx");
     expect(center).toContain("NOTIFICATION_SHEET_CLASS");

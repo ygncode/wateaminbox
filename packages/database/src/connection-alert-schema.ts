@@ -14,8 +14,6 @@ export async function ensureConnectionAlertSchema<DB>(
         AND t.tgname = 'connection_email_alerts_changed' AND NOT t.tgisinternal
     ) AS installed
   `.execute(db);
-  if (installed.rows[0]?.installed) return;
-
   await sql`
     CREATE TABLE IF NOT EXISTS ${table("connection_email_alerts")} (
       id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
@@ -26,18 +24,55 @@ export async function ensureConnectionAlertSchema<DB>(
       next_attempt_at TIMESTAMPTZ NOT NULL,
       attempts INTEGER NOT NULL DEFAULT 0,
       sent_at TIMESTAMPTZ,
+      notification_created_at TIMESTAMPTZ,
       PRIMARY KEY (connection_id, user_id)
     )
   `.execute(db);
   // A trigger covers worker events, crashes and recovery atomically, including
   // older writers. Duplicate disconnects do not reset the grace period. Pending
   // during reconnect retains the incident; connected/archive cancels it.
+  //
+  // Recovery closes the user-visible incident as part of the same connection
+  // update. Only an alert that reached notification history gets a recovery
+  // notice, so a sub-five-minute self-heal stays quiet. The old notice remains
+  // as history but no longer presents as an unresolved unread problem.
   await sql`
     CREATE OR REPLACE FUNCTION ${sql.ref(`${schema}.queue_connection_email_alert`)}()
     RETURNS trigger LANGUAGE plpgsql AS $fn$
     DECLARE alert_kind TEXT;
     BEGIN
       IF NEW.archived_at IS NOT NULL OR NEW.status = 'connected' THEN
+        IF NEW.archived_at IS NULL
+           AND NEW.status = 'connected'
+           AND OLD.status IS DISTINCT FROM 'connected' THEN
+          UPDATE ${table("notification_history")} notification
+          SET is_read = true, read_at = COALESCE(notification.read_at, now())
+          FROM ${table("connection_email_alerts")} alert
+          WHERE alert.connection_id = NEW.id
+            AND alert.notification_created_at IS NOT NULL
+            AND notification.id = alert.id;
+
+          INSERT INTO ${table("notification_history")}
+            (user_id, notification_type, title, message, action_url, metadata)
+          SELECT alert.user_id,
+                 'system',
+                 'WhatsApp reconnected',
+                 format(
+                   '“%s” reconnected automatically. Your team can send and receive messages again.',
+                   COALESCE(NULLIF(NEW.name, ''), NULLIF(NEW.phone_number, ''), 'WhatsApp connection')
+                 ),
+                 '/w/' || company.id::text || '/settings/connections',
+                 jsonb_build_object(
+                   'connectionId', NEW.id,
+                   'connectionAlertKind', 'reconnected',
+                   'recoveredAlertId', alert.id
+                 )
+          FROM ${table("connection_email_alerts")} alert
+          JOIN public.companies company ON company.schema_name = TG_TABLE_SCHEMA
+          WHERE alert.connection_id = NEW.id
+            AND alert.notification_created_at IS NOT NULL;
+        END IF;
+
         DELETE FROM ${table("connection_email_alerts")} WHERE connection_id = NEW.id;
         RETURN NEW;
       END IF;
@@ -66,9 +101,11 @@ export async function ensureConnectionAlertSchema<DB>(
     END;
     $fn$
   `.execute(db);
-  await sql`
-    CREATE TRIGGER connection_email_alerts_changed
-    AFTER UPDATE OF status, logged_out_at, archived_at ON ${table("whatsapp_connections")}
-    FOR EACH ROW EXECUTE FUNCTION ${sql.ref(`${schema}.queue_connection_email_alert`)}()
-  `.execute(db);
+  if (!installed.rows[0]?.installed) {
+    await sql`
+      CREATE TRIGGER connection_email_alerts_changed
+      AFTER UPDATE OF status, logged_out_at, archived_at ON ${table("whatsapp_connections")}
+      FOR EACH ROW EXECUTE FUNCTION ${sql.ref(`${schema}.queue_connection_email_alert`)}()
+    `.execute(db);
+  }
 }

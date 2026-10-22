@@ -144,6 +144,12 @@ describe("durable connection emails", () => {
         expect(sent).toHaveLength(0);
         await f.update({ status: "connected" });
         expect(await f.rows()).toHaveLength(0);
+        expect(
+          await f.tenant
+            .selectFrom("notification_history")
+            .select("id")
+            .execute(),
+        ).toHaveLength(0);
         await processConnectionEmailAlerts(f.tenant, f.companyId, { sender });
         expect(sent).toHaveLength(0);
       }),
@@ -406,10 +412,35 @@ integration(
       expect((await history())[0].is_read).toBe(true);
       await f.update({ status: "connected", logged_out_at: null });
       expect(await f.rows()).toHaveLength(0);
-      expect(await history()).toHaveLength(1);
+      const recovered = await history();
+      expect(recovered).toHaveLength(3);
+      expect(
+        recovered.filter(
+          (notification) => notification.title === "WhatsApp reconnected",
+        ),
+      ).toHaveLength(2);
+      expect(
+        recovered
+          .filter(
+            (notification) => notification.title === "WhatsApp reconnected",
+          )
+          .every(
+            (notification) =>
+              !notification.is_read &&
+              notification.message?.includes("reconnected automatically") &&
+              notification.metadata?.connectionAlertKind === "reconnected",
+          ),
+      ).toBe(true);
+      expect(
+        recovered
+          .filter((notification) => notification.id === notifications[0].id)
+          .every(
+            (notification) => notification.is_read && notification.read_at,
+          ),
+      ).toBe(true);
       await f.update({ status: "disconnected", logged_out_at: new Date() });
       await processConnectionEmailAlerts(f.tenant, f.companyId, { sender });
-      expect(await history()).toHaveLength(3);
+      expect(await history()).toHaveLength(5);
     }),
 );
 
