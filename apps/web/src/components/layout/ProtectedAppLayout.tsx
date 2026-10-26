@@ -29,6 +29,10 @@ import {
   getInboxNavigationLabel,
   getInboxUnreadCount,
 } from "./inbox-unread";
+import {
+  APP_SIDEBAR_COLLAPSED_KEY,
+  getInitialAppSidebarCollapsed,
+} from "./app-shell-preferences";
 import { resolveAppShellChrome } from "./conversation-chrome";
 import { MobileBottomNav } from "./MobileBottomNav";
 import {
@@ -193,8 +197,6 @@ function ButtonSignOut({ onClick }: { onClick: () => void }) {
   );
 }
 
-const SIDEBAR_COLLAPSED_KEY = "wateaminbox:sidebar-collapsed";
-
 /** Workspace-aware shell shared by every protected destination. */
 export function ProtectedAppLayout() {
   const { t } = useTranslation();
@@ -202,9 +204,7 @@ export function ProtectedAppLayout() {
   const { pathname, search } = useLocation();
   const [profileOpen, setProfileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true",
+    getInitialAppSidebarCollapsed,
   );
   const { user, logout } = useAuth();
   const { activeWorkspace, can, canAny, isSwitching, switchingTo } =
@@ -300,7 +300,7 @@ export function ProtectedAppLayout() {
   const toggleSidebar = () => {
     setSidebarCollapsed((collapsed) => {
       const next = !collapsed;
-      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+      window.localStorage.setItem(APP_SIDEBAR_COLLAPSED_KEY, String(next));
       return next;
     });
   };

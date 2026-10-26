@@ -28,8 +28,11 @@ describe("global notification architecture", () => {
   });
 
   test("persists a collapsible desktop workspace rail", async () => {
-    const layout = await readSource("../layout/ProtectedAppLayout.tsx");
-    expect(layout).toContain('"wateaminbox:sidebar-collapsed"');
+    const [layout, preferences] = await Promise.all([
+      readSource("../layout/ProtectedAppLayout.tsx"),
+      readSource("../layout/app-shell-preferences.ts"),
+    ]);
+    expect(preferences).toContain('"wateaminbox:sidebar-collapsed"');
     expect(layout).toContain("collapsed={sidebarCollapsed}");
     expect(layout).toContain("Expand sidebar");
     expect(layout).toContain("Collapse sidebar");

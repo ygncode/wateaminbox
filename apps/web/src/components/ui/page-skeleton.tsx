@@ -1,4 +1,11 @@
 import { useTranslation } from "react-i18next";
+import { useLocation } from "react-router";
+import { getInitialAppSidebarCollapsed } from "@/components/layout/app-shell-preferences";
+import {
+  isConversationDetailPath,
+  resolveAppShellChrome,
+} from "@/components/layout/conversation-chrome";
+import { getInitialSidebarWidth } from "@/components/layout/resizable-sidebar";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "../brand/BrandMark";
 import { Skeleton } from "./skeleton";
@@ -10,7 +17,10 @@ export type PageSkeletonVariant =
   | "dashboard"
   | "auth"
   | "team"
-  | "workspace-chooser";
+  | "workspace-chooser"
+  | "audit"
+  | "broadcasts"
+  | "notifications";
 
 /**
  * The skeleton a protected path should show while its guards resolve.
@@ -24,6 +34,9 @@ export function workspaceLoadingVariant(pathname: string): PageSkeletonVariant {
   if (pathname.includes("/settings")) return "settings";
   if (pathname.includes("/dashboard")) return "dashboard";
   if (pathname.includes("/team")) return "team";
+  if (pathname.includes("/audit")) return "audit";
+  if (pathname.includes("/broadcasts")) return "broadcasts";
+  if (pathname.includes("/notifications")) return "notifications";
   return "default";
 }
 
@@ -66,6 +79,10 @@ export function PageSkeleton({
         return <TeamPageSkeleton className={className} />;
       case "workspace-chooser":
         return <WorkspaceChooserSkeleton className={className} />;
+      case "audit":
+      case "broadcasts":
+      case "notifications":
+        return <DataPageSkeleton className={className} />;
       default:
         return <DefaultPageSkeleton className={className} />;
     }
@@ -84,69 +101,158 @@ export function PageSkeleton({
  * the handover invisible.
  */
 function AppShellSkeleton({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  const collapsed = getInitialAppSidebarCollapsed();
+  const shellChrome = resolveAppShellChrome(pathname);
+
   return (
     <div className="flex h-dvh w-full overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary">
-      <aside className="relative hidden h-full w-[226px] shrink-0 flex-col bg-[#102c24] px-3 py-3 lg:flex">
-        {/* Workspace switcher */}
-        <div className="flex items-center gap-2.5 rounded-xl bg-white/[0.06] p-2">
+      <aside
+        className={cn(
+          "relative hidden h-full shrink-0 flex-col bg-[#102c24] py-3 lg:flex",
+          collapsed ? "w-[72px] px-2" : "w-[226px] px-3",
+        )}
+      >
+        <div
+          className={cn(
+            "flex items-center rounded-xl",
+            collapsed
+              ? "h-11 justify-center p-1"
+              : "gap-3 border border-white/10 bg-white/[0.06] p-2.5",
+          )}
+        >
           <Skeleton className="size-9 shrink-0 rounded-lg bg-white/10" />
-          <div className="min-w-0 flex-1">
-            <Skeleton className="h-3 w-24 bg-white/10" />
-            <Skeleton className="mt-1.5 h-2.5 w-12 bg-white/10" />
-          </div>
+          {!collapsed && (
+            <div className="min-w-0 flex-1">
+              <Skeleton className="h-3 w-24 bg-white/10" />
+              <Skeleton className="mt-1.5 h-2.5 w-12 bg-white/10" />
+            </div>
+          )}
         </div>
 
-        {/* Primary navigation */}
         <div className="mt-5 space-y-1">
           {[20, 24, 22, 12, 14, 20].map((width, index) => (
             <div
               key={index}
               className={cn(
-                "flex h-10 items-center gap-3 rounded-xl px-3",
+                "flex items-center rounded-xl",
+                collapsed ? "h-11 justify-center" : "h-10 gap-3 px-3",
                 index === 0 && "bg-white/10",
               )}
             >
               <Skeleton className="size-[18px] shrink-0 rounded bg-white/10" />
-              <Skeleton
-                className="h-3 bg-white/10"
-                style={{ width: `${width * 4}px` }}
-              />
+              {!collapsed && (
+                <Skeleton
+                  className="h-3 bg-white/10"
+                  style={{ width: `${width * 4}px` }}
+                />
+              )}
             </div>
           ))}
         </div>
 
         <div className="mt-auto">
-          <div className="mb-2 flex h-10 items-center gap-3 px-3">
+          <div
+            className={cn(
+              "mb-2 flex h-10 items-center",
+              collapsed ? "justify-center" : "gap-3 px-3",
+            )}
+          >
             <Skeleton className="size-[18px] shrink-0 rounded bg-white/10" />
-            <Skeleton className="h-3 w-24 bg-white/10" />
+            {!collapsed && <Skeleton className="h-3 w-24 bg-white/10" />}
           </div>
           <div className="space-y-1 border-t border-white/10 pt-3">
-            <div className="flex h-10 items-center gap-3 px-3">
+            <div
+              className={cn(
+                "flex h-10 items-center",
+                collapsed ? "justify-center" : "gap-3 px-3",
+              )}
+            >
               <Skeleton className="size-[18px] shrink-0 rounded bg-white/10" />
-              <Skeleton className="h-3 w-16 bg-white/10" />
+              {!collapsed && <Skeleton className="h-3 w-16 bg-white/10" />}
             </div>
-            <div className="flex items-center gap-1 px-2">
+            <div
+              className={cn(
+                "flex items-center gap-1",
+                collapsed ? "flex-col" : "px-1",
+              )}
+            >
               <Skeleton className="size-8 rounded-lg bg-white/10" />
               <Skeleton className="size-8 rounded-lg bg-white/10" />
             </div>
-            <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-black/10">
-              <div className="flex items-center gap-3 p-2.5">
-                <Skeleton className="size-10 shrink-0 rounded-xl bg-white/10" />
-                <div className="min-w-0 flex-1">
-                  <Skeleton className="h-3 w-24 bg-white/10" />
-                  <Skeleton className="mt-1.5 h-2.5 w-28 bg-white/10" />
+            {collapsed ? (
+              <div className="mt-2 flex flex-col items-center gap-1.5">
+                <Skeleton className="size-10 rounded-xl bg-white/10" />
+                <Skeleton className="size-10 rounded-xl bg-white/10" />
+              </div>
+            ) : (
+              <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-black/10">
+                <div className="flex items-center gap-3 p-2.5">
+                  <Skeleton className="size-10 shrink-0 rounded-xl bg-white/10" />
+                  <div className="min-w-0 flex-1">
+                    <Skeleton className="h-3 w-24 bg-white/10" />
+                    <Skeleton className="mt-1.5 h-2.5 w-28 bg-white/10" />
+                  </div>
+                </div>
+                <div className="flex h-9 items-center gap-2 border-t border-white/10 px-3">
+                  <Skeleton className="size-3.5 shrink-0 rounded bg-white/10" />
+                  <Skeleton className="h-2.5 w-14 bg-white/10" />
                 </div>
               </div>
-              <div className="flex h-9 items-center gap-2 border-t border-white/10 px-3">
-                <Skeleton className="size-3.5 shrink-0 rounded bg-white/10" />
-                <Skeleton className="h-2.5 w-14 bg-white/10" />
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </aside>
 
-      <div className="relative flex min-w-0 flex-1 flex-col">{children}</div>
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        <header
+          className={cn(
+            "safe-area-top h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center justify-between border-b border-[#dce3de] bg-[#102c24] px-2",
+            shellChrome.workspaceHeaderClass,
+          )}
+        >
+          <div className="flex h-10 min-w-0 items-center gap-2 px-2">
+            <Skeleton className="size-9 shrink-0 rounded-lg bg-white/10" />
+            <div className="min-w-0">
+              <Skeleton className="h-3 w-28 bg-white/10" />
+              <Skeleton className="mt-1.5 h-2.5 w-12 bg-white/10" />
+            </div>
+          </div>
+          <div className="flex gap-1">
+            <Skeleton className="size-9 rounded-lg bg-white/10" />
+            <Skeleton className="size-9 rounded-lg bg-white/10" />
+          </div>
+        </header>
+        <main
+          className={cn(
+            "relative flex min-h-0 min-w-0 flex-1 overflow-hidden",
+            shellChrome.mainPaddingClass,
+          )}
+        >
+          {children}
+        </main>
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-x-0 bottom-0 z-30 justify-center px-3 pb-[calc(env(safe-area-inset-bottom)+0.625rem)]",
+            shellChrome.navClass,
+          )}
+        >
+          <div className="flex w-full max-w-md items-stretch gap-1 rounded-[1.75rem] border border-[#d7e0da] bg-white p-1.5 shadow-[0_10px_30px_-8px_rgba(16,44,36,0.25)] dark:border-white/10 dark:bg-dark-secondary">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div
+                key={index}
+                className={cn(
+                  "flex h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl",
+                  index === 0 && "bg-[#dcefe7] dark:bg-dark-tertiary",
+                )}
+              >
+                <Skeleton className="size-5 rounded-md" />
+                <Skeleton className="h-2 w-8" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -160,6 +266,10 @@ function AppShellSkeleton({ children }: { children: React.ReactNode }) {
  * lands, so the swap to live data changes content and not layout.
  */
 function ChatPageSkeleton({ className }: { className?: string }) {
+  const { pathname } = useLocation();
+  const isConversation = isConversationDetailPath(pathname);
+  const sidebarWidth = getInitialSidebarWidth();
+
   return (
     <div
       className={cn(
@@ -167,9 +277,17 @@ function ChatPageSkeleton({ className }: { className?: string }) {
         className,
       )}
     >
-      {/* Chat list pane */}
-      <div className="flex h-full w-full flex-col border-r border-gray-200 bg-white dark:border-dark-border dark:bg-dark-secondary md:w-[320px] lg:w-[400px]">
-        {/* Chats / Groups tabs */}
+      <div
+        className={cn(
+          "h-full w-full flex-col border-r border-gray-200 bg-white dark:border-dark-border dark:bg-dark-secondary md:flex md:w-[320px] lg:w-[var(--chat-skeleton-width)]",
+          isConversation ? "hidden" : "flex",
+        )}
+        style={
+          {
+            "--chat-skeleton-width": `${sidebarWidth}px`,
+          } as React.CSSProperties
+        }
+      >
         <div className="flex h-14 shrink-0 items-stretch border-b border-gray-200 bg-gray-100 dark:border-dark-border dark:bg-dark-secondary md:h-[60px]">
           {[0, 1].map((index) => (
             <div
@@ -185,12 +303,10 @@ function ChatPageSkeleton({ className }: { className?: string }) {
           ))}
         </div>
 
-        {/* Contact search */}
         <div className="shrink-0 border-b border-gray-200 bg-white px-3 py-2 dark:border-dark-border dark:bg-dark-secondary">
           <Skeleton className="h-9 w-full rounded-lg" />
         </div>
 
-        {/* Lifecycle filters, then assignment filters */}
         {[
           [26, 34, 44, 52],
           [26, 44, 70, 62],
@@ -213,7 +329,6 @@ function ChatPageSkeleton({ className }: { className?: string }) {
           </div>
         ))}
 
-        {/* Chat rows */}
         <div className="min-h-0 flex-1 overflow-hidden">
           {Array.from({ length: 9 }).map((_, index) => (
             <div
@@ -237,15 +352,50 @@ function ChatPageSkeleton({ className }: { className?: string }) {
         </div>
       </div>
 
-      {/* Conversation area - the "choose a conversation" empty state */}
-      <div className="hidden min-w-0 flex-1 items-center justify-center bg-[#f6f8f9] dark:bg-[#0b141a] md:flex">
-        <div className="flex flex-col items-center px-8">
-          <Skeleton className="size-20 rounded-[1.65rem]" />
-          <Skeleton className="mt-7 h-3 w-32 rounded-full" />
-          <Skeleton className="mt-4 h-8 w-72 max-w-full rounded-lg" />
-          <Skeleton className="mt-3 h-4 w-80 max-w-full rounded-md" />
+      {isConversation ? (
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex h-16 shrink-0 items-center gap-3 border-b border-gray-200 bg-gray-100 px-4 dark:border-dark-border dark:bg-dark-secondary">
+            <Skeleton className="size-10 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <Skeleton className="h-3.5 w-36 max-w-[42%]" />
+              <Skeleton className="h-2.5 w-24 max-w-[30%]" />
+            </div>
+            <Skeleton className="size-9 rounded-full" />
+            <Skeleton className="size-9 rounded-full" />
+          </div>
+          <div className="relative min-h-0 flex-1 overflow-hidden bg-[#e5ddd5] dark:bg-dark-primary">
+            <div className="absolute inset-0 opacity-[0.045] [background-image:radial-gradient(circle_at_1px_1px,currentColor_1px,transparent_0)] [background-size:28px_28px] dark:opacity-[0.09]" />
+            <div className="relative mx-auto flex h-full w-full max-w-4xl flex-col justify-end gap-3 px-5 py-8 sm:px-10">
+              <div className="flex justify-center pb-2">
+                <Skeleton className="h-5 w-20 rounded-full bg-black/10 dark:bg-white/10" />
+              </div>
+              <Skeleton className="h-12 w-[58%] max-w-md rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
+              <Skeleton className="h-16 w-[46%] max-w-sm rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
+              <div className="flex justify-end">
+                <Skeleton className="h-12 w-[52%] max-w-md rounded-2xl rounded-br-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
+              </div>
+              <Skeleton className="h-10 w-[36%] max-w-xs rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
+              <div className="flex justify-end">
+                <Skeleton className="h-16 w-[44%] max-w-sm rounded-2xl rounded-br-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
+              </div>
+            </div>
+          </div>
+          <div className="flex min-h-[64px] shrink-0 items-center gap-3 border-t border-gray-200 bg-gray-100 px-3 py-2.5 dark:border-dark-border dark:bg-dark-secondary">
+            <Skeleton className="size-9 shrink-0 rounded-full" />
+            <Skeleton className="h-10 flex-1 rounded-[1.35rem] bg-white dark:bg-dark-tertiary" />
+            <Skeleton className="size-10 shrink-0 rounded-full bg-[#0b6b5d]/30 dark:bg-[#00a884]/30" />
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="hidden min-w-0 flex-1 items-center justify-center bg-[#f6f8f9] dark:bg-[#0b141a] md:flex">
+          <div className="flex flex-col items-center px-8">
+            <Skeleton className="size-20 rounded-[1.65rem]" />
+            <Skeleton className="mt-7 h-3 w-32 rounded-full" />
+            <Skeleton className="mt-4 h-8 w-72 max-w-full rounded-lg" />
+            <Skeleton className="mt-3 h-4 w-80 max-w-full rounded-md" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -299,7 +449,7 @@ function SettingsPageSkeleton({ className }: { className?: string }) {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 overflow-hidden">
+      <main className="min-w-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-10">
           <div className="mb-6 md:hidden">
             <Skeleton className="h-3 w-16" />
@@ -308,32 +458,59 @@ function SettingsPageSkeleton({ className }: { className?: string }) {
 
           <header className="mb-7 border-b border-[#dce3de] pb-5 dark:border-dark-border">
             <Skeleton className="h-3 w-20" />
-            <Skeleton className="mt-2 h-7 w-44" />
+            <Skeleton className="mt-2 h-8 w-44" />
           </header>
 
-          <section className="rounded-2xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:border-dark-border dark:bg-dark-elevated sm:p-6">
-            <Skeleton className="h-4 w-44" />
-            <Skeleton className="mt-3 h-3 w-full max-w-md" />
-            <Skeleton className="mt-2 h-3 w-4/5 max-w-sm" />
+          <div className="space-y-5">
+            <section className="min-h-[720px] rounded-2xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:border-dark-border dark:bg-dark-elevated sm:min-h-0 sm:p-6">
+              <Skeleton className="h-4 w-44" />
+              <Skeleton className="mt-3 h-3 w-full max-w-md" />
+              <Skeleton className="mt-2 h-3 w-4/5 max-w-sm" />
 
-            <div className="mt-6 space-y-3">
-              {Array.from({ length: 3 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="flex items-center gap-4 rounded-xl border border-[#e4e9e5] p-4 dark:border-dark-border"
-                >
-                  <Skeleton className="h-11 w-11 shrink-0 rounded-xl" />
+              <div className="mt-6 space-y-6">
+                <div className="flex flex-col gap-4 rounded-2xl border border-[#dce3de] bg-[#f8faf8] p-4 dark:border-dark-border dark:bg-dark-tertiary/35 sm:flex-row sm:items-center">
+                  <Skeleton className="size-20 shrink-0 rounded-2xl" />
                   <div className="min-w-0 flex-1">
-                    <Skeleton
-                      className={cn("h-4", index === 1 ? "w-32" : "w-40")}
-                    />
-                    <Skeleton className="mt-2 h-3 w-3/5 max-w-xs" />
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="mt-2 h-3 w-full max-w-xs" />
+                    <Skeleton className="mt-2 h-3 w-4/5 max-w-64" />
                   </div>
-                  <Skeleton className="h-9 w-20 shrink-0 rounded-lg" />
+                  <div className="flex shrink-0 gap-2">
+                    <Skeleton className="h-9 w-24 rounded-lg" />
+                    <Skeleton className="h-9 w-20 rounded-lg" />
+                  </div>
                 </div>
-              ))}
-            </div>
-          </section>
+
+                <div>
+                  <Skeleton className="h-3.5 w-28" />
+                  <Skeleton className="mt-2 h-9 w-full rounded-lg" />
+                </div>
+                <div>
+                  <div className="flex justify-between">
+                    <Skeleton className="h-3.5 w-24" />
+                    <Skeleton className="h-3 w-10" />
+                  </div>
+                  <Skeleton className="mt-2 h-20 w-full rounded-xl" />
+                </div>
+                <div className="flex justify-end border-t border-[#e6ebe7] pt-5 dark:border-dark-border">
+                  <Skeleton className="h-9 w-32 rounded-lg" />
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-[#dce3de] bg-white p-5 dark:border-dark-border dark:bg-dark-elevated sm:p-6">
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="mt-3 h-3 w-full max-w-sm" />
+              <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <div key={index}>
+                    <Skeleton className="h-3 w-16" />
+                    <Skeleton className="mt-2 h-5 w-24" />
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
         </div>
       </main>
     </div>
@@ -347,40 +524,92 @@ function DashboardPageSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "h-full overflow-y-auto bg-gray-100 dark:bg-dark-primary",
+        "flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary",
         className,
       )}
     >
-      {/* Header */}
-      <div className="border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-10 w-40" />
-        </div>
-      </div>
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Stats row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div
-              key={i}
-              className="bg-white dark:bg-dark-elevated rounded-lg shadow-sm p-6"
-            >
-              <Skeleton className="h-4 w-24 mb-2" />
-              <Skeleton className="h-8 w-16" />
+      <header className="min-h-[111px] shrink-0 border-b border-[#dce3de] bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-secondary sm:min-h-[63px] sm:px-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3">
+            <Skeleton className="size-9 shrink-0 rounded-xl" />
+            <div>
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="mt-1.5 h-3 w-56 max-w-[60vw]" />
             </div>
-          ))}
-        </div>
-        {/* Charts row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white dark:bg-dark-elevated rounded-lg shadow-sm p-6">
-            <Skeleton className="h-6 w-40 mb-4" />
-            <Skeleton className="h-64 w-full" />
           </div>
-          <div className="bg-white dark:bg-dark-elevated rounded-lg shadow-sm p-6">
-            <Skeleton className="h-6 w-40 mb-4" />
-            <Skeleton className="h-64 w-full" />
+          <div className="flex items-center gap-2">
+            <div className="hidden gap-1 rounded-lg border border-[#d7e0da] p-0.5 sm:flex dark:border-dark-border">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <Skeleton key={index} className="h-7 w-14 rounded-md" />
+              ))}
+            </div>
+            <Skeleton className="h-9 flex-1 rounded-lg sm:hidden" />
+            <Skeleton className="h-9 w-24 rounded-lg" />
+          </div>
+        </div>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
+        <div className="h-full overflow-hidden rounded-xl border border-[#dce3de] bg-[#f9fbf9] shadow-sm dark:border-dark-border dark:bg-dark-secondary">
+          <div className="space-y-6 p-4 sm:p-5 lg:p-6">
+            <section className="min-h-[501px] xl:min-h-[187px]">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <Skeleton className="h-4 w-36" />
+                  <Skeleton className="mt-1.5 h-3 w-64 max-w-[65vw]" />
+                </div>
+                <Skeleton className="h-6 w-16 rounded-full" />
+              </div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div
+                    key={index}
+                    className="rounded-xl border border-[#dce3de] bg-white p-4 dark:border-dark-border dark:bg-dark-elevated"
+                  >
+                    <Skeleton className="size-9 rounded-xl" />
+                    <Skeleton className="mt-3 h-3 w-20 max-w-full" />
+                    <Skeleton className="mt-2 h-8 w-16" />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <div className="flex min-h-[72px] items-end justify-between gap-2 pt-1 sm:min-h-0">
+              <div>
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="mt-1.5 h-3 w-56 max-w-[60vw]" />
+              </div>
+              <Skeleton className="h-6 w-20 rounded-full" />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+              {[8, 4, 12].map((span, index) => (
+                <section
+                  key={index}
+                  className={cn(
+                    "rounded-xl border border-[#dce3de] bg-white p-4 dark:border-dark-border dark:bg-dark-elevated sm:p-5",
+                    span === 8
+                      ? "min-h-[372px] xl:col-span-8 xl:min-h-[391px]"
+                      : span === 4
+                        ? "min-h-[383px] xl:col-span-4 xl:min-h-[391px]"
+                        : "min-h-[372px] xl:col-span-12 xl:min-h-[380px]",
+                  )}
+                >
+                  <div className="mb-5 flex items-center gap-3">
+                    <Skeleton className="size-9 shrink-0 rounded-xl" />
+                    <div>
+                      <Skeleton className="h-4 w-28" />
+                      <Skeleton className="mt-1.5 h-3 w-44 max-w-[55vw]" />
+                    </div>
+                  </div>
+                  <div className="flex gap-4">
+                    <Skeleton className="h-9 w-24" />
+                    <Skeleton className="h-9 w-24" />
+                  </div>
+                  <Skeleton className="mt-4 h-[220px] w-full rounded-xl" />
+                </section>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -501,8 +730,8 @@ function TeamPageSkeleton({ className }: { className?: string }) {
     >
       {/* Workspace heading and primary action */}
       <header className="shrink-0 border-b border-[#dce3de] bg-white px-4 py-4 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+          <div className="w-full sm:w-auto">
             <Skeleton className="h-3 w-16" />
             <Skeleton className="mt-1.5 h-6 w-14" />
             <Skeleton className="mt-2 h-3 w-44" />
@@ -580,6 +809,69 @@ function TeamPageSkeleton({ className }: { className?: string }) {
               <Skeleton className="h-8 w-8 rounded-md" />
               <Skeleton className="h-8 w-8 rounded-md" />
               <Skeleton className="h-8 w-8 rounded-md" />
+            </div>
+          </footer>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+/** Table-oriented destinations (audit, broadcasts, and notifications). */
+function DataPageSkeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        "flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary",
+        className,
+      )}
+    >
+      <header className="shrink-0 border-b border-[#dce3de] bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
+        <div className="flex min-h-9 items-center gap-3">
+          <Skeleton className="size-9 shrink-0 rounded-xl" />
+          <div className="min-w-0 flex-1">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="mt-1.5 h-3 w-64 max-w-[60vw]" />
+          </div>
+          <Skeleton className="h-9 w-28 rounded-lg" />
+        </div>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
+        <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[#dce3de] bg-white shadow-sm dark:border-dark-border dark:bg-dark-secondary">
+          <div className="flex shrink-0 items-center gap-2 border-b border-[#e6ebe7] p-3 dark:border-dark-border sm:px-4">
+            <Skeleton className="h-8 w-28 rounded-lg" />
+            <Skeleton className="h-8 w-24 rounded-lg" />
+            <Skeleton className="ml-auto h-8 w-32 rounded-lg" />
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="grid grid-cols-[minmax(16rem,1fr)_10rem_9rem_7rem] gap-4 border-b border-[#d7e0da] bg-[#edf1ed]/95 px-4 py-3 dark:border-dark-border dark:bg-dark-tertiary/95">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <Skeleton key={index} className="h-2.5 w-16" />
+              ))}
+            </div>
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div
+                key={index}
+                className="flex min-h-[64px] items-center gap-3 border-b border-[#edf1ed] px-4 py-3 dark:border-dark-border"
+              >
+                <Skeleton className="size-9 shrink-0 rounded-full" />
+                <div className="min-w-0 flex-1">
+                  <Skeleton
+                    className={cn("h-4", index % 2 ? "w-36" : "w-44")}
+                  />
+                  <Skeleton className="mt-2 h-3 w-3/5 max-w-sm" />
+                </div>
+                <Skeleton className="hidden h-5 w-24 rounded-full sm:block" />
+                <Skeleton className="hidden h-3 w-20 md:block" />
+              </div>
+            ))}
+          </div>
+          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[#d7e0da] bg-[#fbfcfb] px-3 py-2.5 dark:border-dark-border dark:bg-dark-secondary/40">
+            <Skeleton className="h-3 w-24" />
+            <div className="flex gap-2">
+              <Skeleton className="size-8 rounded-md" />
+              <Skeleton className="size-8 rounded-md" />
             </div>
           </footer>
         </section>
