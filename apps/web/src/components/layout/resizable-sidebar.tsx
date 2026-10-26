@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 export const SIDEBAR_MIN_WIDTH = 280;
 export const SIDEBAR_DEFAULT_WIDTH = 400;
 export const SIDEBAR_MAX_WIDTH = 640;
-const SIDEBAR_STORAGE_KEY = "wateaminbox:chat-sidebar-width";
+export const SIDEBAR_STORAGE_KEY = "wateaminbox:chat-sidebar-width";
 
 export function getSidebarMaxWidth(viewportWidth: number): number {
   return Math.max(
@@ -37,17 +37,21 @@ function getViewportWidth(): number {
     : window.innerWidth;
 }
 
-function getInitialWidth(): number {
+export function getInitialSidebarWidth(): number {
   if (typeof window === "undefined") return SIDEBAR_DEFAULT_WIDTH;
 
-  const storedWidth = Number.parseInt(
-    window.localStorage.getItem(SIDEBAR_STORAGE_KEY) ?? "",
-    10,
-  );
-  return clampSidebarWidth(
-    Number.isFinite(storedWidth) ? storedWidth : SIDEBAR_DEFAULT_WIDTH,
-    window.innerWidth,
-  );
+  try {
+    const storedWidth = Number.parseInt(
+      window.localStorage.getItem(SIDEBAR_STORAGE_KEY) ?? "",
+      10,
+    );
+    return clampSidebarWidth(
+      Number.isFinite(storedWidth) ? storedWidth : SIDEBAR_DEFAULT_WIDTH,
+      window.innerWidth,
+    );
+  } catch {
+    return clampSidebarWidth(SIDEBAR_DEFAULT_WIDTH, window.innerWidth);
+  }
 }
 
 interface ResizableSidebarProps {
@@ -62,7 +66,7 @@ export function ResizableSidebar({
 }: ResizableSidebarProps) {
   const { t } = useTranslation();
 
-  const [width, setWidth] = useState(getInitialWidth);
+  const [width, setWidth] = useState(getInitialSidebarWidth);
   const [isResizing, setIsResizing] = useState(false);
   const dragStart = useRef<{ pointerX: number; width: number } | null>(null);
 

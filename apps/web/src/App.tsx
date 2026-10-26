@@ -221,7 +221,7 @@ function App() {
               path="audit"
               element={
                 <ProtectedRoute requiredPermission="can_view_audit">
-                  <LazyPage>
+                  <LazyPage variant="audit">
                     <AuditPage />
                   </LazyPage>
                 </ProtectedRoute>
@@ -241,7 +241,7 @@ function App() {
               path="broadcasts"
               element={
                 <ProtectedRoute requiredPermission="can_send_bulk_messages">
-                  <LazyPage>
+                  <LazyPage variant="broadcasts">
                     <BroadcastsPage />
                   </LazyPage>
                 </ProtectedRoute>
@@ -251,7 +251,7 @@ function App() {
               path="broadcasts/:jobId"
               element={
                 <ProtectedRoute requiredPermission="can_send_bulk_messages">
-                  <LazyPage>
+                  <LazyPage variant="broadcasts">
                     <BroadcastsPage />
                   </LazyPage>
                 </ProtectedRoute>
@@ -260,7 +260,7 @@ function App() {
             <Route
               path="notifications"
               element={
-                <LazyPage>
+                <LazyPage variant="notifications">
                   <NotificationsPage />
                 </LazyPage>
               }
