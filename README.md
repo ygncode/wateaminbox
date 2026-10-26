@@ -4,12 +4,16 @@ An open-source, multi-user omnichannel team inbox for managing customer conversa
 
 WATeamInbox supports **WhatsApp linked devices** and **Telegram Bot accounts** today. Its channel-neutral messaging spine is designed for additional providers without forcing every channel into WhatsApp-specific identities, capabilities, or delivery semantics.
 
+[![Watch WATeamInbox in 90 seconds](docs/assets/wateaminbox-explainer.jpg)](https://youtu.be/9lEBHOMYueA)
+
+<sub>▶ **WATeamInbox in 90 seconds:** connecting WhatsApp, assignments, notes and handoffs, quick replies, broadcasts, and Cloud or self-hosting.</sub>
+
 > [!WARNING]
 > **Open-source beta:** interfaces, migrations, and behavior may change without backward compatibility. The development defaults are not production-hardened. Evaluate each enabled channel integration, credential model, data handling, backups, monitoring, provider policy, and account-risk implications before any production use.
 
 WATeamInbox is an independent project and is not affiliated with, endorsed by, or sponsored by WhatsApp, Telegram, or Meta. The linked-device WhatsApp provider uses an unofficial client library; WhatsApp policy or protocol changes can interrupt service and may result in account restrictions or bans. No account-safety guarantee is provided. Third-party names are used only to describe interoperability; all trademarks belong to their respective owners.
 
-**Service status:** self-hosting this beta is currently the only product path in this repository. A separate public marketing site and Cloud interest waitlist may exist outside this monorepo; they are not part of the self-hostable application and do not promise pricing, launch date, feature set, SLA, account, or support entitlements for a managed Cloud product.
+**Service status:** this repository is the self-hostable application. A managed service, [WATeamInbox Cloud](https://wateaminbox.com/), is operated separately; its plans, pricing, and billing are not part of this repository, and nothing here promises an SLA, account, or support entitlement for it.
 
 ## Channel support
 
