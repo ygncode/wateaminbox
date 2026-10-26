@@ -22,7 +22,7 @@
   "dependencies": {
     "@wateaminbox/shared": "workspace:*",
     "kysely": "^0.28.17",
-    "pg": "^8.23.0"
+    "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/pg": "^8.23.1",
