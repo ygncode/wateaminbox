@@ -29,6 +29,7 @@ import {
 import { MessageComposer } from "../components/chat/MessageComposer";
 import { MessageHeader } from "../components/chat/MessageHeader";
 import { MessageThread } from "../components/chat/MessageThread";
+import { ConversationMessagesSkeleton } from "../components/chat/ConversationMessagesSkeleton";
 import { SharedContactSheet } from "../components/chat/SharedContactSheet";
 import { channelDisplayName } from "../components/connections/channel-catalog";
 import { AppLayout, ResponsiveLayout } from "../components/layout/app-layout";
@@ -630,33 +631,8 @@ function ConversationLoadingState() {
         <Skeleton className="size-9 rounded-full" />
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-hidden bg-[#e5ddd5] dark:bg-dark-primary">
-        <div
-          className="absolute inset-0 opacity-[0.045] dark:opacity-100"
-          style={{
-            backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23000000' fill-opacity='0.16'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E\")",
-          }}
-        />
+      <ConversationMessagesSkeleton decorative />
 
-        <div
-          className="relative mx-auto flex h-full w-full max-w-4xl flex-col justify-end gap-3 px-5 py-8 sm:px-10"
-          aria-hidden="true"
-        >
-          <div className="flex justify-center pb-2">
-            <Skeleton className="h-5 w-20 rounded-full bg-black/10 dark:bg-white/10" />
-          </div>
-          <Skeleton className="h-12 w-[58%] max-w-md rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
-          <Skeleton className="h-16 w-[46%] max-w-sm rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
-          <div className="flex justify-end">
-            <Skeleton className="h-12 w-[52%] max-w-md rounded-2xl rounded-br-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
-          </div>
-          <Skeleton className="h-10 w-[36%] max-w-xs rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
-          <div className="flex justify-end">
-            <Skeleton className="h-16 w-[44%] max-w-sm rounded-2xl rounded-br-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
-          </div>
-        </div>
-      </div>
 
       <div
         className="flex min-h-[64px] items-center gap-3 border-t border-gray-200 bg-gray-100 px-3 py-2.5 dark:border-dark-border dark:bg-dark-secondary"
