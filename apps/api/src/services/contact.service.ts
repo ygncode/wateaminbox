@@ -3,6 +3,7 @@ import type { Kysely, RawBuilder, SqlBool } from "kysely";
 import { sql } from "kysely";
 import { normalizePhoneNumber } from "../lib/schemas.js";
 import { conversationIdForContact } from "./channel-workflow.service.js";
+import { coalesceContactListRead } from "./contact-list-inflight.js";
 import {
   buildContactWhereClause,
   phoneSearchDigits,
@@ -88,20 +89,26 @@ export interface ContactWithLastMessage {
 }
 
 /**
- * Gets contacts with their last message in a single optimized query using window functions.
- * This replaces the N+1 pattern where we fetched contacts first, then queried for each contact's last message.
- *
- * Uses ROW_NUMBER() OVER PARTITION BY to get only the most recent message per contact,
- * then joins back to get the full message details. This reduces query count from N+2 to just 2-3 queries.
- *
- * @param tenantDb - Tenant database connection
- * @param options - Query options for filtering and pagination
- * @returns Contacts with last message data and total count
+ * Resolve the inbox with indexed latest-message lookups and a separate count.
+ * Concurrent identical unrestricted reads share only pending database work,
+ * scoped to the database handle, tenant, user and every filter option. There
+ * is no completed-response cache; authorization still runs on every request.
+ * Assignment-restricted readers always query live visibility independently.
  */
-export async function getContactsWithLastMessage(
+export function getContactsWithLastMessage(
   tenantDb: Kysely<TenantDatabase>,
   companyId: string,
   options: GetContactsWithLastMessageOptions = {},
+): Promise<{ contacts: ContactWithLastMessage[]; total: number }> {
+  return coalesceContactListRead(tenantDb, companyId, options, () =>
+    loadContactsWithLastMessage(tenantDb, companyId, options),
+  );
+}
+
+async function loadContactsWithLastMessage(
+  tenantDb: Kysely<TenantDatabase>,
+  companyId: string,
+  options: GetContactsWithLastMessageOptions,
 ): Promise<{ contacts: ContactWithLastMessage[]; total: number }> {
   const {
     search,
@@ -117,13 +124,6 @@ export async function getContactsWithLastMessage(
     conversationStatus,
     unreadOnly = false,
   } = options;
-
-  // Use raw SQL for the complex CTE query with window function
-  // Kysely's type-safe builder has limitations with CTEs and complex joins
-  // The query:
-  // 1. Creates a CTE that ranks messages by timestamp per contact using ROW_NUMBER()
-  // 2. Joins contacts with last messages (rank=1) and assignments
-  // 3. Groups by contact to get unread counts
 
   // `withSchema()` qualifies Kysely query-builder calls, but raw SQL has to
   // qualify identifiers itself. The tenant schema comes from trusted middleware.
@@ -280,11 +280,12 @@ export async function getContactsWithLastMessage(
     -- separate rows and reached through the chat switcher, so their unread
     -- and activity have to surface here or a reply would look dropped.
     --
-    -- A lateral over the partial merge-alias index rather than wider joins:
-    -- on a workspace with no merges it is an empty index probe per row, which
-    -- keeps the measured plan of the surrounding query intact.
-    LEFT JOIN LATERAL (
-      SELECT count(*)::int AS chat_count,
+    -- Aggregate the partial merge-alias index once, not once per inbox row.
+    -- Grouping by the surviving contact keeps this join one-to-one, including
+    -- customers with multiple merged threads, without repeated empty probes.
+    LEFT JOIN (
+      SELECT mc.merged_into_contact_id AS contact_id,
+             count(*)::int AS chat_count,
              COALESCE(
                SUM(COALESCE(mcsc.unread_count, mcsl.unread_count, 0)),
                0
@@ -309,8 +310,9 @@ export async function getContactsWithLastMessage(
         ON mconv.id IS NOT NULL AND mcsc.conversation_id = mconv.id
       LEFT JOIN ${schema}.${sql.ref("conversation_states")} mcsl
         ON mconv.id IS NULL AND mcsl.contact_id = mc.id
-      WHERE mc.merged_into_contact_id = c.id
-    ) grp ON TRUE
+      WHERE mc.merged_into_contact_id IS NOT NULL
+      GROUP BY mc.merged_into_contact_id
+    ) grp ON grp.contact_id = c.id
     ${hasWhereCondition ? sql`WHERE ${whereClause}` : sql``}
     ORDER BY last_message_at DESC NULLS LAST
     LIMIT ${limit}
