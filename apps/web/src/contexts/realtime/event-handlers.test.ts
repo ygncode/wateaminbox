@@ -167,6 +167,35 @@ describe("realtime event handlers", () => {
 
     cleanup();
   });
+
+  test("message events invalidate the chat list without cancelling an in-flight refetch", () => {
+    setCompanyId("company-a");
+    const client = new QueryClient();
+    const invalidate = spyOn(client, "invalidateQueries");
+    const cleanup = register(client);
+    const chatListPrefix = chatKeys.lists();
+
+    emit("message:new", {
+      conversationId: "conversation-1",
+      message: {
+        id: "message-1",
+        conversationId: "conversation-1",
+        status: "sent",
+        senderType: "contact",
+      },
+    });
+
+    // A burst of these aborting and restarting the /contacts request was the
+    // original pile-up; cancelRefetch: false reuses the in-flight fetch. The
+    // default (cancelRefetch: true) must never silently return here.
+    const chatListCall = invalidate.mock.calls.find(
+      ([filters]) =>
+        JSON.stringify(filters?.queryKey) === JSON.stringify(chatListPrefix),
+    );
+    expect(chatListCall).toBeDefined();
+    expect(chatListCall?.[1]?.cancelRefetch).toBe(false);
+    cleanup();
+  });
 });
 
 /**

@@ -198,6 +198,19 @@ export function registerRealtimeEventHandlers({
 }: RealtimeEventHandlerOptions): (() => void)[] {
   const contactRefresh = createContactRefreshBatch(qc, contactRefreshTiming);
 
+  // Message and conversation events arrive in bursts - a reconnect replay, a
+  // busy thread, a read sweep. React Query's invalidate defaults to
+  // cancelRefetch: true, which aborts the in-flight /contacts request and
+  // starts a fresh one for every event in the burst. A client-side abort does
+  // not stop the server, so each abandoned request kept a full table scan
+  // running in PostgreSQL and the burst piled them up. cancelRefetch: false
+  // reuses the in-flight refetch instead: the list still invalidates
+  // synchronously (unread counts and previews stay correct), it is just not
+  // re-requested from scratch on every event. This mirrors the same choice the
+  // contact-sync batch makes in `flush` above.
+  const refreshChatList = () =>
+    invalidateChatList(qc, { cancelRefetch: false });
+
   return [
     contactRefresh.cancel,
     bindEvent("notification:toast", (data) => {
@@ -216,7 +229,7 @@ export function registerRealtimeEventHandlers({
       // not by the conversation this arrived on, so the cache write above
       // cannot reach it.
       invalidateCustomerTimelines(qc);
-      invalidateChatList(qc);
+      refreshChatList();
 
       // Treat realtime as an update signal, not the source of truth. In
       // particular, WhatsApp can replay several offline messages immediately
@@ -254,7 +267,7 @@ export function registerRealtimeEventHandlers({
         queryKey: infiniteMessageKeys.list(conversationId),
       });
       invalidateCustomerTimelines(qc);
-      invalidateChatList(qc);
+      refreshChatList();
       qc.invalidateQueries({
         queryKey: queryKeys.channelConversations.lists(),
       });
@@ -400,12 +413,12 @@ export function registerRealtimeEventHandlers({
       clearTypingTimeout(payload.conversationId, payload.userId);
     }),
     bindUserEvent<ConversationReadPayload>("conversation:read", () => {
-      invalidateChatList(qc);
+      refreshChatList();
     }),
     bindUserEvent<ConversationUpdatedPayload>(
       "conversation:updated",
       (data) => {
-        invalidateChatList(qc);
+        refreshChatList();
         // A lifecycle mutation (resolve/pending/open/reopen, or an automatic
         // reopen from a live inbound) can change every response/resolution
         // analytics number a dashboard has cached - invalidate the whole
@@ -458,7 +471,7 @@ export function registerRealtimeEventHandlers({
       // this arrived as `contact:updated`, which always invalidated the list -
       // scoping it to left/created silently stopped refreshing renames made
       // from the phone.
-      invalidateChatList(qc);
+      refreshChatList();
     }),
     bindEvent("labels:updated", () => {
       qc.invalidateQueries({ queryKey: ["labels", companyId] });
@@ -472,7 +485,7 @@ export function registerRealtimeEventHandlers({
     // behind. The distinction is what the server-authored toast conveys; it is
     // read from the typed `outcome`, never from the message text.
     bindEvent<CommandResultPayload>("command:failed", () => {
-      invalidateChatList(qc);
+      refreshChatList();
       const selectedId = useChatStore.getState().selectedConversationId;
       if (selectedId) refetchConversationMessages(qc, selectedId);
       qc.invalidateQueries({ queryKey: ["labels", companyId] });
