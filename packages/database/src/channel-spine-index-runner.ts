@@ -168,6 +168,34 @@ const definitions: readonly ConcurrentIndexDefinition[] = [
     requiresColumn: { table: "messages", column: "sender_jid" },
   },
   {
+    // The message-cleanup cycle's hunt for stuck outgoing sends. Every cycle,
+    // for every tenant, `cleanupCompanyMessages` looks for pending messages
+    // from_me past the delivery timeout. The predicate columns are extremely
+    // low-cardinality once resolved (a healthy tenant has ~zero pending sends),
+    // but with no index the candidate scan reads the WHOLE messages table:
+    // measured against the largest workspace it was a full parallel seq scan of
+    // a 200k-row table to surface a single row, run on a tight interval.
+    //
+    // The partial predicate matches `cleanupCompanyMessages`' `stale` filter
+    // (and the pending branch of `reconcileProcessedCommands`); `(timestamp,
+    // id)` serves its `timestamp < cutoff` bound and `ORDER BY timestamp, id`
+    // directly, so the scan stops at the first qualifying row instead of
+    // sorting the table. The index itself stays tiny because the predicate
+    // excludes every settled message.
+    suffix: "msg_pending_send_idx",
+    table: "messages",
+    columns: ["timestamp", "id"],
+    predicate: "status = 'pending' AND from_me = true",
+    unique: false,
+    // The predicate reads the legacy `status`/`from_me` columns and the index
+    // orders on the legacy `timestamp`; all three are created together in the
+    // legacy messages table and are absent from a channel-spine-only schema.
+    // Guard on `from_me` (a predicate column, not the index column): a stub
+    // that has `timestamp` but no legacy columns must be skipped, or CREATE
+    // INDEX fails with "column status does not exist".
+    requiresColumn: { table: "messages", column: "from_me" },
+  },
+  {
     suffix: "cs_conversation_uidx",
     table: "conversation_states",
     columns: ["conversation_id"],
