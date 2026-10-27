@@ -234,3 +234,69 @@ describe("cleanup service lifecycle", () => {
     }
   });
 });
+
+/**
+ * Every API replica boots the cleanup service, so a whole-cycle advisory lock
+ * elects a single leader per cycle. The lock is injected here to prove the
+ * scheduler honours it without needing a database.
+ */
+describe("cross-replica leadership", () => {
+  test("a replica that does not hold the lock skips the cycle entirely", async () => {
+    const original = getMessageCleanupConfig();
+    let cycleRan = false;
+    try {
+      await initializeMessageCleanup(
+        { enabled: true, intervalMinutes: 60 },
+        {
+          listCompanies: async () => {
+            // Reached only if the non-leader wrongly ran the cycle.
+            cycleRan = true;
+            return COMPANIES;
+          },
+          cleanupMessages: async () => 0,
+          releaseMedia: async () => 0,
+        },
+        // Non-leader: lock held elsewhere, so onAcquired must never run.
+        { run: async () => ({ acquired: false }) },
+      );
+
+      expect(cycleRan).toBe(false);
+    } finally {
+      await shutdownMessageCleanup();
+      setMessageCleanupConfig(original);
+    }
+  });
+
+  test("the leader runs the cycle and releases the lock afterwards", async () => {
+    const original = getMessageCleanupConfig();
+    let companiesListed = 0;
+    let released = 0;
+    try {
+      await initializeMessageCleanup(
+        { enabled: true, intervalMinutes: 60 },
+        {
+          listCompanies: async () => {
+            companiesListed++;
+            return [{ id: "company-a" }];
+          },
+          cleanupMessages: async () => 0,
+          releaseMedia: async () => 0,
+        },
+        // Leader: run the cycle, and record that release happened after it.
+        {
+          run: async (onAcquired) => {
+            const result = await onAcquired();
+            released++;
+            return { acquired: true, result };
+          },
+        },
+      );
+
+      expect(companiesListed).toBe(1);
+      expect(released).toBe(1);
+    } finally {
+      await shutdownMessageCleanup();
+      setMessageCleanupConfig(original);
+    }
+  });
+});
