@@ -91,13 +91,6 @@ export async function getGroupsList(
 ): Promise<{ groups: GroupListItem[]; total: number }> {
   const { search, connectionId, limit, offset, userId, canViewAllChats } =
     options;
-  const messageSummary = tenantDb
-    .selectFrom("messages")
-    .select("contact_id")
-    .select((eb) => eb.fn.max("timestamp").as("last_message_at"))
-    .groupBy("contact_id")
-    .as("message_summary");
-
   let query = tenantDb
     .selectFrom("contacts")
     .leftJoin("groups", "groups.contact_id", "contacts.id")
@@ -106,7 +99,25 @@ export async function getGroupsList(
       "conversation_states.contact_id",
       "contacts.id",
     )
-    .leftJoin(messageSummary, "message_summary.contact_id", "contacts.id")
+    // Newest message per group, as a correlated LATERAL rather than a
+    // GROUP BY over the whole messages table. The old subquery aggregated
+    // every message of every contact (group or not) on each request, then
+    // threw all but one page of group rows away - the same anti-pattern that
+    // was already removed from the contacts list. The lateral fires per group
+    // contact and rides `_msg_ct_ts_id_idx (contact_id, timestamp DESC,
+    // id DESC)`, so it is a LIMIT-1 index probe instead of a full scan.
+    .leftJoinLateral(
+      (eb) =>
+        eb
+          .selectFrom("messages as m")
+          .select("m.timestamp as last_message_at")
+          .whereRef("m.contact_id", "=", "contacts.id")
+          .orderBy("m.timestamp", "desc")
+          .orderBy("m.id", "desc")
+          .limit(1)
+          .as("message_summary"),
+      (join) => join.onTrue(),
+    )
     .select([
       "contacts.id",
       "contacts.jid",
