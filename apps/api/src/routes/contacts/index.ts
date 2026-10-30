@@ -32,7 +32,7 @@ import {
   listContactsQuerySchema,
   updateContactSchema,
 } from "../../lib/schemas/index.js";
-import { getAuthorizedMediaUrlOrNull } from "../../lib/storage.js";
+import { getAuthorizedAvatarUrlOrNull } from "../../lib/storage.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireContactVisibility } from "../../middleware/resource-visibility.js";
@@ -62,6 +62,18 @@ import { notesRoutes } from "./notes.js";
 import { tagsRoutes } from "./tags.js";
 
 export const contactRoutes = new Hono();
+
+// Expose durations only, never identifiers or SQL, so browser Timing can
+// distinguish API work (including auth) from gateway/network/transfer latency.
+contactRoutes.use("/*", async (c, next) => {
+  const startedAt = performance.now();
+  await next();
+  c.header(
+    "Server-Timing",
+    `contacts_api;dur=${(performance.now() - startedAt).toFixed(1)}`,
+    { append: true },
+  );
+});
 
 // All contact routes require authentication and tenant context
 contactRoutes.use("/*", authMiddleware);
@@ -93,6 +105,7 @@ contactRoutes.get(
     const { tenantDb, user, companyId, permissions } = getRouteContext(c);
     const query = c.req.valid("query");
 
+    const databaseStartedAt = performance.now();
     // Use optimized service function that fetches contacts with last message in a single query
     // This replaces the N+1 pattern where we fetched contacts first, then queried each contact's last message
     const { contacts, total } = await getContactsWithLastMessage(
@@ -113,14 +126,20 @@ contactRoutes.get(
       },
     );
 
+    const databaseDuration = performance.now() - databaseStartedAt;
+    const avatarsStartedAt = performance.now();
     const authorizedContacts = await Promise.all(
       contacts.map(async (contact) => ({
         ...contact,
-        profile_picture_url: await getAuthorizedMediaUrlOrNull(
+        profile_picture_url: await getAuthorizedAvatarUrlOrNull(
           contact.profile_picture_url,
           companyId,
         ),
       })),
+    );
+    c.header(
+      "Server-Timing",
+      `contacts_db;dur=${databaseDuration.toFixed(1)}, avatars;dur=${(performance.now() - avatarsStartedAt).toFixed(1)}`,
     );
     // Type assertion needed because ContactWithLastMessage has slightly looser types than RawContactFromDb
     // (e.g., jid can be null in the service but the transformer expects it to be string)
@@ -279,7 +298,7 @@ contactRoutes.get("/:id", async (c) => {
     isBlocked: contact.is_blocked,
     isOnline: contact.is_online,
     lastSeen: contact.last_seen,
-    profilePictureUrl: await getAuthorizedMediaUrlOrNull(
+    profilePictureUrl: await getAuthorizedAvatarUrlOrNull(
       contact.profile_picture_url,
       companyId,
     ),

@@ -10,6 +10,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { nowMs } from "@wateaminbox/shared";
 import { env } from "./env.js";
+import { createAvatarUrlSigner } from "./avatar-url-cache.js";
 
 // S3 client configuration
 const s3Client = new S3Client({
@@ -410,6 +411,34 @@ export async function getAuthorizedMediaUrl(
   if (!mediaReference) return null;
   const key = resolveMediaKeyForCompany(mediaReference, companyId);
   return getPresignedUrl(key, expiresIn, responseOverrides);
+}
+
+const avatarUrlLifetime = Math.min(5 * 60, env.S3_SIGNED_URL_TTL_SECONDS);
+const freshAvatarUrl = (key: string) => getPresignedUrl(key, avatarUrlLifetime);
+// The default AWS credential chain may use expiring session credentials. Leave
+// those reads uncached rather than outliving a credential's shorter validity.
+const signAvatarUrl =
+  env.S3_ACCESS_KEY && env.S3_SECRET_KEY
+    ? createAvatarUrlSigner(freshAvatarUrl, avatarUrlLifetime)
+    : freshAvatarUrl;
+
+/**
+ * Contact/avatar reads may reuse a still-valid signature for up to a minute.
+ * The parent resource must already be authorized, just as for other media.
+ * Tenant ownership is checked BEFORE every cache lookup, even on a warm hit.
+ * Only signatures are cached: contact data and visibility remain live reads.
+ */
+export async function getAuthorizedAvatarUrlOrNull(
+  mediaReference: string | null | undefined,
+  companyId: string,
+): Promise<string | null> {
+  if (!mediaReference) return null;
+  try {
+    const key = resolveMediaKeyForCompany(mediaReference, companyId);
+    return await signAvatarUrl(key);
+  } catch {
+    return null;
+  }
 }
 
 /** Never echo an invalid persisted reference into an authorized API response. */
