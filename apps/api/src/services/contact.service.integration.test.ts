@@ -4,6 +4,7 @@ import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
 import { sql } from "kysely";
 import { app } from "../app.js";
 import { hashPassword } from "../lib/password.js";
+import { getPrivateMediaReference } from "../lib/storage.js";
 import {
   clearTenantConnection,
   createTenantSchema,
@@ -177,6 +178,60 @@ function getContacts(
 }
 
 describe("Inbox lateral-join query", () => {
+  integrationTest(
+    "avatar reuse never caches contact data or authorization",
+    async () => {
+      await withTenantFixture(
+        async ({ headers, tenantDb, companyId, userId }) => {
+          const contactId = await insertContact(tenantDb, {
+            push_name: "Before rename",
+            profile_picture_url: getPrivateMediaReference(
+              `media/${companyId}/avatar.jpg`,
+            ),
+          });
+          const first = await getContacts(headers, { limit: "100" });
+          expect(first.status).toBe(200);
+          const timing = first.headers.get("server-timing")!;
+          expect(timing).toMatch(
+            /^contacts_db;dur=\d+\.\d, avatars;dur=\d+\.\d, contacts_api;dur=\d+\.\d$/,
+          );
+          const firstBody = (await first.json()) as {
+            data: { profilePictureUrl: string }[];
+          };
+          expect(
+            new URL(firstBody.data[0].profilePictureUrl).searchParams.get(
+              "X-Amz-Expires",
+            ),
+          ).toBe("300");
+
+          await tenantDb
+            .updateTable("contacts")
+            .set({ push_name: "After rename" })
+            .where("id", "=", contactId)
+            .execute();
+          const second = await getContacts(headers, { limit: "100" });
+          const secondBody = (await second.json()) as {
+            data: { pushName: string; profilePictureUrl: string }[];
+          };
+          expect(secondBody.data[0].pushName).toBe("After rename");
+          expect(secondBody.data[0].profilePictureUrl).toBe(
+            firstBody.data[0].profilePictureUrl,
+          );
+
+          // A warm signature must not make a revoked workspace membership usable.
+          await db
+            .deleteFrom("company_members")
+            .where("company_id", "=", companyId)
+            .where("user_id", "=", userId)
+            .execute();
+          const denied = await getContacts(headers, { limit: "100" });
+          expect(denied.status).toBe(403);
+          expect(await denied.text()).not.toContain("X-Amz-Signature");
+        },
+      );
+    },
+  );
+
   integrationTest(
     "tied latest timestamps return deterministic last message per contact",
     async () => {

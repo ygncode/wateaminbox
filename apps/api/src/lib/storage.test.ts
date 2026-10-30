@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   aggregateTenantMediaUsage,
+  getAuthorizedAvatarUrlOrNull,
   getAuthorizedMediaUrl,
   getPrivateMediaReference,
   resolveMediaKeyForCompany,
@@ -83,6 +84,23 @@ describe("private media references", () => {
       24 * 60 * 60,
     );
     expect(new URL(capped!).searchParams.get("X-Amz-Expires")).toBe("300");
+  });
+
+  test("cached avatars still validate tenant ownership on every read", async () => {
+    const reference = getPrivateMediaReference(keyA);
+    const first = await getAuthorizedAvatarUrlOrNull(reference, companyA);
+    expect(first).not.toBeNull();
+    expect(new URL(first!).searchParams.get("X-Amz-Expires")).toBe("300");
+    expect(await getAuthorizedAvatarUrlOrNull(reference, companyA)).toBe(first);
+    expect(await getAuthorizedAvatarUrlOrNull(reference, companyB)).toBeNull();
+    expect(await getAuthorizedAvatarUrlOrNull(first!, companyB)).toBeNull();
+    expect(await getAuthorizedAvatarUrlOrNull(null, companyA)).toBeNull();
+    expect(
+      await getAuthorizedAvatarUrlOrNull(
+        `http://localhost.evil.test:4450/whatsapp-media/${keyA}`,
+        companyA,
+      ),
+    ).toBeNull();
   });
 
   test("rejects another tenant and lookalike storage origins", () => {
