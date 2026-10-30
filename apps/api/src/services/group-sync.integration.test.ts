@@ -1132,3 +1132,105 @@ describe("group synchronization", () => {
     30_000,
   );
 });
+
+/**
+ * The groups list orders by the newest message per group. This used to be a
+ * GROUP BY over the whole messages table; it is now a correlated LATERAL, so
+ * this pins the ordering (newest first) and the NULLS-LAST placement of groups
+ * that have no messages yet, which the swap must preserve.
+ */
+describe("groups list ordering", () => {
+  integrationTest(
+    "orders groups by their most recent message, no-message groups last",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: connectionId,
+            name: "Primary",
+            jid: "999@s.whatsapp.net",
+            status: "connected",
+          })
+          .execute();
+
+        // Three groups: "recent" has the newest message, "older" an older one,
+        // "silent" has none and must sort last.
+        const groups = [
+          { jid: "120363000000000001@g.us", name: "recent" },
+          { jid: "120363000000000002@g.us", name: "older" },
+          { jid: "120363000000000003@g.us", name: "silent" },
+        ];
+        const ids: Record<string, string> = {};
+        for (const group of groups) {
+          const row = await tenantDb
+            .insertInto("contacts")
+            .values({
+              whatsapp_connection_id: connectionId,
+              jid: group.jid,
+              is_group: true,
+              custom_name: group.name,
+            })
+            .returning("id")
+            .executeTakeFirstOrThrow();
+          ids[group.name] = row.id;
+        }
+
+        await tenantDb
+          .insertInto("messages")
+          .values([
+            {
+              whatsapp_connection_id: connectionId,
+              contact_id: ids.older,
+              message_id: "older-1",
+              from_me: false,
+              message_type: "text",
+              content: "older",
+              timestamp: new Date("2026-01-01T00:00:00Z"),
+            },
+            {
+              whatsapp_connection_id: connectionId,
+              contact_id: ids.recent,
+              message_id: "recent-1",
+              from_me: false,
+              message_type: "text",
+              content: "recent",
+              timestamp: new Date("2026-02-01T00:00:00Z"),
+            },
+          ])
+          .execute();
+
+        const { groups: listed, total } = await getGroupsList(tenantDb, {
+          limit: 50,
+          offset: 0,
+          userId: crypto.randomUUID(),
+          canViewAllChats: true,
+        });
+
+        expect(total).toBe(3);
+        expect(listed.map((group) => group.name)).toEqual([
+          "recent",
+          "older",
+          "silent",
+        ]);
+        expect(listed[0].lastMessageAt).toEqual(
+          new Date("2026-02-01T00:00:00Z"),
+        );
+        expect(listed[1].lastMessageAt).toEqual(
+          new Date("2026-01-01T00:00:00Z"),
+        );
+        expect(listed[2].lastMessageAt).toBeNull();
+      } finally {
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      }
+    },
+    30_000,
+  );
+});
