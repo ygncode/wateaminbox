@@ -4,6 +4,7 @@ import { setVerifiedRequestIp } from "./lib/client-ip.js";
 import { env } from "./lib/env.js";
 import { createLogger, formatError } from "./lib/logger.js";
 import { rateLimitStore } from "./lib/rate-limit-store.js";
+import { startRuntimeDiagnostics } from "./lib/runtime-diagnostics.js";
 import { runShutdown, type ShutdownStep } from "./lib/shutdown.js";
 import {
   initializeAbandonedPairingSessions,
@@ -77,6 +78,12 @@ const isTestEnvironment =
   process.env.NODE_ENV === "test" ||
   process.env.VITEST === "true" ||
   (typeof Bun !== "undefined" && Bun.argv.some((arg) => arg.includes("test")));
+
+const stopRuntimeDiagnostics = isTestEnvironment
+  ? () => {}
+  : startRuntimeDiagnostics((metrics) => {
+      logger.info(metrics, "runtime_diagnostics");
+    });
 
 if (!isTestEnvironment) {
   logger.info({ port }, `Starting server on http://localhost:${port}`);
@@ -195,6 +202,7 @@ function shutdownSteps(): ShutdownStep[] {
 }
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  stopRuntimeDiagnostics();
   logger.info({ signal, deadlineMs: SHUTDOWN_DEADLINE_MS }, "Shutting down");
 
   const result = await runShutdown({
