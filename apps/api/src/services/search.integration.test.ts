@@ -117,6 +117,9 @@ describe("PostgreSQL tenant message search", () => {
         expect(
           tenantAResults.results.map((result) => result.messageId),
         ).toEqual(["tenant-a-message"]);
+        // ts_headline now runs after LIMIT/OFFSET; the page row must still
+        // carry the <mark> highlight markup.
+        expect(tenantAResults.results[0]?.highlights).toContain("<mark>");
 
         const crossTenantResults = await searchMessages(companyA, {
           query: "blueberry",

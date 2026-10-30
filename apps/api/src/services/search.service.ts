@@ -183,8 +183,6 @@ export async function searchMessages(
         m.content,
         m.message_type,
         m.timestamp,
-        ts_headline('english', COALESCE(m.content, ''), plainto_tsquery('english', ${query}),
-          'MaxWords=50, MinWords=20, StartSel=<mark>, StopSel=</mark>') as highlights,
         ts_rank(COALESCE(m.search_vector, to_tsvector('english', COALESCE(m.content, ''))),
           plainto_tsquery('english', ${query})) as rank,
         COUNT(*) OVER() as total_count
@@ -211,10 +209,22 @@ export async function searchMessages(
         ${endDate ? sql`AND m.timestamp <= ${endDate}` : sql``}
         ${messageTypes && messageTypes.length > 0 ? sql`AND m.message_type = ANY(${messageTypes}::text[])` : sql``}
       ORDER BY rank DESC, m.timestamp DESC
+    ),
+    page AS (
+      SELECT * FROM search_results
+      LIMIT ${limit}
+      OFFSET ${offset}
     )
-    SELECT * FROM search_results
-    LIMIT ${limit}
-    OFFSET ${offset}
+    -- ts_headline is one of Postgres's most expensive text functions: it
+    -- re-parses the document and re-runs the tsquery to build the <mark> markup.
+    -- Computing it in the CTE meant one call per MATCHING row (thousands for a
+    -- common term) just to return one page. It does not affect ranking or
+    -- filtering, so it runs here, after LIMIT/OFFSET, on the page rows only.
+    SELECT
+      *,
+      ts_headline('english', COALESCE(content, ''), plainto_tsquery('english', ${query}),
+        'MaxWords=50, MinWords=20, StartSel=<mark>, StopSel=</mark>') as highlights
+    FROM page
   `.execute(tenantDb);
 
   let total = result.rows.length > 0 ? Number(result.rows[0].total_count) : 0;
@@ -376,42 +386,54 @@ export async function searchContacts(
   }
   const result = await resultQuery
     .$if(!includeGroups, (qb) => qb.where("is_group", "=", false))
+    // Fold the page total into the page query (one ILIKE scan) instead of
+    // re-running the same 5-way ILIKE scan a second time just to count.
+    .select((eb: ExpressionBuilder<TenantDatabase, "contacts">) =>
+      eb.fn.count("contacts.id").over().as("total"),
+    )
     .orderBy("custom_name", "asc")
     .orderBy("push_name", "asc")
     .limit(limit)
     .offset(offset)
     .execute();
 
-  // Get total count
-  let countQuery = tenantDb
-    .selectFrom("contacts")
-    .select((eb: ExpressionBuilder<TenantDatabase, "contacts">) =>
-      eb.fn.count("id").as("total"),
-    )
-    .where((eb: ExpressionBuilder<TenantDatabase, "contacts">) =>
-      eb.or([
-        eb("push_name", "ilike", searchPattern),
-        eb("username", "ilike", usernameSearchPattern),
-        eb("custom_name", "ilike", searchPattern),
-        eb("phone_number", "ilike", searchPattern),
-        eb("notes_shared", "ilike", searchPattern),
-      ]),
-    );
+  let total = result.length > 0 ? Number(result[0].total) : 0;
 
-  if (assignedUserId) {
-    countQuery = countQuery.innerJoin("contact_assignments", (join) =>
-      join
-        .onRef("contact_assignments.contact_id", "=", "contacts.id")
-        .on("contact_assignments.assigned_to", "=", assignedUserId)
-        .on("contact_assignments.unassigned_at", "is", null),
-    );
-  }
-  if (!includeGroups) {
-    countQuery = countQuery.where("is_group", "=", false);
-  }
+  // A page past the last matching row (offset >= total) returns no rows, so the
+  // per-row COUNT(*) OVER() is unavailable and total would collapse to 0. Only
+  // then fall back to a standalone count — the same guard searchMessages uses.
+  // A genuine no-match search (offset 0, empty) correctly keeps total 0.
+  if (result.length === 0 && offset > 0) {
+    let countQuery = tenantDb
+      .selectFrom("contacts")
+      .select((eb: ExpressionBuilder<TenantDatabase, "contacts">) =>
+        eb.fn.count("id").as("total"),
+      )
+      .where((eb: ExpressionBuilder<TenantDatabase, "contacts">) =>
+        eb.or([
+          eb("push_name", "ilike", searchPattern),
+          eb("username", "ilike", usernameSearchPattern),
+          eb("custom_name", "ilike", searchPattern),
+          eb("phone_number", "ilike", searchPattern),
+          eb("notes_shared", "ilike", searchPattern),
+        ]),
+      );
 
-  const countResult = await countQuery.executeTakeFirst();
-  const total = Number(countResult?.total || 0);
+    if (assignedUserId) {
+      countQuery = countQuery.innerJoin("contact_assignments", (join) =>
+        join
+          .onRef("contact_assignments.contact_id", "=", "contacts.id")
+          .on("contact_assignments.assigned_to", "=", assignedUserId)
+          .on("contact_assignments.unassigned_at", "is", null),
+      );
+    }
+    if (!includeGroups) {
+      countQuery = countQuery.where("is_group", "=", false);
+    }
+
+    const countResult = await countQuery.executeTakeFirst();
+    total = Number(countResult?.total || 0);
+  }
 
   return {
     results: result.map((c) => {
