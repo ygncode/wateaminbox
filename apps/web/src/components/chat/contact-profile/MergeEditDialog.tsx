@@ -69,7 +69,7 @@ export function MergeEditDialog({
   const [isRunning, setIsRunning] = useState(false);
 
   const { data: merges = [] } = useMergeHistory(open ? contact.id : null);
-  const { data: candidates = [], isLoading } = useForwardContacts(search);
+  const { data: candidates = [], isLoading } = useForwardContacts(search, open);
   const merge = useMergeContact();
   const unmerge = useUnmergeContact();
 

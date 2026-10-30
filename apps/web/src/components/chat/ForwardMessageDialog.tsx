@@ -55,7 +55,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
     isFetching,
     error,
     refetch,
-  } = useForwardContacts(searchQuery);
+  } = useForwardContacts(searchQuery, open);
 
   // Filter to contacts that have a JID (can receive messages)
   const availableContacts = useMemo(() => {

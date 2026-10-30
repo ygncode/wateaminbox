@@ -2,8 +2,11 @@
  * Hook for fetching contacts for the forward message dialog.
  */
 
-import { useQuery, type QueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import {
+  queryOptions,
+  useQuery,
+  type QueryClient,
+} from "@tanstack/react-query";
 import {
   api,
   buildQueryString,
@@ -26,20 +29,21 @@ import { chatKeys } from "./useChats";
  *
  * @param searchQuery - Optional search query to filter contacts
  */
-export function useForwardContacts(searchQuery: string = "") {
-  // Memoize the query key
-  const queryKey = useMemo(
-    () =>
-      chatKeys.list({
-        search: searchQuery,
-        includeGroups: true,
-        assignmentFilter: "all",
-      }),
-    [searchQuery],
-  );
-
-  return useQuery<Chat[], Error>({
-    queryKey,
+export function forwardContactsQueryOptions(
+  searchQuery: string = "",
+  enabled: boolean = true,
+) {
+  return queryOptions<Chat[], Error>({
+    // Resolve the workspace-scoped key on every render, including switches
+    // where the search string has not changed.
+    queryKey: chatKeys.list({
+      search: searchQuery,
+      includeGroups: true,
+      assignmentFilter: "all",
+    }),
+    // Closed dialogs stay mounted, but must not keep this expensive list
+    // active when realtime events invalidate every chat-list query.
+    enabled: enabled && !!getAccessToken() && !!getCompanyId(),
     queryFn: async () => {
       const token = getAccessToken();
       const companyId = getCompanyId();
@@ -72,6 +76,13 @@ export function useForwardContacts(searchQuery: string = "") {
   });
 }
 
+export function useForwardContacts(
+  searchQuery: string = "",
+  enabled: boolean = true,
+) {
+  return useQuery(forwardContactsQueryOptions(searchQuery, enabled));
+}
+
 /**
  * Prefetch forward contacts for faster perceived loading.
  * Call this when the message context menu opens.
@@ -82,22 +93,10 @@ export async function prefetchForwardContacts(queryClient: QueryClient) {
 
   if (!token || !companyId) return;
 
+  const { queryKey, queryFn } = forwardContactsQueryOptions();
   await queryClient.prefetchQuery({
-    queryKey: chatKeys.list({
-      search: "",
-      includeGroups: true,
-      assignmentFilter: "all",
-    }),
-    queryFn: async () => {
-      const queryString = buildQueryString({
-        limit: 100,
-        includeGroups: "true",
-      });
-      const result = await api.get<ContactsListResponse>(
-        `/contacts${queryString}`,
-      );
-      return result.data.map(transformContactToChat);
-    },
+    queryKey,
+    queryFn,
     staleTime: 1000 * 30, // Consider stale after 30 seconds
   });
 }
