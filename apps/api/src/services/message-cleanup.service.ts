@@ -345,40 +345,37 @@ export async function runCleanupCycle(
     };
   }
 
-  const results: CompanyCleanupResult[] = [];
-  let totalExpired = 0;
+  // Results are written by input index, not pushed, so the reported order is
+  // stable regardless of the order the parallel workers happen to finish in.
+  const results: CompanyCleanupResult[] = new Array(companies.length);
 
-  // Process each company
-  for (const company of companies) {
+  // One company's work, fully isolated. Its message cleanup and media sweep
+  // are independent maintenance tasks that happen to share a cycle: a media
+  // sweep failure must not discard an already-completed message cleanup's
+  // result, and neither must stop any other tenant.
+  const processCompany = async (index: number): Promise<void> => {
+    const company = companies[index];
     try {
       const expiredCount = await cleanupMessages(
         company.id,
         currentConfig.timeoutMinutes,
         currentConfig.batchSize,
       );
-      results.push({
-        companyId: company.id,
-        expiredCount,
-      });
-      totalExpired += expiredCount;
+      results[index] = { companyId: company.id, expiredCount };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      results.push({
+      results[index] = {
         companyId: company.id,
         expiredCount: 0,
         error: errorMessage,
-      });
+      };
       logger.error(
         { err: error, companyId: company.id },
         "Failed to cleanup company",
       );
     }
 
-    // Isolated from the message cleanup above, and from every other tenant.
-    // The two are independent maintenance tasks that happen to share a cycle:
-    // a media sweep failure must not discard an already-completed message
-    // cleanup's result, and neither must stop the remaining tenants.
     try {
       await releaseMedia(company.id);
     } catch (error) {
@@ -387,7 +384,34 @@ export async function runCleanupCycle(
         "Failed to release stranded media downloads",
       );
     }
-  }
+  };
+
+  // Process tenants with bounded concurrency. The cycle used to walk tenants
+  // one at a time, so its wall-clock was the sum of every tenant's per-tenant
+  // query overhead - which dominated the cycle even after the work itself got
+  // cheap. A fixed pool of workers pulls the next tenant as it frees up, so the
+  // cycle runs in roughly total/concurrency time. The cap is deliberately well
+  // under the tenant connection pool so cleanup never drains it from the
+  // foreground tenant reads that share it.
+  const concurrency = Math.max(
+    1,
+    Math.min(currentConfig.concurrency, companies.length),
+  );
+  let nextIndex = 0;
+  const worker = async (): Promise<void> => {
+    // `nextIndex++` is atomic on the single JS thread: each worker claims an
+    // index synchronously before it awaits, so no two workers take the same one.
+    while (nextIndex < companies.length) {
+      const index = nextIndex++;
+      await processCompany(index);
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+  const totalExpired = results.reduce(
+    (sum, result) => sum + result.expiredCount,
+    0,
+  );
 
   return {
     totalProcessed: companies.length,
@@ -486,6 +510,11 @@ async function reconcileProcessedCommands(
   const schemaName = getSchemaName(companyId);
   const messages = sql.table(`${schemaName}.messages`);
   const outbox = sql.table(`${schemaName}.nats_outbox`);
+  // Run on the tenant pool, not the foreground `db` pool. The queries are
+  // fully schema-qualified, so the pool is just which connections they draw on
+  // - and keeping the cycle's parallel work off the small foreground pool is
+  // what lets it run several tenants at once without starving live requests.
+  const tenantDb = getTenantConnection(companyId);
 
   const result = await sql<ReconciledCommandResult>`
     WITH outcomes AS (
@@ -559,7 +588,7 @@ async function reconcileProcessedCommands(
       m.message_id,
       m.status::text AS status,
       outcomes.error_message
-  `.execute(db);
+  `.execute(tenantDb);
 
   return result.rows;
 }
@@ -618,6 +647,8 @@ export async function cleanupCompanyMessages(
   const schemaName = getSchemaName(companyId);
   const messages = sql.table(`${schemaName}.messages`);
   const outbox = sql.table(`${schemaName}.nats_outbox`);
+  // Tenant pool, matching reconcileProcessedCommands and the media sweep below.
+  const tenantDb = getTenantConnection(companyId);
   const expiredResult = await sql<{
     id: string;
     contact_id: string | null;
@@ -680,7 +711,7 @@ export async function cleanupCompanyMessages(
           )
       )
     RETURNING m.id, m.contact_id, m.message_id, m.status::text AS status
-  `.execute(db);
+  `.execute(tenantDb);
   const messagesToExpire = expiredResult.rows;
 
   const expiredCount = messagesToExpire.length;

@@ -6,6 +6,7 @@
  * - MESSAGE_CLEANUP_TIMEOUT_MINUTES: Minutes before marking a pending message as failed (default: 5)
  * - MESSAGE_CLEANUP_INTERVAL_MINUTES: Minutes between cleanup cycles (default: 1)
  * - MESSAGE_CLEANUP_BATCH_SIZE: Number of messages to process per batch (default: 100)
+ * - MESSAGE_CLEANUP_CONCURRENCY: Tenants processed in parallel per cycle (default: 4)
  */
 
 import { createLogger } from "../lib/logger.js";
@@ -17,6 +18,7 @@ export interface MessageCleanupConfig {
   timeoutMinutes: number;
   intervalMinutes: number;
   batchSize: number;
+  concurrency: number;
 }
 
 /**
@@ -35,6 +37,7 @@ export function getCleanupConfig(): MessageCleanupConfig {
       1,
     ),
     batchSize: parsePositiveInt(process.env.MESSAGE_CLEANUP_BATCH_SIZE, 100),
+    concurrency: parsePositiveInt(process.env.MESSAGE_CLEANUP_CONCURRENCY, 4),
   };
 }
 
@@ -71,4 +74,5 @@ export const DEFAULT_CLEANUP_CONFIG: MessageCleanupConfig = {
   timeoutMinutes: 5,
   intervalMinutes: 1,
   batchSize: 100,
+  concurrency: 4,
 };
