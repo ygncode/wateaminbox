@@ -1,12 +1,56 @@
-import { defineConfig } from "vite"
+import { defineConfig, type Plugin } from "vite"
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
 import path from "path"
+
+// The app is one entry chunk plus lazy route chunks. Without a hint the browser
+// cannot discover the route chunk until the entry has downloaded, parsed, and
+// the router has matched - so the landing route (the chat inbox, where returning
+// users almost always go) downloads strictly AFTER the entry, a serial
+// waterfall on the cold first visit. Emitting a modulepreload for that chunk in
+// the HTML head lets the browser fetch it in parallel with the entry instead.
+// Build-only: it reads the hashed chunk name from the finished bundle. If the
+// chunk is ever not found the hook is a no-op, so a rename degrades to today's
+// behaviour rather than breaking.
+function preloadLandingRoute(moduleIdSuffix: string): Plugin {
+  return {
+    name: "preload-landing-route",
+    apply: "build",
+    transformIndexHtml(html, ctx) {
+      const bundle = ctx.bundle
+      if (!bundle) return html
+      const chunk = Object.values(bundle).find(
+        (output) =>
+          output.type === "chunk" &&
+          output.isDynamicEntry &&
+          output.facadeModuleId?.endsWith(moduleIdSuffix),
+      )
+      if (!chunk || chunk.type !== "chunk") return html
+      return {
+        html,
+        tags: [
+          {
+            tag: "link",
+            attrs: {
+              rel: "modulepreload",
+              // Module scripts fetch with CORS; match it so the preload is
+              // reused for the real import instead of fetched twice.
+              crossorigin: "",
+              href: `/${chunk.fileName}`,
+            },
+            injectTo: "head",
+          },
+        ],
+      }
+    },
+  }
+}
 
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     tailwindcss(),
+    preloadLandingRoute("/pages/ChatPage.tsx"),
     // Conditionally add visualizer plugin when ANALYZE=true
     // Usage: ANALYZE=true bun run build
     mode === "production" && process.env.ANALYZE === "true" && import("rollup-plugin-visualizer").then(m =>
