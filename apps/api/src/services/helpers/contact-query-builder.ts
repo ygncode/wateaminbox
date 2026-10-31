@@ -227,6 +227,11 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
   // switcher rather than as separate entries. Their threads are untouched -
   // a merge never moves a conversation.
   conditions.push(sql`c.merged_into_contact_id IS NULL`);
+  // WhatsApp's broadcast address space (Status/Stories on status@broadcast, and
+  // broadcast lists) is not an inbox conversation. The worker no longer ingests
+  // it, but any rows ingested before that fix must not surface as a phantom
+  // "Unknown" chat. Hide them here rather than deleting the underlying rows.
+  conditions.push(sql`(c.jid IS NULL OR c.jid NOT LIKE '%@broadcast')`);
   if (search) conditions.push(buildSearchClause(search));
   if (!includeGroups) conditions.push(buildGroupClause(includeGroups));
   if (connectionId) {
