@@ -118,7 +118,23 @@ func contactCardPayloads(contacts []*waE2E.ContactMessage) []natsClient.ContactC
 }
 
 // handleMessage processes incoming messages.
+// isBroadcastChat reports whether a chat belongs to WhatsApp's broadcast
+// address space: Status/Stories (status@broadcast) and broadcast lists. These
+// are not conversations in a team inbox - a contact's Status is an ephemeral
+// one-to-many update, not a chat - and ingesting them surfaced a contact's
+// Stories as a phantom "Unknown" group. They are dropped at every ingest entry
+// point rather than persisted.
+func isBroadcastChat(chat types.JID) bool {
+	return chat.Server == types.BroadcastServer
+}
+
 func (h *Handler) handleMessage(msg *events.Message) error {
+	// Drop Status/Stories and broadcast-list traffic before anything is
+	// published or persisted (see isBroadcastChat).
+	if isBroadcastChat(msg.Info.Chat) {
+		return nil
+	}
+
 	// Get preferred JIDs (PN over LID) to ensure consistency with stored contacts
 	senderJID := h.getPreferredSenderJID(msg.Info)
 	chatJID := h.getPreferredChatJID(msg.Info)
@@ -284,6 +300,9 @@ func (h *Handler) handleMessage(msg *events.Message) error {
 
 // handleProtocolMessage processes protocol messages (revokes, etc.)
 func (h *Handler) handleProtocolMessage(msg *events.Message) error {
+	if isBroadcastChat(msg.Info.Chat) {
+		return nil
+	}
 	protoMsg := msg.Message.ProtocolMessage
 	if protoMsg == nil {
 		return nil
@@ -315,6 +334,9 @@ func (h *Handler) handleProtocolMessage(msg *events.Message) error {
 // handleReactionMessage processes incoming reaction messages.
 // Reactions come as Message events with a ReactionMessage field.
 func (h *Handler) handleReactionMessage(msg *events.Message) error {
+	if isBroadcastChat(msg.Info.Chat) {
+		return nil
+	}
 	reactionMsg := msg.Message.ReactionMessage
 	if reactionMsg == nil || reactionMsg.Key == nil {
 		log.Println("Invalid reaction message: missing key")
