@@ -345,3 +345,36 @@ func TestGetGroupMentionsPreservesGroupSubjectForTextAndCaptions(t *testing.T) {
 		t.Fatal("nil message has mentions")
 	}
 }
+
+func TestIsBroadcastChatIdentifiesStatusAndLists(t *testing.T) {
+	cases := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{"status broadcast", "status@broadcast", true},
+		{"broadcast list", "123456@broadcast", true},
+		{"individual contact", "15551234567@s.whatsapp.net", false},
+		{"group", "123456789-987654321@g.us", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isBroadcastChat(mustParseJID(t, tc.raw)); got != tc.want {
+				t.Fatalf("isBroadcastChat(%s) = %v, want %v", tc.raw, got, tc.want)
+			}
+		})
+	}
+}
+
+// A status@broadcast message must be dropped before any publish/persist work,
+// so handleMessage short-circuits on a bare handler (no publisher/client wired)
+// without error. This is what keeps a contact's Stories out of the inbox.
+func TestHandleMessageDropsStatusBroadcast(t *testing.T) {
+	h := &Handler{}
+	msg := &events.Message{Info: types.MessageInfo{
+		MessageSource: types.MessageSource{Chat: mustParseJID(t, "status@broadcast")},
+	}}
+	if err := h.handleMessage(msg); err != nil {
+		t.Fatalf("handleMessage on status broadcast returned error: %v", err)
+	}
+}

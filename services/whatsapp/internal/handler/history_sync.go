@@ -282,6 +282,12 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 		return
 	}
 
+	// Status/Stories and broadcast lists are not inbox conversations; skip them
+	// in history sync the same way live ingest does (see isBroadcastChat).
+	if isBroadcastChat(parsedJID) {
+		return
+	}
+
 	// ON_DEMAND responses can identify a conversation only by LID while carrying
 	// the corresponding phone-number mapping elsewhere in the same history
 	// payload. Those mappings are persisted before conversations are processed,
