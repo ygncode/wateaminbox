@@ -57,9 +57,45 @@
         }
       })();
     </script>
+    <!-- Pre-React splash. The entry bundle is large enough that, on a cold
+         visit, #root would otherwise sit blank while it downloads and executes.
+         These styles are inlined (not in the app stylesheet) and the markup
+         lives inside #root, so the loader paints as soon as the document does
+         and React removes it on its first render (createRoot clears #root).
+         The --splash-bg follows the theme the FOUC script resolved above, so
+         there is no white flash in dark mode. -->
+    <style>
+      :root { --splash-bg: #ffffff; --splash-fg: #00a884; }
+      html.dark { --splash-bg: #111b21; }
+      html, body { margin: 0; height: 100%; background: var(--splash-bg); }
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--splash-bg);
+      }
+      #app-splash .app-splash-spinner {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        border: 3px solid rgba(0, 168, 132, 0.22);
+        border-top-color: var(--splash-fg);
+        animation: app-splash-spin 0.7s linear infinite;
+      }
+      @keyframes app-splash-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) {
+        #app-splash .app-splash-spinner { animation-duration: 1.8s; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="app-splash" aria-hidden="true">
+        <div class="app-splash-spinner"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
