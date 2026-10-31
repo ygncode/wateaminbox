@@ -6,6 +6,7 @@ import {
   register as apiRegister,
   ApiRequestError,
   attemptTokenRefresh,
+  prewarmUserCompanies,
   clearAuthTokens,
   getAccessToken,
   getCurrentUser,
@@ -154,6 +155,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // no answer arrived, which is retried rather than treated as a logout.
         return outcome === "rejected" ? "rejected" : "unavailable";
       }
+
+      // The token is ready, so start loading the workspace list now rather than
+      // after /me. WorkspaceProvider still waits for /me before consuming it,
+      // but coalescing lets its request attach to this one - collapsing the
+      // serial refresh -> me -> companies chain so the inbox data starts sooner.
+      prewarmUserCompanies();
 
       try {
         const apiUser = await getCurrentUser();
