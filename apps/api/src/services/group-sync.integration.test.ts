@@ -1234,3 +1234,67 @@ describe("groups list ordering", () => {
     30_000,
   );
 });
+
+/**
+ * WhatsApp Status/Stories arrive as a contact whose jid is status@broadcast,
+ * flagged as a group. It is not a conversation and must never appear in the
+ * Groups tab (or Chats), even though older rows for it may still exist.
+ */
+describe("groups list excludes the status broadcast feed", () => {
+  integrationTest(
+    "status@broadcast never appears in the groups list",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: connectionId,
+            name: "Primary",
+            jid: "999@s.whatsapp.net",
+            status: "connected",
+          })
+          .execute();
+
+        await tenantDb
+          .insertInto("contacts")
+          .values([
+            {
+              whatsapp_connection_id: connectionId,
+              jid: "120363000000000009@g.us",
+              is_group: true,
+              custom_name: "Real Group",
+            },
+            {
+              whatsapp_connection_id: connectionId,
+              jid: "status@broadcast",
+              is_group: true,
+              custom_name: null,
+            },
+          ])
+          .execute();
+
+        const { groups, total } = await getGroupsList(tenantDb, {
+          limit: 50,
+          offset: 0,
+          userId: crypto.randomUUID(),
+          canViewAllChats: true,
+        });
+
+        expect(total).toBe(1);
+        expect(groups.map((group) => group.jid)).toEqual([
+          "120363000000000009@g.us",
+        ]);
+      } finally {
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      }
+    },
+    30_000,
+  );
+});

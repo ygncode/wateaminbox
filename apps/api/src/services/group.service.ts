@@ -136,7 +136,15 @@ export async function getGroupsList(
         .coalesce("conversation_states.unread_count", eb.val(0))
         .as("unread_count"),
     )
-    .where("contacts.is_group", "=", true);
+    .where("contacts.is_group", "=", true)
+    // status@broadcast is flagged as a group; keep the Stories feed out of the
+    // Groups tab the same way it is kept out of Chats.
+    .where((eb) =>
+      eb.or([
+        eb("contacts.jid", "is", null),
+        eb("contacts.jid", "not like", "%@broadcast"),
+      ]),
+    );
 
   if (connectionId) {
     query = query.where("contacts.whatsapp_connection_id", "=", connectionId);
@@ -175,7 +183,15 @@ export async function getGroupsList(
     .selectFrom("contacts")
     .leftJoin("groups", "groups.contact_id", "contacts.id")
     .select((eb) => eb.fn.count("contacts.id").as("total"))
-    .where("contacts.is_group", "=", true);
+    .where("contacts.is_group", "=", true)
+    // status@broadcast is flagged as a group; keep the Stories feed out of the
+    // Groups tab the same way it is kept out of Chats.
+    .where((eb) =>
+      eb.or([
+        eb("contacts.jid", "is", null),
+        eb("contacts.jid", "not like", "%@broadcast"),
+      ]),
+    );
 
   if (connectionId) {
     countQuery = countQuery.where(
