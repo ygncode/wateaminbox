@@ -8,6 +8,7 @@ import {
 import { createHash } from "node:crypto";
 import type { Context } from "hono";
 import { z } from "zod";
+import { offsetDateTimeSchema } from "../../../lib/schemas/string-contracts.js";
 import { resolveAdapterCapabilities } from "../../../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../../../channel-spine/registry.js";
 import {
@@ -547,8 +548,8 @@ export const writeTools: McpToolDefinition[] = [
     scope: "write",
     permission: "can_send_messages",
     inputSchema: {
-      contactId: z.string().uuid().optional(),
-      conversationId: z.string().uuid().optional(),
+      contactId: z.string().guid().optional(),
+      conversationId: z.string().guid().optional(),
       content: z.string().min(1).max(65536),
     },
     handler: async (
@@ -582,7 +583,7 @@ export const writeTools: McpToolDefinition[] = [
       content: z.string().min(1).max(65536),
       connectionId: z
         .string()
-        .uuid()
+        .guid()
         .optional()
         .describe(
           "Required when the workspace has more than one connected account",
@@ -644,8 +645,8 @@ export const writeTools: McpToolDefinition[] = [
     scope: "write",
     permission: "can_send_messages",
     inputSchema: {
-      contactId: z.string().uuid().optional(),
-      conversationId: z.string().uuid().optional(),
+      contactId: z.string().guid().optional(),
+      conversationId: z.string().guid().optional(),
       action: z.enum(["resolve", "open", "reopen", "pending", "resume"]),
       outcome: z
         .enum(["handled", "no_reply_needed", "spam", "duplicate", "other"])
@@ -863,11 +864,11 @@ export const writeTools: McpToolDefinition[] = [
       "Assign a conversation to a workspace member (defaults to the token owner). Pass contactId or conversationId. Reassigning away from another member requires the can_assign_contacts permission.",
     scope: "write",
     inputSchema: {
-      contactId: z.string().uuid().optional(),
-      conversationId: z.string().uuid().optional(),
+      contactId: z.string().guid().optional(),
+      conversationId: z.string().guid().optional(),
       targetUserId: z
         .string()
-        .uuid()
+        .guid()
         .optional()
         .describe("Member to assign to; defaults to the token owner"),
     },
@@ -1080,8 +1081,8 @@ export const writeTools: McpToolDefinition[] = [
     scope: "write",
     permission: "can_assign_contacts",
     inputSchema: {
-      contactId: z.string().uuid().optional(),
-      conversationId: z.string().uuid().optional(),
+      contactId: z.string().guid().optional(),
+      conversationId: z.string().guid().optional(),
     },
     handler: async (
       args: { contactId?: string; conversationId?: string },
@@ -1169,7 +1170,7 @@ export const writeTools: McpToolDefinition[] = [
       "Update a contact's saved display name or its shared profile note. Pass null to clear a field; omit a field to leave it unchanged. Blocking is deliberately not exposed here - it sends a command to WhatsApp and is a different class of action from an edit.",
     scope: "write",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().guid(),
       customName: z
         .string()
         .max(255)
@@ -1247,8 +1248,8 @@ export const writeTools: McpToolDefinition[] = [
       "Add a note to a contact or conversation. Shared notes are visible to the whole team; private notes only to the token owner. Pass contactId or conversationId.",
     scope: "write",
     inputSchema: {
-      contactId: z.string().uuid().optional(),
-      conversationId: z.string().uuid().optional(),
+      contactId: z.string().guid().optional(),
+      conversationId: z.string().guid().optional(),
       content: z.string().min(1).max(10000),
       private: z.boolean().optional().describe("Default false (shared note)"),
     },
@@ -1390,9 +1391,9 @@ export const writeTools: McpToolDefinition[] = [
       "Add an existing tag to a contact or conversation. Pass contactId or conversationId.",
     scope: "write",
     inputSchema: {
-      contactId: z.string().uuid().optional(),
-      conversationId: z.string().uuid().optional(),
-      tagId: z.string().uuid(),
+      contactId: z.string().guid().optional(),
+      conversationId: z.string().guid().optional(),
+      tagId: z.string().guid(),
     },
     handler: async (
       args: { contactId?: string; conversationId?: string; tagId: string },
@@ -1459,9 +1460,9 @@ export const writeTools: McpToolDefinition[] = [
       "Remove a tag from a contact or conversation. Pass contactId or conversationId.",
     scope: "write",
     inputSchema: {
-      contactId: z.string().uuid().optional(),
-      conversationId: z.string().uuid().optional(),
-      tagId: z.string().uuid(),
+      contactId: z.string().guid().optional(),
+      conversationId: z.string().guid().optional(),
+      tagId: z.string().guid(),
     },
     handler: async (
       args: { contactId?: string; conversationId?: string; tagId: string },
@@ -1502,12 +1503,11 @@ export const writeTools: McpToolDefinition[] = [
     inputSchema: {
       name: z.string().trim().min(1).max(200),
       content: z.string().trim().min(1).max(65536),
-      tagIds: z.array(z.string().uuid()).max(50).optional(),
-      contactIds: z.array(z.string().uuid()).max(500).optional(),
-      scheduledAt: z
-        .string()
-        .datetime({ offset: true })
-        .describe("ISO datetime, from 30s to one year in the future"),
+      tagIds: z.array(z.string().guid()).max(50).optional(),
+      contactIds: z.array(z.string().guid()).max(500).optional(),
+      scheduledAt: offsetDateTimeSchema.describe(
+        "ISO datetime, from 30s to one year in the future",
+      ),
       idempotencyKey: z
         .string()
         .trim()

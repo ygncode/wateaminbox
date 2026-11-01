@@ -30,7 +30,7 @@ const logger = createLogger("ActionsRoutes");
 // Schema for typing indicator request
 const typingSchema = z.object({
   conversationId: z.string().min(1),
-  contactId: z.string().uuid(),
+  contactId: z.string().guid(),
   isTyping: z.boolean(),
 });
 
@@ -187,7 +187,7 @@ actionsRoutes.post(
       // A tenant contact ID, not a JID - the payload below publishes it as
       // `contactId`, and the viewer resolver keys on it. Validating the shape
       // here keeps a non-UUID from reaching PostgreSQL as a cast error.
-      conversationId: z.string().uuid(),
+      conversationId: z.string().guid(),
       messageIds: z.array(z.string()).optional(),
     }),
   ),

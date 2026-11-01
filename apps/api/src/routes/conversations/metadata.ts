@@ -13,7 +13,7 @@ const noteSchema = z.object({
   content: z.string().trim().min(1).max(10_000),
   visibility: z.enum(["shared", "private"]).default("shared"),
 });
-const tagSchema = z.object({ tagId: z.string().uuid() });
+const tagSchema = z.object({ tagId: z.string().guid() });
 
 export const metadataRoutes = new Hono();
 

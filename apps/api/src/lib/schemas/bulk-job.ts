@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { paginationSchema, uuidSchema } from "../schemas.js";
 import { SCHEDULABLE_MEDIA_TYPES } from "./message.js";
+import { offsetDateTimeSchema, urlStringSchema } from "./string-contracts.js";
 
 /**
  * Bulk broadcast job validation schemas.
@@ -36,8 +37,8 @@ export const createBulkJobSchema = z.object({
   audience: bulkAudienceSchema,
   content: z.string().max(65_536).optional(),
   messageType: z.enum(["text", ...SCHEDULABLE_MEDIA_TYPES]).default("text"),
-  mediaUrl: z.string().url().optional(),
-  scheduledAt: z.string().datetime({ offset: true }),
+  mediaUrl: urlStringSchema.optional(),
+  scheduledAt: offsetDateTimeSchema,
   /** From the preview; creation re-resolves and rejects on drift. */
   audienceHash: z.string().min(1).max(128),
   /** Client-generated key making create retries return the original job. */
@@ -45,7 +46,7 @@ export const createBulkJobSchema = z.object({
 });
 
 export const rescheduleBulkJobSchema = z.object({
-  scheduledAt: z.string().datetime({ offset: true }),
+  scheduledAt: offsetDateTimeSchema,
 });
 
 export const listBulkJobsQuerySchema = paginationSchema;

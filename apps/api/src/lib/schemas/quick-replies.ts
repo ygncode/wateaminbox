@@ -55,13 +55,20 @@ export const updateQuickReplySchema = z.object({
 export const listQuickRepliesQuerySchema = z.object({
   search: z.string().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional().default(50),
-  offset: z.coerce.number().int().min(0).optional().default(0),
+  // Preserve v3's integer contract without adding a safe-integer ceiling.
+  offset: z.coerce
+    .number()
+    .refine(Number.isInteger, "Expected integer, received float")
+    .meta({ type: "integer" })
+    .min(0)
+    .optional()
+    .default(0),
 });
 
 export const updateAutoReplySettingsSchema = z
   .object({
     enabled: z.boolean(),
-    quickReplyId: z.string().uuid().nullable(),
+    quickReplyId: z.string().guid().nullable(),
     delayMinutes: z.number().int().min(1).max(1440),
     sendMode: z.enum(["always", "outside_business_hours"]),
   })

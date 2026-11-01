@@ -17,7 +17,7 @@ import {
 import * as meilisearchService from "../../services/meilisearch.service.js";
 
 const mergeSchema = z.object({
-  sourceContactId: z.string().uuid(),
+  sourceContactId: z.string().guid(),
   reason: z.string().trim().min(1).max(500),
 });
 

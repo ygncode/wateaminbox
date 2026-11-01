@@ -37,7 +37,13 @@ const limitField = z
   .max(MAX_LIST_LIMIT)
   .optional()
   .describe("Max results (default 20, max 50)");
-const offsetField = z.number().int().min(0).optional();
+// Preserve v3's integer contract without adding a safe-integer ceiling.
+const offsetField = z
+  .number()
+  .refine(Number.isInteger, "Expected integer, received float")
+  .meta({ type: "integer" })
+  .min(0)
+  .optional();
 
 /** Throws the same non-disclosing error the REST routes use (a 404). */
 export async function requireVisibleWorkflow(
@@ -295,17 +301,17 @@ export const readTools: McpToolDefinition[] = [
     inputSchema: {
       contactId: z
         .string()
-        .uuid()
+        .guid()
         .describe("The conversation's contact id or conversation id"),
       conversationId: z
         .string()
-        .uuid()
+        .guid()
         .optional()
         .describe("Preferred conversation id when no contact exists"),
       limit: limitField,
       cursor: z
         .string()
-        .uuid()
+        .guid()
         .optional()
         .describe("nextCursor from a previous call"),
     },
@@ -513,7 +519,7 @@ export const readTools: McpToolDefinition[] = [
       "Get a contact's profile: name, phone number, assignment, tags, and the 5 most recent notes (shared + your private ones). Use list_contact_notes for the full note history.",
     scope: "read",
     inputSchema: {
-      contactId: z.string().uuid(),
+      contactId: z.string().guid(),
     },
     handler: async (args: { contactId: string }, c) => {
       const { tenantDb } = getRouteContext(c);
@@ -605,8 +611,8 @@ export const readTools: McpToolDefinition[] = [
       "List notes on a contact or conversation, newest first. type 'shared' (default) lists team-visible notes; 'private' lists only your own private notes. Pass contactId or conversationId.",
     scope: "read",
     inputSchema: {
-      contactId: z.string().uuid().optional(),
-      conversationId: z.string().uuid().optional(),
+      contactId: z.string().guid().optional(),
+      conversationId: z.string().guid().optional(),
       type: z.enum(["shared", "private"]).optional(),
       limit: limitField,
       offset: offsetField,
@@ -886,7 +892,7 @@ export const readTools: McpToolDefinition[] = [
     scope: "read",
     permission: "can_send_bulk_messages",
     inputSchema: {
-      broadcastId: z.string().uuid(),
+      broadcastId: z.string().guid(),
     },
     handler: async (args: { broadcastId: string }, c) => {
       const { tenantDb } = getRouteContext(c);
