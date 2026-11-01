@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	waTypes "go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
+	"hegel.dev/go/hegel"
 
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/types"
 )
@@ -59,6 +61,38 @@ func TestPrepareTextMentionsRewritesLIDTokenToPhoneNumber(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Hello @6591234567 and @65857194941727490", text)
 	assert.Equal(t, []string{"6585719494172749@lid"}, mentionedJIDs)
+}
+
+func TestReplaceMentionTokenRewritesOnlyWholeNumericTokens(t *testing.T) {
+	// JID users are digit strings, so a mention token is "@" followed by a
+	// maximal run of digits. Only tokens whose whole run equals fromUser count.
+	digitRun := regexp.MustCompile(`@[0-9]+`)
+	hegel.Test(t, func(ht *hegel.T) {
+		// A small alphabet makes prefixes, adjacent tokens and repeats common.
+		text := hegel.Draw(ht, hegel.Text().Alphabet("@012 x"))
+		from := hegel.Draw(ht, hegel.Text().Alphabet("012").MinSize(1).MaxSize(3))
+		to := hegel.Draw(ht, hegel.Text().Alphabet("012").MinSize(1).MaxSize(3))
+
+		got, replaced := replaceMentionToken(text, from, to)
+
+		if from == to {
+			if got != text || replaced {
+				ht.Fatalf("replaceMentionToken(%q, %q, %q) = %q, %t; want text unchanged, false", text, from, to, got, replaced)
+			}
+			return
+		}
+		wantReplaced := false
+		want := digitRun.ReplaceAllStringFunc(text, func(token string) string {
+			if token != "@"+from {
+				return token
+			}
+			wantReplaced = true
+			return "@" + to
+		})
+		if got != want || replaced != wantReplaced {
+			ht.Fatalf("replaceMentionToken(%q, %q, %q) = %q, %t; want %q, %t", text, from, to, got, replaced, want, wantReplaced)
+		}
+	})
 }
 
 func TestPrepareTextMentionsKeepsPhoneMention(t *testing.T) {

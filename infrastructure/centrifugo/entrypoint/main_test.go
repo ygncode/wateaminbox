@@ -7,8 +7,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sort"
+	"strings"
 	"syscall"
 	"testing"
+
+	"hegel.dev/go/hegel"
 )
 
 type failingWriter struct {
@@ -44,6 +48,62 @@ func TestRedactingWriterHandlesMetacharactersRepeatsAndChunkBoundaries(t *testin
 	if output.String() != want {
 		t.Fatalf("redacted output = %q, want %q", output.String(), want)
 	}
+}
+
+// redactAll is the whole-input reference: scan left to right and replace the
+// longest secret that starts at each position.
+func redactAll(input string, secrets []string) string {
+	sorted := append([]string(nil), secrets...)
+	sort.Slice(sorted, func(i, j int) bool { return len(sorted[i]) > len(sorted[j]) })
+	var out strings.Builder
+	for i := 0; i < len(input); {
+		matched := false
+		for _, secret := range sorted {
+			if secret != "" && strings.HasPrefix(input[i:], secret) {
+				out.WriteString(redactionMarker)
+				i += len(secret)
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			out.WriteByte(input[i])
+			i++
+		}
+	}
+	return out.String()
+}
+
+func TestRedactingWriterOutputDoesNotDependOnWriteBoundaries(t *testing.T) {
+	hegel.Test(t, func(ht *hegel.T) {
+		// A tiny alphabet makes secrets overlap and recur in the input. Secrets
+		// never contain newlines; run() rejects those before redaction starts.
+		secrets := hegel.Draw(ht, hegel.Lists(hegel.Text().Alphabet("ab.").MaxSize(6)).MaxSize(4))
+		pieces := []hegel.Generator[string]{hegel.Text().Alphabet("ab.\n")}
+		for _, secret := range secrets {
+			pieces = append(pieces, hegel.Just(secret))
+		}
+		input := strings.Join(hegel.Draw(ht, hegel.Lists(hegel.OneOf(pieces...))), "")
+		cuts := hegel.Draw(ht, hegel.Lists(hegel.Integers(0, len(input))))
+		sort.Ints(cuts)
+
+		var output bytes.Buffer
+		writer := newRedactingWriter(&output, secrets)
+		previous := 0
+		for _, cut := range append(cuts, len(input)) {
+			if _, err := writer.Write([]byte(input[previous:cut])); err != nil {
+				ht.Fatal(err)
+			}
+			previous = cut
+		}
+		if err := writer.Close(); err != nil {
+			ht.Fatal(err)
+		}
+
+		if want := redactAll(input, secrets); output.String() != want {
+			ht.Fatalf("input %q split at %v with secrets %q:\n got %q\nwant %q", input, cuts, secrets, output.String(), want)
+		}
+	})
 }
 
 func TestRedactingWriterFlushesTrailingOutput(t *testing.T) {
