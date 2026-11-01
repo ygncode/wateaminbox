@@ -193,6 +193,7 @@ describe("realtime event handlers", () => {
         JSON.stringify(filters?.queryKey) === JSON.stringify(chatListPrefix),
     );
     expect(chatListCall).toBeDefined();
+    expect(chatListCall?.[0]?.refetchType).toBe("none");
     expect(chatListCall?.[1]?.cancelRefetch).toBe(false);
     cleanup();
   });

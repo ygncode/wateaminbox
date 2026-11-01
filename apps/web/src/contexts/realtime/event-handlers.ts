@@ -142,11 +142,11 @@ function createContactRefreshBatch(
     clearTimers();
 
     // A max-wait flush can land while the previous expensive list request is
-    // still running. Do not cancel and replace that request: its transaction
-    // began after the event that scheduled it. sync:complete uses true for one
-    // authoritative final refresh after every imported row has committed.
+    // still running. The inbox scheduler never cancels it and queues a final
+    // follow-up when a signal arrives during the request. sync:complete still
+    // uses true for the non-list detail queries below.
     const invalidateOptions = { cancelRefetch };
-    invalidateChatList(queryClient, invalidateOptions);
+    invalidateChatList(queryClient);
     queryClient.invalidateQueries(
       {
         queryKey: refreshProfilePictures
@@ -204,12 +204,10 @@ export function registerRealtimeEventHandlers({
   // starts a fresh one for every event in the burst. A client-side abort does
   // not stop the server, so each abandoned request kept a full table scan
   // running in PostgreSQL and the burst piled them up. cancelRefetch: false
-  // reuses the in-flight refetch instead: the list still invalidates
-  // synchronously (unread counts and previews stay correct), it is just not
-  // re-requested from scratch on every event. This mirrors the same choice the
-  // contact-sync batch makes in `flush` above.
-  const refreshChatList = () =>
-    invalidateChatList(qc, { cancelRefetch: false });
+  // is enforced by the inbox scheduler: mark stale synchronously, coalesce
+  // bursts, and queue a follow-up for events arriving during a request. The
+  // contact-sync batch feeds the same scheduler after its larger sync burst.
+  const refreshChatList = () => invalidateChatList(qc);
 
   return [
     contactRefresh.cancel,
@@ -268,9 +266,6 @@ export function registerRealtimeEventHandlers({
       });
       invalidateCustomerTimelines(qc);
       refreshChatList();
-      qc.invalidateQueries({
-        queryKey: queryKeys.channelConversations.lists(),
-      });
       qc.invalidateQueries({
         queryKey: queryKeys.channelConversations.detail(conversationId),
       });

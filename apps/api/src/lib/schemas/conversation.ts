@@ -5,6 +5,14 @@
  */
 import { z } from "zod";
 
+/** Validated inbox filters; paging and tags retain their existing route policy. */
+export const listConversationsQuerySchema = z.object({
+  unreadOnly: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
+});
+
 /**
  * Query params for listing messages in a conversation
  */

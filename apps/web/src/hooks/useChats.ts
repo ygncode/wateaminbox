@@ -1,9 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  infiniteQueryOptions,
+  useInfiniteQuery,
+  useQuery,
+} from "@tanstack/react-query";
 import { toDate } from "@wateaminbox/shared";
-import { useMemo } from "react";
 import {
   api,
   buildQueryString,
+  fetchApi,
   getAccessToken,
   getCompanyId,
 } from "@/lib/api/client";
@@ -13,6 +18,11 @@ import {
 } from "@/lib/api/transformers";
 import type { Chat } from "@/types/chat";
 import { queryKeys } from "./query-keys";
+import {
+  CHAT_PAGE_SIZE,
+  CHAT_WINDOW_PAGES,
+  previousChatOffset,
+} from "./chat-list-window";
 
 /**
  * Assignment filter type
@@ -35,6 +45,7 @@ interface ChatListFilters {
   connectionId?: string;
   conversationStatus?: ConversationStatusFilter;
   tagIds?: readonly string[];
+  headOnly?: boolean;
 }
 
 /**
@@ -50,6 +61,8 @@ export const chatKeys = {
   detail: queryKeys.chats.detail,
   list: (filters: ChatListFilters) =>
     [...queryKeys.chats.lists(), filters] as const,
+  infiniteList: (filters: ChatListFilters) =>
+    [...queryKeys.chats.lists(), "infinite", filters] as const,
   groups: () => [...queryKeys.chats.all, "groups"] as const,
   groupList: (filters: { search?: string }) =>
     [...queryKeys.chats.all, "groups", filters] as const,
@@ -62,8 +75,10 @@ export function buildChatListQueryParams(
   connectionId?: string,
   conversationStatus: ConversationStatusFilter = "open",
   tagIds: readonly string[] = [],
+  offset?: number,
 ): Record<string, unknown> {
-  const params: Record<string, unknown> = { limit: 100 };
+  const params: Record<string, unknown> = { limit: CHAT_PAGE_SIZE };
+  if (offset !== undefined) params.offset = offset;
   if (searchQuery.trim()) params.search = searchQuery;
   if (includeGroups) params.includeGroups = "true";
   if (connectionId) params.connectionId = connectionId;
@@ -72,17 +87,33 @@ export function buildChatListQueryParams(
     params.assignedToMe = "true";
   } else if (assignmentFilter === "unassigned") {
     params.unassigned = "true";
+  } else if (assignmentFilter === "unread") {
+    params.unreadOnly = "true";
   }
   params.conversationStatus = conversationStatus;
   return params;
 }
 
-/**
- * Hook to fetch and manage chat list data
- * Supports search filtering, group inclusion, assignment filtering, and the
- * Open/Pending/Resolved/All conversation lifecycle filter.
- */
-export function useChats(
+export interface ChatListPage {
+  chats: Chat[];
+  nextOffset: number | undefined;
+}
+
+export function selectChatPages(
+  data: InfiniteData<ChatListPage, number>,
+): Chat[] {
+  // Activity can move a chat between offset pages while the user is scrolling.
+  // Keep the first (newest) copy rather than rendering duplicate rows/keys.
+  const chats = new Map<string, Chat>();
+  for (const page of data.pages) {
+    for (const chat of page.chats) {
+      if (!chats.has(chat.id)) chats.set(chat.id, chat);
+    }
+  }
+  return [...chats.values()];
+}
+
+export function chatListQueryOptions(
   searchQuery: string = "",
   includeGroups: boolean = true,
   assignmentFilter: AssignmentFilter = "all",
@@ -92,42 +123,33 @@ export function useChats(
 ) {
   const companyId = getCompanyId();
 
-  // Memoize the query key to prevent unnecessary re-renders
-  const queryKey = useMemo(
-    () =>
-      chatKeys.list({
-        search: searchQuery,
-        includeGroups,
-        assignmentFilter,
-        connectionId,
-        conversationStatus,
-        tagIds,
-      }),
-    [
-      companyId,
-      searchQuery,
+  return infiniteQueryOptions({
+    queryKey: chatKeys.infiniteList({
+      search: searchQuery,
       includeGroups,
       assignmentFilter,
       connectionId,
       conversationStatus,
       tagIds,
-    ],
-  );
-
-  return useQuery<Chat[], Error>({
-    queryKey,
-    queryFn: async () => {
+    }),
+    initialPageParam: 0,
+    maxPages: CHAT_WINDOW_PAGES,
+    getPreviousPageParam: (_firstPage, _pages, firstOffset) =>
+      previousChatOffset(firstOffset, CHAT_PAGE_SIZE),
+    getNextPageParam: (lastPage: ChatListPage) => lastPage.nextOffset,
+    select: selectChatPages,
+    queryFn: async ({ pageParam, signal }): Promise<ChatListPage> => {
       const token = getAccessToken();
       if (!token) {
         // Not authenticated - return empty array
         // The ProtectedRoute will handle redirect to login
-        return [];
+        return { chats: [], nextOffset: undefined };
       }
 
       if (!companyId) {
         // No company selected - return empty array
         // The ProtectedRoute will handle redirect to company-setup
-        return [];
+        return { chats: [], nextOffset: undefined };
       }
 
       const queryString = buildQueryString(
@@ -138,25 +160,64 @@ export function useChats(
           connectionId,
           conversationStatus,
           tagIds,
+          pageParam,
         ),
       );
-      const result = await api.get<ContactsListResponse>(
+      const result = await fetchApi<ContactsListResponse>(
         `/contacts${queryString}`,
+        { signal },
       );
 
-      // Transform API response to Chat format using centralized transformer
-      let chats = result.data.map(transformContactToChat);
+      // Filtering happens before server pagination, including merged unread counts.
+      const chats = result.data.map(transformContactToChat);
 
-      // Filter by unread if needed (client-side filter)
-      if (assignmentFilter === "unread") {
-        chats = chats.filter((chat) => chat.unreadCount > 0);
-      }
-
-      return chats;
+      return {
+        chats,
+        // Advance by the server page, not by client-visible or deduplicated rows.
+        nextOffset:
+          result.pagination.hasMore && result.data.length > 0
+            ? result.pagination.offset + result.data.length
+            : undefined,
+      };
     },
     staleTime: 1000 * 30, // 30 seconds
     gcTime: 1000 * 60 * 5, // 5 minutes
   });
+}
+
+/** Paginated inbox data, exposed as a flat array for existing consumers. */
+export function useChats(
+  searchQuery = "",
+  includeGroups = true,
+  assignmentFilter: AssignmentFilter = "all",
+  connectionId?: string,
+  conversationStatus: ConversationStatusFilter = "open",
+  tagIds: readonly string[] = [],
+) {
+  return useInfiniteQuery(
+    chatListQueryOptions(
+      searchQuery,
+      includeGroups,
+      assignmentFilter,
+      connectionId,
+      conversationStatus,
+      tagIds,
+    ),
+  );
+}
+
+/** The shell's badge must not follow the sidebar's moving page window. */
+export function inboxHeadQueryOptions() {
+  const options = chatListQueryOptions();
+  return {
+    ...options,
+    queryKey: chatKeys.infiniteList({ ...options.queryKey[4], headOnly: true }),
+    maxPages: 1,
+  };
+}
+
+export function useInboxHeadChats() {
+  return useInfiniteQuery(inboxHeadQueryOptions());
 }
 
 /**

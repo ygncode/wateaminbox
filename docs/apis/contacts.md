@@ -33,6 +33,19 @@ Contact (customer) management: CRUD, assignment, notes, tags, and CSV import. No
 | POST | `/contacts/import/preview` | Authenticated · Tenant context · Rate limited | Preview import without saving |
 | GET | `/contacts/import/template` | Authenticated · Tenant context | Download CSV template for import |
 
+## Inbox list pagination
+
+`GET /api/contacts?limit=100&offset=0&unreadOnly=true` filters unread contacts
+before applying pagination. `unreadOnly` accepts only `true` or `false` (omission
+means false); invalid values return 400. Unread messages on merged-away customer
+threads count toward the surviving customer. Existing assignment visibility,
+search, account, tag and lifecycle restrictions still apply.
+
+The response includes `data` and `pagination` (`total`, `limit`, `offset`,
+`hasMore`). Advance by the returned row count, not by any client-side filtered or
+deduplicated subset. Ordering is effective activity descending, nulls last, then
+contact ID descending. Offsets do not provide a frozen snapshot during activity.
+
 ## Flows
 
 ### Create & assign contact
