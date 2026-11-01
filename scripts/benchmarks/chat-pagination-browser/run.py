@@ -14,6 +14,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--url", default="http://127.0.0.1:4464")
 parser.add_argument("--output", default="/tmp/chat-pagination-browser.json")
 parser.add_argument("--cpu", default="1,4")
+parser.add_argument("--scenarios", default="normal,sparse-unread,mixed,sparse-account")
 args = parser.parse_args()
 preview = urlsplit(args.url)
 if (preview.scheme, preview.hostname, preview.port) != ("http", "127.0.0.1", 4464) or preview.username or preview.password or preview.path not in ("", "/") or preview.query or preview.fragment:
@@ -119,7 +120,9 @@ with sync_playwright() as p:
     browser = p.chromium.launch(channel="chrome", headless=True, args=["--disable-background-networking"])
     version = browser.version
     for cpu in [int(value) for value in args.cpu.split(",")]:
-        for scenario in ["normal", "sparse-unread", "mixed"]:
+        for scenario in args.scenarios.split(","):
+            if scenario not in ("normal", "sparse-unread", "mixed", "sparse-account"):
+                raise ValueError(f"Unknown scenario: {scenario}")
             context = browser.new_context(viewport={"width": 1280, "height": 960}, service_workers="block")
             # All real browser network access stays on the local static preview.
             context.route("**/*", lambda route: route.continue_() if route.request.url.startswith(args.url + "/") else route.abort())
@@ -130,7 +133,7 @@ with sync_playwright() as p:
             cdp.send("Performance.enable")
             cdp.send("Emulation.setCPUThrottlingRate", {"rate": cpu})
             total = 1000 if scenario == "mixed" else 10000
-            suffix = "&sparseUnread=1" if scenario == "sparse-unread" else "&channels=1000" if scenario == "mixed" else ""
+            suffix = "&sparseUnread=1" if scenario == "sparse-unread" else "&channels=1000" if scenario == "mixed" else "&channels=1000&sparseAccount=1" if scenario == "sparse-account" else ""
             started = time.perf_counter()
             page.goto(f"{args.url}/?total={total}&delay=40{suffix}")
             page.get_by_role("option").first.wait_for(timeout=30000)
@@ -165,6 +168,44 @@ with sync_playwright() as p:
                 page.wait_for_function("chatBenchmark.snapshot().cached.some(q => q.key[0] === 'chats' && q.key.at(-1).assignmentFilter === 'unread' && q.rows >= 10)", timeout=120000)
                 wait_idle(page)
                 result["findTenOldUnreadChats"] = {"elapsedMs": round((time.perf_counter() - start) * 1000, 2), **heap(cdp), **request_stats(snapshot(page))}
+            elif scenario == "sparse-account":
+                # Start with an evicted all-account window, like the reported
+                # bug, then pick a Telegram account with only two old rows.
+                load_until(page, 1000)
+                result["accountFilters"] = []
+                for label, account, rows in [
+                    ("Sparse Telegram", "00000000-0000-4000-8000-000000000004", 2),
+                    ("Empty Telegram", "00000000-0000-4000-8000-000000000005", 0),
+                ]:
+                    page.evaluate("chatBenchmark.clearMetrics()")
+                    page.get_by_role("combobox").click()
+                    page.get_by_role("option").filter(has_text=label).click()
+                    wait_idle(page)
+                    page.wait_for_timeout(1000)  # allow repeated footer callbacks
+                    state = snapshot(page)
+                    scoped = [q for q in state["cached"] if q["active"]]
+                    requests = [r for r in state["requests"] if r["endpoint"] in ("contacts", "conversations")]
+                    if len(requests) != 2 or any(r["offset"] != 0 or r["channelAccountId"] != account for r in requests):
+                        raise AssertionError(f"Account filter scanned unrelated pages: {requests}")
+                    if sum(q["rows"] for q in scoped) != rows or any(q["firstOffset"] != 0 for q in scoped):
+                        raise AssertionError(f"Account filter retained unrelated window: {scoped}")
+                    if state["renderedRows"] != rows or page.get_by_role("button", name="Load newer chats", exact=True).count():
+                        raise AssertionError("Sparse account has incorrect rows or phantom previous pages")
+                    page.evaluate("chatBenchmark.clearMetrics(); chatBenchmark.invalidate()")
+                    wait_idle(page)
+                    page.wait_for_timeout(1000)
+                    refresh = [r for r in snapshot(page)["requests"] if r["endpoint"] in ("contacts", "conversations")]
+                    if len(refresh) != 2 or any(r["offset"] != 0 or r["channelAccountId"] != account for r in refresh):
+                        raise AssertionError(f"Realtime refresh escaped account scope: {refresh}")
+                    result["accountFilters"].append({"label": label, "rows": rows, "initialRequests": len(requests), "refreshRequests": len(refresh)})
+                for label in ["Synthetic WhatsApp", "All accounts"]:
+                    page.get_by_role("combobox").click()
+                    page.get_by_role("option").filter(has_text=label).click()
+                    wait_idle(page)
+                    active = [q for q in snapshot(page)["cached"] if q["active"]]
+                    if any(q["firstOffset"] != 0 for q in active) or snapshot(page)["renderedRows"] == 0:
+                        raise AssertionError(f"Returning to {label} did not restore the head")
+                result["switchBackPassed"] = True
             else:
                 page.evaluate("chatBenchmark.clearMetrics()")
                 load_until(page, 1000)

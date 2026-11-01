@@ -37,6 +37,10 @@ WhatsApp mirrors and merged-away customer duplicates remain excluded.
 - `unreadOnly`: optional `true` or `false`; invalid values return 400. Filtering
   happens before LIMIT/OFFSET.
 - `tagIds`: existing comma-separated UUID tag filter, applied before pagination.
+- `channelAccountId`: optional UUID, applied before pagination. Omit for all
+  accounts; malformed values return 400 and unknown/other-tenant IDs yield no
+  matches. Assignment visibility, mirror exclusion, and merged-away suppression
+  still apply. Scope `/api/contacts` as well to retain merged customer rows.
 
 The response is `{ data: [...] }`. A full page may have a successor; an extra empty
 request can be needed when the total is an exact multiple of the limit. Ordering

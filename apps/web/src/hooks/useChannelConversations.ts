@@ -53,6 +53,10 @@ export function channelConversationListOptions(
             limit,
             tagIds,
             offset: pageParam,
+            channelAccountId:
+              scope.accountFilter && scope.accountFilter !== "all"
+                ? scope.accountFilter
+                : undefined,
             unreadOnly: scope.assignmentFilter === "unread" ? true : undefined,
           },
           signal,

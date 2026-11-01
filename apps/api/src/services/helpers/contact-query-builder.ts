@@ -10,6 +10,8 @@ export interface ContactFilterOptions {
   includeGroups?: boolean;
   /** Filter to conversations owned by one WhatsApp account. */
   connectionId?: string;
+  /** Match any account represented by this customer, including merged threads. */
+  channelAccountId?: string;
   /** Match contacts carrying any of these workspace tags. */
   tagIds?: string[];
   /** Schema-qualified contact_tags table used by raw tenant SQL. */
@@ -209,6 +211,7 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
     search,
     includeGroups = false,
     connectionId,
+    channelAccountId,
     tagIds,
     contactTagsTable,
     assignedToMe,
@@ -248,6 +251,14 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
           )})`
         : sql`c.whatsapp_connection_id = ${connectionId}`,
     );
+  }
+  if (channelAccountId) {
+    // Match the same account IDs the row exposes to the client, before LIMIT.
+    // Reuse the one-pass merged aggregate rather than scanning unrelated pages.
+    conditions.push(sql`(
+      COALESCE(conv.channel_account_id, c.whatsapp_connection_id) = ${channelAccountId}
+      OR ${channelAccountId} = ANY(grp.account_ids)
+    )`);
   }
   if (tagIds?.length) {
     if (!contactTagsTable) {

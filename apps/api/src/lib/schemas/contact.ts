@@ -42,6 +42,7 @@ export type UpdateContactInput = z.infer<typeof updateContactSchema>;
 export const listContactsQuerySchema = paginationSchema.extend({
   search: z.string().optional(),
   connectionId: z.string().guid().optional(),
+  channelAccountId: z.string().guid().optional(),
   tagIds: z
     .string()
     .optional()

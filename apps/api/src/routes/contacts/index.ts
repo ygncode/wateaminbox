@@ -117,6 +117,7 @@ contactRoutes.get(
         offset: query.offset,
         includeGroups: query.includeGroups,
         connectionId: query.connectionId,
+        channelAccountId: query.channelAccountId,
         tagIds: query.tagIds,
         assignedToMe: query.assignedToMe,
         unassigned: query.unassigned,

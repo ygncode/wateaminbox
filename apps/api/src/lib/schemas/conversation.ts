@@ -8,6 +8,7 @@ import { urlStringSchema } from "./string-contracts.js";
 
 /** Validated inbox filters; paging and tags retain their existing route policy. */
 export const listConversationsQuerySchema = z.object({
+  channelAccountId: z.string().guid().optional(),
   unreadOnly: z
     .enum(["true", "false"])
     .optional()

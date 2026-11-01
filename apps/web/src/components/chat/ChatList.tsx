@@ -156,6 +156,13 @@ export const ChatList = memo(function ChatList({
       : undefined,
     conversationStatusFilter,
     selectedTagIds,
+    // Non-WhatsApp accounts can own a surviving contact or a merged-away
+    // thread. Scope contacts on the server too; hiding them only below keeps
+    // the footer visible and drains every unrelated contact page.
+    accountFilter !== "all" &&
+      !connections.some((connection) => connection.id === accountFilter)
+      ? accountFilter
+      : undefined,
   );
   // The channel list has to narrow by the same tags as the contact list, or a
   // selected tag filters only the WhatsApp side of the merged inbox.
