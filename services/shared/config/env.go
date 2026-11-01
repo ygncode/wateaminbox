@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -39,8 +40,15 @@ func RedactErrorForURL(err error, configuredURL string) string {
 	parsed, parseErr := url.Parse(configuredURL)
 	if parseErr == nil && parsed.User != nil {
 		if password, ok := parsed.User.Password(); ok && password != "" {
-			message = strings.ReplaceAll(message, password, "[REDACTED]")
-			message = strings.ReplaceAll(message, url.QueryEscape(password), "[REDACTED]")
+			// A URL renders the password with userinfo escaping, which differs
+			// from both query and path escaping (e.g. ":" becomes "%3A").
+			userinfoEscaped := strings.TrimPrefix(url.UserPassword("", password).String(), ":")
+			forms := []string{password, url.QueryEscape(password), url.PathEscape(password), userinfoEscaped}
+			// Longer forms first, so a shorter form cannot break up a longer one.
+			sort.Slice(forms, func(i, j int) bool { return len(forms[i]) > len(forms[j]) })
+			for _, form := range forms {
+				message = strings.ReplaceAll(message, form, "[REDACTED]")
+			}
 		}
 	}
 	return message
