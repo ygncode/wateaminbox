@@ -25,6 +25,24 @@ Conversation state transitions and message reads for a contact, plus resolution/
 | GET | `/conversations/stats/resolution-team` | Authenticated · Tenant context · `can_view_dashboard` | Resolution attribution by team member (who resolved what, and how fast). |
 | GET | `/conversations/stats/resolution-trend` | Authenticated · Tenant context · `can_view_dashboard` | Case resolution trend over time |
 
+## Channel inbox list pagination
+
+`GET /api/conversations?limit=100&offset=0&unreadOnly=true` returns the channel-only
+inbox list when neutral reads are enabled for the workspace (otherwise 404).
+Authentication, tenant isolation and assignment visibility apply. Linked-device
+WhatsApp mirrors and merged-away customer duplicates remain excluded.
+
+- `limit`: defaults to 50; the existing route policy clamps safe integers to 1–100.
+- `offset`: defaults to 0; must be a non-negative safe integer, otherwise 400.
+- `unreadOnly`: optional `true` or `false`; invalid values return 400. Filtering
+  happens before LIMIT/OFFSET.
+- `tagIds`: existing comma-separated UUID tag filter, applied before pagination.
+
+The response is `{ data: [...] }`. A full page may have a successor; an extra empty
+request can be needed when the total is an exact multiple of the limit. Ordering
+is last-message activity descending, then conversation ID descending. Offsets are
+not a snapshot, and this source is paged separately from `/api/contacts`.
+
 ## Flows
 
 ### Resolve conversation (state + SLA)

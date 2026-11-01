@@ -1,4 +1,4 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Check,
@@ -47,7 +47,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { ChatListItem, ChatListItemSkeleton } from "./ChatListItem";
+import { ChatListItemSkeleton } from "./ChatListItem";
+import { VirtualizedChatRows } from "./VirtualizedChatRows";
+import { queryKeys } from "../../hooks/query-keys";
 import { ChatListSearch } from "./ChatListSearch";
 import { getConnectionLabel } from "./ConnectionIdentity";
 import {
@@ -57,11 +59,13 @@ import {
   readChatListFilters,
   writeChatListFilters,
 } from "./chat-list-filters";
+import {
+  observeChatListEnd,
+  shouldLoadNewerChats,
+} from "./chat-list-pagination";
 import { chatMatchesSearch } from "./chat-search";
 import { resolveInboxConnectionState } from "./inbox-connection-state";
 
-// Fixed height for chat list items for virtualization
-const CHAT_ITEM_HEIGHT = 76;
 const MAX_TAG_FILTERS = 50;
 
 /**
@@ -75,6 +79,7 @@ export const ChatList = memo(function ChatList({
 }: ChatListProps) {
   const { t } = useTranslation();
   const { activeWorkspace, can } = useWorkspace();
+  const queryClient = useQueryClient();
 
   const [searchQuery, setSearchQuery] = useState("");
   // Restored once on mount so a refresh lands back on the view the user left.
@@ -98,6 +103,8 @@ export const ChatList = memo(function ChatList({
     limit: 100,
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const paginationFooterRef = useRef<HTMLDivElement>(null);
+  const scrollPositionRef = useRef(0);
   const {
     connections,
     isLoading: areConnectionsLoading,
@@ -128,9 +135,17 @@ export const ChatList = memo(function ChatList({
 
   const {
     data: chats,
-    isLoading,
-    isError,
+    isLoading: areChatsLoading,
+    isError: chatsFailed,
     error,
+    hasNextPage: hasMoreChats,
+    hasPreviousPage: hasPreviousChats,
+    fetchPreviousPage: loadPreviousChats,
+    isFetchPreviousPageError: previousChatPageFailed,
+    isFetching: fetchingChats,
+    isFetchNextPageError: chatPageFailed,
+    fetchNextPage: loadMoreChats,
+    refetch: refetchChats,
   } = useChats(
     searchQuery,
     true,
@@ -144,10 +159,107 @@ export const ChatList = memo(function ChatList({
   );
   // The channel list has to narrow by the same tags as the contact list, or a
   // selected tag filters only the WhatsApp side of the merged inbox.
-  const { data: channelConversations = [] } = useChannelConversations(
-    100,
+  const {
+    data: channelConversations = [],
+    isLoading: areChannelsLoading,
+    isError: channelsFailed,
+    hasNextPage: hasMoreChannels,
+    hasPreviousPage: hasPreviousChannels,
+    fetchPreviousPage: loadPreviousChannels,
+    isFetchPreviousPageError: previousChannelPageFailed,
+    isFetching: fetchingChannels,
+    isFetchNextPageError: channelPageFailed,
+    fetchNextPage: loadMoreChannels,
+    refetch: refetchChannels,
+  } = useChannelConversations(100, selectedTagIds, {
+    searchQuery,
+    assignmentFilter,
+    accountFilter,
+    conversationStatusFilter,
+  });
+  const isLoading = areChatsLoading || areChannelsLoading;
+  // A later-page failure must not replace the already-loaded list with an error.
+  const isError = chatsFailed && !chats;
+  const paginationError = chatsFailed || channelsFailed;
+  const hasNextPage = hasMoreChats || hasMoreChannels;
+  const hasPreviousPage = hasPreviousChats || hasPreviousChannels;
+  const isFetching = fetchingChats || fetchingChannels;
+
+  const loadMore = useCallback(() => {
+    // Avoid cancelling a realtime refetch or repeatedly retrying a failed page.
+    if (isFetching || paginationError) return;
+    if (hasMoreChats) void loadMoreChats({ cancelRefetch: false });
+    if (hasMoreChannels) void loadMoreChannels({ cancelRefetch: false });
+  }, [
+    isFetching,
+    paginationError,
+    hasMoreChats,
+    hasMoreChannels,
+    loadMoreChats,
+    loadMoreChannels,
+  ]);
+
+  const loadPrevious = useCallback(() => {
+    if (isFetching || paginationError) return;
+    if (hasPreviousChats) void loadPreviousChats({ cancelRefetch: false });
+    if (hasPreviousChannels)
+      void loadPreviousChannels({ cancelRefetch: false });
+  }, [
+    isFetching,
+    paginationError,
+    hasPreviousChats,
+    hasPreviousChannels,
+    loadPreviousChats,
+    loadPreviousChannels,
+  ]);
+
+  const backToLatest = useCallback(() => {
+    scrollPositionRef.current = 0;
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+    for (const key of [
+      queryKeys.chats.lists(),
+      queryKeys.channelConversations.lists(),
+    ]) {
+      void queryClient.resetQueries({
+        queryKey: [...key, "infinite"],
+        type: "active",
+      });
+    }
+  }, [queryClient]);
+
+  const listScope = JSON.stringify([
+    activeWorkspace?.id,
+    searchQuery,
+    assignmentFilter,
+    accountFilter,
+    conversationStatusFilter,
     selectedTagIds,
-  );
+  ]);
+  useEffect(() => {
+    scrollPositionRef.current = 0;
+    if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
+    // Returning to a cached filter should start at its latest page, not at an
+    // old window reached on a previous visit. Do not cancel a fresh page-0 load.
+    for (const key of [
+      queryKeys.chats.lists(),
+      queryKeys.channelConversations.lists(),
+    ]) {
+      void queryClient.resetQueries({
+        queryKey: [...key, "infinite"],
+        type: "active",
+        predicate: (query) =>
+          ((query.state.data as { pageParams?: number[] } | undefined)
+            ?.pageParams?.[0] ?? 0) > 0,
+      });
+    }
+  }, [listScope, queryClient]);
+
+  useEffect(() => {
+    const root = scrollContainerRef.current;
+    const footer = paginationFooterRef.current;
+    if (!root || !footer || !hasNextPage) return;
+    return observeChatListEnd(root, footer, loadMore);
+  }, [hasNextPage, loadMore]);
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
@@ -261,23 +373,13 @@ export const ChatList = memo(function ChatList({
     isLoading: areConnectionsLoading || areChannelAccountsLoading,
     isError: areConnectionsUnavailable || areChannelAccountsUnavailable,
   });
-  const isFirstRun =
-    connectionState === "no-connections" && visibleChats.length === 0;
-
-  // Memoize getItemKey to prevent unnecessary re-renders
-  const getItemKey = useCallback(
-    (index: number) => visibleChats[index]?.id || index.toString(),
-    [visibleChats],
-  );
-
-  // Virtualizer for chat list
-  const virtualizer = useVirtualizer({
-    count: visibleChats.length,
-    getScrollElement: () => scrollContainerRef.current,
-    estimateSize: () => CHAT_ITEM_HEIGHT,
-    overscan: 5,
-    getItemKey,
-  });
+  const isEmpty =
+    !isLoading &&
+    !paginationError &&
+    !hasNextPage &&
+    !hasPreviousPage &&
+    visibleChats.length === 0;
+  const isFirstRun = connectionState === "no-connections" && isEmpty;
 
   return (
     <div
@@ -651,14 +753,44 @@ export const ChatList = memo(function ChatList({
         onOpenChange={setIsAddContactOpen}
       />
 
+      {hasPreviousPage && (
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-3 py-1 text-xs dark:border-dark-border">
+          <button
+            type="button"
+            disabled={isFetching || paginationError}
+            onClick={loadPrevious}
+            className="rounded px-2 py-1 text-whatsapp-teal-green hover:underline disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-whatsapp-green/40"
+          >
+            {t("chat.loadNewer", "Load newer chats")}
+          </button>
+          <button
+            type="button"
+            disabled={isFetching}
+            onClick={backToLatest}
+            className="rounded px-2 py-1 text-whatsapp-teal-green hover:underline disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-whatsapp-green/40"
+          >
+            {t("chat.backToLatest", "Back to latest")}
+          </button>
+        </div>
+      )}
+
       {/* Chat List */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto"
+        className="flex-1 overflow-y-auto [overflow-anchor:none]"
+        onScroll={(event) => {
+          const root = event.currentTarget;
+          const loadNewer = shouldLoadNewerChats(
+            root,
+            scrollPositionRef.current,
+          );
+          scrollPositionRef.current = root.scrollTop;
+          if (hasPreviousPage && loadNewer) loadPrevious();
+        }}
         role="listbox"
         aria-label={t("chat.conversations", "Conversations")}
         aria-live="polite"
-        aria-busy={isLoading || connectionState === "loading"}
+        aria-busy={isFetching || connectionState === "loading"}
       >
         {/* Loading State */}
         {!isError &&
@@ -698,7 +830,7 @@ export const ChatList = memo(function ChatList({
         )}
 
         {/* Empty State - No Search Results */}
-        {!isLoading && !isError && visibleChats.length === 0 && searchQuery && (
+        {isEmpty && searchQuery && (
           <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
             <svg
               className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4"
@@ -726,34 +858,27 @@ export const ChatList = memo(function ChatList({
         )}
 
         {/* Empty State - No conversations match the selected tags */}
-        {!isLoading &&
-          !isError &&
-          visibleChats.length === 0 &&
-          !searchQuery &&
-          selectedTags.length > 0 && (
-            <div className="flex h-full flex-col items-center justify-center px-4 py-8 text-center">
-              <Tags className="mb-4 h-11 w-11 text-gray-300 dark:text-dark-text-tertiary" />
-              <p className="font-medium text-gray-600 dark:text-dark-text-primary">
-                {t(
-                  "chat.noTaggedConversations",
-                  "No tagged conversations found",
-                )}
-              </p>
-              <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary">
-                {t(
-                  "chat.noTaggedConversationsHint",
-                  "Try removing a tag filter or changing the inbox filters",
-                )}
-              </p>
-              <button
-                type="button"
-                onClick={clearTagFilters}
-                className="mt-3 text-sm font-medium text-whatsapp-teal-green hover:underline"
-              >
-                {t("chat.clearTagFilters", "Clear tag filters")}
-              </button>
-            </div>
-          )}
+        {isEmpty && !searchQuery && selectedTags.length > 0 && (
+          <div className="flex h-full flex-col items-center justify-center px-4 py-8 text-center">
+            <Tags className="mb-4 h-11 w-11 text-gray-300 dark:text-dark-text-tertiary" />
+            <p className="font-medium text-gray-600 dark:text-dark-text-primary">
+              {t("chat.noTaggedConversations", "No tagged conversations found")}
+            </p>
+            <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary">
+              {t(
+                "chat.noTaggedConversationsHint",
+                "Try removing a tag filter or changing the inbox filters",
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={clearTagFilters}
+              className="mt-3 text-sm font-medium text-whatsapp-teal-green hover:underline"
+            >
+              {t("chat.clearTagFilters", "Clear tag filters")}
+            </button>
+          </div>
+        )}
 
         {/* First-run state - no provider account has been linked yet. This is
             also the primary mobile onboarding surface, where the main pane is
@@ -855,11 +980,9 @@ export const ChatList = memo(function ChatList({
           )}
 
         {/* Empty State - No Unread Chats */}
-        {!isLoading &&
-          !isError &&
+        {isEmpty &&
           !isFirstRun &&
           connectionState !== "loading" &&
-          visibleChats.length === 0 &&
           !searchQuery &&
           selectedTags.length === 0 &&
           assignmentFilter === "unread" && (
@@ -887,11 +1010,9 @@ export const ChatList = memo(function ChatList({
           )}
 
         {/* Empty State - No Chats */}
-        {!isLoading &&
-          !isError &&
+        {isEmpty &&
           !isFirstRun &&
           connectionState !== "loading" &&
-          visibleChats.length === 0 &&
           !searchQuery &&
           selectedTags.length === 0 &&
           assignmentFilter !== "unread" && (
@@ -922,45 +1043,61 @@ export const ChatList = memo(function ChatList({
           )}
 
         {/* Virtualized Chat List Items */}
-        {!isLoading && !isError && visibleChats.length > 0 && (
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              width: "100%",
-              position: "relative",
-            }}
-          >
-            {virtualizer.getVirtualItems().map((virtualRow) => {
-              const chat = visibleChats[virtualRow.index];
-              return (
-                <div
-                  key={virtualRow.key}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: `${virtualRow.size}px`,
-                    transform: `translateY(${virtualRow.start}px)`,
+        {visibleChats.length > 0 && (
+          <VirtualizedChatRows
+            key={listScope}
+            chats={visibleChats}
+            scrollContainerRef={scrollContainerRef}
+            scrollPositionRef={scrollPositionRef}
+            selectedChatId={selectedChatId}
+            onChatSelect={handleChatClick}
+            onPrefetch={prefetchContact}
+            hasPreviousPage={hasPreviousPage}
+          />
+        )}
+
+        <div ref={paginationFooterRef}>
+          {(hasNextPage || paginationError) && (
+            <div className="flex min-h-12 flex-col items-center justify-center gap-1 px-4 py-3 text-xs text-gray-500 dark:text-dark-text-secondary">
+              {paginationError && (
+                <p role="status">
+                  {t("chat.loadMoreFailed", "Could not load more chats")}
+                </p>
+              )}
+              {isFetching ? (
+                <span role="status">
+                  {t("chat.loadingMore", "Loading more chats…")}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="rounded px-3 py-1 font-medium text-whatsapp-teal-green hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40"
+                  onClick={() => {
+                    if (!paginationError) return loadMore();
+                    if (chatsFailed) {
+                      void (chatPageFailed
+                        ? loadMoreChats({ cancelRefetch: false })
+                        : previousChatPageFailed
+                          ? loadPreviousChats({ cancelRefetch: false })
+                          : refetchChats());
+                    }
+                    if (channelsFailed) {
+                      void (channelPageFailed
+                        ? loadMoreChannels({ cancelRefetch: false })
+                        : previousChannelPageFailed
+                          ? loadPreviousChannels({ cancelRefetch: false })
+                          : refetchChannels());
+                    }
                   }}
                 >
-                  <ChatListItem
-                    chat={chat}
-                    isSelected={
-                      chat.id === selectedChatId ||
-                      chat.contact.id === selectedChatId ||
-                      chat.contact.conversationId === selectedChatId
-                    }
-                    onClick={() =>
-                      handleChatClick(chat.contact.conversationId ?? chat.id)
-                    }
-                    onPrefetch={prefetchContact}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
+                  {paginationError
+                    ? t("common.retry", "Retry")
+                    : t("chat.loadMore", "Load more chats")}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

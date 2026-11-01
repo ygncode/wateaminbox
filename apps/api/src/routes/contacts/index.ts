@@ -96,7 +96,7 @@ contactRoutes.use("/:id", requireContactVisibility());
 
 /**
  * GET /contacts - List all contacts
- * Query params: search, tagIds, limit, offset, includeGroups, assignedToMe, unassigned
+ * Query params: search, tagIds, limit, offset, includeGroups, assignedToMe, unassigned, unreadOnly
  */
 contactRoutes.get(
   "/",
@@ -123,6 +123,7 @@ contactRoutes.get(
         userId: user.id,
         restrictToAssigned: !permissions.can_view_all_chats,
         conversationStatus: query.conversationStatus,
+        unreadOnly: query.unreadOnly,
       },
     );
 

@@ -89,11 +89,19 @@ export interface ContactWithLastMessage {
 }
 
 /**
- * Resolve the inbox with indexed latest-message lookups and a separate count.
  * Concurrent identical unrestricted reads share only pending database work,
  * scoped to the database handle, tenant, user and every filter option. There
  * is no completed-response cache; authorization still runs on every request.
  * Assignment-restricted readers always query live visibility independently.
+ *
+ * Selects a narrow, deterministically ordered page before hydrating contact and
+ * message payloads. Latest-message IDs/timestamps still come from messages, not
+ * potentially stale conversation state. Merged activity and all visibility and
+ * filter predicates are evaluated before LIMIT/OFFSET.
+ *
+ * @param tenantDb - Tenant database connection
+ * @param options - Query options for filtering and pagination
+ * @returns Contacts with last message data and total count
  */
 export function getContactsWithLastMessage(
   tenantDb: Kysely<TenantDatabase>,
@@ -110,6 +118,82 @@ async function loadContactsWithLastMessage(
   companyId: string,
   options: GetContactsWithLastMessageOptions,
 ): Promise<{ contacts: ContactWithLastMessage[]; total: number }> {
+  // Reuse a caller-owned transaction without nesting or changing its planning
+  // policy. Normal callers get a short read transaction covering BOTH row and
+  // count SQL, including filtered counts that may cross the JIT cost threshold.
+  const { rawContacts, total } = tenantDb.isTransaction
+    ? await queryContactPage(tenantDb, companyId, options)
+    : await tenantDb.transaction().execute(async (trx) => {
+        await sql`SET LOCAL jit = off`.execute(trx);
+        return queryContactPage(trx, companyId, options);
+      });
+
+  // Release our read transaction before this shared-pool lookup. Holding one
+  // connection while borrowing another can exhaust the pool under concurrency.
+  const userNames = await getUserNames(
+    rawContacts
+      .map((contact) => contact.last_message_sent_by_user_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  const contacts: ContactWithLastMessage[] = rawContacts.map((contact) => {
+    const lastMessage =
+      contact.last_message_id !== null
+        ? {
+            id: contact.last_message_id,
+            messageId: contact.last_message_message_id,
+            fromMe: contact.last_message_from_me!,
+            sentByUserId: contact.last_message_sent_by_user_id,
+            sentByUserName: contact.last_message_sent_by_user_id
+              ? userNames.get(contact.last_message_sent_by_user_id) || null
+              : null,
+            messageType: contact.last_message_message_type!,
+            content: contact.last_message_content,
+            status: contact.last_message_status!,
+            timestamp: contact.last_message_timestamp!,
+          }
+        : null;
+
+    return {
+      id: contact.id,
+      jid: contact.jid,
+      phone_number: contact.phone_number,
+      push_name: contact.push_name,
+      username: contact.username,
+      custom_name: contact.custom_name,
+      is_group: contact.is_group,
+      profile_picture_url: contact.profile_picture_url,
+      notes_shared: contact.notes_shared,
+      created_at: contact.created_at,
+      updated_at: contact.updated_at,
+      assigned_to: contact.assigned_to,
+      last_message_at: contact.last_message_at,
+      unread_count: BigInt(contact.unread_count),
+      chat_count: Number(contact.chat_count ?? 1),
+      account_ids: contact.account_ids ?? [],
+      is_online: contact.is_online,
+      last_seen: contact.last_seen,
+      connection_id: contact.connection_id,
+      connection_name: contact.connection_name,
+      connection_phone_number: contact.connection_phone_number,
+      connection_status: contact.connection_status,
+      conversation_id: contact.conversation_id,
+      channel: contact.channel,
+      provider: contact.provider,
+      conversation_status: contact.conversation_status,
+      active_case_id: contact.active_case_id,
+      last_message: lastMessage,
+    };
+  });
+  return { contacts, total };
+}
+
+/** SQL-only portion; never opens a transaction or borrows another connection. */
+async function queryContactPage(
+  tenantDb: Kysely<TenantDatabase>,
+  companyId: string,
+  options: GetContactsWithLastMessageOptions,
+) {
   const {
     search,
     limit = 50,
@@ -187,60 +271,27 @@ async function loadContactsWithLastMessage(
     conversation_status: "open" | "pending" | "resolved";
     active_case_id: string | null;
   }>`
+    WITH page AS MATERIALIZED (
     SELECT
       c.id,
-      c.jid,
-      c.phone_number,
-      c.push_name,
-      c.username,
-      c.custom_name,
-      c.is_group,
-      c.profile_picture_url,
-      c.notes_shared,
-      c.created_at,
-      c.updated_at,
-      c.is_online,
-      c.last_seen,
-      c.whatsapp_connection_id as connection_id,
       conv.id as conversation_id,
-      COALESCE(acc.channel, CASE WHEN c.whatsapp_connection_id IS NOT NULL THEN 'whatsapp' END) as channel,
-      COALESCE(acc.provider, CASE WHEN c.whatsapp_connection_id IS NOT NULL THEN 'whatsapp_linked_device' END) as provider,
-      wc.name as connection_name,
-      wc.phone_number as connection_phone_number,
-      wc.status::text as connection_status,
       ca.assigned_to,
       GREATEST(
         COALESCE(lmc.timestamp, lml.timestamp),
         grp.last_message_at
       ) as last_message_at,
       COALESCE(lmc.id, lml.id) as last_message_id,
-      COALESCE(lmc.message_id, lml.message_id) as last_message_message_id,
-      COALESCE(lmc.from_me, lml.from_me) as last_message_from_me,
-      COALESCE(lmc.message_type, lml.message_type) as last_message_message_type,
-      COALESCE(lmc.content, lml.content) as last_message_content,
-      COALESCE(lmc.status, lml.status) as last_message_status,
-      COALESCE(lmc.timestamp, lml.timestamp) as last_message_timestamp,
-      COALESCE(lmc.sent_by_user_id, lml.sent_by_user_id)
-        as last_message_sent_by_user_id,
       (COALESCE(csc.unread_count, csl.unread_count, 0)
         + COALESCE(grp.unread_count, 0))::bigint as unread_count,
       (1 + COALESCE(grp.chat_count, 0))::int as chat_count,
-      ARRAY_REMOVE(
-        COALESCE(grp.account_ids, ARRAY[]::uuid[])
-          || ARRAY[COALESCE(acc.id, c.whatsapp_connection_id)],
-        NULL
-      ) as account_ids,
+      grp.account_ids as merged_account_ids,
       COALESCE(csc.status::text, csl.status::text, 'resolved')
         as conversation_status,
       COALESCE(csc.active_case_id, csl.active_case_id) as active_case_id
     FROM ${schema}.${sql.ref("contacts")} c
-    LEFT JOIN ${schema}.${sql.ref("whatsapp_connections")} wc
-      ON wc.id = c.whatsapp_connection_id
     LEFT JOIN ${schema}.${sql.ref("conversations")} conv
       ON conv.legacy_contact_id = c.id
       AND conv.archived_at IS NULL
-    LEFT JOIN ${schema}.${sql.ref("channel_accounts")} acc
-      ON acc.id = conv.channel_account_id
     LEFT JOIN ${schema}.${sql.ref("contact_assignments")} ca
       ON ca.contact_id = c.id
       AND ca.unassigned_at IS NULL
@@ -250,23 +301,18 @@ async function loadContactsWithLastMessage(
     -- JID has no conversation to hang anything off, and dropping its preview
     -- would silently blank a chat.
     --
-    -- Two guarded laterals rather than one with COALESCE or OR: only one side
-    -- runs per row, and each can use an index. Measured on the largest
-    -- workspace, this is 54ms against 40ms for the contact-anchored original,
-    -- where COALESCE across both keys costs 72ms and OR cannot use either
-    -- index at all - that version ran for over five minutes before it was
-    -- cancelled.
+    -- Guarded laterals let each side use its own recent-message index. Only
+    -- IDs and timestamps participate in candidate selection; payloads are
+    -- fetched by primary key after the materialized page boundary.
     LEFT JOIN LATERAL (
-      SELECT id, message_id, from_me, message_type, content, status,
-             timestamp, sent_by_user_id
+      SELECT id, timestamp
       FROM ${schema}.${sql.ref("messages")} m
       WHERE conv.id IS NOT NULL AND m.conversation_id = conv.id
       ORDER BY m.timestamp DESC, m.id DESC
       LIMIT 1
     ) lmc ON TRUE
     LEFT JOIN LATERAL (
-      SELECT id, message_id, from_me, message_type, content, status,
-             timestamp, sent_by_user_id
+      SELECT id, timestamp
       FROM ${schema}.${sql.ref("messages")} m
       WHERE conv.id IS NULL AND m.contact_id = c.id
       ORDER BY m.timestamp DESC, m.id DESC
@@ -278,7 +324,9 @@ async function loadContactsWithLastMessage(
       ON conv.id IS NULL AND csl.contact_id = c.id
     -- Threads belonging to contacts merged into this one. They are hidden as
     -- separate rows and reached through the chat switcher, so their unread
-    -- and activity have to surface here or a reply would look dropped.
+    -- and activity have to surface here or a reply would look dropped. Retain
+    -- the existing merged-thread activity rule (conversation, or legacy state);
+    -- the survivor's preview and timestamp still come from actual messages.
     --
     -- Aggregate the partial merge-alias index once, not once per inbox row.
     -- Grouping by the surviving contact keeps this join one-to-one, including
@@ -314,71 +362,64 @@ async function loadContactsWithLastMessage(
       GROUP BY mc.merged_into_contact_id
     ) grp ON grp.contact_id = c.id
     ${hasWhereCondition ? sql`WHERE ${whereClause}` : sql``}
-    ORDER BY last_message_at DESC NULLS LAST
+    ORDER BY last_message_at DESC NULLS LAST, c.id DESC
     LIMIT ${limit}
     OFFSET ${offset}
+    )
+    SELECT
+      c.id,
+      c.jid,
+      c.phone_number,
+      c.push_name,
+      c.username,
+      c.custom_name,
+      c.is_group,
+      c.profile_picture_url,
+      c.notes_shared,
+      c.created_at,
+      c.updated_at,
+      c.is_online,
+      c.last_seen,
+      c.whatsapp_connection_id as connection_id,
+      page.conversation_id,
+      COALESCE(acc.channel, CASE WHEN c.whatsapp_connection_id IS NOT NULL THEN 'whatsapp' END) as channel,
+      COALESCE(acc.provider, CASE WHEN c.whatsapp_connection_id IS NOT NULL THEN 'whatsapp_linked_device' END) as provider,
+      wc.name as connection_name,
+      wc.phone_number as connection_phone_number,
+      wc.status::text as connection_status,
+      page.assigned_to,
+      page.last_message_at,
+      lm.id as last_message_id,
+      lm.message_id as last_message_message_id,
+      lm.from_me as last_message_from_me,
+      lm.message_type as last_message_message_type,
+      lm.content as last_message_content,
+      lm.status as last_message_status,
+      lm.timestamp as last_message_timestamp,
+      lm.sent_by_user_id as last_message_sent_by_user_id,
+      page.unread_count,
+      page.chat_count,
+      ARRAY_REMOVE(
+        COALESCE(page.merged_account_ids, ARRAY[]::uuid[])
+          || ARRAY[COALESCE(acc.id, c.whatsapp_connection_id)],
+        NULL
+      ) as account_ids,
+      page.conversation_status,
+      page.active_case_id
+    FROM page
+    JOIN ${schema}.${sql.ref("contacts")} c ON c.id = page.id
+    LEFT JOIN ${schema}.${sql.ref("messages")} lm ON lm.id = page.last_message_id
+    LEFT JOIN ${schema}.${sql.ref("whatsapp_connections")} wc
+      ON wc.id = c.whatsapp_connection_id
+    LEFT JOIN ${schema}.${sql.ref("conversations")} conv
+      ON conv.id = page.conversation_id
+    LEFT JOIN ${schema}.${sql.ref("channel_accounts")} acc
+      ON acc.id = conv.channel_account_id
+    ORDER BY page.last_message_at DESC NULLS LAST, page.id DESC
   `.execute(tenantDb);
 
-  const rawContacts = result.rows;
-  const userNames = await getUserNames(
-    rawContacts
-      .map((contact) => contact.last_message_sent_by_user_id)
-      .filter((id): id is string => Boolean(id)),
-  );
-
-  // Transform to the expected format
-  const contacts: ContactWithLastMessage[] = rawContacts.map((contact) => {
-    const lastMessage =
-      contact.last_message_id !== null
-        ? {
-            id: contact.last_message_id,
-            messageId: contact.last_message_message_id,
-            fromMe: contact.last_message_from_me!,
-            sentByUserId: contact.last_message_sent_by_user_id,
-            sentByUserName: contact.last_message_sent_by_user_id
-              ? userNames.get(contact.last_message_sent_by_user_id) || null
-              : null,
-            messageType: contact.last_message_message_type!,
-            content: contact.last_message_content,
-            status: contact.last_message_status!,
-            timestamp: contact.last_message_timestamp!,
-          }
-        : null;
-
-    return {
-      id: contact.id,
-      jid: contact.jid,
-      phone_number: contact.phone_number,
-      push_name: contact.push_name,
-      username: contact.username,
-      custom_name: contact.custom_name,
-      is_group: contact.is_group,
-      profile_picture_url: contact.profile_picture_url,
-      notes_shared: contact.notes_shared,
-      created_at: contact.created_at,
-      updated_at: contact.updated_at,
-      assigned_to: contact.assigned_to,
-      last_message_at: contact.last_message_at,
-      unread_count: BigInt(contact.unread_count),
-      chat_count: Number(contact.chat_count ?? 1),
-      account_ids: contact.account_ids ?? [],
-      is_online: contact.is_online,
-      last_seen: contact.last_seen,
-      connection_id: contact.connection_id,
-      connection_name: contact.connection_name,
-      connection_phone_number: contact.connection_phone_number,
-      connection_status: contact.connection_status,
-      conversation_id: contact.conversation_id,
-      channel: contact.channel,
-      provider: contact.provider,
-      conversation_status: contact.conversation_status,
-      active_case_id: contact.active_case_id,
-      last_message: lastMessage,
-    };
-  });
-
-  // Get total count with same filters (separate query for counting)
-  // Uses the applyContactFilters helper to apply the same filters as the main query
+  // Count with the same filters and conversation-first state resolution as the
+  // page query, including state rows with no legacy contact_id.
   const baseCountQuery = tenantDb
     .selectFrom("contacts")
     .leftJoin("contact_assignments", (join) =>
@@ -386,10 +427,20 @@ async function loadContactsWithLastMessage(
         .onRef("contact_assignments.contact_id", "=", "contacts.id")
         .on("contact_assignments.unassigned_at", "is", null),
     )
-    .leftJoin(
-      "conversation_states",
-      "conversation_states.contact_id",
-      "contacts.id",
+    .leftJoin("conversations as conv", (join) =>
+      join
+        .onRef("conv.legacy_contact_id", "=", "contacts.id")
+        .on("conv.archived_at", "is", null),
+    )
+    .leftJoin("conversation_states as csc", (join) =>
+      join
+        .onRef("csc.conversation_id", "=", "conv.id")
+        .on("conv.id", "is not", null),
+    )
+    .leftJoin("conversation_states as csl", (join) =>
+      join
+        .onRef("csl.contact_id", "=", "contacts.id")
+        .on("conv.id", "is", null),
     )
     .select((eb) => eb.fn.count("contacts.id").as("total"));
 
@@ -416,11 +467,15 @@ async function loadContactsWithLastMessage(
   )`;
   const assignedInGroup = (assigneeId: string) =>
     mergedGroup(sql`mca.assigned_to = ${assigneeId}`);
-  let countQuery = baseCountQuery.where(
-    "contacts.merged_into_contact_id",
-    "is",
-    null,
-  );
+  let countQuery = baseCountQuery
+    .where("contacts.merged_into_contact_id", "is", null)
+    // Match the page's exclusion of historical Status/Stories/broadcast rows.
+    .where((eb) =>
+      eb.or([
+        eb("contacts.jid", "is", null),
+        eb("contacts.jid", "not like", "%@broadcast"),
+      ]),
+    );
   if (!includeGroups) {
     countQuery = countQuery.where("contacts.is_group", "=", false);
   }
@@ -471,13 +526,13 @@ async function loadContactsWithLastMessage(
   }
   if (conversationStatus && conversationStatus !== "all") {
     countQuery = countQuery.where(
-      sql<boolean>`COALESCE(conversation_states.status::text, 'resolved') = ${conversationStatus}`,
+      sql<boolean>`COALESCE(csc.status::text, csl.status::text, 'resolved') = ${conversationStatus}`,
     );
   }
   if (unreadOnly) {
     countQuery = countQuery.where((eb) =>
       eb.or([
-        sql<SqlBool>`COALESCE(conversation_states.unread_count, 0) > 0`,
+        sql<SqlBool>`COALESCE(csc.unread_count, csl.unread_count, 0) > 0`,
         mergedGroup(sql`COALESCE(mcsc.unread_count, mcsl.unread_count, 0) > 0`),
       ]),
     );
@@ -486,7 +541,7 @@ async function loadContactsWithLastMessage(
   const countResult = await countQuery.executeTakeFirst();
   const total = Number(countResult?.total || 0);
 
-  return { contacts, total };
+  return { rawContacts: result.rows, total };
 }
 
 /**

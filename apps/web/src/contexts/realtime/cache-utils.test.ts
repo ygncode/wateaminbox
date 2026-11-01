@@ -10,6 +10,7 @@ import {
   type InfiniteMessageData,
   invalidateChatList,
   updateMessageInCache,
+  updateContactInChatList,
 } from "./cache-utils";
 import { reconcileRealtimeState } from "./event-handlers";
 
@@ -52,6 +53,62 @@ function seed(client: QueryClient, companyId: string) {
 }
 
 describe("realtime React Query reconciliation", () => {
+  test("contact events update every infinite page and preserve pagination", () => {
+    const client = new QueryClient();
+    setCompanyId("company-a");
+    const key = chatKeys.infiniteList({});
+    const chat = {
+      id: "a",
+      contact: { jid: "a@s.whatsapp.net", name: "Before" },
+    };
+    const other = {
+      id: "b",
+      contact: { jid: "b@s.whatsapp.net", name: "Other" },
+    };
+    const pages = [
+      { chats: [other], nextOffset: 1 },
+      { chats: [chat], nextOffset: undefined },
+    ];
+    client.setQueryData(key, { pages, pageParams: [0, 1] });
+    client.setQueryData(chatKeys.list({}), [chat]);
+    setCompanyId("company-b");
+    const otherWorkspace = chatKeys.infiniteList({});
+    client.setQueryData(otherWorkspace, { pages, pageParams: [0, 1] });
+    setCompanyId("company-a");
+
+    updateContactInChatList(client, "a@s.whatsapp.net", (contact) => ({
+      ...contact,
+      name: "After",
+    }));
+
+    expect(
+      client.getQueryData<{ pages: typeof pages; pageParams: number[] }>(key),
+    ).toEqual({
+      pages: [
+        pages[0],
+        {
+          ...pages[1],
+          chats: [{ ...chat, contact: { ...chat.contact, name: "After" } }],
+        },
+      ],
+      pageParams: [0, 1],
+    });
+    expect(client.getQueryData<(typeof chat)[]>(chatKeys.list({}))).toEqual([
+      { ...chat, contact: { ...chat.contact, name: "After" } },
+    ]);
+    expect(
+      client.getQueryData<{ pages: typeof pages; pageParams: number[] }>(
+        otherWorkspace,
+      ),
+    ).toEqual({
+      pages,
+      pageParams: [0, 1],
+    });
+    invalidateChatList(client);
+    expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    client.clear();
+  });
+
   test("deduplicates realtime messages and advances cached status", () => {
     const client = new QueryClient();
     const { messageKey } = seed(client, "company-a");

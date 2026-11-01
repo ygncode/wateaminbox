@@ -6,13 +6,14 @@
  * to reduce code duplication and improve maintainability.
  */
 
-import type { QueryClient } from "@tanstack/react-query";
+import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import type { Message, PaginatedMessages } from "@wateaminbox/shared";
 import { customerTimelineKeys } from "../../hooks/chat/useCustomerTimeline";
 import { isOptimisticTwin } from "../../hooks/messages/optimistic-message";
 import { queryKeys } from "../../hooks/query-keys";
-import { chatKeys } from "../../hooks/useChats";
+import { type ChatListPage, chatKeys } from "../../hooks/useChats";
 import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
+import { scheduleInboxRefresh } from "./inbox-refresh";
 
 /** Typed infinite query data structure */
 export type InfiniteMessageData = {
@@ -173,6 +174,29 @@ export function updateContactInChatList(
       });
     },
   );
+  queryClient.setQueriesData<InfiniteData<ChatListPage, number>>(
+    { queryKey: [...chatKeys.lists(), "infinite"] },
+    (oldData) => {
+      if (!oldData) return oldData;
+      return {
+        ...oldData,
+        pages: oldData.pages.map((page) => ({
+          ...page,
+          chats: page.chats.map((chat) =>
+            chat.contact.jid === jid
+              ? {
+                  ...chat,
+                  contact: {
+                    ...chat.contact,
+                    ...updater({ ...chat.contact }),
+                  },
+                }
+              : chat,
+          ),
+        })),
+      };
+    },
+  );
 }
 
 /**
@@ -214,24 +238,14 @@ export function invalidateCustomerTimelines(queryClient: QueryClient): void {
   queryClient.invalidateQueries({ queryKey: customerTimelineKeys.all });
 }
 
-export function invalidateChatList(
-  queryClient: QueryClient,
-  options: { cancelRefetch?: boolean } = {},
-): void {
-  queryClient.invalidateQueries(
-    {
-      queryKey: chatKeys.lists(),
-    },
-    options,
-  );
-  // The Groups tab is a second projection of the same conversations. New
-  // messages and read events must refresh both projections together.
-  queryClient.invalidateQueries(
-    {
-      queryKey: queryKeys.groups.lists(),
-    },
-    options,
-  );
+export function invalidateChatList(queryClient: QueryClient): void {
+  // Every inbox projection becomes stale immediately; only active queries fetch.
+  // Infinite lists retain a bounded window, and bursts share one refresh.
+  scheduleInboxRefresh(queryClient, [
+    chatKeys.lists(),
+    queryKeys.channelConversations.lists(),
+    queryKeys.groups.lists(),
+  ]);
 }
 
 /**

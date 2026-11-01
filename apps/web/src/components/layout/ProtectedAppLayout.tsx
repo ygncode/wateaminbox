@@ -15,7 +15,7 @@ import { lazy, Suspense, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { useAuth } from "../../contexts/auth-context";
 import { useWorkspace } from "../../contexts/workspace-context";
-import { useChats } from "../../hooks/useChats";
+import { useInboxHeadChats } from "../../hooks/useChats";
 import { getWorkspaceBillingUrl } from "../../lib/billing-url";
 import { cn } from "../../lib/utils";
 import { workspacePath } from "../../lib/workspace-routes";
@@ -209,7 +209,7 @@ export function ProtectedAppLayout() {
   const { user, logout } = useAuth();
   const { activeWorkspace, can, canAny, isSwitching, switchingTo } =
     useWorkspace();
-  const { data: inboxChats } = useChats();
+  const { data: inboxChats } = useInboxHeadChats();
   const inboxUnreadCount = getInboxUnreadCount(inboxChats);
 
   if (!activeWorkspace) return null;

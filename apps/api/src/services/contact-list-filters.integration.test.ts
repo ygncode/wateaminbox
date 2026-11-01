@@ -108,7 +108,8 @@ integration(
         .values([
           {
             conversation_id: bridged,
-            contact_id: bridged,
+            // Conversation-owned state need not retain the legacy contact key.
+            contact_id: null,
             status: "open",
             unread_count: 3,
           },
@@ -131,12 +132,14 @@ integration(
         conversationStatus: "open",
       });
       expect(open.contacts.map((row) => row.id)).toEqual([bridged]);
+      expect(open.total).toBe(1);
 
       // Unread reads the same two sides.
       const unread = await getContactsWithLastMessage(tenantDb, companyId, {
         unreadOnly: true,
       });
       expect(unread.contacts.map((row) => row.id)).toEqual([bridged]);
+      expect(unread.total).toBe(1);
 
       // And the contact with no conversation is still reachable by its own
       // state rather than vanishing from every filtered view.
@@ -144,6 +147,7 @@ integration(
         conversationStatus: "resolved",
       });
       expect(resolved.contacts.map((row) => row.id)).toEqual([unbridged]);
+      expect(resolved.total).toBe(1);
     } finally {
       clearTenantConnection(companyId);
       await sql
