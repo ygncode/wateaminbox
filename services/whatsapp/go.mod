@@ -16,6 +16,7 @@ require (
 	go.mau.fi/whatsmeow v0.0.0-20260813204424-197e61747d53
 	golang.org/x/sync v0.24.0
 	google.golang.org/protobuf v1.36.12
+	hegel.dev/go/hegel v0.9.28
 )
 
 require (
@@ -36,6 +37,7 @@ require (
 	github.com/aws/smithy-go v1.28.5 // indirect
 	github.com/beeper/argo-go v1.1.2 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
+	github.com/ebitengine/purego v0.12.0-alpha.1.0.20261015130536-d456b1bb95e8 // indirect
 	github.com/elliotchance/orderedmap/v3 v3.1.0 // indirect
 	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
