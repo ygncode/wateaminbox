@@ -5,7 +5,7 @@ go 1.26.10
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/lib/pq v1.12.3
-	github.com/nats-io/nats.go v1.54.0
+	github.com/nats-io/nats.go v1.55.0
 	github.com/stretchr/testify v1.12.1
 	github.com/ygncode-lab/whatsapp-web/services/shared v0.0.0
 )
