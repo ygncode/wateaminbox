@@ -135,7 +135,7 @@ memberRoutes.post(
   "/:id/transfer-ownership",
   authMiddleware,
   tenantFromParam("id", "owner"),
-  zValidator("json", z.object({ userId: z.string().uuid() })),
+  zValidator("json", z.object({ userId: z.string().guid() })),
   async (c) => {
     const companyId = c.get("companyId");
     const currentUser = c.get("user");

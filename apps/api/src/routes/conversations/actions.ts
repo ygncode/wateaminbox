@@ -19,7 +19,7 @@ import { requireSendAccess } from "../../services/send-access.service.js";
 const actionSchema = z
   .object({
     operation: z.enum(["edit", "delete", "reaction"]),
-    messageId: z.string().uuid(),
+    messageId: z.string().guid(),
     textContent: z.string().max(4096).optional(),
     emoji: z.string().min(1).max(32).optional(),
   })

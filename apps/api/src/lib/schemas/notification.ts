@@ -54,8 +54,8 @@ export type UpdatePreferencesInput = z.infer<typeof updatePreferencesSchema>;
 export const muteContactSchema = z
   .object({
     contactJid: z.string().trim().min(1).max(255).optional(),
-    conversationId: z.string().uuid().optional(),
-    contactId: z.string().uuid().optional(),
+    conversationId: z.string().guid().optional(),
+    contactId: z.string().guid().optional(),
   })
   .superRefine((value, ctx) => {
     const provided = [
@@ -90,7 +90,14 @@ const queryBooleanSchema = z
  */
 export const listNotificationsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
-  offset: z.coerce.number().int().min(0).optional().default(0),
+  // Preserve v3's integer contract without adding a safe-integer ceiling.
+  offset: z.coerce
+    .number()
+    .refine(Number.isInteger, "Expected integer, received float")
+    .meta({ type: "integer" })
+    .min(0)
+    .optional()
+    .default(0),
   unreadOnly: queryBooleanSchema.optional().default(false),
 });
 
@@ -114,7 +121,7 @@ export const createNotificationSchema = z.object({
       "Action URL contains invalid characters",
     )
     .optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type CreateNotificationInput = z.infer<typeof createNotificationSchema>;

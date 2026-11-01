@@ -1,5 +1,10 @@
 import { z } from "zod";
 import { messageTypeSchema, paginationSchema, uuidSchema } from "../schemas.js";
+import {
+  offsetDateTimeSchema,
+  utcDateTimeSchema,
+  urlStringSchema,
+} from "./string-contracts.js";
 
 /**
  * Message route validation schemas
@@ -16,7 +21,7 @@ export const sendMessageSchema = z.object({
   contactId: uuidSchema,
   content: z.string().optional(),
   messageType: messageTypeSchema.default("text"),
-  mediaUrl: z.string().url().optional(),
+  mediaUrl: urlStringSchema.optional(),
   mediaAlbum: z
     .object({
       id: z.string().regex(/^3EB0[0-9A-F]{18}$/),
@@ -80,9 +85,9 @@ export const scheduleMessageSchema = z
     conversationId: uuidSchema.optional(),
     content: z.string().max(65_536).optional(),
     messageType: z.enum(["text", ...SCHEDULABLE_MEDIA_TYPES]).default("text"),
-    mediaUrl: z.string().url().optional(),
+    mediaUrl: urlStringSchema.optional(),
     replyToMessageId: uuidSchema.optional(),
-    scheduledAt: z.string().datetime({ offset: true }),
+    scheduledAt: offsetDateTimeSchema,
   })
   .refine((value) => Boolean(value.contactId || value.conversationId), {
     message: "contactId or conversationId is required",
@@ -115,8 +120,8 @@ export type ListScheduledMessagesQuery = z.infer<
  */
 export const listMessagesQuerySchema = paginationSchema.extend({
   contactId: uuidSchema.optional(),
-  before: z.string().datetime().optional(),
-  after: z.string().datetime().optional(),
+  before: utcDateTimeSchema.optional(),
+  after: utcDateTimeSchema.optional(),
   starred: z
     .string()
     .optional()
@@ -149,7 +154,7 @@ const BATCH_LIMIT = 50;
  * Base schema for batch operations
  */
 const batchMessageIdsSchema = z
-  .array(z.string().uuid())
+  .array(z.string().guid())
   .min(1, "At least one message ID is required")
   .max(BATCH_LIMIT, `Maximum ${BATCH_LIMIT} messages per batch request`);
 
