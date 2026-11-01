@@ -4,17 +4,20 @@
  * Schemas for WhatsApp status updates (stories).
  */
 import { z } from "zod";
+import { urlStringSchema } from "./string-contracts.js";
 
 /**
  * Schema for posting a new status update
  */
 export const postStatusSchema = z.object({
   type: z.enum(["text", "image", "video"], {
-    required_error: "type is required",
-    invalid_type_error: "type must be 'text', 'image', or 'video'",
+    error: (issue) =>
+      issue.input === undefined
+        ? "type is required"
+        : "type must be 'text', 'image', or 'video'",
   }),
   content: z.string().optional(),
-  mediaUrl: z.string().url().optional(),
+  mediaUrl: urlStringSchema.optional(),
 }).refine(
   (data) => {
     // Text status requires content

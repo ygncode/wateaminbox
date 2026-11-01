@@ -9,7 +9,7 @@ export const inviteTeamMemberSchema = z.object({
     .min(1, "Email is required")
     .email("Please enter a valid email address"),
   role: z.enum(["admin", "member"], {
-    errorMap: () => ({ message: "Please select a valid role" }),
+    error: "Please select a valid role",
   }),
 });
 

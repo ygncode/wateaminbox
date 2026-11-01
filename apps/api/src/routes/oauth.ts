@@ -152,7 +152,7 @@ oauthRoutes.get(
 );
 
 const approveSchema = authorizeQuerySchema.extend({
-  companyId: z.string().uuid(),
+  companyId: z.string().guid(),
 });
 
 /**

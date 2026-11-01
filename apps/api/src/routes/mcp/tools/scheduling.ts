@@ -1,6 +1,7 @@
 import { getContactDisplayName, toDbDate } from "@wateaminbox/shared";
 import { sql } from "kysely";
 import { z } from "zod";
+import { offsetDateTimeSchema } from "../../../lib/schemas/string-contracts.js";
 import {
   rateLimitConfig,
   rateLimitStore,
@@ -41,7 +42,7 @@ export const schedulingTools: McpToolDefinition[] = [
         .describe("International phone number; leading + or 00 accepted"),
       connectionId: z
         .string()
-        .uuid()
+        .guid()
         .optional()
         .describe("Required when multiple WhatsApp accounts are connected"),
       customName: z.string().trim().max(255).optional(),
@@ -83,16 +84,15 @@ export const schedulingTools: McpToolDefinition[] = [
     scope: "write",
     permission: "can_send_messages",
     inputSchema: {
-      contactId: z.string().uuid().optional(),
-      conversationId: z.string().uuid().optional(),
+      contactId: z.string().guid().optional(),
+      conversationId: z.string().guid().optional(),
       content: z.string().trim().min(1).max(65536),
-      scheduledAt: z
-        .string()
-        .datetime({ offset: true })
-        .describe("ISO datetime with timezone, 30 seconds to one year ahead"),
+      scheduledAt: offsetDateTimeSchema.describe(
+        "ISO datetime with timezone, 30 seconds to one year ahead",
+      ),
       scheduledMessageId: z
         .string()
-        .uuid()
+        .guid()
         .describe(
           "Client-generated UUID; reuse unchanged for retries of this message",
         ),

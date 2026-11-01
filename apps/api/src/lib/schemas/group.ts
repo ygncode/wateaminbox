@@ -24,9 +24,15 @@ import { z } from "zod";
  */
 export const listGroupsQuerySchema = z.object({
   search: z.string().optional(),
-  connectionId: z.string().uuid().optional(),
+  connectionId: z.string().guid().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  // Preserve v3's integer contract without adding a safe-integer ceiling.
+  offset: z.coerce
+    .number()
+    .refine(Number.isInteger, "Expected integer, received float")
+    .meta({ type: "integer" })
+    .min(0)
+    .default(0),
 });
 
 export type ListGroupsQuery = z.infer<typeof listGroupsQuerySchema>;
@@ -79,7 +85,7 @@ export const participantJidsSchema = z
  * that reason.
  */
 export const createGroupSchema = z.object({
-  connectionId: z.string().uuid(),
+  connectionId: z.string().guid(),
   name: z
     .string()
     .trim()

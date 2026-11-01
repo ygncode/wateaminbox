@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { urlStringSchema } from "./string-contracts.js";
 
 /**
  * Schema for sending a WhatsApp message
@@ -15,7 +16,7 @@ export const sendMessageSchema = z.object({
   messageType: z
     .enum(["text", "image", "video", "audio", "document", "sticker"])
     .default("text"),
-  mediaUrl: z.string().url().optional(),
+  mediaUrl: urlStringSchema.optional(),
 });
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
