@@ -20,9 +20,12 @@ const total = Number(params.get("total") ?? 10000);
 const channelTotal = Number(params.get("channels") ?? 0);
 const delayMs = Number(params.get("delay") ?? 40);
 const sparseUnread = params.get("sparseUnread") === "1";
+const sparseAccount = params.get("sparseAccount") === "1";
 const workspaceId = "00000000-0000-4000-8000-000000000001";
 const accountId = "00000000-0000-4000-8000-000000000002";
 const channelId = "00000000-0000-4000-8000-000000000003";
+const sparseChannelId = "00000000-0000-4000-8000-000000000004";
+const emptyChannelId = "00000000-0000-4000-8000-000000000005";
 const connection = {
   id: accountId,
   name: "Synthetic WhatsApp",
@@ -33,6 +36,8 @@ const baseTime = Date.now();
 type RequestMetric = {
   endpoint: string;
   offset: number;
+  channelAccountId: string | null;
+  connectionId: string | null;
   started: number;
   elapsedMs?: number;
   bytes?: number;
@@ -93,7 +98,7 @@ function contact(index: number) {
 function channel(index: number) {
   return {
     id: `channel-${index}`,
-    channelAccountId: channelId,
+    channelAccountId: index >= channelTotal ? sparseChannelId : channelId,
     channel: "telegram",
     provider: "telegram_bot",
     kind: "direct",
@@ -136,6 +141,8 @@ const syntheticFetch = async (
   const metric: RequestMetric = {
     endpoint,
     offset,
+    channelAccountId: url.searchParams.get("channelAccountId"),
+    connectionId: url.searchParams.get("connectionId"),
     started: performance.now(),
   };
   requests.push(metric);
@@ -195,32 +202,66 @@ const syntheticFetch = async (
               displayName: "Synthetic Telegram",
               status: "connected",
             },
+            ...(sparseAccount
+              ? [
+                  {
+                    id: sparseChannelId,
+                    channel: "telegram",
+                    provider: "telegram_bot",
+                    displayName: "Sparse Telegram",
+                    status: "connected",
+                  },
+                  {
+                    id: emptyChannelId,
+                    channel: "telegram",
+                    provider: "telegram_bot",
+                    displayName: "Empty Telegram",
+                    status: "connected",
+                  },
+                ]
+              : []),
           ]
         : [];
       break;
     case "tags":
       body = { data: [], pagination: { total: 0, hasMore: false } };
       break;
-    case "conversations":
+    case "conversations": {
+      const selected = url.searchParams.get("channelAccountId");
+      const matching = selected
+        ? selected === channelId
+          ? channelTotal
+          : selected === sparseChannelId && sparseAccount
+            ? 2
+            : 0
+        : channelTotal + (sparseAccount ? 2 : 0);
+      const start = selected === sparseChannelId ? channelTotal : 0;
       body = {
         data: Array.from(
           {
             length:
               url.searchParams.get("unreadOnly") === "true"
                 ? 0
-                : Math.max(0, Math.min(limit, channelTotal - offset)),
+                : Math.max(0, Math.min(limit, matching - offset)),
           },
-          (_, i) => channel(offset + i),
+          (_, i) => channel(start + offset + i),
         ),
       };
       break;
+    }
     case "contacts": {
       const unreadOnly = url.searchParams.get("unreadOnly") === "true";
-      const matching = unreadOnly
-        ? sparseUnread
-          ? Math.min(10, total)
-          : Math.ceil(total / 10)
-        : total;
+      const selected =
+        url.searchParams.get("channelAccountId") ??
+        url.searchParams.get("connectionId");
+      const matching =
+        selected && selected !== accountId
+          ? 0
+          : unreadOnly
+            ? sparseUnread
+              ? Math.min(10, total)
+              : Math.ceil(total / 10)
+            : total;
       body = {
         data: Array.from(
           { length: Math.max(0, Math.min(limit, matching - offset)) },
@@ -277,6 +318,7 @@ function snapshot() {
       | undefined;
     return {
       key: query.queryKey,
+      active: query.isActive(),
       pages: data?.pages?.length ?? 0,
       firstOffset: data?.pageParams?.[0] ?? 0,
       endOffset:

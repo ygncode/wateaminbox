@@ -1055,6 +1055,259 @@ describe("Inbox lateral-join query", () => {
   );
 
   integrationTest(
+    "account scopes filter both sources before pagination and retain merged customers",
+    async () => {
+      await withTenantFixture(
+        async ({ companyId, userId, headers, tenantDb }) => {
+          await db
+            .insertInto("channel_spine_workspace_flags")
+            .values({
+              company_id: companyId,
+              neutral_reads_enabled: true,
+              neutral_read_revision: "account-filter-test",
+              revision: "1",
+              created_by: userId,
+              updated_by: userId,
+            })
+            .execute();
+          const wa = crypto.randomUUID();
+          const telegram = crypto.randomUUID();
+          const otherAccount = crypto.randomUUID();
+          await tenantDb
+            .insertInto("whatsapp_connections")
+            .values({ id: wa, name: "Phone" })
+            .execute();
+          await tenantDb
+            .insertInto("channel_accounts")
+            .values([
+              {
+                id: wa,
+                channel: "whatsapp",
+                provider: "whatsapp_linked_device",
+                status: "connected",
+                legacy_whatsapp_connection_id: wa,
+              },
+              {
+                id: telegram,
+                channel: "telegram",
+                provider: "telegram_bot",
+                status: "connected",
+              },
+              {
+                id: otherAccount,
+                channel: "telegram",
+                provider: "telegram_bot",
+                status: "connected",
+              },
+            ])
+            .execute();
+          const survivor = await insertContact(tenantDb, {
+            whatsapp_connection_id: wa,
+          });
+          const merged = await insertContact(tenantDb, {
+            jid: null,
+            merged_into_contact_id: survivor,
+          });
+          const direct = await insertContact(tenantDb, { jid: null });
+          const fallback = await insertContact(tenantDb, {
+            whatsapp_connection_id: wa,
+          });
+          // Exercise the opposite merge direction as well: a Telegram survivor
+          // must remain reachable from its merged WhatsApp connection.
+          await insertContact(tenantDb, {
+            whatsapp_connection_id: wa,
+            merged_into_contact_id: direct,
+          });
+          const archivedContact = await insertContact(tenantDb, { jid: null });
+          const unrelated = await insertContact(tenantDb, { jid: null });
+          const directConversation = crypto.randomUUID();
+          const neutralConversation = crypto.randomUUID();
+          const mergedConversation = crypto.randomUUID();
+          const conversations = [
+            {
+              id: directConversation,
+              channel_account_id: telegram,
+              legacy_contact_id: direct,
+              archived_at: null,
+            },
+            {
+              id: neutralConversation,
+              channel_account_id: telegram,
+              legacy_contact_id: null,
+              archived_at: null,
+            },
+            {
+              id: mergedConversation,
+              channel_account_id: telegram,
+              legacy_contact_id: merged,
+              archived_at: null,
+            },
+            {
+              id: crypto.randomUUID(),
+              channel_account_id: telegram,
+              legacy_contact_id: archivedContact,
+              archived_at: new Date(),
+            },
+            {
+              id: crypto.randomUUID(),
+              channel_account_id: wa,
+              legacy_contact_id: survivor,
+              archived_at: null,
+            },
+            ...Array.from({ length: 105 }, (_, i) => ({
+              id: crypto.randomUUID(),
+              channel_account_id: otherAccount,
+              legacy_contact_id: i === 0 ? unrelated : null,
+              archived_at: null,
+            })),
+          ];
+          await tenantDb
+            .insertInto("conversations")
+            .values(
+              conversations.map((row) => ({
+                ...row,
+                kind: "direct" as const,
+                external_thread_id: row.id,
+                client_thread_key: row.id,
+                last_message_at: new Date(
+                  row.channel_account_id === otherAccount
+                    ? "2026-02-01"
+                    : "2026-01-01",
+                ),
+              })),
+            )
+            .execute();
+          const contacts = async (params: Record<string, string>) => {
+            const response = await getContacts(headers, {
+              conversationStatus: "all",
+              ...params,
+            });
+            expect(response.status).toBe(200);
+            return (await response.json()) as {
+              data: { id: string; accountIds: string[] }[];
+              pagination: { total: number; hasMore: boolean };
+            };
+          };
+          const channels = async (account: string, offset = 0, extras = "") => {
+            const response = await app.request(
+              `/api/conversations?channelAccountId=${account}&limit=1&offset=${offset}${extras}`,
+              { headers },
+            );
+            expect(response.status).toBe(200);
+            return (
+              (await response.json()) as { data: { id: string }[] }
+            ).data.map((row) => row.id);
+          };
+          const seen: string[] = [];
+          for (const offset of [0, 1, 2]) {
+            const page = await contacts({
+              channelAccountId: telegram,
+              limit: "1",
+              offset: String(offset),
+            });
+            expect(page.pagination).toMatchObject({
+              total: 2,
+              hasMore: offset === 0,
+            });
+            expect(page.data).toHaveLength(offset < 2 ? 1 : 0);
+            for (const row of page.data) {
+              expect(row.accountIds).toContain(telegram);
+              seen.push(row.id);
+            }
+          }
+          expect(seen.sort()).toEqual([survivor, direct].sort());
+          const channelIds = [
+            ...(await channels(telegram)),
+            ...(await channels(telegram, 1)),
+          ];
+          expect(channelIds.sort()).toEqual(
+            [directConversation, neutralConversation].sort(),
+          );
+          expect(await channels(telegram, 2)).toEqual([]);
+          // Unbridged legacy WhatsApp and merged WhatsApp threads remain reachable.
+          const waRows = await contacts({ connectionId: wa });
+          expect(waRows.data.map((row) => row.id).sort()).toEqual(
+            [survivor, direct, fallback].sort(),
+          );
+          expect(waRows.pagination.total).toBe(3);
+          expect(await channels(wa)).toEqual([]); // linked-device mirrors excluded
+          const missingAccount = crypto.randomUUID();
+          expect(
+            (await contacts({ channelAccountId: missingAccount })).pagination
+              .total,
+          ).toBe(0);
+          expect(await channels(missingAccount)).toEqual([]);
+          // Account scope composes with tags and unread, rather than bypassing them.
+          expect(
+            (await contacts({ channelAccountId: telegram, unreadOnly: "true" }))
+              .pagination.total,
+          ).toBe(0);
+          expect(await channels(telegram, 0, "&unreadOnly=true")).toEqual([]);
+          const tag = crypto.randomUUID();
+          await tenantDb
+            .insertInto("tags")
+            .values({ id: tag, name: "Scoped" })
+            .execute();
+          await tenantDb
+            .insertInto("contact_tags")
+            .values({ contact_id: survivor, tag_id: tag })
+            .execute();
+          await tenantDb
+            .insertInto("conversation_tags")
+            .values({ conversation_id: neutralConversation, tag_id: tag })
+            .execute();
+          expect(
+            (
+              await contacts({ channelAccountId: telegram, tagIds: tag })
+            ).data.map((row) => row.id),
+          ).toEqual([survivor]);
+          expect(await channels(telegram, 0, `&tagIds=${tag}`)).toEqual([
+            neutralConversation,
+          ]);
+          await tenantDb
+            .insertInto("contact_assignments")
+            .values([
+              { contact_id: merged, assigned_to: userId, assigned_by: userId },
+              {
+                conversation_id: neutralConversation,
+                assigned_to: userId,
+                assigned_by: userId,
+              },
+            ])
+            .execute();
+          await db
+            .updateTable("company_members")
+            .set({ role: "member", permissions: { can_view_all_chats: false } })
+            .where("company_id", "=", companyId)
+            .where("user_id", "=", userId)
+            .execute();
+          invalidateCompanyMembership(companyId);
+          const restricted = await contacts({ channelAccountId: telegram });
+          expect(restricted.data.map((row) => row.id)).toEqual([survivor]);
+          expect(restricted.pagination.total).toBe(1);
+          expect(await channels(telegram)).toEqual([neutralConversation]);
+          for (const endpoint of ["contacts", "conversations"]) {
+            expect(
+              (
+                await app.request(
+                  `/api/${endpoint}?channelAccountId=${telegram}`,
+                  {
+                    headers: {
+                      ...headers,
+                      "x-company-id": crypto.randomUUID(),
+                    },
+                  },
+                )
+              ).status,
+            ).toBe(403);
+          }
+        },
+      );
+    },
+    30_000,
+  );
+
+  integrationTest(
     "connectionId filter scopes results to one WhatsApp account",
     async () => {
       await withTenantFixture(async ({ headers, tenantDb }) => {

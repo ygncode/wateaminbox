@@ -83,6 +83,7 @@ describe("pending contact list reads", () => {
     { offset: 1 },
     { includeGroups: true },
     { connectionId: "account-a" },
+    { channelAccountId: "channel-a" },
     { tagIds: ["tag-a"] },
     { conversationStatus: "open" },
     { unreadOnly: true },

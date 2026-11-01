@@ -25,6 +25,8 @@ export interface GetContactsWithLastMessageOptions {
   includeGroups?: boolean;
   /** Filter to conversations owned by one WhatsApp account. */
   connectionId?: string;
+  /** Match any account represented by this customer, including merged threads. */
+  channelAccountId?: string;
   /** Match contacts carrying at least one selected workspace tag. */
   tagIds?: string[];
   /** Filter to contacts assigned to the current user */
@@ -200,6 +202,7 @@ async function queryContactPage(
     offset = 0,
     includeGroups = false,
     connectionId,
+    channelAccountId,
     tagIds,
     assignedToMe = false,
     unassigned = false,
@@ -222,6 +225,7 @@ async function queryContactPage(
       search,
       includeGroups,
       connectionId,
+      channelAccountId,
       tagIds,
       contactTagsTable: sql.table(`${schemaName}.contact_tags`),
       contactsTable: sql.table(`${schemaName}.contacts`),
@@ -483,6 +487,12 @@ async function queryContactPage(
     countQuery = countQuery.where(
       sql<SqlBool>`(contacts.whatsapp_connection_id = ${connectionId}
         OR ${mergedGroup(sql`mc.whatsapp_connection_id = ${connectionId}`)})`,
+    );
+  }
+  if (channelAccountId) {
+    countQuery = countQuery.where(
+      sql<SqlBool>`(COALESCE(conv.channel_account_id, contacts.whatsapp_connection_id) = ${channelAccountId}
+        OR ${mergedGroup(sql`COALESCE(mconv.channel_account_id, mc.whatsapp_connection_id) = ${channelAccountId}`)})`,
     );
   }
   if (search) {

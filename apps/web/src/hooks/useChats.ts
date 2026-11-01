@@ -43,6 +43,7 @@ interface ChatListFilters {
   includeGroups?: boolean;
   assignmentFilter?: AssignmentFilter;
   connectionId?: string;
+  channelAccountId?: string;
   conversationStatus?: ConversationStatusFilter;
   tagIds?: readonly string[];
   headOnly?: boolean;
@@ -76,12 +77,14 @@ export function buildChatListQueryParams(
   conversationStatus: ConversationStatusFilter = "open",
   tagIds: readonly string[] = [],
   offset?: number,
+  channelAccountId?: string,
 ): Record<string, unknown> {
   const params: Record<string, unknown> = { limit: CHAT_PAGE_SIZE };
   if (offset !== undefined) params.offset = offset;
   if (searchQuery.trim()) params.search = searchQuery;
   if (includeGroups) params.includeGroups = "true";
   if (connectionId) params.connectionId = connectionId;
+  if (channelAccountId) params.channelAccountId = channelAccountId;
   if (tagIds.length > 0) params.tagIds = tagIds.join(",");
   if (assignmentFilter === "assignedToMe") {
     params.assignedToMe = "true";
@@ -120,6 +123,7 @@ export function chatListQueryOptions(
   connectionId?: string,
   conversationStatus: ConversationStatusFilter = "open",
   tagIds: readonly string[] = [],
+  channelAccountId?: string,
 ) {
   const companyId = getCompanyId();
 
@@ -129,6 +133,7 @@ export function chatListQueryOptions(
       includeGroups,
       assignmentFilter,
       connectionId,
+      channelAccountId,
       conversationStatus,
       tagIds,
     }),
@@ -161,6 +166,7 @@ export function chatListQueryOptions(
           conversationStatus,
           tagIds,
           pageParam,
+          channelAccountId,
         ),
       );
       const result = await fetchApi<ContactsListResponse>(
@@ -193,6 +199,7 @@ export function useChats(
   connectionId?: string,
   conversationStatus: ConversationStatusFilter = "open",
   tagIds: readonly string[] = [],
+  channelAccountId?: string,
 ) {
   return useInfiniteQuery(
     chatListQueryOptions(
@@ -202,6 +209,7 @@ export function useChats(
       connectionId,
       conversationStatus,
       tagIds,
+      channelAccountId,
     ),
   );
 }
