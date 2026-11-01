@@ -90,3 +90,6 @@ bun.lockb
 .loop/
 .worktrees/
 tasks.md
+
+# Hegel property-test example database
+.hegel/
