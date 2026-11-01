@@ -12,9 +12,9 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1155.0",
-    "@aws-sdk/s3-request-presigner": "^3.1155.0",
-    "@hono/mcp": "^0.3.2",
+    "@aws-sdk/client-s3": "^3.1159.0",
+    "@aws-sdk/s3-request-presigner": "^3.1159.0",
+    "@hono/mcp": "^0.3.5",
     "@hono/zod-validator": "^0.9.1",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@wateaminbox/adapter-telegram": "workspace:*",
