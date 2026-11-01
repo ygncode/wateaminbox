@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"hegel.dev/go/hegel"
 )
 
 func TestPrivateObjectReferenceIsNotHTTPDownloadURL(t *testing.T) {
@@ -50,6 +51,47 @@ func TestMediaKeyInputsStayInsideTenantPrefix(t *testing.T) {
 	assert.NotContains(t, key, "..")
 	assert.NotContains(t, key, "\r")
 	assert.NotContains(t, key, "\n")
+}
+
+// anyFilename covers full Unicode and byte strings that are not valid UTF-8.
+var anyFilename = hegel.OneOf(
+	hegel.Text(),
+	hegel.Map(hegel.Binary(0, -1), func(b []byte) string { return string(b) }),
+)
+
+func TestSanitizeFilenameReturnsOneSafePathSegment(t *testing.T) {
+	hegel.Test(t, func(ht *hegel.T) {
+		input := hegel.Draw(ht, anyFilename)
+		got := sanitizeFilename(input)
+
+		if got == "" || strings.Contains(got, "..") || strings.HasPrefix(got, ".") || strings.HasSuffix(got, ".") {
+			ht.Fatalf("sanitizeFilename(%q) = %q is not a safe segment", input, got)
+		}
+		if strings.IndexFunc(got, func(r rune) bool {
+			return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("._-", r))
+		}) >= 0 {
+			ht.Fatalf("sanitizeFilename(%q) = %q contains a disallowed character", input, got)
+		}
+	})
+}
+
+func TestSanitizeFilenameIsIdempotent(t *testing.T) {
+	hegel.Test(t, func(ht *hegel.T) {
+		once := sanitizeFilename(hegel.Draw(ht, anyFilename))
+		if twice := sanitizeFilename(once); twice != once {
+			ht.Fatalf("sanitizeFilename(%q) = %q, want it unchanged", once, twice)
+		}
+	})
+}
+
+func TestSanitizeFilenameKeepsAlreadySafeNames(t *testing.T) {
+	hegel.Test(t, func(ht *hegel.T) {
+		name := hegel.Draw(ht, hegel.Text().
+			Alphabet("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-").MinSize(1))
+		if got := sanitizeFilename(name); got != name {
+			ht.Fatalf("sanitizeFilename(%q) = %q, want the safe name unchanged", name, got)
+		}
+	})
 }
 
 // capturedPut records what the fake S3 received on the last PUT request.
@@ -155,8 +197,6 @@ func TestUploadMediaWithFilenameStoresContentTypeAndDisposition(t *testing.T) {
 	defer server.Close()
 	client := newFakeClient(t, server)
 
-	// "file.pdf" avoids the unrelated pre-existing sanitizeFilename defect
-	// that mangles literal 'r'/'n' inside filenames.
 	const want = "application/pdf"
 	ref, err := client.UploadMediaWithFilename(context.Background(), []byte("doc"), want, "company-a", "file.pdf")
 	require.NoError(t, err)
