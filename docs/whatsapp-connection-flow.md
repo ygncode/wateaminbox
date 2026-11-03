@@ -36,6 +36,53 @@ lifecycle. Its durable consumer retains commands published while it is
 offline. The API resolves every worker session event back to its stable account
 before writing inbox data.
 
+## Automatic recovery and unstable sessions
+
+A paired worker owns one coalescing reconnect loop. Ordinary whatsmeow automatic
+retries are disabled so a second loop cannot bypass the worker's cooldown; the
+library's special post-pairing `515` exchange remains enabled. Sustained keepalive
+failure still resets the stalled socket and enters the same recovery path.
+
+- Retries wait approximately 2, 4, 8, 16, then 30 seconds, with ±10% jitter.
+  After five minutes of unresolved instability, the delay becomes two minutes.
+- A brief authenticated session does **not** reset this history. The next
+  disconnect resets the budget only after at least five uninterrupted minutes
+  of authenticated connection. The budget is process-local, not persisted.
+- Socket establishment and QR pairing success alone are not readiness. Only an
+  authenticated `Connected` event marks the session usable. Recovery waits for
+  that event or another disconnect; this is not a new handshake watchdog.
+- Logout, stream replacement, bans, outdated clients, and terminal authentication
+  failures stop automatic recovery. They must not cause re-pairing or credential
+  deletion outside the existing explicit/vendor logout flows.
+
+Bootstrap work is scoped to the authenticated session. Duplicate `Connected`
+events do not start duplicate scans; disconnect, terminal events, and worker
+shutdown cancel outstanding work. Cancellation occurs at client observation,
+without waiting for an older lifecycle handler or status publish to finish.
+Lifecycle delivery is generation-checked and serialized; message processing is
+not. These generations order observed transitions, not vendor socket identities.
+A replacement scan waits for any previous in-flight call to finish instead of
+overlapping it.
+
+Availability and live message processing remain immediate. Restoring presence
+for the entire contact list waits for a continuously connected minute; presence
+for a live message's sender is still subscribed immediately. Once a full cached
+contact-name scan succeeds, reconnect alone does not repeat it: durable cached
+names do not change merely because the transport reconnects. Actual app-state
+and history updates still request coalesced repair, retaining the history store's
+persistence grace period across reconnects. Successful joined-group scans have a
+five-minute reconnect cooldown; ordinary failed scans retry after a minute.
+Explicit `429 rate-overlimit` responses impose at least a five-minute cooldown
+that survives reconnects, and stop a broad presence scan instead of continuing
+through the remaining contacts. The heavier group LID directory repair retains
+its existing once-per-worker bound.
+
+These safeguards reduce retry and synchronization amplification. They do not
+establish why WhatsApp sent a `503`, guarantee an upstream recovery time, or
+eliminate every transport disconnection. During continuous flapping, broad
+presence restoration can remain deferred; an already-started non-cancellable
+publish may finish after its session closes.
+
 ## Disconnect, archive, and deletion
 
 - **Disconnect** stops the worker but retains the session credentials and stable
@@ -111,5 +158,7 @@ maintenance operation with a dry run.
 | Connection service | `apps/api/src/services/whatsapp/connection.ts` |
 | Orchestrator manager | `services/orchestrator/internal/manager/manager.go` |
 | Worker client | `services/whatsapp/internal/client/client.go` |
+| Reconnect policy | `services/whatsapp/internal/client/reconnect.go` |
+| Session bootstrap | `services/whatsapp/internal/handler/bootstrap.go` |
 | API event handlers | `apps/api/src/services/handlers/connection-handlers.ts` |
 | React connection hooks | `apps/web/src/hooks/whatsapp/` |

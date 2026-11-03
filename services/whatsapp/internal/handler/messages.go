@@ -18,6 +18,10 @@ import (
 // whatsmeow has already persisted the mapping, so checking only the event's Alt
 // field creates a second conversation for the same person.
 func (h *Handler) resolvePreferredJID(primary, alternative types.JID) types.JID {
+	return h.resolvePreferredJIDContext(context.Background(), primary, alternative)
+}
+
+func (h *Handler) resolvePreferredJIDContext(parent context.Context, primary, alternative types.JID) types.JID {
 	if primary.Server != types.HiddenUserServer && primary.Server != types.HostedLIDServer {
 		return primary.ToNonAD()
 	}
@@ -28,7 +32,7 @@ func (h *Handler) resolvePreferredJID(primary, alternative types.JID) types.JID 
 	if h.config.Client != nil {
 		client := h.config.Client.GetClient()
 		if client != nil && client.Store != nil && client.Store.LIDs != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			ctx, cancel := context.WithTimeout(parent, 2*time.Second)
 			defer cancel()
 
 			// Live-message mappings retain the device suffix, so resolve the full
