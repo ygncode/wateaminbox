@@ -10,7 +10,6 @@ import (
 )
 
 const (
-	bootstrapStableInterval = time.Minute
 	bootstrapRepairCooldown = 5 * time.Minute
 	bootstrapRetryInterval  = time.Minute
 )
@@ -20,8 +19,7 @@ var errBootstrapNotReady = errors.New("bootstrap prerequisites unavailable")
 type bootstrapKind int
 
 const (
-	bootstrapPresence bootstrapKind = iota
-	bootstrapContacts
+	bootstrapContacts bootstrapKind = iota
 	bootstrapGroups
 	bootstrapJobCount
 )
@@ -44,12 +42,10 @@ type connectionBootstrap struct {
 	mu                sync.Mutex
 	ctx               context.Context
 	cancel            context.CancelFunc
-	started           time.Time
 	contactsRequested bool
 	contactRepairDue  time.Time // retain event-driven repair across session cancellation
 	jobs              [bootstrapJobCount]bootstrapJob
 	// Immutable after first use. Tests shorten real timers and replace only I/O.
-	stableInterval time.Duration
 	repairCooldown time.Duration
 	retryInterval  time.Duration
 	run            func(context.Context, bootstrapKind) error
@@ -63,7 +59,7 @@ func bootstrapDuration(value, fallback time.Duration) time.Duration {
 }
 
 // beginBootstrap reserves the session before doing any connected work. Duplicate
-// Connected events neither reset the stability timer nor start more workers.
+// Connected events do not start more workers.
 func (h *Handler) beginBootstrap() (context.Context, bool) {
 	b := &h.bootstrap
 	b.mu.Lock()
@@ -92,7 +88,6 @@ func (h *Handler) beginBootstrap() (context.Context, bool) {
 		}
 	}
 	b.ctx, b.cancel = context.WithCancel(parent)
-	b.started = time.Now()
 	b.contactsRequested = false
 	return b.ctx, true
 }
@@ -117,7 +112,8 @@ func (h *Handler) startBootstrap(ctx context.Context) {
 	if b.ctx != ctx || ctx.Err() != nil {
 		return
 	}
-	for kind := bootstrapPresence; kind < bootstrapJobCount; kind++ {
+	// Presence is demand-driven by live messages, never an address-book scan.
+	for kind := bootstrapContacts; kind < bootstrapJobCount; kind++ {
 		// A reconnect does not change the durable name cache. Once a complete
 		// scan has been queued successfully, only actual app-state/history
 		// updates need another scan. Periodic reconnect replay can outproduce
@@ -126,9 +122,6 @@ func (h *Handler) startBootstrap(ctx context.Context) {
 			continue
 		}
 		notBefore := time.Now()
-		if kind == bootstrapPresence {
-			notBefore = b.started.Add(bootstrapDuration(b.stableInterval, bootstrapStableInterval))
-		}
 		// Preserve a cache-sync notification received during initial availability.
 		if kind != bootstrapContacts || !b.contactsRequested {
 			request := &bootstrapRequest{ctx: ctx, notBefore: notBefore}
@@ -196,7 +189,7 @@ func (h *Handler) runBootstrapJob(kind bootstrapKind) {
 		if job.retryNotBefore.After(due) {
 			due = job.retryNotBefore
 		}
-		if kind != bootstrapPresence && !request.force {
+		if !request.force {
 			cooldown := job.lastSuccess.Add(bootstrapDuration(b.repairCooldown, bootstrapRepairCooldown))
 			if cooldown.After(due) {
 				due = cooldown
@@ -268,27 +261,11 @@ func mergeBootstrapRequest(latest, previous *bootstrapRequest) {
 	}
 }
 
-func waitForBootstrap(ctx context.Context, delay time.Duration) error {
-	if err := ctx.Err(); err != nil || delay <= 0 {
-		return err
-	}
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return ctx.Err()
-	}
-}
-
 func (h *Handler) runBootstrap(ctx context.Context, kind bootstrapKind) error {
 	if h.bootstrap.run != nil {
 		return h.bootstrap.run(ctx, kind)
 	}
 	switch kind {
-	case bootstrapPresence:
-		return h.subscribeToKnownContacts(ctx)
 	case bootstrapContacts:
 		return h.syncKnownContactNames(ctx)
 	default:

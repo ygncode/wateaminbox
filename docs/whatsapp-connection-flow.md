@@ -64,23 +64,23 @@ not. These generations order observed transitions, not vendor socket identities.
 A replacement scan waits for any previous in-flight call to finish instead of
 overlapping it.
 
-Availability and live message processing remain immediate. Restoring presence
-for the entire contact list waits for a continuously connected minute; presence
-for a live message's sender is still subscribed immediately. Once a full cached
+Availability and live message processing remain immediate. Presence subscriptions
+are demand-driven by live messages: connecting, reconnecting, and importing history
+never subscribe the whole address book. Inactive contacts may therefore lack fresh
+online/last-seen updates until live activity; receiving presence/typing events and
+sending our own availability remain unchanged. Once a full cached
 contact-name scan succeeds, reconnect alone does not repeat it: durable cached
 names do not change merely because the transport reconnects. Actual app-state
 and history updates still request coalesced repair, retaining the history store's
 persistence grace period across reconnects. Successful joined-group scans have a
 five-minute reconnect cooldown; ordinary failed scans retry after a minute.
 Explicit `429 rate-overlimit` responses impose at least a five-minute cooldown
-that survives reconnects, and stop a broad presence scan instead of continuing
-through the remaining contacts. The heavier group LID directory repair retains
+that survives reconnects. The heavier group LID directory repair retains
 its existing once-per-worker bound.
 
 These safeguards reduce retry and synchronization amplification. They do not
 establish why WhatsApp sent a `503`, guarantee an upstream recovery time, or
-eliminate every transport disconnection. During continuous flapping, broad
-presence restoration can remain deferred; an already-started non-cancellable
+eliminate every transport disconnection. An already-started non-cancellable
 publish may finish after its session closes.
 
 ## Disconnect, archive, and deletion
