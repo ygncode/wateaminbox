@@ -6,7 +6,6 @@ import (
 	"log"
 	"time"
 
-	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
@@ -379,76 +378,6 @@ func (h *Handler) isSelfLeaving(evt *events.GroupInfo) bool {
 		}
 	}
 	return false
-}
-
-// subscribeToKnownContacts restores presence subscriptions after a connection
-// is established. The contacts store survives worker restarts, while server
-// subscriptions do not.
-func (h *Handler) subscribeToKnownContacts(parent context.Context) error {
-	if h.config.Client == nil {
-		return errBootstrapNotReady
-	}
-	client := h.config.Client.GetClient()
-	if client == nil || client.Store == nil || client.Store.Contacts == nil {
-		return errBootstrapNotReady
-	}
-
-	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
-	defer cancel()
-
-	contacts, err := client.Store.Contacts.GetAllContacts(ctx)
-	if err != nil {
-		log.Printf("Failed to load contacts for presence subscriptions: %v", err)
-		return err
-	}
-
-	ownJID := types.EmptyJID
-	if client.Store.ID != nil {
-		ownJID = client.Store.ID.ToNonAD()
-	}
-
-	seen := make(map[string]struct{}, len(contacts))
-	subscribed := 0
-	for jid := range contacts {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		resolved := h.resolvePreferredJIDContext(ctx, jid, types.EmptyJID)
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if resolved.Server != types.DefaultUserServer || resolved.User == "" || resolved == ownJID {
-			continue
-		}
-
-		key := resolved.String()
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-
-		if err := h.config.Client.SubscribePresence(ctx, resolved); err != nil {
-			if errors.Is(err, whatsmeow.ErrIQRateOverLimit) {
-				return err // Cool down the whole scan, not just this contact.
-			}
-			log.Printf("Failed to restore presence subscription for %s: %v", key, err)
-		} else {
-			subscribed++
-		}
-
-		// Avoid sending a large contact list as a burst to WhatsApp.
-		if err := waitForBootstrap(ctx, 25*time.Millisecond); err != nil {
-			log.Printf("Presence subscription restore stopped after %d contacts: %v", subscribed, err)
-			return err
-		}
-	}
-
-	log.Printf("Restored presence subscriptions for %d contacts", subscribed)
-	// Individual subscriptions are best-effort (e.g. privacy restrictions).
-	// One permanently denied contact must not cause full scans every minute.
-	// Live messages still subscribe their sender, and each new stable session
-	// restores the full set again. Store failures above remain retryable.
-	return ctx.Err()
 }
 
 // handleDisconnected is called when connection is lost.

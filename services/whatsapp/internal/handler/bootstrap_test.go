@@ -25,7 +25,6 @@ func bootstrapTestHandler(t *testing.T) (*Handler, context.CancelFunc) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	h := New(Config{Ctx: ctx})
-	h.bootstrap.stableInterval = 40 * time.Millisecond
 	h.bootstrap.repairCooldown = time.Hour
 	h.bootstrap.retryInterval = 20 * time.Millisecond
 	t.Cleanup(func() {
@@ -65,9 +64,8 @@ func nextBootstrapCall(t *testing.T, calls <-chan bootstrapCall) bootstrapCall {
 	}
 }
 
-func TestBootstrapStablePresenceAndDuplicateConnected(t *testing.T) {
+func TestBootstrapDuplicateConnectedDoesNotRepeatRepairs(t *testing.T) {
 	h, _ := bootstrapTestHandler(t)
-	h.bootstrap.stableInterval = 120 * time.Millisecond
 	var calls [bootstrapJobCount]atomic.Int32
 	client := &bootstrapClient{}
 	h.config.Client = client
@@ -86,18 +84,11 @@ func TestBootstrapStablePresenceAndDuplicateConnected(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return calls[bootstrapContacts].Load() == 1 && calls[bootstrapGroups].Load() == 1
 	}, time.Second, time.Millisecond)
-	require.Zero(t, calls[bootstrapPresence].Load())
-	h.HandleEvent(&events.Disconnected{})
-	waitBootstrapIdle(t, h)
-	require.Zero(t, calls[bootstrapPresence].Load(), "short sessions must not restore broad presence")
-
-	h.HandleEvent(&events.Connected{})
-	require.Eventually(t, func() bool { return calls[bootstrapPresence].Load() == 1 }, time.Second, time.Millisecond)
-	// Presence is session-scoped, unlike successful full-cache repairs.
-	h.HandleEvent(&events.Disconnected{})
-	waitBootstrapIdle(t, h)
-	h.HandleEvent(&events.Connected{})
-	require.Eventually(t, func() bool { return calls[bootstrapPresence].Load() == 2 }, time.Second, time.Millisecond)
+	for range 2 {
+		h.HandleEvent(&events.Disconnected{})
+		waitBootstrapIdle(t, h)
+		h.HandleEvent(&events.Connected{})
+	}
 	require.EqualValues(t, 1, calls[bootstrapContacts].Load())
 	require.EqualValues(t, 1, calls[bootstrapGroups].Load())
 	require.EqualValues(t, 3, client.available.Load())
@@ -151,7 +142,6 @@ func TestBootstrapCancellationPaths(t *testing.T) {
 
 func TestBootstrapRapidReconnectDoesNotOverlapOrCreditCancelledWork(t *testing.T) {
 	h, _ := bootstrapTestHandler(t)
-	h.bootstrap.stableInterval = time.Millisecond
 	calls := make(chan bootstrapCall, 10)
 	release := make(chan struct{})
 	var once sync.Once
@@ -188,7 +178,7 @@ func TestBootstrapRepairFailureRetriesAndSuccessCooldownEventuallyExpires(t *tes
 	var calls [bootstrapJobCount]atomic.Int32
 	h.bootstrap.run = func(ctx context.Context, kind bootstrapKind) error {
 		n := calls[kind].Add(1)
-		if kind != bootstrapPresence && n == 1 {
+		if n == 1 {
 			return errors.New("repair failed")
 		}
 		return nil
@@ -254,21 +244,6 @@ func TestBootstrapRateLimitCooldownSurvivesReconnect(t *testing.T) {
 	require.EqualValues(t, 1, groups.Load(), "reconnect must not bypass provider cooldown")
 	waitBootstrapIdle(t, h)
 	require.EqualValues(t, 2, groups.Load())
-}
-
-func TestBootstrapPresenceStopsOnRateLimit(t *testing.T) {
-	h, _ := bootstrapTestHandler(t)
-	var calls atomic.Int32
-	client := &bootstrapClient{}
-	client.client = &whatsmeow.Client{Store: &store.Device{Contacts: bootstrapContactsStore{
-		get: func(context.Context) (map[types.JID]types.ContactInfo, error) {
-			return map[types.JID]types.ContactInfo{phoneJID("100"): {}, phoneJID("200"): {}}, nil
-		},
-	}}}
-	client.subscribe = func(context.Context, types.JID) error { calls.Add(1); return whatsmeow.ErrIQRateOverLimit }
-	h.config.Client = client
-	require.ErrorIs(t, h.subscribeToKnownContacts(h.config.Ctx), whatsmeow.ErrIQRateOverLimit)
-	require.EqualValues(t, 1, calls.Load())
 }
 
 func TestBootstrapAppStateInterruptsCooldownAndCoalescesInFlightRequests(t *testing.T) {
@@ -382,9 +357,8 @@ func TestBootstrapRetainsEventRepairAcrossSessions(t *testing.T) {
 	waitBootstrapIdle(t, h)
 }
 
-func TestBootstrapDelayDoesNotBlockLiveMessageAckOrSenderPresence(t *testing.T) {
+func TestBootstrapDoesNotBlockLiveMessageAckOrSenderPresence(t *testing.T) {
 	h, _ := bootstrapTestHandler(t)
-	h.bootstrap.stableInterval = time.Hour
 	h.bootstrap.run = func(context.Context, bootstrapKind) error { return nil }
 	subscribed := make(chan types.JID, 2)
 	h.config.Client = &bootstrapClient{subscribe: func(ctx context.Context, jid types.JID) error {
@@ -446,6 +420,11 @@ func (s bootstrapContactsStore) GetAllContacts(ctx context.Context) (map[types.J
 	return s.get(ctx)
 }
 
+func (s bootstrapContactsStore) GetContact(ctx context.Context, jid types.JID) (types.ContactInfo, error) {
+	contacts, err := s.get(ctx)
+	return contacts[jid], err
+}
+
 func TestBootstrapInitialAvailabilityIsSessionCancelled(t *testing.T) {
 	h, _ := bootstrapTestHandler(t)
 	entered := make(chan context.Context, 1)
@@ -475,8 +454,9 @@ func TestBootstrapInitialAvailabilityIsSessionCancelled(t *testing.T) {
 	waitBootstrapIdle(t, h)
 }
 
-func TestBootstrapPresenceCancelsActualSubscriptionLoop(t *testing.T) {
+func TestBootstrapAndHistoryNeverSubscribeCachedContacts(t *testing.T) {
 	h, _ := bootstrapTestHandler(t)
+	h.bootstrap.repairCooldown = time.Millisecond
 	var subscriptions atomic.Int32
 	client := &bootstrapClient{}
 	client.client = &whatsmeow.Client{Store: &store.Device{Contacts: bootstrapContactsStore{
@@ -486,13 +466,23 @@ func TestBootstrapPresenceCancelsActualSubscriptionLoop(t *testing.T) {
 	}}}
 	client.subscribe = func(ctx context.Context, jid types.JID) error {
 		subscriptions.Add(1)
-		h.HandleEvent(&events.StreamReplaced{})
-		return ctx.Err()
+		return nil
 	}
 	h.config.Client = client
-	h.HandleEvent(&events.Connected{})
-	waitBootstrapIdle(t, h)
-	require.EqualValues(t, 1, subscriptions.Load(), "cancelled scan must not subscribe the next contact")
+	// No publisher means contact repair is unavailable, but presence must not
+	// be a bootstrap lane regardless of that prerequisite or reconnects.
+	h.bootstrap.run = func(context.Context, bootstrapKind) error { return nil }
+	for range 3 {
+		h.HandleEvent(&events.Connected{})
+		waitBootstrapIdle(t, h)
+		h.HandleEvent(&events.Disconnected{})
+	}
+	// History import is another bulk path: neither initial nor deferred-media
+	// imports should establish presence subscriptions for old conversations.
+	for _, deferMedia := range []bool{false, true} {
+		h.processHistorySyncConversation(&waHistorySync.Conversation{ID: proto.String("100@s.whatsapp.net")}, deferMedia)
+	}
+	require.Zero(t, subscriptions.Load(), "only live-message demand may subscribe presence")
 }
 
 type bootstrapSessionClient struct {
