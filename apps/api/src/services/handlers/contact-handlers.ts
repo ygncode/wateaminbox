@@ -22,6 +22,7 @@ import { broadcastToContactViewersByJid } from "../message-broadcast.service.js"
 import { getTenantConnection } from "../tenant.service.js";
 import { lockActiveConnectionForEvent } from "./connection-event-guard.js";
 import { handlerLogger as logger } from "./types.js";
+import { isUnchangedNameOnlyContact } from "./unchanged-contact-name.js";
 
 function isRedactedContactLabel(value: string | undefined): boolean {
   if (!value) return false;
@@ -114,6 +115,17 @@ export async function handleContactEvent(event: ContactEvent): Promise<void> {
             [payload.name, payload.displayName].some(
               (value) => value !== undefined,
             );
+
+          if (
+            isUnchangedNameOnlyContact(
+              payload,
+              existingContact.push_name,
+              syncedName,
+              shouldClearRedactedName,
+            )
+          ) {
+            return { contactChanged: false };
+          }
 
           await trx
             .updateTable("contacts")

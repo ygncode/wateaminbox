@@ -31,6 +31,22 @@ WhatsApp
 
 Outgoing messages take the reverse command path: REST API -> atomic tenant persistence and command outbox -> NATS command -> worker -> WhatsApp. Delivery receipts return through the durable event path and produce `message:status` updates.
 
+## Backlog and redundant metadata
+
+Presence and typing are transient state, not conversation history. On their
+separate API consumer lane, presence older than 60 seconds and typing older than
+10 seconds are acknowledged without database processing. Age uses JetStream's
+publication timestamp, not the producer's clock. Missing/invalid timestamps do
+not establish expiry. This rule never expires messages, contacts, receipts,
+connection status, or historical synchronization events.
+
+A name-only contact replay that matches the stored name does not rewrite the
+contact or broadcast a redundant update. The existing connection fence still
+runs, and the outer historical-event handler still records application before
+acknowledging the event. Explicit username/avatar/group changes, actual name
+changes, full snapshots, and redacted-name repairs retain their normal handling.
+The PostgreSQL worker outbox and durable history are not purged to recover space.
+
 ## Loading older history on demand
 
 When local database pagination reaches the oldest imported message, the chat UI

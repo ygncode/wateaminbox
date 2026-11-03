@@ -693,6 +693,75 @@ describe("NatsLifecycleManager", () => {
     ]);
   });
 
+  test("expired transient events ACK before handlers while durable backlog still applies", async () => {
+    const conn = makeMockConnection();
+    const handled: string[] = [];
+    const acked: string[] = [];
+    const retried: string[] = [];
+    const terminated: string[] = [];
+    const makeMessage = (type: string, label: string, ageMs: number) => ({
+      data: new TextEncoder().encode(
+        JSON.stringify({
+          contractVersion: 1,
+          companyId: "00000000-0000-0000-0000-000000000000",
+          connectionId: "00000000-0000-0000-0000-000000000001",
+          type,
+          payload: { label },
+          // A fresh producer timestamp must not revive an old broker record.
+          timestamp: new Date().toISOString(),
+        }),
+      ),
+      subject: `WHATSAPP.events.company.connection.${type}`,
+      info: {
+        redeliveryCount: 1,
+        timestampNanos: (Date.now() - ageMs) * 1_000_000,
+      },
+      ack: () => acked.push(label),
+      nak: () => retried.push(label),
+      term: () => terminated.push(label),
+    });
+    const transient = [
+      makeMessage("presence", "stale presence", 120_000),
+      makeMessage("typing", "stale typing", 30_000),
+      makeMessage("presence", "fresh presence", 1_000),
+      makeMessage("typing", "fresh typing", 1_000),
+    ];
+    const history = [makeMessage("contact", "durable history", 86_400_000)];
+    const critical = [
+      makeMessage("message", "durable message", 86_400_000),
+      makeMessage("message", "durable failure", 86_400_000),
+    ];
+    conn._js.subscribe = async (...args: unknown[]) => {
+      const durable = subscribeDurable(args[1]);
+      if (durable === API_TRANSIENT_EVENTS_CONSUMER)
+        return makeMockSubscription(transient);
+      if (durable === API_HISTORY_EVENTS_CONSUMER)
+        return makeMockSubscription(history);
+      return makeMockSubscription(critical);
+    };
+    const mgr = tracked(new NatsLifecycleManager(makeConnectFn(() => conn)));
+    await mgr.connect();
+    mgr.startEventSupervisor((event) => {
+      const label = (event.payload as { label: string }).label;
+      handled.push(label);
+      if (label === "durable failure")
+        throw new Error("persistence unavailable");
+    });
+    await pollUntil(() => acked.length === 6 && retried.length === 1);
+    expect(handled.sort()).toEqual([
+      "durable failure",
+      "durable history",
+      "durable message",
+      "fresh presence",
+      "fresh typing",
+    ]);
+    expect(acked).toContain("stale presence");
+    expect(acked).toContain("stale typing");
+    expect(acked).not.toContain("durable failure");
+    expect(retried).toEqual(["durable failure"]);
+    expect(terminated).toEqual([]);
+  });
+
   test("dead-letter threshold uses each loop's own tuning.maxDeliver rather than a shared hardcoded value", async () => {
     const conn = makeMockConnection();
     const deadLetterSubjects: string[] = [];

@@ -63,10 +63,7 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 		}
 		// whatsmeow persists this history chunk asynchronously. Re-read the
 		// durable store shortly afterwards to merge LID aliases and saved names.
-		go func() {
-			time.Sleep(2 * time.Second)
-			h.syncKnownContactNames()
-		}()
+		h.requestContactRepair(2 * time.Second)
 	}
 
 	conversations := evt.Data.GetConversations()
