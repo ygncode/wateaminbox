@@ -4,6 +4,8 @@ An open-source, multi-user omnichannel team inbox for managing customer conversa
 
 WATeamInbox supports **WhatsApp linked devices** and **Telegram Bot accounts** today. Its channel-neutral messaging spine is designed for additional providers without forcing every channel into WhatsApp-specific identities, capabilities, or delivery semantics.
 
+It also ships a built-in **MCP server**, so AI agents you authorize — such as ChatGPT, Claude, Gemini, or Cursor — can work the same inbox through scoped API tokens, bounded by the live roles, permissions, and audit trail that apply to every other actor.
+
 > [!WARNING]
 > **Open-source beta:** interfaces, migrations, and behavior may change without backward compatibility. The development defaults are not production-hardened. Evaluate each enabled channel integration, credential model, data handling, backups, monitoring, provider policy, and account-risk implications before any production use.
 
@@ -29,6 +31,7 @@ WATeamInbox is an independent project and is not affiliated with, endorsed by, o
 - One shared realtime inbox across supported channels and connected accounts
 - WhatsApp linked-device connectivity powered by whatsmeow
 - Telegram Bot connectivity through verified webhooks and the Telegram Bot API
+- Built-in MCP server for AI agents (ChatGPT, Claude, Gemini, Cursor, or any MCP client) using scoped API tokens under live role and permission checks
 - Capability-aware composition, message actions, attachments, reactions, presence, and typing behavior
 - Contact assignment and role-based conversation visibility
 - Unified customer profiles with channel endpoints, notes, tags, labels, and bulk import/export
