@@ -12,9 +12,9 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1155.0",
-    "@aws-sdk/s3-request-presigner": "^3.1155.0",
-    "@hono/mcp": "^0.3.2",
+    "@aws-sdk/client-s3": "^3.1162.0",
+    "@aws-sdk/s3-request-presigner": "^3.1162.0",
+    "@hono/mcp": "^0.3.5",
     "@hono/zod-validator": "^0.9.1",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@wateaminbox/adapter-telegram": "workspace:*",
@@ -23,8 +23,8 @@
     "bcrypt": "^6.0.0",
     "dayjs": "^1.11.23",
     "fflate": "^0.8.2",
-    "hono": "^4.13.13",
-    "jose": "^6.2.13",
+    "hono": "^4.13.16",
+    "jose": "^6.2.15",
     "meilisearch": "^0.62.0",
     "nats": "^2.29.3",
     "pino": "^10.4.0",
