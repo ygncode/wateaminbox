@@ -1,25 +1,28 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { getUserCompanies, prewarmUserCompanies } from "./companies.js";
 import type { CompanyWithRole } from "./types.js";
 
+// Stub fetch rather than mock the client module: `mock.module` is process-wide
+// in bun and leaks a never-resolving fetchWithAuth into every later test file
+// that imports the client (the quick-replies suite timed out in CI from it).
+const originalFetch = globalThis.fetch;
 let calls = 0;
 let resolveFetch: ((value: CompanyWithRole[]) => void) | null = null;
-
-mock.module("./client.js", () => ({
-  fetchWithAuth: () => {
-    calls += 1;
-    return new Promise<CompanyWithRole[]>((resolve) => {
-      resolveFetch = resolve;
-    });
-  },
-}));
-
-const { getUserCompanies, prewarmUserCompanies } = await import(
-  "./companies.js"
-);
 
 beforeEach(() => {
   calls = 0;
   resolveFetch = null;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    const body = await new Promise<CompanyWithRole[]>((resolve) => {
+      resolveFetch = resolve;
+    });
+    return Response.json(body);
+  }) as typeof fetch;
+});
+
+afterEach(() => {
+  globalThis.fetch = originalFetch;
 });
 
 describe("getUserCompanies coalescing", () => {
