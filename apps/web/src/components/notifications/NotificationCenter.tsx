@@ -407,5 +407,3 @@ export const NotificationCenter = memo(function NotificationCenter({
     </>
   );
 });
-
-export default NotificationCenter;

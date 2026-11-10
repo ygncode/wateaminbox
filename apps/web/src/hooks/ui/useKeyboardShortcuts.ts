@@ -306,5 +306,3 @@ export function useKeyboardShortcut(
     ],
   });
 }
-
-export default useKeyboardShortcuts;

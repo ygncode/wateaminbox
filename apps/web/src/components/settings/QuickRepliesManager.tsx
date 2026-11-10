@@ -315,5 +315,3 @@ export function QuickRepliesManager() {
     </div>
   );
 }
-
-export default QuickRepliesManager;

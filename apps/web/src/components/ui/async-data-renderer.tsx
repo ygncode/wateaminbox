@@ -104,5 +104,3 @@ export function AsyncDataRenderer<T>({
   // Success state - render children with data
   return <>{children(data)}</>;
 }
-
-export default AsyncDataRenderer;

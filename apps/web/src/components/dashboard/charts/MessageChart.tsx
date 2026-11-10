@@ -403,5 +403,3 @@ function ChartEmptyState({ message }: { message: string }) {
     </div>
   );
 }
-
-export default MessageChart;

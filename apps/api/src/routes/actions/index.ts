@@ -246,5 +246,3 @@ actionsRoutes.post(
     }
   },
 );
-
-export default actionsRoutes;

@@ -159,5 +159,3 @@ export function EmojiInputPicker({
     </div>
   );
 }
-
-export default EmojiInputPicker;

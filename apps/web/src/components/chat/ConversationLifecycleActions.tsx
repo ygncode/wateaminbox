@@ -190,5 +190,3 @@ export function ConversationLifecycleActions({
     </div>
   );
 }
-
-export default ConversationLifecycleActions;

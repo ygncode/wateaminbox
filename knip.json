@@ -36,5 +36,5 @@
   "ignoreDependencies": ["kysely", "pg", "ioredis", "nats"],
   "ignoreBinaries": ["go"],
   "ignoreExportsUsedInFile": true,
-  "exclude": ["duplicates", "enumMembers", "exports", "types", "unresolved"]
+  "exclude": ["enumMembers", "exports", "types"]
 }

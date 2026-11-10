@@ -187,5 +187,3 @@ function formatHour(hour: number): string {
   const displayHour = normalized % 12 || 12;
   return `${displayHour}:00 ${suffix}`;
 }
-
-export default HourlyChart;

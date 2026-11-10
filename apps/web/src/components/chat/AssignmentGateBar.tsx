@@ -75,5 +75,3 @@ export function AssignmentGateBar({
     </div>
   );
 }
-
-export default AssignmentGateBar;

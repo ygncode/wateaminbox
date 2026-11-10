@@ -186,5 +186,3 @@ export function ComposerLifecycleArea({
   // the thread they act on, rather than in a strip of their own above it.
   return <ComposerFooter>{children}</ComposerFooter>;
 }
-
-export default ComposerLifecycleArea;

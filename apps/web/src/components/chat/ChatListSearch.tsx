@@ -89,5 +89,3 @@ export function ChatListSearch({
     </div>
   );
 }
-
-export default ChatListSearch;

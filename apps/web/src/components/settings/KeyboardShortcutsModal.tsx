@@ -194,5 +194,3 @@ export function KeyboardShortcutsModal({
     </Dialog>
   );
 }
-
-export default KeyboardShortcutsModal;

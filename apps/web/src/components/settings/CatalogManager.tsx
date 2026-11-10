@@ -800,5 +800,3 @@ function ProductItem({
     </div>
   );
 }
-
-export default CatalogManager;
