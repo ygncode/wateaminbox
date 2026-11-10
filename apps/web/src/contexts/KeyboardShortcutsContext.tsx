@@ -384,5 +384,3 @@ export function useRegisterShortcutAction(
     };
   }, [actionId, callback, registerAction, unregisterAction]);
 }
-
-export default KeyboardShortcutsProvider;

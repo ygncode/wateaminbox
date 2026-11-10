@@ -360,5 +360,3 @@ export function ExportDialog({
     </Dialog>
   );
 }
-
-export default ExportDialog;

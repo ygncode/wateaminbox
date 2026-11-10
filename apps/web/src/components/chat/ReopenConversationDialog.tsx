@@ -142,5 +142,3 @@ export function OpenOrReopenConversationDialog({
     </Dialog>
   );
 }
-
-export default OpenOrReopenConversationDialog;

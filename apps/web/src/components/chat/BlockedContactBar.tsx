@@ -102,5 +102,3 @@ export function BlockedContactBar({
     </div>
   );
 }
-
-export default BlockedContactBar;

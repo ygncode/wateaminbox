@@ -114,7 +114,6 @@ export async function deleteWhatsAppConnection(
 }
 
 /** Archives the stable inbox identity and unlinks its current device session. */
-export const archiveWhatsAppConnection = deleteWhatsAppConnection;
 
 export async function updateWhatsAppConnection(
   connectionId: string,

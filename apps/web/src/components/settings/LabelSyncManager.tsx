@@ -487,5 +487,3 @@ export function LabelSyncManager() {
     </div>
   );
 }
-
-export default LabelSyncManager;

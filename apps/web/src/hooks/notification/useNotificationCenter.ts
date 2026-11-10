@@ -134,5 +134,3 @@ function useCallbackForLists(queryClient: ReturnType<typeof useQueryClient>) {
     }
   };
 }
-
-export default useNotificationCenter;

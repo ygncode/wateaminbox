@@ -225,5 +225,3 @@ function conversationProfileContact(
     tags: [],
   };
 }
-
-export default ContactProfile;

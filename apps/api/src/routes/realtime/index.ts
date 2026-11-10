@@ -21,5 +21,3 @@ realtimeRoutes.post(
     return c.json({ token });
   },
 );
-
-export default realtimeRoutes;

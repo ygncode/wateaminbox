@@ -27,5 +27,3 @@ export function WhatsAppConnectionPanel({
   // Legacy single-connection mode
   return <SingleConnectionPanel className={className} compact={compact} />;
 }
-
-export default WhatsAppConnectionPanel;

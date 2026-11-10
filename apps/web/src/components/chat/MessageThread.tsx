@@ -509,5 +509,3 @@ export function MessageThread({
     </div>
   );
 }
-
-export default MessageThread;

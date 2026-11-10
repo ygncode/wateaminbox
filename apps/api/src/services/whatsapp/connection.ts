@@ -65,9 +65,6 @@ export async function archiveConnectionWithUnlink(
   return true;
 }
 
-/** @deprecated Use archiveConnectionWithUnlink. */
-export const deleteConnectionWithKill = archiveConnectionWithUnlink;
-
 export interface ArchivedConnectionPurge {
   /**
    * Every erased contact id, retained for callers that audit the purge.
