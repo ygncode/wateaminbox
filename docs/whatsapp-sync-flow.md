@@ -10,7 +10,7 @@
    not replayed.
 4. The Bun API consumes the events and writes them to the correct tenant schema.
 5. Message uniqueness constraints make redelivery safe.
-6. Searchable records are indexed in Meilisearch.
+6. A PostgreSQL trigger maintains the `search_vector` column on each message as it is written; there is no separate indexing step.
 7. The worker opens the lifecycle on the first tracked history chunk, aggregates progress across bootstrap/full/recent chunks, and completes only after the final `RECENT` chunk reaches 100%. WhatsApp's separate offline catch-up events do not control history-sync state. A two-minute inter-chunk idle fallback closes protocol variants that omit the final marker.
 8. The API persists cumulative message/conversation counters on the connection and publishes progress through Centrifugo (`sync:start`, `sync:progress`, `sync:complete`, or `sync:interrupted`).
 9. React displays sync state, rejects progress without an active start, restores persisted counters after refresh, polls PostgreSQL while syncing, and invalidates chat queries when synchronization completes.
@@ -23,8 +23,7 @@ WhatsApp
   -> optional R2/MinIO media upload
   -> PostgreSQL worker event outbox
   -> NATS JetStream
-  -> API validation and tenant persistence
-  -> Meilisearch indexing
+  -> API validation and tenant persistence (search_vector trigger)
   -> Centrifugo message:new
   -> React Query message cache and ephemeral Zustand UI state
 ```

@@ -117,7 +117,7 @@ Telegram runs through the Bun API as a webhook/HTTPS adapter. Linked-device What
 ## Prerequisites
 
 - [Bun](https://bun.sh/) 1.2.18 or newer
-- [Go](https://go.dev/) 1.25 or newer
+- [Go](https://go.dev/) 1.26 or newer (the Go modules pin the exact toolchain; Go downloads it automatically when `GOTOOLCHAIN=auto`)
 - [Docker](https://www.docker.com/) with Docker Compose
 - Credentials for one transactional email provider in production: a [Resend](https://resend.com/) API key, or a [Cloudflare Email Service](https://developers.cloudflare.com/email-service/) account ID with an Email Sending token (local development uses a log-only transport)
 
@@ -269,12 +269,15 @@ See [docs/product-analytics.md](docs/product-analytics.md) for the full configur
 | --- | --- |
 | `bun run dev` | Start workspace development processes |
 | `bun run build` | Build all applications, packages, and services |
-| `bun run lint` | Run TypeScript/Astro/Go lint checks |
+| `bun run lint` | Run Biome lint for TypeScript and `go vet` for the Go services |
 | `bun run typecheck` | Type-check shared packages, API, and web app |
 | `bun run format` | Format TypeScript workspace files with Biome |
 | `bun run test` | Run API, web, and short Go tests |
 | `bun run test:db-contracts` | Verify tenant schema creation and PostgreSQL search |
 | `bun run test:integration` | Run database and Go integration tests |
+| `bun run test:integration:ts` | Run only the TypeScript integration tests |
+| `bun run test:integration:go` | Run only the Go integration tests |
+| `bun run test:go:race` | Run the Go tests with the race detector |
 | `bun run check:unused` | Find unused files and dependencies with Knip |
 | `bun run db:migrate` | Apply database migrations |
 | `bun run db:generate` | Regenerate Kysely database types |
@@ -292,9 +295,9 @@ The API exposes:
 
 - `GET /api/health` — overall service status
 - `GET /api/health/live` — liveness probe
-- `GET /api/health/ready` — PostgreSQL, NATS, event consumer, outbox, and Centrifugo readiness
+- `GET /api/health/ready` — PostgreSQL, rate-limit store, NATS, event consumer, command outbox, and Centrifugo readiness
 
-An unavailable NATS connection or Centrifugo instance reports degraded readiness, while PostgreSQL failure reports the service as unready.
+PostgreSQL, rate-limit store, NATS, or event-consumer failure reports the service as unready. An unconfigured or unreachable Centrifugo instance reports degraded readiness.
 
 ## Production deployment
 
