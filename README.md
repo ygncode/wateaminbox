@@ -4,12 +4,18 @@ An open-source, multi-user omnichannel team inbox for managing customer conversa
 
 WATeamInbox supports **WhatsApp linked devices** and **Telegram Bot accounts** today. Its channel-neutral messaging spine is designed for additional providers without forcing every channel into WhatsApp-specific identities, capabilities, or delivery semantics.
 
+It also ships a built-in **MCP server**, so AI agents you authorize — such as ChatGPT, Claude, Gemini, or Cursor — can work the same inbox through scoped API tokens, bounded by the live roles, permissions, and audit trail that apply to every other actor.
+
+[![Watch WATeamInbox in 90 seconds](docs/assets/wateaminbox-explainer.jpg)](https://youtu.be/9lEBHOMYueA)
+
+<sub>▶ **WATeamInbox in 90 seconds:** connecting WhatsApp, assignments, notes and handoffs, quick replies, broadcasts, and Cloud or self-hosting.</sub>
+
 > [!WARNING]
 > **Open-source beta:** interfaces, migrations, and behavior may change without backward compatibility. The development defaults are not production-hardened. Evaluate each enabled channel integration, credential model, data handling, backups, monitoring, provider policy, and account-risk implications before any production use.
 
 WATeamInbox is an independent project and is not affiliated with, endorsed by, or sponsored by WhatsApp, Telegram, or Meta. The linked-device WhatsApp provider uses an unofficial client library; WhatsApp policy or protocol changes can interrupt service and may result in account restrictions or bans. No account-safety guarantee is provided. Third-party names are used only to describe interoperability; all trademarks belong to their respective owners.
 
-**Service status:** self-hosting this beta is currently the only product path in this repository. A separate public marketing site and Cloud interest waitlist may exist outside this monorepo; they are not part of the self-hostable application and do not promise pricing, launch date, feature set, SLA, account, or support entitlements for a managed Cloud product.
+**Service status:** this repository is the self-hostable application. A managed service, [WATeamInbox Cloud](https://wateaminbox.com/), is operated separately; its plans, pricing, and billing are not part of this repository, and nothing here promises an SLA, account, or support entitlement for it.
 
 ## Channel support
 
@@ -29,6 +35,7 @@ WATeamInbox is an independent project and is not affiliated with, endorsed by, o
 - One shared realtime inbox across supported channels and connected accounts
 - WhatsApp linked-device connectivity powered by whatsmeow
 - Telegram Bot connectivity through verified webhooks and the Telegram Bot API
+- Built-in MCP server for AI agents (ChatGPT, Claude, Gemini, Cursor, or any MCP client) using scoped API tokens under live role and permission checks
 - Capability-aware composition, message actions, attachments, reactions, presence, and typing behavior
 - Contact assignment and role-based conversation visibility
 - Unified customer profiles with channel endpoints, notes, tags, labels, and bulk import/export
@@ -46,7 +53,6 @@ flowchart TB
     centrifugo["Centrifugo"]
     postgres["PostgreSQL<br/>public + tenant schemas"]
     storage["S3-compatible media storage"]
-    search["Meilisearch"]
 
     telegramAdapter["Telegram Bot adapter"]
     telegram["Telegram Bot API"]
@@ -64,7 +70,6 @@ flowchart TB
     centrifugo <-->|NATS broker| nats
     api <-->|normalized application data| postgres
     api <-->|media| storage
-    api <-->|search projections| search
 
     api <-->|adapter contract| telegramAdapter
     telegram -->|verified webhooks| telegramAdapter
@@ -112,7 +117,7 @@ Telegram runs through the Bun API as a webhook/HTTPS adapter. Linked-device What
 ## Prerequisites
 
 - [Bun](https://bun.sh/) 1.2.18 or newer
-- [Go](https://go.dev/) 1.25 or newer
+- [Go](https://go.dev/) 1.26 or newer (the Go modules pin the exact toolchain; Go downloads it automatically when `GOTOOLCHAIN=auto`)
 - [Docker](https://www.docker.com/) with Docker Compose
 - Credentials for one transactional email provider in production: a [Resend](https://resend.com/) API key, or a [Cloudflare Email Service](https://developers.cloudflare.com/email-service/) account ID with an Email Sending token (local development uses a log-only transport)
 
@@ -168,7 +173,6 @@ This starts:
 | NATS monitoring | <http://localhost:8222> |
 | Centrifugo WebSocket/API | <http://localhost:4451> |
 | Centrifugo metrics | <http://localhost:4451/metrics> |
-| Meilisearch | <http://localhost:4449> |
 | MinIO S3 API | <http://localhost:4450> |
 | MinIO console | <http://localhost:9001> |
 
@@ -265,12 +269,15 @@ See [docs/product-analytics.md](docs/product-analytics.md) for the full configur
 | --- | --- |
 | `bun run dev` | Start workspace development processes |
 | `bun run build` | Build all applications, packages, and services |
-| `bun run lint` | Run TypeScript/Astro/Go lint checks |
+| `bun run lint` | Run Biome lint for TypeScript and `go vet` for the Go services |
 | `bun run typecheck` | Type-check shared packages, API, and web app |
 | `bun run format` | Format TypeScript workspace files with Biome |
 | `bun run test` | Run API, web, and short Go tests |
 | `bun run test:db-contracts` | Verify tenant schema creation and PostgreSQL search |
 | `bun run test:integration` | Run database and Go integration tests |
+| `bun run test:integration:ts` | Run only the TypeScript integration tests |
+| `bun run test:integration:go` | Run only the Go integration tests |
+| `bun run test:go:race` | Run the Go tests with the race detector |
 | `bun run check:unused` | Find unused files and dependencies with Knip |
 | `bun run db:migrate` | Apply database migrations |
 | `bun run db:generate` | Regenerate Kysely database types |
@@ -288,9 +295,9 @@ The API exposes:
 
 - `GET /api/health` — overall service status
 - `GET /api/health/live` — liveness probe
-- `GET /api/health/ready` — PostgreSQL, NATS, event consumer, outbox, and Centrifugo readiness
+- `GET /api/health/ready` — PostgreSQL, rate-limit store, NATS, event consumer, command outbox, and Centrifugo readiness
 
-An unavailable NATS connection or Centrifugo instance reports degraded readiness, while PostgreSQL failure reports the service as unready.
+PostgreSQL, rate-limit store, NATS, or event-consumer failure reports the service as unready. An unconfigured or unreachable Centrifugo instance reports degraded readiness.
 
 ## Production deployment
 

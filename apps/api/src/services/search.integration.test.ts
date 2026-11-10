@@ -165,4 +165,93 @@ describe("PostgreSQL tenant message search", () => {
       }
     },
   );
+
+  integrationTest(
+    "matches non-Latin text, treats LIKE metacharacters literally, hides merged contacts",
+    async () => {
+      const companyId = crypto.randomUUID();
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const [contact] = await tenantDb
+          .insertInto("contacts")
+          .values({
+            jid: "333@s.whatsapp.net",
+            phone_number: "333",
+            push_name: "မောင်မောင်",
+          })
+          .returning("id")
+          .execute();
+        await tenantDb
+          .insertInto("messages")
+          .values([
+            {
+              contact_id: contact.id,
+              message_id: "burmese",
+              from_me: false,
+              message_type: "text",
+              content: "နေကောင်းလား ဆရာ",
+              timestamp: new Date("2026-02-01T00:00:00Z"),
+            },
+            {
+              contact_id: contact.id,
+              message_id: "percent",
+              from_me: false,
+              message_type: "text",
+              content: "discount 100% today",
+              timestamp: new Date("2026-02-01T00:01:00Z"),
+            },
+            {
+              contact_id: contact.id,
+              message_id: "plain",
+              from_me: false,
+              message_type: "text",
+              content: "no symbols here",
+              timestamp: new Date("2026-02-01T00:02:00Z"),
+            },
+          ])
+          .execute();
+
+        // The old implementation stripped every non-[a-zA-Z0-9] character and
+        // returned nothing for Burmese/Thai/CJK queries.
+        const burmese = await searchMessages(companyId, { query: "ကောင်း" });
+        expect(burmese.results.map((r) => r.messageId)).toEqual(["burmese"]);
+
+        // "%" must be a literal percent sign, not a LIKE wildcard.
+        const percent = await searchMessages(companyId, { query: "100%" });
+        expect(percent.results.map((r) => r.messageId)).toEqual(["percent"]);
+        // A bare "%" is a literal percent sign: it matches only the one message
+        // that contains one, not every row.
+        const wildcard = await searchMessages(companyId, { query: "%" });
+        expect(wildcard.results.map((r) => r.messageId)).toEqual(["percent"]);
+        const underscore = await searchMessages(companyId, { query: "n_" });
+        expect(underscore.total).toBe(0);
+
+        // Contacts: non-Latin names match, merged-away contacts are hidden.
+        const named = await searchContacts(companyId, "မောင်");
+        expect(named.results.map((c) => c.id)).toEqual([contact.id]);
+        const [survivor] = await tenantDb
+          .insertInto("contacts")
+          .values({
+            jid: "444@s.whatsapp.net",
+            phone_number: "444",
+            push_name: "Survivor Maung",
+          })
+          .returning("id")
+          .execute();
+        await tenantDb
+          .updateTable("contacts")
+          .set({ merged_into_contact_id: survivor.id })
+          .where("id", "=", contact.id)
+          .execute();
+        const afterMerge = await searchContacts(companyId, "Maung");
+        expect(afterMerge.results.map((c) => c.id)).toEqual([survivor.id]);
+        const mergedAway = await searchContacts(companyId, "မောင်");
+        expect(mergedAway.total).toBe(0);
+      } finally {
+        await dropTenantSchema(companyId);
+      }
+    },
+    60_000,
+  );
 });

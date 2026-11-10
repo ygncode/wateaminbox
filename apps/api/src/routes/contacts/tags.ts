@@ -1,9 +1,9 @@
-import { zValidator } from "../../lib/validator.js";
 import { Hono } from "hono";
 import { conflict } from "../../lib/errors.js";
 import { successData, successMessage } from "../../lib/response.js";
 import { requireEntity } from "../../lib/route-helpers.js";
 import { addContactTagSchema } from "../../lib/schemas/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireContactVisibility } from "../../middleware/resource-visibility.js";
 

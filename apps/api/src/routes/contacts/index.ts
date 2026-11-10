@@ -9,7 +9,6 @@
  * - /contacts/import/* - CSV import
  */
 
-import { zValidator } from "../../lib/validator.js";
 import { db } from "@wateaminbox/database";
 import {
   getContactDisplayName,
@@ -24,7 +23,6 @@ import {
   transformContacts,
 } from "../../lib/data-transformers.js";
 import { badRequest, notFound } from "../../lib/errors.js";
-import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import { created, successData, successPaginated } from "../../lib/response.js";
 import { createPaginationMeta } from "../../lib/route-helpers.js";
 import {
@@ -33,16 +31,13 @@ import {
   updateContactSchema,
 } from "../../lib/schemas/index.js";
 import { getAuthorizedAvatarUrlOrNull } from "../../lib/storage.js";
+import { zValidator } from "../../lib/validator.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireContactVisibility } from "../../middleware/resource-visibility.js";
 import { tenantMiddleware } from "../../middleware/tenant.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
-import {
-  isContactMergeEnabled,
-  resolveCanonicalContactId,
-} from "../../services/contact-merge.service.js";
 import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";
 import {
   type FindOrCreateContactByPhoneResult,
@@ -50,16 +45,21 @@ import {
   getContactsWithLastMessage,
   OutboundContactError,
 } from "../../services/contact.service.js";
-import { firstChatAcknowledgmentRoutes } from "./first-chat-acknowledgment.js";
+import {
+  isContactMergeEnabled,
+  resolveCanonicalContactId,
+} from "../../services/contact-merge.service.js";
+import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import { assignmentRoutes } from "./assignment.js";
 import { customerChatsRoutes } from "./chats.js";
-import { mergeRoutes } from "./merge.js";
-import { customerLifecycleRoutes } from "./lifecycle.js";
-import { timelineRoutes } from "./timeline.js";
+import { firstChatAcknowledgmentRoutes } from "./first-chat-acknowledgment.js";
 import { importRoutes } from "./import.js";
+import { customerLifecycleRoutes } from "./lifecycle.js";
+import { mergeRoutes } from "./merge.js";
 // Import sub-routes
 import { notesRoutes } from "./notes.js";
 import { tagsRoutes } from "./tags.js";
+import { timelineRoutes } from "./timeline.js";
 
 export const contactRoutes = new Hono();
 
@@ -117,6 +117,7 @@ contactRoutes.get(
         offset: query.offset,
         includeGroups: query.includeGroups,
         connectionId: query.connectionId,
+        channelAccountId: query.channelAccountId,
         tagIds: query.tagIds,
         assignedToMe: query.assignedToMe,
         unassigned: query.unassigned,

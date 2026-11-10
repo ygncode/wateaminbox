@@ -65,13 +65,9 @@ export async function archiveConnectionWithUnlink(
   return true;
 }
 
-/** @deprecated Use archiveConnectionWithUnlink. */
-export const deleteConnectionWithKill = archiveConnectionWithUnlink;
-
 export interface ArchivedConnectionPurge {
   /**
-   * Every erased contact id. The Meilisearch contact documents are keyed by
-   * it, and the message documents are filterable by it.
+   * Every erased contact id, retained for callers that audit the purge.
    */
   contactIds: string[];
   deletedMessageCount: number;
@@ -186,23 +182,6 @@ export async function purgeArchivedConnection(
     // remove their external representations after commit. INSERT .. SELECT
     // keeps even very large media histories inside PostgreSQL rather than
     // materializing every URL in the API process.
-    await trx
-      .insertInto("purge_cleanup_items")
-      .columns(["connection_id", "kind", "reference"])
-      .expression((eb) =>
-        eb
-          .selectFrom("contacts")
-          .select([
-            sql<string>`${connectionId}::uuid`.as("connection_id"),
-            eb.val("search_contact" as const).as("kind"),
-            sql<string>`id::text`.as("reference"),
-          ])
-          .where("whatsapp_connection_id", "=", connectionId),
-      )
-      .onConflict((oc) =>
-        oc.columns(["connection_id", "kind", "reference"]).doNothing(),
-      )
-      .execute();
     await trx
       .insertInto("purge_cleanup_items")
       .columns(["connection_id", "kind", "reference"])

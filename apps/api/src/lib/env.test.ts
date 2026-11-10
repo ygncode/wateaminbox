@@ -30,8 +30,6 @@ function productionEnv(overrides: Partial<Env> = {}): Env {
     S3_SECRET_KEY: "r2-live-secret-key-456",
     S3_BUCKET: "whatsapp-media",
     S3_REGION: "auto",
-    MEILISEARCH_URL: "https://search.acme.test",
-    MEILISEARCH_API_KEY: "meili-live-key-123",
     RATE_LIMIT_ENABLED: true,
     RATE_LIMIT_STORE_TYPE: "memory",
     RATE_LIMIT_REDIS_URL: "",
@@ -73,8 +71,6 @@ describe("production environment validation", () => {
     "NATS_URL",
     "S3_ENDPOINT",
     "S3_BUCKET",
-    "MEILISEARCH_URL",
-    "MEILISEARCH_API_KEY",
     "RESEND_API_KEY",
     "EMAIL_FROM",
     "FEEDBACK_TO_EMAIL",
@@ -92,7 +88,6 @@ describe("production environment validation", () => {
     ["DATABASE_URL", "postgresql://postgres:strong@localhost:5432/inbox"],
     ["NATS_URL", "nats://127.0.0.1:4222"],
     ["S3_ENDPOINT", "https://localhost:4450"],
-    ["MEILISEARCH_URL", "http://[::1]:7700"],
     ["CENTRIFUGO_API_URL", "http://localhost:4451/api"],
     ["CENTRIFUGO_HEALTH_URL", "http://localhost:4451/health"],
   ] as const)("rejects local production service URL %s", (key, value) => {
@@ -139,7 +134,6 @@ describe("production environment validation", () => {
   test.each([
     ["S3_ACCESS_KEY", "minioadmin"],
     ["S3_SECRET_KEY", "minioadmin"],
-    ["MEILISEARCH_API_KEY", "development_master_key"],
     ["CENTRIFUGO_API_KEY", "development-centrifugo-api-key"],
   ] as const)("rejects placeholder credential %s", (key, value) => {
     expectInvalid({ [key]: value }, /development or placeholder value/);

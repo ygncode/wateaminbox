@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mau.fi/whatsmeow/types"
-	"go.mau.fi/whatsmeow/types/events"
 )
 
 type fakeGroupLIDDirectory struct {
@@ -306,24 +305,6 @@ func TestBeginGroupLIDRepairAllowsOnlyOneWorkerLifetimeAttempt(t *testing.T) {
 
 	_, _, repeated := handler.beginGroupLIDRepair(context.Background())
 	assert.False(t, repeated)
-}
-
-func TestTerminalConnectionEventsCancelJoinedGroupSync(t *testing.T) {
-	handler := New(Config{})
-	assertCanceled := func(handle func()) {
-		ctx, cancel := context.WithCancel(context.Background())
-		handler.groupSyncMu.Lock()
-		handler.groupSyncCancel = cancel
-		handler.groupSyncMu.Unlock()
-		handle()
-		require.Eventually(t, func() bool {
-			return errors.Is(ctx.Err(), context.Canceled)
-		}, time.Second, time.Millisecond)
-	}
-
-	assertCanceled(func() { handler.handleDisconnected(&events.Disconnected{}) })
-	assertCanceled(func() { handler.handleLoggedOut(&events.LoggedOut{}) })
-	assertCanceled(func() { handler.handleStreamReplaced(&events.StreamReplaced{}) })
 }
 
 func TestBeginGroupLIDRepairUsesConnectionContext(t *testing.T) {

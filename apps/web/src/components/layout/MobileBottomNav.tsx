@@ -126,5 +126,3 @@ export function MobileBottomNav({
     </div>
   );
 }
-
-export default MobileBottomNav;

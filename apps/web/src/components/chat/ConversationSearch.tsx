@@ -184,5 +184,3 @@ export function ConversationSearch({
     </div>
   );
 }
-
-export default ConversationSearch;

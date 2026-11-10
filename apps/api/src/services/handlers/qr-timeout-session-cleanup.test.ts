@@ -22,10 +22,12 @@ import {
 type FakeDb = Parameters<typeof handleDisconnectedEvent>[1];
 type StopInput = PairedSessionStopInput;
 
-function fakeTenantDb(session: {
-  connected_at: Date | null;
-  ended_at: Date | null;
-} | null) {
+function fakeTenantDb(
+  session: {
+    connected_at: Date | null;
+    ended_at: Date | null;
+  } | null,
+) {
   return {
     selectFrom(table: string) {
       return {

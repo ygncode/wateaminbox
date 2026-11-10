@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
-import { sql } from "kysely";
 import type { Kysely } from "kysely";
+import { sql } from "kysely";
 import { app } from "../app.js";
 import { hashPassword } from "../lib/password.js";
 import {
@@ -137,10 +137,11 @@ describe("PATCH /api/tags/:id", () => {
         // The malformed UPDATE threw before `executeTakeFirst()` could report
         // no row, so the handler's not-found branch was unreachable and a
         // missing id 500'd rather than 404'd.
-        const response = await app.request(
-          `/api/tags/${crypto.randomUUID()}`,
-          { method: "PATCH", headers, body: JSON.stringify({}) },
-        );
+        const response = await app.request(`/api/tags/${crypto.randomUUID()}`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({}),
+        });
 
         expect(response.status).toBe(404);
       });

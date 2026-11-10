@@ -3,7 +3,7 @@ import {
   type MemberPermissions,
   ROLE_PERMISSION_PRESETS,
 } from "@wateaminbox/shared";
-import { NotFoundError, ForbiddenError } from "../lib/errors.js";
+import { ForbiddenError, NotFoundError } from "../lib/errors.js";
 import { invalidateCompanyMembership } from "./company-membership.service.js";
 import { getEffectivePermissions } from "./effective-permissions.js";
 

@@ -4,21 +4,21 @@
  * Handles member listing, role updates, and member removal.
  */
 
-import { zValidator } from "../../lib/validator.js";
 import type { CompanyMember } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
-import { createPaginationMeta } from "../../lib/route-helpers.js";
 import {
   successData,
   successMessage,
   successPaginated,
 } from "../../lib/response.js";
+import { createPaginationMeta } from "../../lib/route-helpers.js";
 import {
   listCompanyMembersQuerySchema,
   updateMemberRoleSchema,
 } from "../../lib/schemas/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission, tenantFromParam } from "../../middleware/tenant.js";
 import * as companyService from "../../services/company.service.js";
@@ -135,7 +135,7 @@ memberRoutes.post(
   "/:id/transfer-ownership",
   authMiddleware,
   tenantFromParam("id", "owner"),
-  zValidator("json", z.object({ userId: z.string().uuid() })),
+  zValidator("json", z.object({ userId: z.string().guid() })),
   async (c) => {
     const companyId = c.get("companyId");
     const currentUser = c.get("user");

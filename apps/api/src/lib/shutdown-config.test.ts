@@ -61,5 +61,4 @@ describe("api shutdown budget", () => {
     // exit; a one-second margin would make SIGKILL a routine outcome.
     expect(grace - deadline).toBeGreaterThanOrEqual(5);
   });
-
 });

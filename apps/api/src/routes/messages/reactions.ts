@@ -4,34 +4,37 @@
  * Routes for adding and removing reactions from messages.
  */
 
-import { isChannel, isChannelProvider } from "@wateaminbox/shared";
 import { createHash } from "node:crypto";
+import { isChannel, isChannelProvider, nowMs } from "@wateaminbox/shared";
 import type { Context } from "hono";
+import { Hono } from "hono";
 import { resolveAdapterCapabilities } from "../../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../../channel-spine/registry.js";
-import {
-  getChannelSpineWorkspaceAuthority,
-  isChannelProviderEnabled,
-} from "../../services/channel-spine-authority.service.js";
-import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
-import { requireConversationSendAccess } from "../../services/send-access.service.js";
-import { broadcastToConversationViewers } from "../../services/message-broadcast.service.js";
-import { zValidator } from "../../lib/validator.js";
-import { nowMs } from "@wateaminbox/shared";
-import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
 import {
   buildCommandSubject,
   buildSendReactionCommand,
 } from "../../lib/nats/index.js";
-import { broadcastToContactViewers } from "../../services/message-broadcast.service.js";
 import { successData } from "../../lib/response.js";
 import { addReactionSchema } from "../../lib/schemas/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { requireMessageVisibility } from "../../middleware/resource-visibility.js";
+import {
+  getChannelSpineWorkspaceAuthority,
+  isChannelProviderEnabled,
+} from "../../services/channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
 import { enqueueCommand } from "../../services/command-outbox.service.js";
-import { requireSendAccess } from "../../services/send-access.service.js";
+import {
+  broadcastToContactViewers,
+  broadcastToConversationViewers,
+} from "../../services/message-broadcast.service.js";
+import {
+  requireConversationSendAccess,
+  requireSendAccess,
+} from "../../services/send-access.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
 
 export const reactionRoutes = new Hono();

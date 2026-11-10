@@ -230,9 +230,6 @@ func validTenantID(companyID string) bool {
 
 func sanitizeFilename(filename string) string {
 	filename = strings.Map(func(r rune) rune {
-		if r > 127 || strings.ContainsRune(`/\\\x00\r\n`, r) {
-			return '_'
-		}
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
 			(r >= '0' && r <= '9') || strings.ContainsRune("._-", r) {
 			return r

@@ -159,5 +159,3 @@ function CompactStatCard({
     </div>
   );
 }
-
-export default StatCard;

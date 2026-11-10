@@ -9,8 +9,6 @@ POSTGRES_USER=${POSTGRES_USER:-postgres}
 POSTGRES_DB=${POSTGRES_DB:-wateaminbox}
 NATS_URL=${NATS_URL:-nats://localhost:4448}
 ORCHESTRATOR_URL=${ORCHESTRATOR_URL:-http://localhost:8080}
-MEILISEARCH_URL=${MEILISEARCH_URL:-http://localhost:4449}
-MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY:-development_master_key}
 S3_ENDPOINT=${S3_ENDPOINT:-http://localhost:4450}
 S3_ACCESS_KEY=${S3_ACCESS_KEY:-minioadmin}
 S3_SECRET_KEY=${S3_SECRET_KEY:-minioadmin}
@@ -38,14 +36,13 @@ The reset keeps the login and company, but removes that company's:
   - imported contacts, messages, reactions, groups, labels, and catalogs
   - pending WhatsApp outbox commands
   - company-scoped NATS events/commands/downloads
-  - uploaded WhatsApp media and Meilisearch indexes
+  - uploaded WhatsApp media
 
 If the user belongs to multiple companies, pass --company-id explicitly.
 
 Environment overrides:
   POSTGRES_CONTAINER, POSTGRES_USER, POSTGRES_DB
   NATS_URL, ORCHESTRATOR_URL
-  MEILISEARCH_URL, MEILISEARCH_API_KEY
   S3_ENDPOINT, S3_ACCESS_KEY, S3_SECRET_KEY, S3_BUCKET
 EOF
 }
@@ -339,26 +336,6 @@ if mc alias set reset-whatsapp "$S3_ENDPOINT" "$S3_ACCESS_KEY" "$S3_SECRET_KEY" 
 else
 	warn "Could not connect to object storage at $S3_ENDPOINT; media was not removed"
 fi
-
-for index_name in \
-	"messages_${company_id//-/_}" \
-	"contacts_${company_id//-/_}"; do
-	response_file=$(mktemp)
-	temp_files+=("$response_file")
-	http_status=$(curl -sS -o "$response_file" -w '%{http_code}' \
-		-X DELETE "$MEILISEARCH_URL/indexes/$index_name" \
-		-H "Authorization: Bearer $MEILISEARCH_API_KEY" || true)
-	case "$http_status" in
-	202)
-		log "Meilisearch index deletion queued: $index_name"
-		;;
-	404)
-		;;
-	*)
-		warn "Could not delete Meilisearch index $index_name (HTTP ${http_status:-unavailable})"
-		;;
-	esac
-done
 
 verification=$(
 	psql_stdin -At -F $'\t' <<SQL

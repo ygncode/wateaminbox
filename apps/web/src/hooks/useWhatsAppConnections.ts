@@ -169,5 +169,3 @@ export function useWhatsAppConnectionDetail(connectionId: string) {
     clearError: () => clearError(connectionId),
   };
 }
-
-export default useWhatsAppConnections;

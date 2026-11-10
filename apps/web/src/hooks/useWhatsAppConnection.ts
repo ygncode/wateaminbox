@@ -268,5 +268,3 @@ export function useWhatsAppConnection(): WhatsAppConnection {
     isLoading: isStatusLoading,
   };
 }
-
-export default useWhatsAppConnection;

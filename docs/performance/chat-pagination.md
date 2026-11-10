@@ -309,8 +309,9 @@ its best results with those from the repeat.
   inactive filter variants live until normal cache GC. The full application also
   keeps the separate head query and may refresh other active lists. The standalone
   browser request counts must not be claimed as whole-application totals.
-- Channel search/status/account narrowing still includes client-side filtering;
-  sparse combinations other than Unread can require additional pages.
+- Channel search/status narrowing still includes client-side filtering;
+  sparse combinations can require additional pages. Account scoping is now also
+  sent to both APIs and applied before pagination (see follow-up below).
 - Full-app startup, real mobile devices, asymmetric multi-channel histories,
   realistic merged/assigned datasets, avatars, and sustained concurrent realtime
   traffic still need profiling. No production performance sign-off is implied.
@@ -422,3 +423,57 @@ Raw local reports (baseline files are kept separate from optimized runs):
 - `/tmp/chat-pagination-browser-window-smoke.json` — earlier navigation regression run (not used for timing claims).
 
 The summaries above are retained in this document because `/tmp` reports are ephemeral.
+
+## Sparse channel-account filter regression — 2026-11-01
+
+A selected non-WhatsApp account only narrowed visible rows, not the contacts
+request. The channel query also used account selection only in its cache key.
+With one or two visible conversations, the footer stayed in view and repeatedly
+loaded unrelated pages, eventually showing misleading backward-page controls.
+The request offsets progressed; this was an unscoped scan, not repeated retries
+of the same page.
+
+Both list APIs now accept validated `channelAccountId` and filter before paging.
+Contacts apply matching row/count predicates using the existing merged-account
+aggregate. The frontend keeps the legacy `connectionId` filter for WhatsApp,
+scopes non-WhatsApp contacts by account, and scopes the conversation endpoint
+for every selected account. All-account requests omit the parameter. A scoped
+contacts request is still necessary: a merged customer's surviving contact can
+represent a thread on the selected channel even when its primary thread is on
+another account. Simply disabling contacts would hide those customers.
+
+The actual-sidebar browser regression starts with 10,000 contacts, 1,000 other
+channel conversations, a two-conversation account, and an empty account. After
+loading a deep all-account window, it switches to each small account, waits for
+repeated footer notifications, triggers realtime invalidation, then returns to
+WhatsApp and All accounts. Native and 4× CPU runs both verify:
+
+- Exactly one scoped contacts request and one scoped conversation request on
+  selection, both at offset 0; no subsequent page scan.
+- Exactly the same two requests on realtime refresh; no unrelated account loads.
+- Two or zero visible rows as appropriate, no phantom previous-page controls,
+  and correct latest-page restoration on switching back.
+
+This is a synthetic isolated-sidebar regression, not production RTT measurement.
+The full shell's independent head/badge query can still make its normal unscoped
+head-page request; the fix prevents scanning unrelated *pagination* windows.
+Search/status/assignment narrowing on channel rows can still require additional
+pages within the selected account. Mutable offsets remain non-snapshot reads.
+
+Reproduce against the local preview with:
+
+```sh
+python scripts/benchmarks/chat-pagination-browser/run.py \
+  --scenarios sparse-account --output /tmp/chat-account-filter-browser.json
+```
+
+The default runner also includes this case alongside the original three scenarios
+at both CPU settings. All eight scenarios passed in
+`/tmp/chat-account-filter-full-browser.json`. Validation also passed 778 frontend
+tests, 37 focused API unit cases, 18 local database integration cases, application
+and benchmark typechecks/builds, targeted lint, unused-code checks and diff checks.
+The local preview was stopped afterward. Backend regression coverage exercises
+pre-pagination account filtering, exact totals, both merge directions, unbridged
+WhatsApp contacts, archived threads, mirror/merged-duplicate suppression,
+tags/unread, assignment visibility, unknown accounts, and rejection of
+unauthorized workspace selection.

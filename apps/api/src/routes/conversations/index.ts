@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { successData } from "../../lib/response.js";
 import { listConversationsQuerySchema } from "../../lib/schemas/conversation.js";
-import { zValidator } from "../../lib/validator.js";
 import { getAuthorizedMediaUrlOrNull } from "../../lib/storage.js";
+import { zValidator } from "../../lib/validator.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireConversationVisibility } from "../../middleware/resource-visibility.js";
@@ -40,7 +40,7 @@ conversationRoutes.get(
   zValidator("query", listConversationsQuerySchema),
   async (c) => {
     const { tenantDb, companyId, user, permissions } = getRouteContext(c);
-    const { unreadOnly } = c.req.valid("query");
+    const { unreadOnly, channelAccountId } = c.req.valid("query");
     const authority = await getChannelSpineWorkspaceAuthority(companyId);
     if (!authority.neutralReadsEnabled) {
       return c.json({ error: "Neutral conversations are not enabled" }, 404);
@@ -126,6 +126,9 @@ conversationRoutes.get(
             ),
           ),
         ]),
+      )
+      .$if(Boolean(channelAccountId), (qb) =>
+        qb.where("conversation.channel_account_id", "=", channelAccountId!),
       )
       .$if(unreadOnly, (qb) => qb.where("state.unread_count", ">", 0))
       .$if(tagIds.length > 0, (qb) =>

@@ -11,20 +11,19 @@
  * All exports are re-exported here for backward compatibility.
  */
 
-// Re-export tenant context middleware
+// Re-export permission middleware
 export {
-  tenantMiddleware,
-  tenantFromParam,
-  tenantFromHeader,
-  type TenantContextOptions,
-} from "./tenant-context.js";
+  requireAllPermissions,
+  requireAnyPermission,
+  requirePermission,
+} from "./permission.js";
 
 // Re-export role middleware
 export { requireAdmin, requireOwner } from "./role.js";
-
-// Re-export permission middleware
+// Re-export tenant context middleware
 export {
-  requirePermission,
-  requireAllPermissions,
-  requireAnyPermission,
-} from "./permission.js";
+  type TenantContextOptions,
+  tenantFromHeader,
+  tenantFromParam,
+  tenantMiddleware,
+} from "./tenant-context.js";

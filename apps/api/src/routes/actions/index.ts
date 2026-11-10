@@ -5,13 +5,13 @@
  * These endpoints allow clients to trigger actions without maintaining a WebSocket connection.
  */
 
-import { zValidator } from "../../lib/validator.js";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { NoActiveCaseError } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { publishTypingCommand } from "../../lib/nats/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { hasContactVisibility } from "../../middleware/resource-visibility.js";
@@ -30,7 +30,7 @@ const logger = createLogger("ActionsRoutes");
 // Schema for typing indicator request
 const typingSchema = z.object({
   conversationId: z.string().min(1),
-  contactId: z.string().uuid(),
+  contactId: z.string().guid(),
   isTyping: z.boolean(),
 });
 
@@ -187,7 +187,7 @@ actionsRoutes.post(
       // A tenant contact ID, not a JID - the payload below publishes it as
       // `contactId`, and the viewer resolver keys on it. Validating the shape
       // here keeps a non-UUID from reaching PostgreSQL as a cast error.
-      conversationId: z.string().uuid(),
+      conversationId: z.string().guid(),
       messageIds: z.array(z.string()).optional(),
     }),
   ),
@@ -246,5 +246,3 @@ actionsRoutes.post(
     }
   },
 );
-
-export default actionsRoutes;

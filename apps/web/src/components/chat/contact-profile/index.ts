@@ -1,4 +1,4 @@
-export { ContactProfile, default } from "./ContactProfile";
+export { ContactProfile } from "./ContactProfile";
 export type { ContactProfileProps, ContactData } from "./types";
 
 // Re-export subcomponents for direct use if needed

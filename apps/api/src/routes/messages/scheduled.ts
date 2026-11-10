@@ -5,7 +5,6 @@
  * Dispatch is handled server-side by the scheduled-message service.
  */
 
-import { zValidator } from "../../lib/validator.js";
 import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { badRequest, notFound } from "../../lib/errors.js";
@@ -23,12 +22,18 @@ import {
   getMediaObjectReference,
   getPrivateMediaReference,
 } from "../../lib/storage.js";
+import { zValidator } from "../../lib/validator.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";
 import { hasContactVisibility } from "../../middleware/resource-visibility.js";
 import { broadcastAutoAssignment } from "../../services/assignment-broadcast.service.js";
 import { finalizeBulkJobIfComplete } from "../../services/bulk-job.service.js";
+import {
+  conversationIdForContact,
+  resolveWorkflowIdentity,
+} from "../../services/channel-workflow.service.js";
+import { getCurrentConversationAssignment } from "../../services/contact.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
 import {
   broadcastToContactViewers,
@@ -39,11 +44,6 @@ import {
   formatScheduledMessage,
   type ScheduledMessageRow,
 } from "../../services/scheduled-message.service.js";
-import { getCurrentConversationAssignment } from "../../services/contact.service.js";
-import {
-  conversationIdForContact,
-  resolveWorkflowIdentity,
-} from "../../services/channel-workflow.service.js";
 import {
   requireConversationSendAccess,
   requireSendAccess,

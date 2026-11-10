@@ -10,7 +10,6 @@
  * depend on HTTP request limiting at all.
  */
 
-import { zValidator } from "../lib/validator.js";
 import { Hono } from "hono";
 import { badRequest, conflict, notFound } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
@@ -32,6 +31,7 @@ import {
   getMediaObjectReference,
   getPrivateMediaReference,
 } from "../lib/storage.js";
+import { zValidator } from "../lib/validator.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import {

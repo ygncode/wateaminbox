@@ -12,24 +12,16 @@
  * bodies.
  */
 
-import { zValidator } from "../lib/validator.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import { env } from "../lib/env.js";
-import {
-  HOSTED_CLIENTS,
-  hostedClientId,
-} from "../services/oauth-hosted-clients.js";
-import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
-import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
 import { createLogger, formatError } from "../lib/logger.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { zValidator } from "../lib/validator.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
-import {
-  isAllowedRedirectUri,
-  OAuthClientError,
-  resolveOAuthClient,
-} from "../services/oauth-client.service.js";
+import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
+import * as companyService from "../services/company.service.js";
 import {
   createAuthorizationCode,
   exchangeAuthorizationCode,
@@ -37,7 +29,15 @@ import {
   parseScopes,
   refreshTokens,
 } from "../services/oauth.service.js";
-import * as companyService from "../services/company.service.js";
+import {
+  isAllowedRedirectUri,
+  OAuthClientError,
+  resolveOAuthClient,
+} from "../services/oauth-client.service.js";
+import {
+  HOSTED_CLIENTS,
+  hostedClientId,
+} from "../services/oauth-hosted-clients.js";
 
 const logger = createLogger("OAuth");
 
@@ -152,7 +152,7 @@ oauthRoutes.get(
 );
 
 const approveSchema = authorizeQuerySchema.extend({
-  companyId: z.string().uuid(),
+  companyId: z.string().guid(),
 });
 
 /**

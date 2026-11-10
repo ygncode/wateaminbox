@@ -76,6 +76,7 @@ export function getChannelConversations(
     offset?: number;
     tagIds?: readonly string[];
     unreadOnly?: boolean;
+    channelAccountId?: string;
   } = {},
   signal?: AbortSignal,
 ): Promise<ChannelConversation[]> {

@@ -41,6 +41,13 @@ means false); invalid values return 400. Unread messages on merged-away customer
 threads count toward the surviving customer. Existing assignment visibility,
 search, account, tag and lifecycle restrictions still apply.
 
+`channelAccountId=<UUID>` narrows the list and its total **before pagination**
+to customers represented on that channel account, including merged-away threads.
+Omit it for all accounts; malformed UUIDs (including the UI sentinel `all`) return
+400. Unknown or other-tenant account IDs return no matches, never an unfiltered
+list. The existing `connectionId` WhatsApp filter remains supported. Account
+filters do not grant visibility and compose with the other filters.
+
 The response includes `data` and `pagination` (`total`, `limit`, `offset`,
 `hasMore`). Advance by the returned row count, not by any client-side filtered or
 deduplicated subset. Ordering is effective activity descending, nulls last, then

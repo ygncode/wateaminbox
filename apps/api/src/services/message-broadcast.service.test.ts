@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { ROLE_PRESETS } from "./permission.service.js";
 import {
   type ContactViewerCandidate,
   mergeFanOutRecipients,
   selectContactViewerIds,
 } from "./message-broadcast.service.js";
+import { ROLE_PRESETS } from "./permission.service.js";
 
 const OWNER = "owner-user";
 const ADMIN = "admin-user";

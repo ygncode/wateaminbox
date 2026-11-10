@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
-import { sql } from "kysely";
 import type { Kysely } from "kysely";
+import { sql } from "kysely";
 import { app } from "../../app.js";
 import { hashPassword } from "../../lib/password.js";
 import {
@@ -171,21 +171,24 @@ describe("POST /api/whatsapp/connections/:id/reconnect", () => {
     },
   );
 
-  integrationTest("still reconnects a live connection that is not archived", async () => {
-    await withWorkspace(async ({ headers, tenantDb }) => {
-      const connectionId = await insertConnection(tenantDb, {
-        status: "disconnected",
+  integrationTest(
+    "still reconnects a live connection that is not archived",
+    async () => {
+      await withWorkspace(async ({ headers, tenantDb }) => {
+        const connectionId = await insertConnection(tenantDb, {
+          status: "disconnected",
+        });
+
+        const response = await app.request(
+          `/api/whatsapp/connections/${connectionId}/reconnect`,
+          { method: "POST", headers },
+        );
+
+        expect(response.status).toBe(200);
+        const row = await readConnection(tenantDb, connectionId);
+        expect(row.status).toBe("pending");
+        expect(row.archived_at).toBeNull();
       });
-
-      const response = await app.request(
-        `/api/whatsapp/connections/${connectionId}/reconnect`,
-        { method: "POST", headers },
-      );
-
-      expect(response.status).toBe(200);
-      const row = await readConnection(tenantDb, connectionId);
-      expect(row.status).toBe("pending");
-      expect(row.archived_at).toBeNull();
-    });
-  });
+    },
+  );
 });

@@ -479,5 +479,3 @@ export function EmojiReactionPicker({
     </div>
   );
 }
-
-export default EmojiReactionPicker;

@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { getDateRange } from "@wateaminbox/shared";
 import { sql } from "kysely";
+import { getCaseResolutionStats } from "./analytics/case-resolution.js";
 import {
   getContactStats,
   getDashboardStats,
@@ -17,7 +18,6 @@ import {
   getTeamActivityStats,
   getTeamResponseTimeStats,
 } from "./analytics/index.js";
-import { getCaseResolutionStats } from "./analytics/case-resolution.js";
 import {
   clearTenantConnection,
   createTenantSchema,

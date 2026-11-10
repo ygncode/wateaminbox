@@ -7,7 +7,10 @@ import { describe, expect, test } from "bun:test";
 
 import { db } from "@wateaminbox/database";
 import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
-import { getCurrentSlaPolicy, resolveCaseTargets } from "../sla-policy/policy.service.js";
+import {
+  getCurrentSlaPolicy,
+  resolveCaseTargets,
+} from "../sla-policy/policy.service.js";
 import {
   clearTenantConnection,
   createTenantSchema,

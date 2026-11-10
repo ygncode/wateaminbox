@@ -61,5 +61,3 @@ export function HighlightedText({
     </>
   );
 }
-
-export default HighlightedText;

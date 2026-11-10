@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 import { z } from "zod";
+import { batchStarSchema } from "./schemas/message.js";
 import { zValidator } from "./validator.js";
 
 const body = z.object({
@@ -29,10 +30,42 @@ function appWithValidator() {
     }),
     (c) => c.json({ data: c.req.valid("json") }),
   );
+  app.post("/batch", zValidator("json", batchStarSchema), (c) =>
+    c.json({ data: c.req.valid("json") }),
+  );
   return app;
 }
 
 describe("zValidator wrapper", () => {
+  test("oversized invalid collections return one bounded error in the existing envelope", async () => {
+    const response = await appWithValidator().request("/batch", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messageIds: Array(10_000).fill(null) }),
+    });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Validation Error",
+      details: [
+        {
+          field: "messageIds",
+          message: "Maximum 50 messages per batch request",
+        },
+      ],
+    });
+  });
+
+  test("existing batch boundary and v3 GUID acceptance reach the handler", async () => {
+    const messageIds = Array(50).fill("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+    const response = await appWithValidator().request("/batch", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ messageIds, extra: "stripped" }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ data: { messageIds, star: true } });
+  });
+
   test("formats a rejected body the way the rest of the API does", async () => {
     const response = await appWithValidator().request("/json", {
       method: "POST",

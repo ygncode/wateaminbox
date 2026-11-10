@@ -155,5 +155,3 @@ export function useQuickReplySearch(shortcut: string) {
     isLoading,
   };
 }
-
-export default useQuickReplies;

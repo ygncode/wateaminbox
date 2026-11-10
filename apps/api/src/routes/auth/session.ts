@@ -1,4 +1,3 @@
-import { zValidator } from "../../lib/validator.js";
 import { Hono } from "hono";
 import { badRequest } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
@@ -13,6 +12,7 @@ import {
   changePasswordSchema,
   updateProfileSchema,
 } from "../../lib/schemas/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import {
   changePassword,

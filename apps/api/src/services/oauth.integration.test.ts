@@ -1,7 +1,14 @@
-import { createHash, randomBytes } from "node:crypto";
 import { describe, expect, test } from "bun:test";
+import { createHash, randomBytes } from "node:crypto";
 import { db } from "@wateaminbox/database";
 import { app } from "../app.js";
+import {
+  createApiToken,
+  listApiTokens,
+  revokeApiToken,
+  verifyApiToken,
+} from "./api-token.service.js";
+import { removeMember } from "./company/members.js";
 import {
   createAuthorizationCode,
   exchangeAuthorizationCode,
@@ -11,14 +18,7 @@ import {
   revokeConnectedApp,
   revokeGrant,
 } from "./oauth.service.js";
-import {
-  createApiToken,
-  listApiTokens,
-  revokeApiToken,
-  verifyApiToken,
-} from "./api-token.service.js";
 import { getSchemaName } from "./tenant.service.js";
-import { removeMember } from "./company/members.js";
 
 const integrationTest =
   process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip;

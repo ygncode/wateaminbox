@@ -148,7 +148,10 @@ describe("connection admission bypass (real tenant DB)", () => {
         await handleConnectedEvent(
           connectedEvent(companyId, connectionId, sessionId) as never,
           {
-            admitConnectedPhone: (async (input: { companyId: string; phoneNumber: string }) => {
+            admitConnectedPhone: (async (input: {
+              companyId: string;
+              phoneNumber: string;
+            }) => {
               admissions.push(input);
               return { allowed: true };
             }) as never,
@@ -205,7 +208,10 @@ describe("connection admission bypass (real tenant DB)", () => {
         await handleConnectedEvent(
           connectedEvent(companyId, connectionId, sessionId) as never,
           {
-            admitConnectedPhone: (async (input: { companyId: string; phoneNumber: string }) => {
+            admitConnectedPhone: (async (input: {
+              companyId: string;
+              phoneNumber: string;
+            }) => {
               admissions.push(input);
               return {
                 allowed: false,
@@ -265,7 +271,10 @@ describe("connection admission bypass (real tenant DB)", () => {
         await handleConnectedEvent(
           connectedEvent(companyId, connectionId, sessionId) as never,
           {
-            admitConnectedPhone: (async (input: { companyId: string; phoneNumber: string }) => {
+            admitConnectedPhone: (async (input: {
+              companyId: string;
+              phoneNumber: string;
+            }) => {
               admissions.push(input);
               return {
                 allowed: false,
@@ -315,7 +324,10 @@ describe("connection admission bypass (real tenant DB)", () => {
         await handleConnectedEvent(
           connectedEvent(companyId, connectionId, sessionId) as never,
           {
-            admitConnectedPhone: (async (input: { companyId: string; phoneNumber: string }) => {
+            admitConnectedPhone: (async (input: {
+              companyId: string;
+              phoneNumber: string;
+            }) => {
               admissions.push(input);
               return { allowed: true };
             }) as never,

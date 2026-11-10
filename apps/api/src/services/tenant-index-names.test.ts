@@ -4,10 +4,10 @@ import {
   getTenantSchemaName,
   legacyIdentifier,
   PG_IDENTIFIER_MAX_BYTES,
-  targetIdentifier,
   TENANT_INDEX_TARGETS,
   TENANT_SCHEMA_NAME_LENGTH,
   TENANT_SUFFIX_BUDGET,
+  targetIdentifier,
 } from "@wateaminbox/database";
 
 /**

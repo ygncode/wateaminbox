@@ -1,5 +1,5 @@
 {
-  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
       "entry": ["scripts/*.ts"],
@@ -7,14 +7,11 @@
     },
     "apps/api": {
       "entry": ["src/index.ts", "src/scripts/*.ts", "src/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "ignore": ["src/__tests__/**"],
-      "ignoreDependencies": ["pino-pretty"]
+      "project": ["src/**/*.ts"]
     },
     "apps/web": {
-      "entry": ["src/main.tsx", "src/**/*.test.{ts,tsx}"],
-      "project": ["src/**/*.{ts,tsx}"],
-      "ignore": ["e2e/**"]
+      "entry": ["src/**/*.test.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx,css}"]
     },
     "packages/database": {
       "entry": [
@@ -34,16 +31,10 @@
     },
     "packages/ui": {
       "project": ["src/**/*.{ts,tsx}"]
-    },
-    "services/orchestrator": {
-      "ignore": ["**/*.go"]
-    },
-    "services/whatsapp": {
-      "ignore": ["**/*.go"]
     }
   },
   "ignoreDependencies": ["kysely", "pg", "ioredis", "nats"],
   "ignoreBinaries": ["go"],
   "ignoreExportsUsedInFile": true,
-  "exclude": ["duplicates", "enumMembers", "exports", "types", "unresolved"]
+  "exclude": ["enumMembers", "exports", "types"]
 }

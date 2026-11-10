@@ -25,7 +25,11 @@ import {
 } from "./message-grouping";
 
 // Lazy load emoji reaction picker - only loaded when user opens it
-const EmojiReactionPicker = lazy(() => import("./EmojiReactionPicker"));
+const EmojiReactionPicker = lazy(() =>
+  import("./EmojiReactionPicker").then((m) => ({
+    default: m.EmojiReactionPicker,
+  })),
+);
 
 import { MessageContextMenu } from "./MessageContextMenu";
 import { ForwardIcon, ReplyIcon, StarFilledIcon } from "./MessageIcons";

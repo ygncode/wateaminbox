@@ -3,7 +3,7 @@
  *
  * CRUD operations for managing multiple WhatsApp connections per company.
  */
-import { zValidator } from "../../lib/validator.js";
+
 import { toDbDate, toISOString } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -13,6 +13,7 @@ import {
   MaxConnectionsExceededError,
 } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
+import { zValidator } from "../../lib/validator.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import {
   requirePermission,
@@ -348,7 +349,7 @@ connectionRoutes.post(
     try {
       const cleanup = await processConnectionPurgeCleanup(tenantDb, companyId, {
         connectionId,
-        kinds: ["bulk_job", "search_contact"],
+        kinds: ["bulk_job", "search_contact"], // search_contact drains legacy rows as no-ops
         limit: 500,
       });
       if (cleanup.failed > 0) {

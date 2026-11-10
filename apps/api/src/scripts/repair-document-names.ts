@@ -45,7 +45,7 @@ import { db } from "@wateaminbox/database";
 import { sql } from "kysely";
 import { createLogger, formatError } from "../lib/logger.js";
 import { fileNameFromMediaKey } from "../lib/media-download-name.js";
-import { sniffMediaType, type SniffedType } from "../lib/media-sniff.js";
+import { type SniffedType, sniffMediaType } from "../lib/media-sniff.js";
 import {
   getMediaObjectSize,
   readMediaRange,

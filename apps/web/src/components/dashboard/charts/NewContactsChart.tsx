@@ -167,5 +167,3 @@ function ChartEmptyState() {
     </div>
   );
 }
-
-export default NewContactsChart;
