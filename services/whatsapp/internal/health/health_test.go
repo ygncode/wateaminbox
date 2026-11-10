@@ -1,4 +1,4 @@
-package main
+package health
 
 import (
 	"context"
@@ -15,26 +15,26 @@ type fakeProbe struct {
 func (f fakeProbe) IsConnected() bool { return f.connected }
 func (f fakeProbe) IsLoggedIn() bool  { return f.loggedIn }
 
-func startHealth(t *testing.T, probe connectionProbe) (*healthServer, string) {
+func startHealth(t *testing.T, probe ConnectionProbe) (*Server, string) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	h := newHealthServer(probe)
-	addr, err := h.serve(ctx, "127.0.0.1:0")
+	h := New(probe)
+	addr, err := h.Serve(ctx, "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("serve: %v", err)
 	}
 	return h, "http://" + addr
 }
 
-func get(t *testing.T, url string) (int, healthState) {
+func get(t *testing.T, url string) (int, State) {
 	t.Helper()
 	resp, err := http.Get(url) //nolint:noctx // test helper against a loopback server
 	if err != nil {
 		t.Fatalf("GET %s: %v", url, err)
 	}
 	defer resp.Body.Close()
-	var s healthState
+	var s State
 	if resp.Header.Get("Content-Type") == "application/json" {
 		if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
 			t.Fatalf("decode: %v", err)
@@ -58,7 +58,7 @@ func TestHealthReadyRequiresReadyConnectedLoggedIn(t *testing.T) {
 		t.Fatalf("before markReady: code=%d state=%+v", code, s)
 	}
 
-	h.markReady()
+	h.MarkReady()
 	if code, s := get(t, base+"/healthz/ready"); code != http.StatusServiceUnavailable || !s.Ready || s.Connected {
 		t.Fatalf("ready but disconnected: code=%d state=%+v", code, s)
 	}

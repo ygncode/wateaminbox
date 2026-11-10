@@ -16,6 +16,7 @@ import (
 	sharednats "github.com/ygncode-lab/whatsapp-web/services/shared/nats"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/client"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/handler"
+	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/health"
 	natsClient "github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/nats"
 	"github.com/ygncode-lab/whatsapp-web/services/whatsapp/internal/storage"
 )
@@ -250,10 +251,10 @@ func run() error {
 	}
 	log.Printf("NATS subscriber listening for send commands")
 
-	var health *healthServer
+	var healthSrv *health.Server
 	if healthAddr != "" {
-		health = newHealthServer(waClient)
-		boundAddr, err := health.serve(ctx, healthAddr)
+		healthSrv = health.New(waClient)
+		boundAddr, err := healthSrv.Serve(ctx, healthAddr)
 		if err != nil {
 			return fmt.Errorf("start health server on %s: %w", healthAddr, err)
 		}
@@ -269,8 +270,8 @@ func run() error {
 	); err != nil {
 		return fmt.Errorf("publish worker process readiness: %w", err)
 	}
-	if health != nil {
-		health.markReady()
+	if healthSrv != nil {
+		healthSrv.MarkReady()
 	}
 
 	// Connect to WhatsApp

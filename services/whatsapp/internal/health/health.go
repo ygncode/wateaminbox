@@ -1,4 +1,6 @@
-package main
+// Package health serves optional HTTP liveness and readiness endpoints for a
+// worker that runs under a probe-driven supervisor instead of the orchestrator.
+package health
 
 import (
 	"context"
@@ -15,7 +17,7 @@ import (
 // small: the worker's authoritative status still travels over NATS, and the
 // endpoint exists so a container runtime can probe the process without
 // holding NATS credentials. Nothing here identifies the tenant or the phone.
-type healthState struct {
+type State struct {
 	// Ready is set once every process-level dependency is initialized, the
 	// same moment the signed process-ready runtime signal is published.
 	Ready bool `json:"ready"`
@@ -27,12 +29,12 @@ type healthState struct {
 }
 
 // connectionProbe is the subset of the WhatsApp client the health server reads.
-type connectionProbe interface {
+type ConnectionProbe interface {
 	IsConnected() bool
 	IsLoggedIn() bool
 }
 
-// healthServer serves two endpoints:
+// Server serves two endpoints:
 //
 //	GET /healthz/live   200 once the server is up; the process is alive.
 //	GET /healthz/ready  200 when the worker is ready, connected and logged in,
@@ -41,14 +43,14 @@ type connectionProbe interface {
 // Readiness returns 503 during QR pairing on purpose: a probe-driven supervisor
 // should not route or count an unpaired worker as healthy, and the orchestrator
 // path (which does not enable this server) keeps its own semantics.
-type healthServer struct {
-	probe connectionProbe
+type Server struct {
+	probe ConnectionProbe
 	ready atomic.Bool
 	srv   *http.Server
 }
 
-func newHealthServer(probe connectionProbe) *healthServer {
-	h := &healthServer{probe: probe}
+func New(probe ConnectionProbe) *Server {
+	h := &Server{probe: probe}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz/live", h.handleLive)
 	mux.HandleFunc("GET /healthz/ready", h.handleReady)
@@ -62,12 +64,12 @@ func newHealthServer(probe connectionProbe) *healthServer {
 	return h
 }
 
-// markReady flips readiness; it is called once, after the process-ready
+// MarkReady flips readiness; it is called once, after the process-ready
 // runtime signal has been published.
-func (h *healthServer) markReady() { h.ready.Store(true) }
+func (h *Server) MarkReady() { h.ready.Store(true) }
 
-func (h *healthServer) state() healthState {
-	s := healthState{Ready: h.ready.Load()}
+func (h *Server) state() State {
+	s := State{Ready: h.ready.Load()}
 	if h.probe != nil {
 		s.Connected = h.probe.IsConnected()
 		s.LoggedIn = h.probe.IsLoggedIn()
@@ -75,13 +77,13 @@ func (h *healthServer) state() healthState {
 	return s
 }
 
-func (h *healthServer) handleLive(w http.ResponseWriter, _ *http.Request) {
+func (h *Server) handleLive(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("ok\n"))
 }
 
-func (h *healthServer) handleReady(w http.ResponseWriter, _ *http.Request) {
+func (h *Server) handleReady(w http.ResponseWriter, _ *http.Request) {
 	s := h.state()
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
@@ -93,9 +95,9 @@ func (h *healthServer) handleReady(w http.ResponseWriter, _ *http.Request) {
 	_ = json.NewEncoder(w).Encode(s)
 }
 
-// serve listens on addr until ctx is cancelled. It returns the bound address
+// Serve listens on addr until ctx is cancelled. It returns the bound address
 // so callers (and tests) can use port 0.
-func (h *healthServer) serve(ctx context.Context, addr string) (string, error) {
+func (h *Server) Serve(ctx context.Context, addr string) (string, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return "", err
