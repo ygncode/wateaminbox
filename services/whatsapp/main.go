@@ -56,6 +56,9 @@ func run() error {
 	natsURL := config.GetEnv("NATS_URL", "nats://localhost:4222")
 	logLevel := config.GetEnv("LOG_LEVEL", "info")
 	unlinkOnStart := config.GetEnv("UNLINK_ON_START", "false") == "true"
+	// Optional HTTP health endpoints for probe-driven supervisors (containers,
+	// Kubernetes). Empty = disabled; the orchestrator does not set it.
+	healthAddr := config.GetEnv("WORKER_HEALTH_ADDR", "")
 
 	// Storage configuration (S3-compatible - works with MinIO and Cloudflare R2)
 	// Check both STORAGE_* and S3_* env vars for compatibility with .env convention
@@ -247,6 +250,16 @@ func run() error {
 	}
 	log.Printf("NATS subscriber listening for send commands")
 
+	var health *healthServer
+	if healthAddr != "" {
+		health = newHealthServer(waClient)
+		boundAddr, err := health.serve(ctx, healthAddr)
+		if err != nil {
+			return fmt.Errorf("start health server on %s: %w", healthAddr, err)
+		}
+		log.Printf("Health endpoints listening on http://%s/healthz/{live,ready}", boundAddr)
+	}
+
 	// All process-level dependencies and handlers are initialized. This signal
 	// is transient and scoped to the exact launch, so it cannot make an older
 	// generation appear ready or enter the API event stream.
@@ -255,6 +268,9 @@ func run() error {
 		"",
 	); err != nil {
 		return fmt.Errorf("publish worker process readiness: %w", err)
+	}
+	if health != nil {
+		health.markReady()
 	}
 
 	// Connect to WhatsApp
