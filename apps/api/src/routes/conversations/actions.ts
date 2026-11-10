@@ -1,25 +1,25 @@
-import { zValidator } from "../../lib/validator.js";
-import { isChannel, isChannelProvider } from "@wateaminbox/shared";
 import { createHash } from "node:crypto";
+import { isChannel, isChannelProvider } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import { resolveAdapterCapabilities } from "../../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../../channel-spine/registry.js";
 import { badRequest, conflict, notFound } from "../../lib/errors.js";
 import { successData } from "../../lib/response.js";
+import { zValidator } from "../../lib/validator.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
-import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
 import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
 } from "../../services/channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "../../services/channel-spine-readiness.service.js";
 import { requireSendAccess } from "../../services/send-access.service.js";
 
 const actionSchema = z
   .object({
     operation: z.enum(["edit", "delete", "reaction"]),
-    messageId: z.string().uuid(),
+    messageId: z.string().guid(),
     textContent: z.string().max(4096).optional(),
     emoji: z.string().min(1).max(32).optional(),
   })

@@ -60,10 +60,6 @@ function recordingDeps(
       deleteObject: async (key) => {
         deletedKeys.push(key);
       },
-      dropSearchMessages: async (_companyId, contactIds) => {
-        searchedContactIds.push(...contactIds);
-      },
-      dropSearchContacts: async () => undefined,
       finalizeBulkJob: async (_tenantDb, _companyId, bulkJobId) => {
         finalizedBulkJobs.push(bulkJobId);
       },
@@ -378,6 +374,9 @@ describe("permanent purge media cleanup against PostgreSQL", () => {
           .values({ connection_id: connectionId, kind: "media", reference })
           .execute();
 
+        // Do not race PostgreSQL's microsecond now() default against the
+        // application's millisecond claim clock on a fast CI host.
+        await makeDue(companyId);
         // A first clean look only defers; storage is not touched yet.
         const settling = recordingDeps();
         expect(
@@ -460,7 +459,9 @@ describe("permanent purge media cleanup against PostgreSQL", () => {
           .execute();
 
         // Bring the item to its settle phase so the contended pass is the one
-        // that actually reaches storage.
+        // that actually reaches storage. Make the fixture due explicitly rather
+        // than relying on the database and application clocks crossing a tick.
+        await makeDue(companyId);
         const warmup = recordingDeps();
         expect(
           (
@@ -906,7 +907,7 @@ describe("permanent purge media cleanup against PostgreSQL", () => {
           }),
         ).toEqual({ completed: 1, failed: 0, deferred: 0 });
 
-        expect(recorded.searchedContactIds).toEqual([contactId]);
+        // search_contact rows are legacy: they drain as no-ops (search is PostgreSQL-only)
         expect(recorded.deletedKeys).toEqual([]);
         expect(
           (await listItems(companyId)).map((item) => item.kind).sort(),

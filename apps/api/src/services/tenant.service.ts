@@ -1,5 +1,6 @@
 import {
   getTenantSchemaName,
+  reconcileChannelSpineConcurrentIndexes,
   reconcileTenantSchema,
   type TenantDatabase as TenantDatabaseType,
 } from "@wateaminbox/database";
@@ -67,6 +68,13 @@ export async function createTenantSchema(companyId: string): Promise<void> {
   const schemaName = getSchemaName(companyId);
   await sql`SELECT setup_tenant_schema(${schemaName})`.execute(baseTenantDb);
   await reconcileTenantSchema(baseTenantDb, schemaName);
+  // The provider-spine uniqueness indexes use CREATE INDEX CONCURRENTLY and
+  // deliberately do not live in a tenant migration. When this deployment
+  // seeds neutral defaults, provisioning must build them before returning or
+  // every new workspace would be flagged on but fail readiness indefinitely.
+  if (env.CHANNEL_SPINE_DEFAULT_PROVIDERS.trim()) {
+    await reconcileChannelSpineConcurrentIndexes(baseTenantDb, schemaName);
+  }
 }
 
 export async function dropTenantSchema(companyId: string): Promise<void> {

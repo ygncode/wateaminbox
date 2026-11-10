@@ -31,9 +31,10 @@ export const passwordSchema = z
 export const tokenSchema = z.string().min(1, "Token is required");
 
 /**
- * UUID validation schema
+ * Keep Zod v3's GUID contract (hex groups, no version/variant restriction).
+ * Zod v4's uuid() is stricter and would reject previously accepted IDs.
  */
-export const uuidSchema = z.string().uuid("Invalid UUID format");
+export const uuidSchema = z.string().guid("Invalid UUID format");
 
 /**
  * Name validation schema (optional, max 255 characters)

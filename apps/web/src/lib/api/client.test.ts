@@ -147,3 +147,75 @@ describe("fetchWithAuth refresh handling", () => {
     expect(getAccessToken()).toBe("expired");
   });
 });
+
+describe("payment-required redirect", () => {
+  const originalWindow = (globalThis as { window?: unknown }).window;
+  const originalBillingUrl = process.env.VITE_BILLING_URL;
+  let replaced: string[] = [];
+  let respond: (response: Response) => void = () => undefined;
+  let sentCompanyId = null as string | null;
+
+  function stubBrowser(pathname: string): void {
+    replaced = [];
+    (globalThis as { window?: unknown }).window = {
+      location: {
+        origin: "https://app.example.com",
+        pathname,
+        replace: (url: string) => replaced.push(url),
+      },
+    };
+    process.env.VITE_BILLING_URL = "/billing";
+    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
+      sentCompanyId = (init?.headers as Record<string, string>)["X-Company-ID"];
+      return new Promise<Response>((resolve) => {
+        respond = resolve;
+      });
+    }) as unknown as typeof fetch;
+  }
+
+  async function answerWith402(request: Promise<unknown>): Promise<void> {
+    respond(
+      Response.json({ error: "SUBSCRIPTION_RESTRICTED" }, { status: 402 }),
+    );
+    await expect(request).rejects.toThrow();
+  }
+
+  afterEach(() => {
+    (globalThis as { window?: unknown }).window = originalWindow;
+    if (originalBillingUrl === undefined) delete process.env.VITE_BILLING_URL;
+    else process.env.VITE_BILLING_URL = originalBillingUrl;
+  });
+
+  test("bills the workspace the request was sent for", async () => {
+    stubBrowser("/w/new-workspace/chat");
+    setCompanyId("new-workspace");
+    await answerWith402(fetchWithAuth("/companies"));
+
+    expect(sentCompanyId).toBe("new-workspace");
+    expect(replaced).toEqual([
+      "/billing?companyId=new-workspace&mode=onboarding",
+    ]);
+  });
+
+  test("ignores a 402 for a workspace the user has left", async () => {
+    // Switching away from a workspace that needs payment must not be undone by
+    // a request that was still in flight for it.
+    stubBrowser("/w/paid-workspace/chat");
+    setCompanyId("unpaid-workspace");
+    const request = fetchWithAuth("/notifications/count");
+    setCompanyId("paid-workspace");
+    await answerWith402(request);
+
+    expect(sentCompanyId).toBe("unpaid-workspace");
+    expect(replaced).toEqual([]);
+  });
+
+  test("never redirects away from the workspace chooser", async () => {
+    // The chooser is how a user leaves a workspace that needs payment.
+    stubBrowser("/workspaces");
+    setCompanyId("unpaid-workspace");
+    await answerWith402(fetchWithAuth("/notifications/count"));
+
+    expect(replaced).toEqual([]);
+  });
+});

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
-import { getClientIp as getAuditClientIp } from "../services/audit.service.js";
 import { getClientIp as getRateLimitClientIp } from "../middleware/rate-limit.js";
+import { getClientIp as getAuditClientIp } from "../services/audit.service.js";
 import { resolveClientIp, setVerifiedRequestIp } from "./client-ip.js";
 
 /**

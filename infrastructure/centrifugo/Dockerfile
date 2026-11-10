@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM golang:1.25.0-alpine AS wrapper-build
+FROM golang:1.26.10-alpine AS wrapper-build
 WORKDIR /src
 COPY infrastructure/centrifugo/entrypoint/go.mod ./
 COPY infrastructure/centrifugo/entrypoint/main.go ./

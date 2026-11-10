@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { REMOTE_HISTORY_RESPONSE_TIMEOUT_MS } from "@wateaminbox/shared";
-import { sql } from "kysely";
 import type { Kysely } from "kysely";
+import { sql } from "kysely";
 import { app } from "../../app.js";
 import { hashPassword } from "../../lib/password.js";
 import {
@@ -172,17 +172,24 @@ describe("stale remote-history request recovery", () => {
     },
   );
 
-  integrationTest("leaves a request that is still within the timeout alone", async () => {
-    await withWorkspace(async ({ tenantDb }) => {
-      const contactId = await insertContact(tenantDb, "requesting", new Date());
+  integrationTest(
+    "leaves a request that is still within the timeout alone",
+    async () => {
+      await withWorkspace(async ({ tenantDb }) => {
+        const contactId = await insertContact(
+          tenantDb,
+          "requesting",
+          new Date(),
+        );
 
-      expect(await failStaleRemoteHistoryRequest(tenantDb, contactId)).toBe(
-        false,
-      );
-      const row = await readRemoteHistoryStatus(tenantDb, contactId);
-      expect(row.remote_history_status).toBe("requesting");
-    });
-  });
+        expect(await failStaleRemoteHistoryRequest(tenantDb, contactId)).toBe(
+          false,
+        );
+        const row = await readRemoteHistoryStatus(tenantDb, contactId);
+        expect(row.remote_history_status).toBe("requesting");
+      });
+    },
+  );
 
   integrationTest(
     "does not clobber the retry that commits between the read and the write",

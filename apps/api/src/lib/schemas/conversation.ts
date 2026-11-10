@@ -4,13 +4,23 @@
  * Schemas for conversation-related API endpoints.
  */
 import { z } from "zod";
+import { urlStringSchema } from "./string-contracts.js";
+
+/** Validated inbox filters; paging and tags retain their existing route policy. */
+export const listConversationsQuerySchema = z.object({
+  channelAccountId: z.string().guid().optional(),
+  unreadOnly: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
+});
 
 /**
  * Query params for listing messages in a conversation
  */
 export const listConversationMessagesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  cursor: z.string().uuid().optional(),
+  cursor: z.string().guid().optional(),
 });
 
 export type ListConversationMessagesQuery = z.infer<
@@ -34,8 +44,8 @@ export const sendConversationMessageSchema = z.object({
       "contact",
     ])
     .default("text"),
-  mediaUrl: z.string().url().optional(),
-  replyToMessageId: z.string().uuid().optional(),
+  mediaUrl: urlStringSchema.optional(),
+  replyToMessageId: z.string().guid().optional(),
   mentionedJids: z
     .array(
       z

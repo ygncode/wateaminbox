@@ -3,6 +3,7 @@ import type { MemberPermissions } from "@wateaminbox/shared";
 import {
   chatViewPath,
   getWorkspaceDestination,
+  isWorkspaceChooserPath,
   parseChatView,
   resolveInitialWorkspaceId,
   resolveWorkspaceDestination,
@@ -137,5 +138,14 @@ describe("chat view query param", () => {
       destination: "chat",
       suffix: "contact-one",
     });
+  });
+});
+
+describe("isWorkspaceChooserPath", () => {
+  test("matches the chooser with or without a trailing slash", () => {
+    expect(isWorkspaceChooserPath("/workspaces")).toBe(true);
+    expect(isWorkspaceChooserPath("/workspaces/")).toBe(true);
+    expect(isWorkspaceChooserPath("/w/abc/chat")).toBe(false);
+    expect(isWorkspaceChooserPath("/workspaces-old")).toBe(false);
   });
 });

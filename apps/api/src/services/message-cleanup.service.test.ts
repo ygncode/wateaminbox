@@ -48,7 +48,9 @@ describe("cleanup cycle error isolation", () => {
       },
     });
 
-    expect(swept).toEqual(["company-a", "company-b"]);
+    // Both tenants are swept; their order is not guaranteed now that tenants
+    // are processed concurrently.
+    expect([...swept].sort()).toEqual(["company-a", "company-b"]);
     expect(result.totalProcessed).toBe(2);
     expect(result.totalExpired).toBe(2);
   });
@@ -88,7 +90,8 @@ describe("cleanup cycle error isolation", () => {
       releaseMedia: async () => 0,
     });
 
-    expect(cleaned).toEqual(["company-a", "company-b"]);
+    // Order is not guaranteed under concurrent processing; both ran.
+    expect([...cleaned].sort()).toEqual(["company-a", "company-b"]);
     expect(result.totalExpired).toBe(5);
     expect(result.companies).toHaveLength(2);
   });
@@ -229,6 +232,137 @@ describe("cleanup service lifecycle", () => {
       });
       expect(result.skipped).toBe(true);
       expect(called).toBe(false);
+    } finally {
+      setMessageCleanupConfig(original);
+    }
+  });
+});
+
+/**
+ * Every API replica boots the cleanup service, so a whole-cycle advisory lock
+ * elects a single leader per cycle. The lock is injected here to prove the
+ * scheduler honours it without needing a database.
+ */
+describe("cross-replica leadership", () => {
+  test("a replica that does not hold the lock skips the cycle entirely", async () => {
+    const original = getMessageCleanupConfig();
+    let cycleRan = false;
+    try {
+      await initializeMessageCleanup(
+        { enabled: true, intervalMinutes: 60 },
+        {
+          listCompanies: async () => {
+            // Reached only if the non-leader wrongly ran the cycle.
+            cycleRan = true;
+            return COMPANIES;
+          },
+          cleanupMessages: async () => 0,
+          releaseMedia: async () => 0,
+        },
+        // Non-leader: lock held elsewhere, so onAcquired must never run.
+        { run: async () => ({ acquired: false }) },
+      );
+
+      expect(cycleRan).toBe(false);
+    } finally {
+      await shutdownMessageCleanup();
+      setMessageCleanupConfig(original);
+    }
+  });
+
+  test("the leader runs the cycle and releases the lock afterwards", async () => {
+    const original = getMessageCleanupConfig();
+    let companiesListed = 0;
+    let released = 0;
+    try {
+      await initializeMessageCleanup(
+        { enabled: true, intervalMinutes: 60 },
+        {
+          listCompanies: async () => {
+            companiesListed++;
+            return [{ id: "company-a" }];
+          },
+          cleanupMessages: async () => 0,
+          releaseMedia: async () => 0,
+        },
+        // Leader: run the cycle, and record that release happened after it.
+        {
+          run: async (onAcquired) => {
+            const result = await onAcquired();
+            released++;
+            return { acquired: true, result };
+          },
+        },
+      );
+
+      expect(companiesListed).toBe(1);
+      expect(released).toBe(1);
+    } finally {
+      await shutdownMessageCleanup();
+      setMessageCleanupConfig(original);
+    }
+  });
+});
+
+/**
+ * Tenants are processed with bounded parallelism so a cycle's wall-clock is
+ * roughly total/concurrency rather than the sum of every tenant's work. The
+ * cap must hold so the cycle never drains the shared tenant connection pool.
+ */
+describe("cleanup cycle concurrency", () => {
+  const FOUR = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
+
+  test("runs multiple tenants at once but never more than the configured cap", async () => {
+    const original = getMessageCleanupConfig();
+    try {
+      setMessageCleanupConfig({ concurrency: 2 });
+      let inFlight = 0;
+      let maxInFlight = 0;
+      const result = await runCleanupCycle({
+        listCompanies: async () => FOUR,
+        cleanupMessages: async () => {
+          inFlight += 1;
+          maxInFlight = Math.max(maxInFlight, inFlight);
+          await Bun.sleep(15);
+          inFlight -= 1;
+          return 0;
+        },
+        releaseMedia: async () => 0,
+      });
+
+      // Reached the cap (proving parallelism) and never exceeded it.
+      expect(maxInFlight).toBe(2);
+      expect(result.totalProcessed).toBe(4);
+      expect(result.companies.map((c) => c.companyId)).toEqual([
+        "a",
+        "b",
+        "c",
+        "d",
+      ]);
+    } finally {
+      setMessageCleanupConfig(original);
+    }
+  });
+
+  test("concurrency of 1 processes tenants strictly one at a time", async () => {
+    const original = getMessageCleanupConfig();
+    try {
+      setMessageCleanupConfig({ concurrency: 1 });
+      let inFlight = 0;
+      let maxInFlight = 0;
+      await runCleanupCycle({
+        listCompanies: async () => FOUR,
+        cleanupMessages: async () => {
+          inFlight += 1;
+          maxInFlight = Math.max(maxInFlight, inFlight);
+          await Bun.sleep(5);
+          inFlight -= 1;
+          return 0;
+        },
+        releaseMedia: async () => 0,
+      });
+
+      expect(maxInFlight).toBe(1);
     } finally {
       setMessageCleanupConfig(original);
     }

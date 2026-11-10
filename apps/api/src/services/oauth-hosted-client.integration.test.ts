@@ -1,13 +1,13 @@
-import { createHash, randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { createHash, randomBytes } from "node:crypto";
 import { db } from "@wateaminbox/database";
 import { env } from "../lib/env.js";
-import { hostedClientId } from "./oauth-hosted-clients.js";
+import { createAuthorizationCode } from "./oauth.service.js";
 import {
   OAuthClientError,
   resolveOAuthClient,
 } from "./oauth-client.service.js";
-import { createAuthorizationCode } from "./oauth.service.js";
+import { hostedClientId } from "./oauth-hosted-clients.js";
 import { getSchemaName } from "./tenant.service.js";
 
 /**

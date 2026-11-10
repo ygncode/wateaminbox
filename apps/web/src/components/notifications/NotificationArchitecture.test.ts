@@ -28,8 +28,11 @@ describe("global notification architecture", () => {
   });
 
   test("persists a collapsible desktop workspace rail", async () => {
-    const layout = await readSource("../layout/ProtectedAppLayout.tsx");
-    expect(layout).toContain('"wateaminbox:sidebar-collapsed"');
+    const [layout, preferences] = await Promise.all([
+      readSource("../layout/ProtectedAppLayout.tsx"),
+      readSource("../layout/app-shell-preferences.ts"),
+    ]);
+    expect(preferences).toContain('"wateaminbox:sidebar-collapsed"');
     expect(layout).toContain("collapsed={sidebarCollapsed}");
     expect(layout).toContain("Expand sidebar");
     expect(layout).toContain("Collapse sidebar");
@@ -38,6 +41,17 @@ describe("global notification architecture", () => {
   test("the bell and panel share one notification controller", async () => {
     const center = await readSource("./NotificationCenter.tsx");
     expect(center.match(/useNotificationCenter\(/g)?.length).toBe(1);
+  });
+
+  test("connection recovery refreshes persistent notifications", async () => {
+    const provider = await readSource(
+      "../../contexts/NotificationProvider.tsx",
+    );
+    expect(provider).toContain("subscribe<WhatsAppConnectedPayload>");
+    expect(provider).toContain('"connected"');
+    expect(provider).toContain("subscribe<WorkerConnectionStatusPayload>");
+    expect(provider).toContain('payload.status === "connected"');
+    expect(provider).toContain("invalidateNotificationQueries(queryClient)");
   });
 
   test("presents the panel as a sheet with modal semantics", async () => {

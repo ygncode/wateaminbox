@@ -25,6 +25,7 @@ import {
   PermanentEventError,
   parseWhatsAppEvent,
 } from "./client.js";
+import { isExpiredEphemeralEvent } from "./ephemeral-expiry.js";
 import type { WhatsAppEvent } from "./types/index.js";
 
 const logger = createLogger("NatsLifecycle");
@@ -437,6 +438,17 @@ export class NatsLifecycleManager {
           );
           msg.nak(1_000);
         }
+        return;
+      }
+
+      // Old presence/typing is neither conversation history nor current state.
+      // ACK it before session lookup/database writes so a backlog cannot keep
+      // rewriting stale presence or crowd out durable history application.
+      if (
+        name === "transient" &&
+        isExpiredEphemeralEvent(event.type, msg.info?.timestampNanos)
+      ) {
+        msg.ack();
         return;
       }
 

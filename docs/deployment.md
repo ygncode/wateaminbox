@@ -26,7 +26,7 @@ against R2's account S3 API endpoint and fetched by the browser from R2.
 
 The public marketing site is not part of this compose stack.
 
-PostgreSQL, NATS, Meilisearch, Centrifugo, and the orchestrator have no
+PostgreSQL, NATS, Centrifugo, and the orchestrator have no
 host port mappings. Data services share an `internal: true` network. API and
 orchestrator also join an egress network because email, WhatsApp, and object
 requests need outbound Internet access. The orchestrator image does not contain
@@ -77,7 +77,7 @@ include a provider- or deployment-specific migration runbook.
 ## Host and DNS prerequisites
 
 Use a supported Linux host with Docker Engine, the Compose plugin, BuildKit,
-reliable storage, NTP, and enough memory for PostgreSQL and Meilisearch (8 GiB is
+reliable storage, NTP, and enough memory for PostgreSQL (8 GiB is
 a practical starting point). Keep Docker and the kernel patched.
 
 1. Point A/AAAA records for `APP_DOMAIN` at the host. It must be globally
@@ -98,7 +98,7 @@ chmod 600 .env.production
 umask 077
 mkdir -p secrets
 for name in postgres_password worker_postgres_password nats_service_password \
-  nats_worker_password meilisearch_master_key jwt_secret \
+  nats_worker_password jwt_secret \
   centrifugo_api_key centrifugo_token_secret; do
   openssl rand -hex 32 > "secrets/$name"
 done
@@ -135,7 +135,7 @@ from these values without URL encoding.
 There are no production credential defaults: required Compose substitutions use
 `${NAME:?…}`, containers reject unreadable/empty secret files, NATS requires
 distinct service and restricted-worker passwords, PostgreSQL requires distinct
-administrator and worker passwords, and Meilisearch requires a master key. `S3_ACCESS_KEY_FILE` and
+administrator and worker passwords. `S3_ACCESS_KEY_FILE` and
 `S3_SECRET_KEY_FILE` contain bucket-scoped R2 application credentials. Development credentials in `.env.example` and
 `docker-compose.yml` must never be reused.
 
@@ -146,7 +146,7 @@ from `nats_service_password`. The orchestrator separately receives
 `WORKER_NATS_URL` derived from `nats_worker_password`. Child workers receive
 only those restricted URLs through the audited allowlist; they never inherit
 the manager database or service NATS credential. API also receives
-`MEILISEARCH_API_KEY`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `JWT_SECRET`,
+`S3_ACCESS_KEY`, `S3_SECRET_KEY`, `JWT_SECRET`,
 `CENTRIFUGO_API_KEY`, and `CENTRIFUGO_TOKEN_HMAC_SECRET`. Workers receive only
 the explicitly allowed S3/data-plane settings in addition to their restricted
 URLs. The explicitly
@@ -246,7 +246,7 @@ $COMPOSE build --pull
 
 # This is the mandatory release/cutover path. Do not reorder or replace it with
 # the generic `compose up` sequence.
-$COMPOSE up -d postgres meilisearch
+$COMPOSE up -d postgres
 $COMPOSE stop orchestrator             # confirms all old child workers exit
 $COMPOSE run --rm worker-artifact-installer # bootstrap exists before migration 071
 $COMPOSE run --rm migration            # applies the complete chain through 072
@@ -391,9 +391,7 @@ Define recovery point/time objectives before launch. At minimum back up:
 3. **NATS JetStream**: durable in-flight commands/events. Back up its volume only
    while NATS is stopped, or use NATS stream snapshot tooling from a private
    operations container.
-4. **Meilisearch**: create authenticated dumps or archive its volume while
-   stopped. Search is derived data, but retaining it shortens recovery.
-5. Secret material and deployment configuration in an encrypted, access-audited
+4. Secret material and deployment configuration in an encrypted, access-audited
    secret/backup system. Caddy ACME data is optional to back up because
    certificates can be reissued.
 
@@ -419,8 +417,8 @@ Restore into an isolated environment first:
    --if-exists`, then run `migration` for the selected application release.
 3. Restore media before resuming workers; retain a private bucket, the same
    `whatsapp-media` name/object keys, and stable `s3://` references.
-4. Restore NATS/Meili snapshots only with compatible versions, or recreate
-   derived/search state and let durable database outboxes recover supported
+4. Restore NATS snapshots only with compatible versions, or recreate
+   derived state and let durable database outboxes recover supported
    messaging flows.
 5. Start dependencies, API, and orchestrator; verify health and tenant/media
    sampling before restoring proxy traffic.
@@ -554,7 +552,7 @@ private networks rather than publishing ports:
 - Centrifugo `/health` and `/metrics`;
 - NATS monitoring on `8222`;
 - R2 signed read/write and inventory freshness/errors,
-  PostgreSQL availability/replication, Meilisearch health;
+  PostgreSQL availability/replication;
 - host disk/inode pressure, memory/OOMs, certificate expiry, backup age and
   restore-test age.
 

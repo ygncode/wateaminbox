@@ -10,6 +10,8 @@ export interface ContactFilterOptions {
   includeGroups?: boolean;
   /** Filter to conversations owned by one WhatsApp account. */
   connectionId?: string;
+  /** Match any account represented by this customer, including merged threads. */
+  channelAccountId?: string;
   /** Match contacts carrying any of these workspace tags. */
   tagIds?: string[];
   /** Schema-qualified contact_tags table used by raw tenant SQL. */
@@ -209,6 +211,7 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
     search,
     includeGroups = false,
     connectionId,
+    channelAccountId,
     tagIds,
     contactTagsTable,
     assignedToMe,
@@ -227,6 +230,11 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
   // switcher rather than as separate entries. Their threads are untouched -
   // a merge never moves a conversation.
   conditions.push(sql`c.merged_into_contact_id IS NULL`);
+  // WhatsApp's broadcast address space (Status/Stories on status@broadcast, and
+  // broadcast lists) is not an inbox conversation. The worker no longer ingests
+  // it, but any rows ingested before that fix must not surface as a phantom
+  // "Unknown" chat. Hide them here rather than deleting the underlying rows.
+  conditions.push(sql`(c.jid IS NULL OR c.jid NOT LIKE '%@broadcast')`);
   if (search) conditions.push(buildSearchClause(search));
   if (!includeGroups) conditions.push(buildGroupClause(includeGroups));
   if (connectionId) {
@@ -243,6 +251,14 @@ export function buildContactWhereClause(options: ContactFilterOptions): {
           )})`
         : sql`c.whatsapp_connection_id = ${connectionId}`,
     );
+  }
+  if (channelAccountId) {
+    // Match the same account IDs the row exposes to the client, before LIMIT.
+    // Reuse the one-pass merged aggregate rather than scanning unrelated pages.
+    conditions.push(sql`(
+      COALESCE(conv.channel_account_id, c.whatsapp_connection_id) = ${channelAccountId}
+      OR ${channelAccountId} = ANY(grp.account_ids)
+    )`);
   }
   if (tagIds?.length) {
     if (!contactTagsTable) {

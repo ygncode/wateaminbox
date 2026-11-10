@@ -20,6 +20,8 @@ interface ConcurrentIndexDefinition {
   columnsSql?: string;
   predicate: string;
   unique?: boolean;
+  /** Access method; defaults to btree. GIN is used for trigram search. */
+  using?: "gin";
   /**
    * A column this index needs that the spine does not own. `timestamp` belongs
    * to the legacy messages table, and a schema that has not got it yet - a
@@ -168,6 +170,34 @@ const definitions: readonly ConcurrentIndexDefinition[] = [
     requiresColumn: { table: "messages", column: "sender_jid" },
   },
   {
+    // The message-cleanup cycle's hunt for stuck outgoing sends. Every cycle,
+    // for every tenant, `cleanupCompanyMessages` looks for pending messages
+    // from_me past the delivery timeout. The predicate columns are extremely
+    // low-cardinality once resolved (a healthy tenant has ~zero pending sends),
+    // but with no index the candidate scan reads the WHOLE messages table:
+    // measured against the largest workspace it was a full parallel seq scan of
+    // a 200k-row table to surface a single row, run on a tight interval.
+    //
+    // The partial predicate matches `cleanupCompanyMessages`' `stale` filter
+    // (and the pending branch of `reconcileProcessedCommands`); `(timestamp,
+    // id)` serves its `timestamp < cutoff` bound and `ORDER BY timestamp, id`
+    // directly, so the scan stops at the first qualifying row instead of
+    // sorting the table. The index itself stays tiny because the predicate
+    // excludes every settled message.
+    suffix: "msg_pending_send_idx",
+    table: "messages",
+    columns: ["timestamp", "id"],
+    predicate: "status = 'pending' AND from_me = true",
+    unique: false,
+    // The predicate reads the legacy `status`/`from_me` columns and the index
+    // orders on the legacy `timestamp`; all three are created together in the
+    // legacy messages table and are absent from a channel-spine-only schema.
+    // Guard on `from_me` (a predicate column, not the index column): a stub
+    // that has `timestamp` but no legacy columns must be skipped, or CREATE
+    // INDEX fails with "column status does not exist".
+    requiresColumn: { table: "messages", column: "from_me" },
+  },
+  {
     suffix: "cs_conversation_uidx",
     table: "conversation_states",
     columns: ["conversation_id"],
@@ -180,6 +210,21 @@ const definitions: readonly ConcurrentIndexDefinition[] = [
         GROUP BY conversation_id
         HAVING count(*) > 1
       ) AS duplicates`,
+  },
+  {
+    // Migration 110: PostgreSQL-only search. `ILIKE '%term%'` on message
+    // content is the match that works for every script (Thai, Burmese, CJK,
+    // phone fragments); the trigram GIN index makes it indexed. Built here,
+    // concurrently, because `messages` is the hot table workers write to and a
+    // migration-transaction build would hold a SHARE lock for its duration.
+    suffix: "msg_content_trgm_idx",
+    table: "messages",
+    columns: ["content"],
+    columnsSql: '"content" public.gin_trgm_ops',
+    predicate: "content IS NOT NULL",
+    unique: false,
+    using: "gin",
+    requiresColumn: { table: "messages", column: "content" },
   },
 ];
 
@@ -241,7 +286,7 @@ export async function reconcileChannelSpineConcurrentIndexes<Database>(
         `CREATE ${definition.unique === false ? "" : "UNIQUE "}INDEX CONCURRENTLY ${quoteIdentifier(indexName)} ON ${qualified(
           schemaName,
           definition.table,
-        )} (${columns}) WHERE ${definition.predicate}`,
+        )}${definition.using ? ` USING ${definition.using}` : ""} (${columns}) WHERE ${definition.predicate}`,
       )
       .execute(db);
     const created = await readIndex(db, schemaName, indexName);

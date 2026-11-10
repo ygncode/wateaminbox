@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, mock, test } from "bun:test";
+import { beforeAll, describe, expect, mock, spyOn, test } from "bun:test";
 import { QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../../hooks/query-keys";
 import { chatKeys } from "../../hooks/useChats";
@@ -40,7 +40,10 @@ beforeAll(async () => {
   ({ registerRealtimeEventHandlers } = await import("./event-handlers"));
 });
 
-function register(queryClient: QueryClient): () => void {
+function register(
+  queryClient: QueryClient,
+  contactRefreshTiming?: { quietMs: number; maxWaitMs: number },
+): () => void {
   handlers.clear();
   boundChannel.clear();
   toastPayloads.length = 0;
@@ -52,6 +55,7 @@ function register(queryClient: QueryClient): () => void {
     removeTypingIndicator: () => {},
     setTypingTimeout: () => {},
     clearTypingTimeout: () => {},
+    contactRefreshTiming,
   });
   return () => cleanups.forEach((cleanup) => cleanup());
 }
@@ -111,19 +115,86 @@ describe("realtime event handlers", () => {
     cleanup();
   });
 
-  test("profile picture updates invalidate an open contact detail", () => {
+  test("profile picture updates batch before invalidating an open contact detail", async () => {
     setCompanyId("company-a");
     const client = new QueryClient();
     const detailKey = queryKeys.contacts.detail("contact-1");
     client.setQueryData(detailKey, { profilePictureUrl: null });
-    const cleanup = register(client);
+    const cleanup = register(client, { quietMs: 5, maxWaitMs: 25 });
 
     emit("contact:profile_picture", {
       jid: "15551234567@s.whatsapp.net",
       mediaAvailable: true,
     });
 
+    expect(client.getQueryState(detailKey)?.isInvalidated).toBe(false);
+    await Bun.sleep(10);
     expect(client.getQueryState(detailKey)?.isInvalidated).toBe(true);
+    cleanup();
+  });
+
+  test("a contact sync burst causes one list refresh and sync completion cancels its timer", async () => {
+    setCompanyId("company-a");
+    const client = new QueryClient();
+    const invalidate = spyOn(client, "invalidateQueries");
+    const cleanup = register(client, { quietMs: 10, maxWaitMs: 50 });
+    const chatListPrefix = chatKeys.lists();
+    const chatListInvalidations = () =>
+      invalidate.mock.calls.filter(
+        ([filters]) =>
+          JSON.stringify(filters?.queryKey) === JSON.stringify(chatListPrefix),
+      ).length;
+
+    for (let index = 0; index < 500; index += 1) {
+      emit("contact:updated", { jid: `${index}@s.whatsapp.net` });
+      emit("contact:profile_picture", {
+        jid: `${index}@s.whatsapp.net`,
+        mediaAvailable: true,
+      });
+    }
+
+    expect(chatListInvalidations()).toBe(0);
+    await Bun.sleep(20);
+    expect(chatListInvalidations()).toBe(1);
+
+    for (let index = 0; index < 500; index += 1) {
+      emit("contact:updated", { jid: `${index}@s.whatsapp.net` });
+    }
+    emit("sync:complete", { conversations: 500, messageCount: 0 });
+    expect(chatListInvalidations()).toBe(2);
+    await Bun.sleep(20);
+    expect(chatListInvalidations()).toBe(2);
+
+    cleanup();
+  });
+
+  test("message events invalidate the chat list without cancelling an in-flight refetch", () => {
+    setCompanyId("company-a");
+    const client = new QueryClient();
+    const invalidate = spyOn(client, "invalidateQueries");
+    const cleanup = register(client);
+    const chatListPrefix = chatKeys.lists();
+
+    emit("message:new", {
+      conversationId: "conversation-1",
+      message: {
+        id: "message-1",
+        conversationId: "conversation-1",
+        status: "sent",
+        senderType: "contact",
+      },
+    });
+
+    // A burst of these aborting and restarting the /contacts request was the
+    // original pile-up; cancelRefetch: false reuses the in-flight fetch. The
+    // default (cancelRefetch: true) must never silently return here.
+    const chatListCall = invalidate.mock.calls.find(
+      ([filters]) =>
+        JSON.stringify(filters?.queryKey) === JSON.stringify(chatListPrefix),
+    );
+    expect(chatListCall).toBeDefined();
+    expect(chatListCall?.[0]?.refetchType).toBe("none");
+    expect(chatListCall?.[1]?.cancelRefetch).toBe(false);
     cleanup();
   });
 });

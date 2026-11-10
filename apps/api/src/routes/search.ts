@@ -1,8 +1,8 @@
-import { getContactDisplayName, toDbDate } from "@wateaminbox/shared";
+import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
-import { badRequest, forbidden, serviceUnavailable } from "../lib/errors.js";
+import { badRequest } from "../lib/errors.js";
 import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
-import { successData, successWithMessage } from "../lib/response.js";
+import { successData } from "../lib/response.js";
 import {
   createPaginationMeta,
   extractPaginationParams,
@@ -11,7 +11,6 @@ import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
-import * as meilisearchService from "../services/meilisearch.service.js";
 import { contactIdForConversation } from "../services/channel-workflow.service.js";
 import * as searchService from "../services/search.service.js";
 
@@ -150,146 +149,5 @@ searchRoutes.get("/contacts", searchRateLimiter, async (c) => {
     query: query.trim(),
     data: results,
     pagination: createPaginationMeta(total, results.length, { limit, offset }),
-  });
-});
-
-/**
- * GET /search/status - Get search engine status
- */
-searchRoutes.get("/status", async (c) => {
-  const { companyId } = getRouteContext(c);
-
-  const meilisearchAvailable =
-    await meilisearchService.isMeilisearchAvailable();
-  const indexStats = meilisearchAvailable
-    ? await meilisearchService.getIndexStats(companyId)
-    : null;
-
-  return successData(c, {
-    engine: meilisearchAvailable ? "meilisearch" : "postgresql",
-    meilisearch: {
-      available: meilisearchAvailable,
-      indexedMessages: indexStats?.messages || 0,
-      indexedContacts: indexStats?.contacts || 0,
-    },
-  });
-});
-
-/**
- * POST /search/reindex - Rebuild search indexes (admin only)
- */
-searchRoutes.post("/reindex", async (c) => {
-  const { companyId, role, tenantDb } = getRouteContext(c);
-
-  // Only admins and owners can reindex
-  if (role === "member") {
-    return forbidden(c, "Insufficient permissions");
-  }
-
-  const meilisearchAvailable =
-    await meilisearchService.isMeilisearchAvailable();
-  if (!meilisearchAvailable) {
-    return serviceUnavailable(c, "Meilisearch is not available");
-  }
-
-  const indexed = await tenantDb.transaction().execute(async (trx) => {
-    // Keep every add task ordered before archive/purge cleanup. Permanent purge
-    // takes FOR UPDATE on one of these rows and therefore cannot pass this
-    // workspace-wide reindex fence.
-    await trx
-      .selectFrom("whatsapp_connections")
-      .select("id")
-      .forKeyShare()
-      .execute();
-
-    // Index all messages
-    const messages = await trx
-      .selectFrom("messages")
-      .leftJoin("contacts", "contacts.id", "messages.contact_id")
-      .select([
-        "messages.id",
-        "messages.contact_id",
-        "messages.conversation_id",
-        "contacts.custom_name",
-        "contacts.push_name",
-        "contacts.username",
-        "contacts.phone_number",
-        "contacts.jid",
-        "contacts.is_group",
-        "messages.message_id",
-        "messages.content",
-        "messages.message_type",
-        "messages.timestamp",
-        "messages.from_me",
-      ])
-      .execute();
-
-    const messageDocuments: meilisearchService.MessageDocument[] = messages.map(
-      (m) => ({
-        id: m.id,
-        companyId,
-        contactId: m.contact_id ?? "",
-        conversationId: m.conversation_id,
-        contactName: getContactDisplayName(
-          {
-            jid: m.jid,
-            custom_name: m.custom_name,
-            push_name: m.push_name,
-            username: m.username,
-            phone_number: m.phone_number,
-          },
-          "Unknown",
-        ),
-        contactJid: m.jid,
-        isGroup: Boolean(m.is_group),
-        messageId: m.message_id,
-        content: m.content,
-        messageType: m.message_type,
-        timestamp: Math.floor(new Date(m.timestamp).getTime() / 1000),
-        fromMe: m.from_me,
-      }),
-    );
-
-    await meilisearchService.indexMessages(companyId, messageDocuments);
-
-    // Index all contacts
-    const contacts = await trx
-      .selectFrom("contacts")
-      .select([
-        "id",
-        "jid",
-        "phone_number",
-        "push_name",
-        "username",
-        "custom_name",
-        "is_group",
-        "notes_shared",
-      ])
-      .execute();
-
-    const contactDocuments: meilisearchService.ContactDocument[] = contacts.map(
-      (contact) => ({
-        id: contact.id,
-        companyId,
-        jid: contact.jid,
-        phoneNumber: contact.phone_number,
-        pushName: contact.push_name,
-        username: contact.username,
-        customName: contact.custom_name,
-        displayName: getContactDisplayName(contact),
-        isGroup: contact.is_group,
-        notesShared: contact.notes_shared,
-      }),
-    );
-
-    await meilisearchService.indexContacts(companyId, contactDocuments);
-    return {
-      messages: messageDocuments.length,
-      contacts: contactDocuments.length,
-    };
-  });
-
-  return successWithMessage(c, "Search indexes rebuilt successfully", {
-    indexed,
   });
 });

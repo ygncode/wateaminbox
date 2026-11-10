@@ -183,13 +183,6 @@ start_docker_services() {
     done
     print_success "  Centrifugo is ready"
     
-    # Wait for Meilisearch
-    print_status "  Waiting for Meilisearch..."
-    until curl -s http://localhost:4449/health &> /dev/null; do
-        sleep 1
-    done
-    print_success "  Meilisearch is ready"
-    
     # Wait for MinIO
     print_status "  Waiting for MinIO..."
     until curl -s http://localhost:4450/minio/health/live &> /dev/null; do
@@ -459,7 +452,6 @@ start_dev_servers() {
     echo -e "  PostgreSQL:  ${BLUE}localhost:4447${NC}"
     echo -e "  NATS:        ${BLUE}localhost:4448${NC} (monitoring: ${BLUE}localhost:8222${NC})"
     echo -e "  Centrifugo:  ${BLUE}http://localhost:4451${NC}"
-    echo -e "  Meilisearch: ${BLUE}http://localhost:4449${NC}"
     echo -e "  MinIO:       ${BLUE}http://localhost:4450${NC} (console: ${BLUE}http://localhost:9001${NC})"
     echo ""
     echo -e "${GREEN}View logs:${NC}"

@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { db } from "@wateaminbox/database";
 import { TelegramLocalFailureError } from "@wateaminbox/adapter-telegram";
-import { ChannelCredentialCipher } from "../../../services/channel-credential.service.js";
+import { db } from "@wateaminbox/database";
 import { sql } from "kysely";
 import {
+  ChannelCredentialCipher,
   canStoreChannelCredentials,
   storeChannelCredential,
 } from "../../../services/channel-credential.service.js";

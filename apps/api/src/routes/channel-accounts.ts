@@ -1,32 +1,32 @@
 import { randomBytes } from "node:crypto";
-import { zValidator } from "../lib/validator.js";
+import {
+  configureTelegramWebhook,
+  getTelegramBotIdentity,
+  removeTelegramWebhook,
+} from "@wateaminbox/adapter-telegram";
 import { db, type TenantDatabase } from "@wateaminbox/database";
 import { isChannel, isChannelProvider } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import type { Transaction } from "kysely";
 import { z } from "zod";
 import { resolveAdapterCapabilities } from "../channel-spine/application/adapter-registry.js";
-import {
-  configureTelegramWebhook,
-  getTelegramBotIdentity,
-  removeTelegramWebhook,
-} from "@wateaminbox/adapter-telegram";
 import { channelAdapterRegistry } from "../channel-spine/registry.js";
 import { env } from "../lib/env.js";
 import { conflict, forbidden, notFound } from "../lib/errors.js";
+import { createLogger, formatError } from "../lib/logger.js";
 import { successData } from "../lib/response.js";
+import { zValidator } from "../lib/validator.js";
 import { authMiddleware } from "../middleware/auth.js";
-import { createAuditLog, getClientIp } from "../services/audit.service.js";
 import { getRouteContext } from "../middleware/context.js";
 import { tenantMiddleware } from "../middleware/tenant.js";
+import { createAuditLog, getClientIp } from "../services/audit.service.js";
 import {
   ChannelAccountNotArchivedError,
   purgeArchivedChannelAccount,
 } from "../services/channel-account-purge.service.js";
-import { createLogger, formatError } from "../lib/logger.js";
 import {
-  canStoreChannelCredentials,
   ChannelCredentialKeyError,
+  canStoreChannelCredentials,
   readChannelCredential,
   storeChannelCredential,
 } from "../services/channel-credential.service.js";
@@ -165,7 +165,7 @@ channelAccountRoutes.get("/providers", async (c) => {
         storageReady &&
         canStoreSecrets,
       unavailableReason: !neutralWrites
-        ? "Channel-neutral writes are not enabled for this workspace"
+        ? "Telegram is not available for this workspace yet"
         : !isChannelProviderEnabled(authority, "telegram_bot")
           ? "Telegram Bot is not enabled for this workspace"
           : !storageReady

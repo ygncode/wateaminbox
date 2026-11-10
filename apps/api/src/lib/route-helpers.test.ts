@@ -98,16 +98,13 @@ describe("extractDayWindow", () => {
     expect(response.status).toBe(400);
   });
 
-  test.each([
-    "0",
-    "-1",
-    "1.5",
-    "1e3",
-    "Infinity",
-  ])("rejects %p", async (value) => {
-    const response = await buildDayWindowApp().request(`/?days=${value}`);
-    expect(response.status).toBe(400);
-  });
+  test.each(["0", "-1", "1.5", "1e3", "Infinity"])(
+    "rejects %p",
+    async (value) => {
+      const response = await buildDayWindowApp().request(`/?days=${value}`);
+      expect(response.status).toBe(400);
+    },
+  );
 
   test("rejects a window wide enough to scan the whole message history", async () => {
     const response = await buildDayWindowApp().request(

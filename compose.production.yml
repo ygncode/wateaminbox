@@ -163,6 +163,10 @@ services:
       PORT: "4445"
       APP_URL: https://${APP_DOMAIN:?set APP_DOMAIN}
       CORS_ORIGINS: https://${APP_DOMAIN:?set APP_DOMAIN}
+      # Hosted deployments may opt new workspaces into provider-neutral
+      # messaging. Empty defaults preserve the self-hosted legacy path.
+      CHANNEL_SPINE_DEFAULT_PROVIDERS: ${CHANNEL_SPINE_DEFAULT_PROVIDERS:-}
+      CHANNEL_SPINE_DEFAULT_REVISION: ${CHANNEL_SPINE_DEFAULT_REVISION:-}
       JWT_SECRET_FILE: /run/secrets/jwt_secret
       # Envelope key for provider credentials (a Telegram bot token, and any
       # future token-based adapter). Optional: a linked-device-only host stores
@@ -195,8 +199,6 @@ services:
       CLOUDFLARE_EMAIL_API_TOKEN_FILE: ${CLOUDFLARE_EMAIL_API_TOKEN_FILE:+/run/secrets/mail_api_key}
       EMAIL_FROM: ${EMAIL_FROM:?set EMAIL_FROM}
       FEEDBACK_TO_EMAIL: ${FEEDBACK_TO_EMAIL:?set FEEDBACK_TO_EMAIL}
-      MEILISEARCH_URL: http://meilisearch:7700
-      MEILISEARCH_API_KEY_FILE: /run/secrets/meilisearch_master_key
       CENTRIFUGO_API_URL: http://centrifugo:8000/api
       CENTRIFUGO_HEALTH_URL: http://centrifugo:8000/health
       CENTRIFUGO_API_KEY_FILE: /run/secrets/centrifugo_api_key
@@ -226,7 +228,6 @@ services:
       - jwt_secret
       - channel_credential_encryption_keys
       - mail_api_key
-      - meilisearch_master_key
       - centrifugo_api_key
       - centrifugo_token_secret
     networks: [backend, data]
@@ -236,8 +237,6 @@ services:
       migration:
         condition: service_completed_successfully
       nats:
-        condition: service_healthy
-      meilisearch:
         condition: service_healthy
       centrifugo:
         condition: service_healthy
@@ -441,29 +440,6 @@ services:
       timeout: 5s
       retries: 10
 
-  meilisearch:
-    <<: *service-defaults
-    image: getmeili/meilisearch:v1.11.3
-    entrypoint: ["/bin/sh", "-ec"]
-    command:
-      - |
-        export MEILI_MASTER_KEY="$$(cat /run/secrets/meilisearch_master_key)"
-        exec /bin/meilisearch
-    environment:
-      MEILI_ENV: production
-      MEILI_NO_ANALYTICS: "true"
-      MEILI_DB_PATH: /meili_data/data.ms
-      MEILI_DUMP_DIR: /meili_data/dumps
-    secrets: [meilisearch_master_key]
-    volumes:
-      - meilisearch_data:/meili_data
-    networks: [data]
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:7700/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
 
 networks:
   edge:
@@ -480,7 +456,6 @@ networks:
 volumes:
   postgres_data:
   nats_data:
-  meilisearch_data:
   caddy_data:
   caddy_config:
   # Version directories are immutable. Retain this volume across releases so a
@@ -496,8 +471,6 @@ secrets:
     file: ${NATS_WORKER_PASSWORD_FILE:?set NATS_WORKER_PASSWORD_FILE}
   worker_postgres_password:
     file: ${WORKER_POSTGRES_PASSWORD_FILE:?set WORKER_POSTGRES_PASSWORD_FILE}
-  meilisearch_master_key:
-    file: ${MEILISEARCH_MASTER_KEY_FILE:?set MEILISEARCH_MASTER_KEY_FILE}
   s3_access_key:
     file: ${S3_ACCESS_KEY_FILE:?set S3_ACCESS_KEY_FILE}
   s3_secret_key:

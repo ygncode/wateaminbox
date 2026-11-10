@@ -14,7 +14,7 @@ import { paginationSchema } from "../schemas.js";
  */
 export const createContactSchema = z.object({
   phoneNumber: z.string().min(1, "Phone number is required"),
-  connectionId: z.string().uuid().optional(),
+  connectionId: z.string().guid().optional(),
   customName: z.string().max(255).optional(),
   notesShared: z.string().optional(),
 });
@@ -41,7 +41,8 @@ export type UpdateContactInput = z.infer<typeof updateContactSchema>;
  */
 export const listContactsQuerySchema = paginationSchema.extend({
   search: z.string().optional(),
-  connectionId: z.string().uuid().optional(),
+  connectionId: z.string().guid().optional(),
+  channelAccountId: z.string().guid().optional(),
   tagIds: z
     .string()
     .optional()
@@ -53,7 +54,7 @@ export const listContactsQuerySchema = paginationSchema.extend({
             .filter(Boolean)
         : undefined,
     )
-    .pipe(z.array(z.string().uuid()).max(50).optional()),
+    .pipe(z.array(z.string().guid()).max(50).optional()),
   includeGroups: z
     .string()
     .optional()
@@ -66,6 +67,10 @@ export const listContactsQuerySchema = paginationSchema.extend({
     .string()
     .optional()
     .transform((val) => val === "true"),
+  unreadOnly: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
   /** Conversation lifecycle filter. Defaults to "open" (see the inbox's default view) when omitted by callers that opt in; "all" removes the filter entirely. */
   conversationStatus: z.enum(["open", "pending", "resolved", "all"]).optional(),
 });
@@ -104,7 +109,7 @@ export type UpdateContactNoteInput = z.infer<typeof updateContactNoteSchema>;
  * Schema for assigning a contact to a user
  */
 export const assignContactSchema = z.object({
-  targetUserId: z.string().uuid("Invalid user ID").optional(),
+  targetUserId: z.string().guid("Invalid user ID").optional(),
 });
 
 export type AssignContactInput = z.infer<typeof assignContactSchema>;
@@ -131,7 +136,7 @@ export type ImportContactsOptions = z.infer<typeof importContactsOptionsSchema>;
  * Schema for adding a tag to a contact
  */
 export const addContactTagSchema = z.object({
-  tagId: z.string().uuid("Invalid tag ID"),
+  tagId: z.string().guid("Invalid tag ID"),
 });
 
 export type AddContactTagInput = z.infer<typeof addContactTagSchema>;

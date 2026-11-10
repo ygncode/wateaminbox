@@ -1,4 +1,3 @@
-import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
 import type { QueryClient } from "@tanstack/react-query";
 import type {
   BulkJobUpdatedPayload,
@@ -19,6 +18,7 @@ import type {
 import { advanceMessageStatus } from "@wateaminbox/shared";
 import type { Dispatch, SetStateAction } from "react";
 import { queryKeys } from "../../hooks/query-keys";
+import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
 import { markConversationAsRead } from "../../lib/api/conversations";
 import { bindEvent, bindUserEvent } from "../../lib/realtime";
 import { showRealtimeToast } from "../../lib/toast-notifications";
@@ -98,6 +98,90 @@ interface RealtimeEventHandlerOptions {
   removeTypingIndicator: (conversationId: string, userId: string) => void;
   setTypingTimeout: (conversationId: string, userId: string) => void;
   clearTypingTimeout: (conversationId: string, userId: string) => void;
+  contactRefreshTiming?: { quietMs: number; maxWaitMs: number };
+}
+
+type ContactRefreshKind = "metadata" | "profile-picture";
+
+const DEFAULT_CONTACT_REFRESH_TIMING = {
+  quietMs: 500,
+  maxWaitMs: 5_000,
+};
+
+/**
+ * Coalesce the hundreds or thousands of contact events emitted by a history
+ * sync. Each event used to restart every mounted /contacts query; the database
+ * kept doing the abandoned work until both API replicas failed health checks.
+ */
+function createContactRefreshBatch(
+  queryClient: QueryClient,
+  timing = DEFAULT_CONTACT_REFRESH_TIMING,
+): {
+  cancel: () => void;
+  flush: (cancelRefetch: boolean) => boolean;
+  queue: (kind: ContactRefreshKind) => void;
+} {
+  let pending = false;
+  let profilePicturePending = false;
+  let quietTimer: ReturnType<typeof setTimeout> | undefined;
+  let maxWaitTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const clearTimers = () => {
+    if (quietTimer) clearTimeout(quietTimer);
+    if (maxWaitTimer) clearTimeout(maxWaitTimer);
+    quietTimer = undefined;
+    maxWaitTimer = undefined;
+  };
+
+  const flush = (cancelRefetch: boolean): boolean => {
+    if (!pending) return false;
+
+    const refreshProfilePictures = profilePicturePending;
+    pending = false;
+    profilePicturePending = false;
+    clearTimers();
+
+    // A max-wait flush can land while the previous expensive list request is
+    // still running. The inbox scheduler never cancels it and queues a final
+    // follow-up when a signal arrives during the request. sync:complete still
+    // uses true for the non-list detail queries below.
+    const invalidateOptions = { cancelRefetch };
+    invalidateChatList(queryClient);
+    queryClient.invalidateQueries(
+      {
+        queryKey: refreshProfilePictures
+          ? queryKeys.groups.all
+          : queryKeys.groups.details(),
+      },
+      invalidateOptions,
+    );
+    if (refreshProfilePictures) {
+      queryClient.invalidateQueries(
+        { queryKey: queryKeys.contacts.details() },
+        invalidateOptions,
+      );
+    }
+    return true;
+  };
+
+  const queue = (kind: ContactRefreshKind) => {
+    pending = true;
+    profilePicturePending ||= kind === "profile-picture";
+
+    if (quietTimer) clearTimeout(quietTimer);
+    quietTimer = setTimeout(() => flush(false), timing.quietMs);
+    maxWaitTimer ??= setTimeout(() => flush(false), timing.maxWaitMs);
+  };
+
+  return {
+    cancel: () => {
+      pending = false;
+      profilePicturePending = false;
+      clearTimers();
+    },
+    flush,
+    queue,
+  };
 }
 
 /** Register typed, company-scoped handlers and return their cleanup functions. */
@@ -110,8 +194,23 @@ export function registerRealtimeEventHandlers({
   removeTypingIndicator,
   setTypingTimeout,
   clearTypingTimeout,
+  contactRefreshTiming,
 }: RealtimeEventHandlerOptions): (() => void)[] {
+  const contactRefresh = createContactRefreshBatch(qc, contactRefreshTiming);
+
+  // Message and conversation events arrive in bursts - a reconnect replay, a
+  // busy thread, a read sweep. React Query's invalidate defaults to
+  // cancelRefetch: true, which aborts the in-flight /contacts request and
+  // starts a fresh one for every event in the burst. A client-side abort does
+  // not stop the server, so each abandoned request kept a full table scan
+  // running in PostgreSQL and the burst piled them up. cancelRefetch: false
+  // is enforced by the inbox scheduler: mark stale synchronously, coalesce
+  // bursts, and queue a follow-up for events arriving during a request. The
+  // contact-sync batch feeds the same scheduler after its larger sync burst.
+  const refreshChatList = () => invalidateChatList(qc);
+
   return [
+    contactRefresh.cancel,
     bindEvent("notification:toast", (data) => {
       const payload =
         data.payload && typeof data.payload === "object"
@@ -128,7 +227,7 @@ export function registerRealtimeEventHandlers({
       // not by the conversation this arrived on, so the cache write above
       // cannot reach it.
       invalidateCustomerTimelines(qc);
-      invalidateChatList(qc);
+      refreshChatList();
 
       // Treat realtime as an update signal, not the source of truth. In
       // particular, WhatsApp can replay several offline messages immediately
@@ -166,10 +265,7 @@ export function registerRealtimeEventHandlers({
         queryKey: infiniteMessageKeys.list(conversationId),
       });
       invalidateCustomerTimelines(qc);
-      invalidateChatList(qc);
-      qc.invalidateQueries({
-        queryKey: queryKeys.channelConversations.lists(),
-      });
+      refreshChatList();
       qc.invalidateQueries({
         queryKey: queryKeys.channelConversations.detail(conversationId),
       });
@@ -312,12 +408,12 @@ export function registerRealtimeEventHandlers({
       clearTypingTimeout(payload.conversationId, payload.userId);
     }),
     bindUserEvent<ConversationReadPayload>("conversation:read", () => {
-      invalidateChatList(qc);
+      refreshChatList();
     }),
     bindUserEvent<ConversationUpdatedPayload>(
       "conversation:updated",
       (data) => {
-        invalidateChatList(qc);
+        refreshChatList();
         // A lifecycle mutation (resolve/pending/open/reopen, or an automatic
         // reopen from a live inbound) can change every response/resolution
         // analytics number a dashboard has cached - invalidate the whole
@@ -335,8 +431,7 @@ export function registerRealtimeEventHandlers({
       },
     ),
     bindUserEvent<{ contactId?: string }>("contact:updated", (data) => {
-      invalidateChatList(qc);
-      qc.invalidateQueries({ queryKey: queryKeys.groups.details() });
+      contactRefresh.queue("metadata");
       // A reassignment (including a takeover) changes who can send here -
       // invalidate this contact's detail (assignment) immediately so the
       // composer's assignment gate reflects it without waiting on a
@@ -371,7 +466,7 @@ export function registerRealtimeEventHandlers({
       // this arrived as `contact:updated`, which always invalidated the list -
       // scoping it to left/created silently stopped refreshing renames made
       // from the phone.
-      invalidateChatList(qc);
+      refreshChatList();
     }),
     bindEvent("labels:updated", () => {
       qc.invalidateQueries({ queryKey: ["labels", companyId] });
@@ -385,7 +480,7 @@ export function registerRealtimeEventHandlers({
     // behind. The distinction is what the server-authored toast conveys; it is
     // read from the typed `outcome`, never from the message text.
     bindEvent<CommandResultPayload>("command:failed", () => {
-      invalidateChatList(qc);
+      refreshChatList();
       const selectedId = useChatStore.getState().selectedConversationId;
       if (selectedId) refetchConversationMessages(qc, selectedId);
       qc.invalidateQueries({ queryKey: ["labels", companyId] });
@@ -395,9 +490,9 @@ export function registerRealtimeEventHandlers({
     bindUserEvent<ProfilePicturePayload>("contact:profile_picture", () => {
       // Re-fetch through visibility-checked HTTP routes so the API can issue a
       // fresh private-storage URL; realtime channels never carry media URLs.
-      invalidateChatList(qc);
-      qc.invalidateQueries({ queryKey: queryKeys.groups.all });
-      qc.invalidateQueries({ queryKey: queryKeys.contacts.details() });
+      // History sync can publish one of these per contact, so fold the burst
+      // into the same bounded refresh as contact metadata.
+      contactRefresh.queue("profile-picture");
     }),
     bindUserEvent<MessageDeletedPayload>("message:deleted", (data) => {
       const payload = data.payload;
@@ -494,8 +589,12 @@ export function registerRealtimeEventHandlers({
     bindEvent<SyncStatusPayload>("sync:complete", (data) => {
       const connectionId = data.connectionId || "unknown";
       setSyncingConnections((previous) => endSync(previous, connectionId));
-      invalidateChatList(qc);
-      qc.invalidateQueries({ queryKey: queryKeys.groups.details() });
+      // Flush the whole import once. If no contact event reached this browser,
+      // retain the normal sync-complete reconciliation.
+      if (!contactRefresh.flush(true)) {
+        invalidateChatList(qc);
+        qc.invalidateQueries({ queryKey: queryKeys.groups.details() });
+      }
       const selectedId = useChatStore.getState().selectedConversationId;
       if (selectedId) refetchConversationMessages(qc, selectedId);
     }),

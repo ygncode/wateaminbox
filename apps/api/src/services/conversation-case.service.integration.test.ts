@@ -79,9 +79,7 @@ async function withTenant(
     await run(companyId);
   } finally {
     await clearTenantConnection(companyId);
-    await sql
-      .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
-      .execute(db);
+    await sql.raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`).execute(db);
     await db
       .deleteFrom("sla_policies")
       .where("company_id", "=", companyId)
@@ -281,7 +279,12 @@ describe("conversation-case lifecycle", () => {
         const reopened = await reopenAsNewCase(
           tenantDb,
           { id: contactId, isGroup: false },
-          { companyId, openedBy: userId, reason: "Customer called back", expectedMode: "reopen" },
+          {
+            companyId,
+            openedBy: userId,
+            reason: "Customer called back",
+            expectedMode: "reopen",
+          },
         );
         expect(reopened.status).toBe("open");
         expect(reopened.reopenReason).toBe("Customer called back");
@@ -297,7 +300,12 @@ describe("conversation-case lifecycle", () => {
           reopenAsNewCase(
             tenantDb,
             { id: contactId, isGroup: false },
-            { companyId, openedBy: userId, reason: "Should never apply", expectedMode: "reopen" },
+            {
+              companyId,
+              openedBy: userId,
+              reason: "Should never apply",
+              expectedMode: "reopen",
+            },
           ),
         ).rejects.toBeInstanceOf(ConflictError);
       });
@@ -327,7 +335,9 @@ describe("conversation-case lifecycle", () => {
         ).rejects.toBeInstanceOf(ConflictError);
         // Never opened anything.
         expect(await getActiveCase(tenantDb, freshContactId)).toBeNull();
-        expect(await getConversationCaseHistory(tenantDb, freshContactId)).toHaveLength(0);
+        expect(
+          await getConversationCaseHistory(tenantDb, freshContactId),
+        ).toHaveLength(0);
 
         // /open on that SAME fresh contact correctly succeeds (this is
         // genuinely a first-ever open).
@@ -356,7 +366,9 @@ describe("conversation-case lifecycle", () => {
         ).rejects.toBeInstanceOf(ConflictError);
         // Still resolved, no new case created by the rejected attempt.
         expect(await getActiveCase(tenantDb, freshContactId)).toBeNull();
-        expect(await getConversationCaseHistory(tenantDb, freshContactId)).toHaveLength(1);
+        expect(
+          await getConversationCaseHistory(tenantDb, freshContactId),
+        ).toHaveLength(1);
 
         // /reopen on it now correctly succeeds.
         const reopened2 = await reopenAsNewCase(
@@ -727,12 +739,22 @@ describe("conversation-case concurrency and projection integrity", () => {
           reopenAsNewCase(
             tenantDb,
             { id: contactId, isGroup: false },
-            { companyId, openedBy: userId, reason: "race A", expectedMode: "reopen" },
+            {
+              companyId,
+              openedBy: userId,
+              reason: "race A",
+              expectedMode: "reopen",
+            },
           ),
           reopenAsNewCase(
             tenantDb,
             { id: contactId, isGroup: false },
-            { companyId, openedBy: userId, reason: "race B", expectedMode: "reopen" },
+            {
+              companyId,
+              openedBy: userId,
+              reason: "race B",
+              expectedMode: "reopen",
+            },
           ),
         ]);
 
@@ -975,11 +997,7 @@ describe("conversation-case concurrency and projection integrity", () => {
 
         // The opening message (inserted by openInboundCase) is the only,
         // unanswered turn.
-        await openInboundCase(
-          companyId,
-          { id: contactId, isGroup: false },
-          t0,
-        );
+        await openInboundCase(companyId, { id: contactId, isGroup: false }, t0);
 
         await expect(
           resolveActiveCase(tenantDb, contactId, {
@@ -1069,7 +1087,12 @@ describe("conversation-case concurrency and projection integrity", () => {
         await reopenAsNewCase(
           tenantDb,
           { id: contactId, isGroup: false },
-          { companyId, openedBy: reopenerId, reason: "Customer replied again", expectedMode: "reopen" },
+          {
+            companyId,
+            openedBy: reopenerId,
+            reason: "Customer replied again",
+            expectedMode: "reopen",
+          },
         );
 
         const afterReopen = await projectionRow(tenantDb, contactId);
@@ -1117,7 +1140,11 @@ describe("conversation-case concurrency and projection integrity", () => {
         // fabricates a case).
         await tenantDb
           .insertInto("conversation_states")
-          .values({ contact_id: contactId, status: "resolved", unread_count: 0 })
+          .values({
+            contact_id: contactId,
+            status: "resolved",
+            unread_count: 0,
+          })
           .execute();
         const history = await getConversationCaseHistory(tenantDb, contactId);
         expect(history).toHaveLength(0);

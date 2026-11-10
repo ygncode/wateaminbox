@@ -12,7 +12,7 @@ export const statusTypeValues = ["text", "image", "video"] as const;
 export const postStatusSchema = z
   .object({
     type: z.enum(statusTypeValues, {
-      errorMap: () => ({ message: "Please select a status type" }),
+      error: "Please select a status type",
     }),
     content: z
       .string()

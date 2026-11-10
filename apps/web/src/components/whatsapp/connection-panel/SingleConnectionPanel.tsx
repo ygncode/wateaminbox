@@ -67,10 +67,38 @@ export function SingleConnectionPanel({
   }, [qrExpiresAt]);
 
   if (isLoading) {
+    if (compact) {
+      return (
+        <div className={cn("flex items-center gap-2", className)}>
+          <Skeleton className="size-2 rounded-full" />
+          <Skeleton className="h-3.5 w-28" />
+        </div>
+      );
+    }
+
     return (
-      <div className={cn("p-6", className)}>
-        <Skeleton className="h-8 w-48 mb-4" />
-        <Skeleton className="h-64 w-64 mx-auto" />
+      <div
+        className={cn(
+          "rounded-lg border border-gray-200 bg-white p-6 dark:border-dark-border dark:bg-dark-elevated",
+          className,
+        )}
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Skeleton className="size-10 rounded-full" />
+            <div>
+              <Skeleton className="h-5 w-44" />
+              <Skeleton className="mt-2 h-3.5 w-52 max-w-[50vw]" />
+            </div>
+          </div>
+          <Skeleton className="h-6 w-20 rounded-full" />
+        </div>
+        <div className="flex flex-col items-center py-8">
+          <Skeleton className="size-16 rounded-2xl" />
+          <Skeleton className="mt-5 h-5 w-40" />
+          <Skeleton className="mt-2 h-3.5 w-64 max-w-full" />
+          <Skeleton className="mt-6 h-9 w-32 rounded-lg" />
+        </div>
       </div>
     );
   }

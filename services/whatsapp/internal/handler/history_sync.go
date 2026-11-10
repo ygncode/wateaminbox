@@ -63,10 +63,7 @@ func (h *Handler) handleHistorySync(evt *events.HistorySync) {
 		}
 		// whatsmeow persists this history chunk asynchronously. Re-read the
 		// durable store shortly afterwards to merge LID aliases and saved names.
-		go func() {
-			time.Sleep(2 * time.Second)
-			h.syncKnownContactNames()
-		}()
+		h.requestContactRepair(2 * time.Second)
 	}
 
 	conversations := evt.Data.GetConversations()
@@ -282,6 +279,12 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 		return
 	}
 
+	// Status/Stories and broadcast lists are not inbox conversations; skip them
+	// in history sync the same way live ingest does (see isBroadcastChat).
+	if isBroadcastChat(parsedJID) {
+		return
+	}
+
 	// ON_DEMAND responses can identify a conversation only by LID while carrying
 	// the corresponding phone-number mapping elsewhere in the same history
 	// payload. Those mappings are persisted before conversations are processed,
@@ -379,17 +382,8 @@ func (h *Handler) processHistorySyncConversation(conv *waHistorySync.Conversatio
 		}
 	}
 
-	// Subscribe to presence updates for this contact (skip groups)
-	// This allows us to receive online/offline status updates
-	if !isGroup && h.config.Client != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if err := h.config.Client.SubscribePresence(ctx, normalizedJID); err != nil {
-			// Log but don't fail - presence subscription is not critical
-			log.Printf("Failed to subscribe to presence for %s: %v", jid, err)
-		}
-	}
+	// Historical contacts are not current presence demand. Do not subscribe
+	// every conversation during import; live messages subscribe their sender.
 
 	// Process messages using concrete type
 	for _, historyMsg := range conv.GetMessages() {

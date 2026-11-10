@@ -19,6 +19,92 @@ const logger = createLogger("MessageCleanup");
 export type { MessageCleanupConfig };
 
 // ============================================================================
+// Cross-replica leadership
+// ============================================================================
+
+/**
+ * The API runs as more than one replica in production, and every replica calls
+ * `initializeMessageCleanup` on boot. Without coordination each replica runs
+ * the full per-tenant cleanup cycle independently - doubling (or worse) the
+ * database work and making both replicas scan the same tenant tables at the
+ * same time, which is exactly when unrelated requests queue behind the load.
+ *
+ * A single whole-cycle Postgres advisory lock makes one replica the leader for
+ * the duration of a cycle; the others see the lock held and skip their tick.
+ * This is a scheduling concern only - nothing about WHICH messages expire
+ * changes - so it is injectable to keep the cycle's unit tests database-free.
+ */
+export interface CleanupLeaderLock {
+  /**
+   * Run `onAcquired` iff leadership is held, releasing it afterwards. Returns
+   * `{ acquired: false }` without running `onAcquired` when another replica
+   * already holds the lock.
+   */
+  run<T>(
+    onAcquired: () => Promise<T>,
+  ): Promise<{ acquired: true; result: T } | { acquired: false }>;
+}
+
+// Its own advisory-lock domain so it cannot collide with the key-scoped locks
+// used elsewhere (media reclaim, connection spawn). Any constant works as long
+// as it is unique to this concern; this spells "clnu".
+const CLEANUP_LOCK_DOMAIN = 0x636c_6e75;
+const CLEANUP_LOCK_KEY = 1;
+
+const isTestEnvironment =
+  process.env.NODE_ENV === "test" ||
+  process.env.VITEST === "true" ||
+  (typeof Bun !== "undefined" && Bun.argv.some((arg) => arg.includes("test")));
+
+/**
+ * Production leadership: a session-scoped advisory lock on a connection pinned
+ * for the whole cycle. Session scope (not `xact`) is deliberate - a cycle can
+ * run for well over a minute, and holding a transaction open that long would
+ * pin the vacuum horizon. The pinned connection only holds the lock; the cycle
+ * itself borrows other pooled connections as usual.
+ */
+const postgresLeaderLock: CleanupLeaderLock = {
+  run: (onAcquired) =>
+    db.connection().execute(async (conn) => {
+      const acquired = await sql<{ locked: boolean }>`
+        SELECT pg_try_advisory_lock(
+          ${sql.lit(CLEANUP_LOCK_DOMAIN)}::int,
+          ${sql.lit(CLEANUP_LOCK_KEY)}::int
+        ) AS locked
+      `.execute(conn);
+
+      if (!acquired.rows[0]?.locked) {
+        return { acquired: false };
+      }
+
+      try {
+        return { acquired: true, result: await onAcquired() };
+      } finally {
+        // If this unlock itself throws, the connection returns to the pool
+        // still holding the lock and cleanup stalls cluster-wide until that
+        // connection closes. Low-probability (most failures terminate the
+        // backend, which releases the lock), and it surfaces as a failed
+        // cycle in logs, so we accept it rather than designing around it.
+        await sql`
+          SELECT pg_advisory_unlock(
+            ${sql.lit(CLEANUP_LOCK_DOMAIN)}::int,
+            ${sql.lit(CLEANUP_LOCK_KEY)}::int
+          )
+        `.execute(conn);
+      }
+    }),
+};
+
+/** No database, always leader. Used under test and injectable in unit tests. */
+const passthroughLeaderLock: CleanupLeaderLock = {
+  run: async (onAcquired) => ({ acquired: true, result: await onAcquired() }),
+};
+
+const defaultLeaderLock: CleanupLeaderLock = isTestEnvironment
+  ? passthroughLeaderLock
+  : postgresLeaderLock;
+
+// ============================================================================
 // Service State
 // ============================================================================
 
@@ -90,6 +176,7 @@ export function getMessageCleanupStatus(): "running" | "stopped" | "disabled" {
 export async function initializeMessageCleanup(
   config?: Partial<MessageCleanupConfig>,
   cycleOverrides: Partial<CleanupCycleDeps> = {},
+  leaderLock: CleanupLeaderLock = defaultLeaderLock,
 ): Promise<void> {
   if (isInitialized) {
     logger.debug("Already initialized");
@@ -111,7 +198,18 @@ export async function initializeMessageCleanup(
 
   const runAndLog = async (initial: boolean): Promise<void> => {
     try {
-      const result = await runCleanupCycle(cycleOverrides);
+      // Only the replica that holds leadership runs the cycle; the rest skip
+      // their tick so the per-tenant scan is never run twice concurrently.
+      const outcome = await leaderLock.run(() =>
+        runCleanupCycle(cycleOverrides),
+      );
+      if (!outcome.acquired) {
+        logger.debug(
+          "Cleanup cycle skipped (leadership held by another replica)",
+        );
+        return;
+      }
+      const result = outcome.result;
       if (result.skipped) {
         logger.debug("Cleanup cycle skipped (no active companies)");
       } else {
@@ -247,40 +345,37 @@ export async function runCleanupCycle(
     };
   }
 
-  const results: CompanyCleanupResult[] = [];
-  let totalExpired = 0;
+  // Results are written by input index, not pushed, so the reported order is
+  // stable regardless of the order the parallel workers happen to finish in.
+  const results: CompanyCleanupResult[] = new Array(companies.length);
 
-  // Process each company
-  for (const company of companies) {
+  // One company's work, fully isolated. Its message cleanup and media sweep
+  // are independent maintenance tasks that happen to share a cycle: a media
+  // sweep failure must not discard an already-completed message cleanup's
+  // result, and neither must stop any other tenant.
+  const processCompany = async (index: number): Promise<void> => {
+    const company = companies[index];
     try {
       const expiredCount = await cleanupMessages(
         company.id,
         currentConfig.timeoutMinutes,
         currentConfig.batchSize,
       );
-      results.push({
-        companyId: company.id,
-        expiredCount,
-      });
-      totalExpired += expiredCount;
+      results[index] = { companyId: company.id, expiredCount };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      results.push({
+      results[index] = {
         companyId: company.id,
         expiredCount: 0,
         error: errorMessage,
-      });
+      };
       logger.error(
         { err: error, companyId: company.id },
         "Failed to cleanup company",
       );
     }
 
-    // Isolated from the message cleanup above, and from every other tenant.
-    // The two are independent maintenance tasks that happen to share a cycle:
-    // a media sweep failure must not discard an already-completed message
-    // cleanup's result, and neither must stop the remaining tenants.
     try {
       await releaseMedia(company.id);
     } catch (error) {
@@ -289,7 +384,34 @@ export async function runCleanupCycle(
         "Failed to release stranded media downloads",
       );
     }
-  }
+  };
+
+  // Process tenants with bounded concurrency. The cycle used to walk tenants
+  // one at a time, so its wall-clock was the sum of every tenant's per-tenant
+  // query overhead - which dominated the cycle even after the work itself got
+  // cheap. A fixed pool of workers pulls the next tenant as it frees up, so the
+  // cycle runs in roughly total/concurrency time. The cap is deliberately well
+  // under the tenant connection pool so cleanup never drains it from the
+  // foreground tenant reads that share it.
+  const concurrency = Math.max(
+    1,
+    Math.min(currentConfig.concurrency, companies.length),
+  );
+  let nextIndex = 0;
+  const worker = async (): Promise<void> => {
+    // `nextIndex++` is atomic on the single JS thread: each worker claims an
+    // index synchronously before it awaits, so no two workers take the same one.
+    while (nextIndex < companies.length) {
+      const index = nextIndex++;
+      await processCompany(index);
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+  const totalExpired = results.reduce(
+    (sum, result) => sum + result.expiredCount,
+    0,
+  );
 
   return {
     totalProcessed: companies.length,
@@ -388,6 +510,11 @@ async function reconcileProcessedCommands(
   const schemaName = getSchemaName(companyId);
   const messages = sql.table(`${schemaName}.messages`);
   const outbox = sql.table(`${schemaName}.nats_outbox`);
+  // Run on the tenant pool, not the foreground `db` pool. The queries are
+  // fully schema-qualified, so the pool is just which connections they draw on
+  // - and keeping the cycle's parallel work off the small foreground pool is
+  // what lets it run several tenants at once without starving live requests.
+  const tenantDb = getTenantConnection(companyId);
 
   const result = await sql<ReconciledCommandResult>`
     WITH outcomes AS (
@@ -461,7 +588,7 @@ async function reconcileProcessedCommands(
       m.message_id,
       m.status::text AS status,
       outcomes.error_message
-  `.execute(db);
+  `.execute(tenantDb);
 
   return result.rows;
 }
@@ -520,6 +647,8 @@ export async function cleanupCompanyMessages(
   const schemaName = getSchemaName(companyId);
   const messages = sql.table(`${schemaName}.messages`);
   const outbox = sql.table(`${schemaName}.nats_outbox`);
+  // Tenant pool, matching reconcileProcessedCommands and the media sweep below.
+  const tenantDb = getTenantConnection(companyId);
   const expiredResult = await sql<{
     id: string;
     contact_id: string | null;
@@ -582,7 +711,7 @@ export async function cleanupCompanyMessages(
           )
       )
     RETURNING m.id, m.contact_id, m.message_id, m.status::text AS status
-  `.execute(db);
+  `.execute(tenantDb);
   const messagesToExpire = expiredResult.rows;
 
   const expiredCount = messagesToExpire.length;

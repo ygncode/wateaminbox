@@ -18,6 +18,10 @@ import (
 // whatsmeow has already persisted the mapping, so checking only the event's Alt
 // field creates a second conversation for the same person.
 func (h *Handler) resolvePreferredJID(primary, alternative types.JID) types.JID {
+	return h.resolvePreferredJIDContext(context.Background(), primary, alternative)
+}
+
+func (h *Handler) resolvePreferredJIDContext(parent context.Context, primary, alternative types.JID) types.JID {
 	if primary.Server != types.HiddenUserServer && primary.Server != types.HostedLIDServer {
 		return primary.ToNonAD()
 	}
@@ -28,7 +32,7 @@ func (h *Handler) resolvePreferredJID(primary, alternative types.JID) types.JID 
 	if h.config.Client != nil {
 		client := h.config.Client.GetClient()
 		if client != nil && client.Store != nil && client.Store.LIDs != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			ctx, cancel := context.WithTimeout(parent, 2*time.Second)
 			defer cancel()
 
 			// Live-message mappings retain the device suffix, so resolve the full
@@ -118,7 +122,23 @@ func contactCardPayloads(contacts []*waE2E.ContactMessage) []natsClient.ContactC
 }
 
 // handleMessage processes incoming messages.
+// isBroadcastChat reports whether a chat belongs to WhatsApp's broadcast
+// address space: Status/Stories (status@broadcast) and broadcast lists. These
+// are not conversations in a team inbox - a contact's Status is an ephemeral
+// one-to-many update, not a chat - and ingesting them surfaced a contact's
+// Stories as a phantom "Unknown" group. They are dropped at every ingest entry
+// point rather than persisted.
+func isBroadcastChat(chat types.JID) bool {
+	return chat.Server == types.BroadcastServer
+}
+
 func (h *Handler) handleMessage(msg *events.Message) error {
+	// Drop Status/Stories and broadcast-list traffic before anything is
+	// published or persisted (see isBroadcastChat).
+	if isBroadcastChat(msg.Info.Chat) {
+		return nil
+	}
+
 	// Get preferred JIDs (PN over LID) to ensure consistency with stored contacts
 	senderJID := h.getPreferredSenderJID(msg.Info)
 	chatJID := h.getPreferredChatJID(msg.Info)
@@ -284,6 +304,9 @@ func (h *Handler) handleMessage(msg *events.Message) error {
 
 // handleProtocolMessage processes protocol messages (revokes, etc.)
 func (h *Handler) handleProtocolMessage(msg *events.Message) error {
+	if isBroadcastChat(msg.Info.Chat) {
+		return nil
+	}
 	protoMsg := msg.Message.ProtocolMessage
 	if protoMsg == nil {
 		return nil
@@ -315,6 +338,9 @@ func (h *Handler) handleProtocolMessage(msg *events.Message) error {
 // handleReactionMessage processes incoming reaction messages.
 // Reactions come as Message events with a ReactionMessage field.
 func (h *Handler) handleReactionMessage(msg *events.Message) error {
+	if isBroadcastChat(msg.Info.Chat) {
+		return nil
+	}
 	reactionMsg := msg.Message.ReactionMessage
 	if reactionMsg == nil || reactionMsg.Key == nil {
 		log.Println("Invalid reaction message: missing key")

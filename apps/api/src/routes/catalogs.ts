@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import { badRequest, isTableNotFoundError, notFound } from "../lib/errors.js";
-import { enqueueConnectionCommand } from "../services/command-outbox.service.js";
 import {
   successData,
   successMessage,
@@ -10,14 +9,15 @@ import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { requirePermission, tenantMiddleware } from "../middleware/tenant.js";
 import {
-  getWhatsAppCatalogs,
-  getWhatsAppCatalogByCatalogId,
+  archiveCatalog,
   getCatalogProducts,
   getCatalogSyncStatus,
-  archiveCatalog,
+  getWhatsAppCatalogByCatalogId,
+  getWhatsAppCatalogs,
   restoreCatalog,
   updateProductVisibility,
 } from "../services/catalog-sync.service.js";
+import { enqueueConnectionCommand } from "../services/command-outbox.service.js";
 import { PERMISSIONS } from "../services/permission.service.js";
 import {
   getActiveWhatsAppConnection,

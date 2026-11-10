@@ -15,6 +15,75 @@ const integrationTest =
 
 describe("WhatsApp username synchronization", () => {
   integrationTest(
+    "identical name-only replay does not rewrite the row, but a changed name still applies",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+      const jid = "100@s.whatsapp.net";
+      const originalTimestamp = "2020-01-01T00:00:00.000Z";
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: connectionId,
+            name: "Test",
+            jid: "999@s.whatsapp.net",
+            status: "connected",
+          })
+          .execute();
+        await tenantDb
+          .insertInto("contacts")
+          .values({
+            id: crypto.randomUUID(),
+            whatsapp_connection_id: connectionId,
+            jid,
+            phone_number: "100",
+            push_name: "Saved name",
+            updated_at: new Date(originalTimestamp),
+          })
+          .execute();
+        const event: ContactEvent = {
+          contractVersion: 1,
+          type: "contact",
+          companyId,
+          connectionId,
+          timestamp: new Date().toISOString(),
+          payload: { jid, nameOnly: true, fullName: "  Saved name  " },
+        };
+        await handleContactEvent(event);
+        const unchanged = await tenantDb
+          .selectFrom("contacts")
+          .select(["push_name", "updated_at"])
+          .where("jid", "=", jid)
+          .executeTakeFirstOrThrow();
+        expect(unchanged.push_name).toBe("Saved name");
+        expect(new Date(String(unchanged.updated_at)).toISOString()).toBe(
+          originalTimestamp,
+        );
+        await handleContactEvent({
+          ...event,
+          payload: { ...event.payload, fullName: "Changed name" },
+        });
+        const changed = await tenantDb
+          .selectFrom("contacts")
+          .select(["push_name", "updated_at"])
+          .where("jid", "=", jid)
+          .executeTakeFirstOrThrow();
+        expect(changed.push_name).toBe("Changed name");
+        expect(new Date(String(changed.updated_at)).toISOString()).not.toBe(
+          originalTimestamp,
+        );
+      } finally {
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      }
+    },
+    30_000,
+  );
+  integrationTest(
     "stores, updates, and explicitly clears a private-number username",
     async () => {
       const companyId = crypto.randomUUID();

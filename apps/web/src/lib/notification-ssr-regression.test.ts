@@ -36,7 +36,17 @@ let controllerState: {
   isMarkingAllAsRead: false,
 };
 
+// `mock.module` replaces a module for every test file that runs after this one
+// in the same process, so each stub keeps the real exports and overrides only
+// what this test needs. A partial stub here made later files fail on missing
+// exports such as `initReactI18next` and `useHasRole`.
+const realNotificationHooks = await import("@/hooks/notification");
+const realWorkspaceContext = await import("@/contexts/workspace-context");
+const realRouter = await import("react-router");
+const realI18next = await import("react-i18next");
+
 mock.module("@/hooks/notification", () => ({
+  ...realNotificationHooks,
   useNotificationCenter: () => ({
     notifications: controllerState.notifications,
     total: controllerState.total,
@@ -58,10 +68,12 @@ mock.module("@/hooks/notification", () => ({
 }));
 
 mock.module("@/contexts/workspace-context", () => ({
+  ...realWorkspaceContext,
   useWorkspace: () => ({ activeWorkspaceId: "ws-1" }),
 }));
 
 mock.module("react-router", () => ({
+  ...realRouter,
   useNavigate: () => () => {},
   useSearchParams: () => {
     const params = new URLSearchParams();
@@ -76,6 +88,7 @@ mock.module("react-router", () => ({
 // with `defaultValue` and `{{key}}` placeholders. Both patterns are used by
 // the page and NotificationList.
 mock.module("react-i18next", () => ({
+  ...realI18next,
   useTranslation: () => ({
     t: (key: string, fallback?: string | Record<string, unknown>) => {
       if (typeof fallback === "string") return fallback;

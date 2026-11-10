@@ -75,7 +75,10 @@ import { getSchemaName, getTenantConnection } from "../tenant.service.js";
 export const MAX_EPISODES_PER_QUERY = 5000;
 
 /** Close outcomes that are valid response-SLA exclusions for an unanswered episode. */
-export type ResponseSlaExclusionOutcome = "no_reply_needed" | "spam" | "duplicate";
+export type ResponseSlaExclusionOutcome =
+  | "no_reply_needed"
+  | "spam"
+  | "duplicate";
 
 export interface ResolvedEpisodeRow {
   contactId: string;

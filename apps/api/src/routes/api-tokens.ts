@@ -1,4 +1,3 @@
-import { zValidator } from "../lib/validator.js";
 import { Hono } from "hono";
 import { forbidden, notFound } from "../lib/errors.js";
 import { created, successData, successMessage } from "../lib/response.js";
@@ -7,6 +6,7 @@ import {
   createApiTokenSchema,
   listApiTokensQuerySchema,
 } from "../lib/schemas/index.js";
+import { zValidator } from "../lib/validator.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { tenantMiddleware } from "../middleware/tenant.js";

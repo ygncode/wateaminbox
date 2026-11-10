@@ -1,7 +1,7 @@
 import {
   normalizeJid,
-  toDbDate,
   type RemoteHistoryStatus,
+  toDbDate,
 } from "@wateaminbox/shared";
 import type { HistorySyncPageEvent } from "../../lib/nats/index.js";
 import { broadcastToCompany } from "../../lib/realtime.js";

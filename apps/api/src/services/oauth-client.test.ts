@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { OAuthError, parseScopes } from "./oauth.service.js";
 import {
   isAllowedRedirectUri,
   OAuthClientError,
-  resolveOAuthClient,
   type ResolvedOAuthClient,
+  resolveOAuthClient,
 } from "./oauth-client.service.js";
-import { parseScopes, OAuthError } from "./oauth.service.js";
 
 function client(redirectUris: string[]): ResolvedOAuthClient {
   return {

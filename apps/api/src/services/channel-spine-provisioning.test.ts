@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { channelSpineDefaults } from "./channel-spine-provisioning.service.js";
+
+const repoRoot = join(import.meta.dir, "../../../..");
+const productionCompose = readFileSync(
+  join(repoRoot, "compose.production.yml"),
+  "utf8",
+);
 
 /**
  * New workspaces inherit the deployment's defaults; existing ones never do.
@@ -11,6 +19,17 @@ describe("channelSpineDefaults", () => {
     // The shipped default. A self-hosted deployment that configures nothing
     // must not silently begin enabling channels for its workspaces.
     expect(channelSpineDefaults()).toBeNull();
+  });
+});
+
+describe("production channel-spine defaults", () => {
+  test("passes explicit provider and revision defaults to every API replica", () => {
+    expect(productionCompose).toContain(
+      "CHANNEL_SPINE_DEFAULT_PROVIDERS: ${CHANNEL_SPINE_DEFAULT_PROVIDERS:-}",
+    );
+    expect(productionCompose).toContain(
+      "CHANNEL_SPINE_DEFAULT_REVISION: ${CHANNEL_SPINE_DEFAULT_REVISION:-}",
+    );
   });
 });
 

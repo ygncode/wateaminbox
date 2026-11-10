@@ -4,6 +4,7 @@ import { setVerifiedRequestIp } from "./lib/client-ip.js";
 import { env } from "./lib/env.js";
 import { createLogger, formatError } from "./lib/logger.js";
 import { rateLimitStore } from "./lib/rate-limit-store.js";
+import { startRuntimeDiagnostics } from "./lib/runtime-diagnostics.js";
 import { runShutdown, type ShutdownStep } from "./lib/shutdown.js";
 import {
   initializeAbandonedPairingSessions,
@@ -58,10 +59,6 @@ import {
   shutdownMessageHandler,
 } from "./services/message-handler.js";
 import {
-  initializeMessageSearch,
-  shutdownMessageSearch,
-} from "./services/message-search-outbox.service.js";
-import {
   initializeScheduledMessages,
   shutdownScheduledMessages,
 } from "./services/scheduled-message.service.js";
@@ -77,6 +74,12 @@ const isTestEnvironment =
   process.env.NODE_ENV === "test" ||
   process.env.VITEST === "true" ||
   (typeof Bun !== "undefined" && Bun.argv.some((arg) => arg.includes("test")));
+
+const stopRuntimeDiagnostics = isTestEnvironment
+  ? () => {}
+  : startRuntimeDiagnostics((metrics) => {
+      logger.info(metrics, "runtime_diagnostics");
+    });
 
 if (!isTestEnvironment) {
   logger.info({ port }, `Starting server on http://localhost:${port}`);
@@ -104,7 +107,6 @@ if (!isTestEnvironment) {
   initializeChannelAttachmentFetch();
   initializeChannelEndpointAvatars();
   initializeChannelMessageDelivery();
-  initializeMessageSearch();
   initializeMessageDelivery();
   initializeScheduledMessages();
   initializeConnectionPurgeCleanup();
@@ -185,7 +187,6 @@ function shutdownSteps(): ShutdownStep[] {
     // started, in the order it started them.
     { name: "nats", run: shutdownMessageHandler },
     { name: "message-delivery", run: shutdownMessageDelivery },
-    { name: "message-search", run: shutdownMessageSearch },
     // Stops PostgreSQL cleanup (or closes the optional Redis connection)
     // before the database pools used by the store are released.
     { name: "rate-limit-store", run: () => rateLimitStore.close() },
@@ -195,6 +196,7 @@ function shutdownSteps(): ShutdownStep[] {
 }
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  stopRuntimeDiagnostics();
   logger.info({ signal, deadlineMs: SHUTDOWN_DEADLINE_MS }, "Shutting down");
 
   const result = await runShutdown({

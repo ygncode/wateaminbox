@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { offsetDateTimeSchema } from "./string-contracts.js";
 
 /**
  * API token route validation schemas
@@ -22,9 +23,7 @@ export const createApiTokenSchema = z.object({
     .refine((scopes) => scopes.includes("read"), {
       message: "All tokens must include the read scope",
     }),
-  expiresAt: z
-    .string()
-    .datetime({ offset: true })
+  expiresAt: offsetDateTimeSchema
     .optional()
     .refine((value) => !value || new Date(value).getTime() > Date.now(), {
       message: "Expiry must be in the future",
@@ -34,7 +33,7 @@ export const createApiTokenSchema = z.object({
 export type CreateApiTokenInput = z.infer<typeof createApiTokenSchema>;
 
 export const apiTokenIdParamSchema = z.object({
-  id: z.string().uuid("API token id must be a valid UUID"),
+  id: z.string().guid("API token id must be a valid UUID"),
 });
 
 export const listApiTokensQuerySchema = z.object({

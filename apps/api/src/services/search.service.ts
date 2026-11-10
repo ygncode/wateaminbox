@@ -4,37 +4,17 @@ import {
   getContactDisplayName,
 } from "@wateaminbox/shared";
 import { type ExpressionBuilder, sql } from "kysely";
-import {
-  isMeilisearchAvailable,
-  searchContactsWithMeilisearch,
-  searchMessagesWithMeilisearch,
-} from "./meilisearch.service.js";
 import { getSchemaName, getTenantConnection } from "./tenant.service.js";
 
-// Cache Meilisearch availability status (refresh every 30 seconds)
-let meilisearchAvailable: boolean | null = null;
-let lastMeilisearchCheck = 0;
-const MEILISEARCH_CHECK_INTERVAL = 30000;
-
-async function checkMeilisearchAvailable(): Promise<boolean> {
-  const now = Date.now();
-  if (
-    meilisearchAvailable === null ||
-    now - lastMeilisearchCheck > MEILISEARCH_CHECK_INTERVAL
-  ) {
-    meilisearchAvailable = await isMeilisearchAvailable();
-    lastMeilisearchCheck = now;
-  }
-  return meilisearchAvailable;
-}
-
 /**
- * Reset the Meilisearch availability cache (for testing)
+ * PostgreSQL is the only search backend.
+ *
+ * Matching is `ILIKE '%term%'` on the relevant text columns, which is
+ * language-agnostic (Thai, Burmese, CJK, emoji, phone fragments) and served by
+ * the pg_trgm GIN indexes from migration 110. The `'english'` tsvector only
+ * contributes ranking where it applies; rows it cannot tokenize rank 0 and
+ * fall back to recency, which is the correct order for them.
  */
-export function resetMeilisearchCache(): void {
-  meilisearchAvailable = null;
-  lastMeilisearchCheck = 0;
-}
 
 /**
  * Search result interface
@@ -63,12 +43,21 @@ export interface SearchOptions {
   startDate?: Date;
   endDate?: Date;
   messageTypes?: string[];
-  useMeilisearch?: boolean; // Force using/not using Meilisearch
+  /** @deprecated Search is PostgreSQL-only; the flag is accepted and ignored. */
+  useMeilisearch?: boolean;
   assignedUserId?: string;
 }
 
 /**
- * Search messages using Meilisearch (with PostgreSQL fallback)
+ * Escape LIKE/ILIKE metacharacters so a user query is matched literally.
+ * Used with `ESCAPE '\'`.
+ */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+/**
+ * Search messages with PostgreSQL (trigram ILIKE match, tsvector rank).
  */
 export async function searchMessages(
   companyId: string,
@@ -83,73 +72,53 @@ export async function searchMessages(
     startDate,
     endDate,
     messageTypes,
-    useMeilisearch,
     assignedUserId,
   } = options;
 
-  // The external index is tenant-scoped but not assignment-scoped. Restricted
-  // users therefore use PostgreSQL, where authorization is part of the query.
-  const shouldUseMeilisearch =
-    !assignedUserId &&
-    useMeilisearch !== false &&
-    (await checkMeilisearchAvailable());
-
-  if (shouldUseMeilisearch) {
-    const meiliResult = await searchMessagesWithMeilisearch(companyId, {
-      query,
-      limit,
-      offset,
-      contactId,
-      conversationId,
-      startDate,
-      endDate,
-      messageTypes,
-    });
-
-    // Always return Meilisearch results when Meilisearch is available
-    // Even if empty - this ensures consistent behavior
-    return {
-      results: meiliResult.results.map((r) => ({
-        ...r,
-        contactName: r.contactJid
-          ? getContactDisplayName(
-              { jid: r.contactJid, name: r.contactName },
-              "Unknown",
-            )
-          : r.contactName,
-        rank: 1, // Meilisearch results are pre-ranked
-      })),
-      total: meiliResult.total,
-    };
-  }
-
-  // Fall back to PostgreSQL full-text search
-  const tenantDb = getTenantConnection(companyId);
-
-  // Convert search query to tsquery format
-  // Replace spaces with & for AND search, handle special characters
-  const searchTerms = query
-    .trim()
-    .split(/\s+/)
-    .filter((term) => term.length > 0)
-    .map((term) => term.replace(/[^a-zA-Z0-9]/g, ""))
-    .filter((term) => term.length > 0)
-    .join(" & ");
-
-  if (!searchTerms) {
+  const trimmed = query.trim();
+  if (!trimmed) {
     return { results: [], total: 0 };
   }
+  const likePattern = `%${escapeLikePattern(trimmed)}%`;
+
+  const tenantDb = getTenantConnection(companyId);
 
   // Raw SQL isn't transformed by Kysely's withSchema() plugin. Qualify every
-  // tenant table explicitly so fallback search cannot hit the public schema or
-  // another tenant through a connection-level search_path.
+  // tenant table explicitly so search cannot hit the public schema or another
+  // tenant through a connection-level search_path.
   const schemaName = getSchemaName(companyId);
   const messagesTable = sql.table(`${schemaName}.messages`);
   const contactsTable = sql.table(`${schemaName}.contacts`);
   const conversationsTable = sql.table(`${schemaName}.conversations`);
   const assignmentsTable = sql.table(`${schemaName}.contact_assignments`);
 
-  // Build the search query using raw SQL for full-text search
+  // One FROM/JOIN/WHERE fragment serves both the page query and the
+  // past-the-end count so the two can never disagree about what matches.
+  const fromAndWhere = sql`
+    FROM ${messagesTable} m
+    LEFT JOIN ${contactsTable} c ON c.id = m.contact_id
+    LEFT JOIN ${conversationsTable} conv ON conv.id = m.conversation_id
+    ${
+      assignedUserId
+        ? sql`INNER JOIN ${assignmentsTable} ca
+            ON ca.assigned_to = ${assignedUserId}
+            AND ca.unassigned_at IS NULL
+            AND (
+              ca.conversation_id = m.conversation_id
+              OR (m.contact_id IS NOT NULL AND ca.contact_id = m.contact_id)
+            )`
+        : sql``
+    }
+    WHERE
+      (m.content ILIKE ${likePattern} ESCAPE '\\'
+       OR m.search_vector @@ plainto_tsquery('english', ${trimmed}))
+      ${contactId ? sql`AND m.contact_id = ${contactId}` : sql``}
+      ${conversationId ? sql`AND m.conversation_id = ${conversationId}` : sql``}
+      ${startDate ? sql`AND m.timestamp >= ${startDate}` : sql``}
+      ${endDate ? sql`AND m.timestamp <= ${endDate}` : sql``}
+      ${messageTypes && messageTypes.length > 0 ? sql`AND m.message_type = ANY(${messageTypes}::text[])` : sql``}
+  `;
+
   const result = await sql<{
     id: string;
     contact_id: string | null;
@@ -183,68 +152,37 @@ export async function searchMessages(
         m.content,
         m.message_type,
         m.timestamp,
-        ts_headline('english', COALESCE(m.content, ''), plainto_tsquery('english', ${query}),
-          'MaxWords=50, MinWords=20, StartSel=<mark>, StopSel=</mark>') as highlights,
         ts_rank(COALESCE(m.search_vector, to_tsvector('english', COALESCE(m.content, ''))),
-          plainto_tsquery('english', ${query})) as rank,
+          plainto_tsquery('english', ${trimmed})) as rank,
         COUNT(*) OVER() as total_count
-      FROM ${messagesTable} m
-      LEFT JOIN ${contactsTable} c ON c.id = m.contact_id
-      LEFT JOIN ${conversationsTable} conv ON conv.id = m.conversation_id
-      ${
-        assignedUserId
-          ? sql`INNER JOIN ${assignmentsTable} ca
-              ON ca.assigned_to = ${assignedUserId}
-              AND ca.unassigned_at IS NULL
-              AND (
-                ca.conversation_id = m.conversation_id
-                OR (m.contact_id IS NOT NULL AND ca.contact_id = m.contact_id)
-              )`
-          : sql``
-      }
-      WHERE
-        (m.search_vector @@ plainto_tsquery('english', ${query})
-         OR m.content ILIKE '%' || ${query} || '%')
-        ${contactId ? sql`AND m.contact_id = ${contactId}` : sql``}
-        ${conversationId ? sql`AND m.conversation_id = ${conversationId}` : sql``}
-        ${startDate ? sql`AND m.timestamp >= ${startDate}` : sql``}
-        ${endDate ? sql`AND m.timestamp <= ${endDate}` : sql``}
-        ${messageTypes && messageTypes.length > 0 ? sql`AND m.message_type = ANY(${messageTypes}::text[])` : sql``}
+      ${fromAndWhere}
       ORDER BY rank DESC, m.timestamp DESC
+    ),
+    page AS (
+      SELECT * FROM search_results
+      LIMIT ${limit}
+      OFFSET ${offset}
     )
-    SELECT * FROM search_results
-    LIMIT ${limit}
-    OFFSET ${offset}
+    -- ts_headline is one of Postgres's most expensive text functions: it
+    -- re-parses the document and re-runs the tsquery to build the <mark> markup.
+    -- It does not affect ranking or filtering, so it runs after LIMIT/OFFSET,
+    -- on the page rows only.
+    SELECT
+      *,
+      ts_headline('english', COALESCE(content, ''), plainto_tsquery('english', ${trimmed}),
+        'MaxWords=50, MinWords=20, StartSel=<mark>, StopSel=</mark>') as highlights
+    FROM page
   `.execute(tenantDb);
 
   let total = result.rows.length > 0 ? Number(result.rows[0].total_count) : 0;
 
   // When the requested page sits beyond the last matching row (offset >= total),
-  // the outer SELECT returns 0 rows so the per-row COUNT(*) OVER() is unavailable
-  // and `total` would incorrectly collapse to 0 (indistinguishable from a genuine
-  // no-match search). Re-compute the true total with a separate COUNT(*) that
-  // shares the same FROM/JOIN/WHERE but is not subject to LIMIT/OFFSET. Genuine
-  // no-match searches (offset: 0, empty page) keep total: 0 — no count needed.
+  // the page is empty so the per-row COUNT(*) OVER() is unavailable and `total`
+  // would collapse to 0 (indistinguishable from a genuine no-match search).
+  // Re-count with the identical FROM/WHERE, not subject to LIMIT/OFFSET.
   if (result.rows.length === 0 && offset > 0) {
     const countResult = await sql<{ total: string | number }>`
-      SELECT COUNT(*)::int AS total
-      FROM ${messagesTable} m
-      INNER JOIN ${contactsTable} c ON c.id = m.contact_id
-      ${
-        assignedUserId
-          ? sql`INNER JOIN ${assignmentsTable} ca
-              ON ca.contact_id = c.id
-              AND ca.assigned_to = ${assignedUserId}
-              AND ca.unassigned_at IS NULL`
-          : sql``
-      }
-      WHERE
-        (m.search_vector @@ plainto_tsquery('english', ${query})
-         OR m.content ILIKE '%' || ${query} || '%')
-        ${contactId ? sql`AND m.contact_id = ${contactId}` : sql``}
-        ${startDate ? sql`AND m.timestamp >= ${startDate}` : sql``}
-        ${endDate ? sql`AND m.timestamp <= ${endDate}` : sql``}
-        ${messageTypes && messageTypes.length > 0 ? sql`AND m.message_type = ANY(${messageTypes}::text[])` : sql``}
+      SELECT COUNT(*)::int AS total ${fromAndWhere}
     `.execute(tenantDb);
     total = Number(countResult.rows[0]?.total ?? 0);
   }
@@ -273,7 +211,7 @@ export async function searchMessages(
 }
 
 /**
- * Search contacts by name, phone number, or notes (with Meilisearch fallback)
+ * Search contacts by name, phone number, username or shared notes.
  */
 export async function searchContacts(
   companyId: string,
@@ -282,6 +220,7 @@ export async function searchContacts(
     limit?: number;
     offset?: number;
     includeGroups?: boolean;
+    /** @deprecated Search is PostgreSQL-only; the flag is accepted and ignored. */
     useMeilisearch?: boolean;
     assignedUserId?: string;
   } = {},
@@ -290,128 +229,74 @@ export async function searchContacts(
     limit = 50,
     offset = 0,
     includeGroups = true,
-    useMeilisearch,
     assignedUserId,
   } = options;
 
-  const shouldUseMeilisearch =
-    !assignedUserId &&
-    useMeilisearch !== false &&
-    (await checkMeilisearchAvailable());
-
-  if (shouldUseMeilisearch) {
-    const meiliResult = await searchContactsWithMeilisearch(companyId, query, {
-      limit,
-      offset,
-      includeGroups,
-    });
-
-    // Always return Meilisearch results when Meilisearch is available
-    // Even if empty - this ensures consistent behavior
-    return {
-      results: meiliResult.results.map((r) => {
-        const phoneFromJid = extractPhoneFromJid(r.jid);
-        const phoneNumber =
-          !r.isGroup && phoneFromJid ? r.phoneNumber || phoneFromJid : null;
-        return {
-          id: r.id,
-          jid: r.jid,
-          phoneNumber,
-          pushName: r.pushName,
-          username: r.username,
-          customName: r.customName,
-          displayName: getContactDisplayName({
-            jid: r.jid,
-            phoneNumber,
-            pushName: r.pushName,
-            username: r.username,
-            customName: r.customName,
-            name: r.displayName,
-          }),
-          isGroup: r.isGroup,
-          profilePictureUrl: null, // Not indexed in Meilisearch
-          notesShared: r.notesShared,
-        };
-      }),
-      total: meiliResult.total,
-    };
-  }
-
-  // Fall back to PostgreSQL ILIKE search
   const tenantDb = getTenantConnection(companyId);
 
-  const searchPattern = `%${query}%`;
-  const usernameQuery = query.trim().replace(/^@+/, "") || query;
-  const usernameSearchPattern = `%${usernameQuery}%`;
+  const trimmed = query.trim();
+  const searchPattern = `%${escapeLikePattern(trimmed)}%`;
+  const usernameQuery = trimmed.replace(/^@+/, "") || trimmed;
+  const usernameSearchPattern = `%${escapeLikePattern(usernameQuery)}%`;
 
-  let resultQuery = tenantDb
-    .selectFrom("contacts")
+  // Shared predicate for the page query and the past-the-end count. Merged-away
+  // contacts are hidden here (the Meilisearch projection used to delete their
+  // documents); the surviving canonical contact remains searchable.
+  const filtered = () =>
+    tenantDb
+      .selectFrom("contacts")
+      .where((eb: ExpressionBuilder<TenantDatabase, "contacts">) =>
+        eb.or([
+          eb("push_name", "ilike", searchPattern),
+          eb("username", "ilike", usernameSearchPattern),
+          eb("custom_name", "ilike", searchPattern),
+          eb("phone_number", "ilike", searchPattern),
+          eb("notes_shared", "ilike", searchPattern),
+        ]),
+      )
+      .where("contacts.merged_into_contact_id", "is", null)
+      .$if(!includeGroups, (qb) => qb.where("contacts.is_group", "=", false))
+      .$if(Boolean(assignedUserId), (qb) =>
+        qb.innerJoin("contact_assignments", (join) =>
+          join
+            .onRef("contact_assignments.contact_id", "=", "contacts.id")
+            .on("contact_assignments.assigned_to", "=", assignedUserId ?? "")
+            .on("contact_assignments.unassigned_at", "is", null),
+        ),
+      );
+
+  const result = await filtered()
     .select([
-      "id",
-      "jid",
-      "phone_number",
-      "push_name",
-      "username",
-      "custom_name",
-      "is_group",
-      "profile_picture_url",
-      "notes_shared",
+      "contacts.id",
+      "contacts.jid",
+      "contacts.phone_number",
+      "contacts.push_name",
+      "contacts.username",
+      "contacts.custom_name",
+      "contacts.is_group",
+      "contacts.profile_picture_url",
+      "contacts.notes_shared",
     ])
-    .where((eb: ExpressionBuilder<TenantDatabase, "contacts">) =>
-      eb.or([
-        eb("push_name", "ilike", searchPattern),
-        eb("username", "ilike", usernameSearchPattern),
-        eb("custom_name", "ilike", searchPattern),
-        eb("phone_number", "ilike", searchPattern),
-        eb("notes_shared", "ilike", searchPattern),
-      ]),
-    );
-  if (assignedUserId) {
-    resultQuery = resultQuery.innerJoin("contact_assignments", (join) =>
-      join
-        .onRef("contact_assignments.contact_id", "=", "contacts.id")
-        .on("contact_assignments.assigned_to", "=", assignedUserId)
-        .on("contact_assignments.unassigned_at", "is", null),
-    );
-  }
-  const result = await resultQuery
-    .$if(!includeGroups, (qb) => qb.where("is_group", "=", false))
-    .orderBy("custom_name", "asc")
-    .orderBy("push_name", "asc")
+    // Fold the page total into the page query (one ILIKE scan) instead of
+    // re-running the same 5-way ILIKE scan a second time just to count.
+    .select((eb) => eb.fn.count("contacts.id").over().as("total"))
+    .orderBy("contacts.custom_name", "asc")
+    .orderBy("contacts.push_name", "asc")
     .limit(limit)
     .offset(offset)
     .execute();
 
-  // Get total count
-  let countQuery = tenantDb
-    .selectFrom("contacts")
-    .select((eb: ExpressionBuilder<TenantDatabase, "contacts">) =>
-      eb.fn.count("id").as("total"),
-    )
-    .where((eb: ExpressionBuilder<TenantDatabase, "contacts">) =>
-      eb.or([
-        eb("push_name", "ilike", searchPattern),
-        eb("username", "ilike", usernameSearchPattern),
-        eb("custom_name", "ilike", searchPattern),
-        eb("phone_number", "ilike", searchPattern),
-        eb("notes_shared", "ilike", searchPattern),
-      ]),
-    );
+  let total = result.length > 0 ? Number(result[0].total) : 0;
 
-  if (assignedUserId) {
-    countQuery = countQuery.innerJoin("contact_assignments", (join) =>
-      join
-        .onRef("contact_assignments.contact_id", "=", "contacts.id")
-        .on("contact_assignments.assigned_to", "=", assignedUserId)
-        .on("contact_assignments.unassigned_at", "is", null),
-    );
+  // A page past the last matching row (offset >= total) returns no rows, so the
+  // per-row COUNT(*) OVER() is unavailable and total would collapse to 0. Only
+  // then fall back to a standalone count — the same guard searchMessages uses.
+  if (result.length === 0 && offset > 0) {
+    const countResult = await filtered()
+      .select((eb) => eb.fn.count("contacts.id").as("total"))
+      .executeTakeFirst();
+    total = Number(countResult?.total || 0);
   }
-  if (!includeGroups) {
-    countQuery = countQuery.where("is_group", "=", false);
-  }
-
-  const countResult = await countQuery.executeTakeFirst();
-  const total = Number(countResult?.total || 0);
 
   return {
     results: result.map((c) => {
@@ -479,7 +364,9 @@ export async function globalSearch(
 }
 
 /**
- * Update search vector for a message (called when message is saved)
+ * Update search vector for a message. Migration 110 installs a trigger that
+ * does this on every insert/update; this helper remains for callers and tests
+ * that want to force a refresh.
  */
 export async function updateMessageSearchVector(
   companyId: string,

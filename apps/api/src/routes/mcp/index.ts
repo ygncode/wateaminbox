@@ -1,4 +1,3 @@
-import { MCP_SERVER_VERSION } from "./version.js";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Hono } from "hono";
@@ -12,6 +11,7 @@ import {
 } from "./tool-context.js";
 import { readTools } from "./tools/read.js";
 import { writeTools } from "./tools/write.js";
+import { MCP_SERVER_VERSION } from "./version.js";
 
 export const mcpRoutes = new Hono();
 
