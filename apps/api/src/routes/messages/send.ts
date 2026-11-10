@@ -4,7 +4,6 @@
  * Routes for sending, forwarding, and retrying messages.
  */
 
-import { zValidator } from "../../lib/validator.js";
 import type { TenantDatabase } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
 import type { Context } from "hono";
@@ -33,6 +32,7 @@ import {
   getPrivateMediaReference,
   resolveMediaKeyForCompany,
 } from "../../lib/storage.js";
+import { zValidator } from "../../lib/validator.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { createConditionalRateLimiter } from "../../middleware/rate-limit.js";

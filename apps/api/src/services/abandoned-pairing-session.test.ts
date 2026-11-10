@@ -183,7 +183,9 @@ describe("reaping an abandoned pairing session", () => {
     expect(broadcasts.map((b) => b.event)).toEqual(["disconnected"]);
     // The worker-reported path toasts someone watching their code expire. This
     // one is cleaning up an attempt abandoned a quarter of an hour ago.
-    expect(broadcasts.some((b) => b.event === "notification:toast")).toBe(false);
+    expect(broadcasts.some((b) => b.event === "notification:toast")).toBe(
+      false,
+    );
   });
 
   test("does nothing, and writes nothing, when there is no candidate", async () => {

@@ -10,6 +10,12 @@ import {
   installOutboxRecipientIndex,
 } from "./dispatch-schema.js";
 import {
+  CONTACT_TRIGRAM_INDEXES,
+  contactTrigramIndexName,
+  SEARCH_VECTOR_TRIGGER,
+  searchVectorTriggerSql,
+} from "./migrations/110_add_search_trigram_indexes.js";
+import {
   dropLegacyLabelUniqueIndex,
   formatDuplicateBlockers,
   legacyIdentifier,
@@ -2107,6 +2113,38 @@ export async function reconcileTenantSchema<Database>(
       WHERE media_download_status = 'downloading'
     `.execute(db),
   );
+
+  // Migration 110 parity. Search is PostgreSQL-only: trigram indexes make the
+  // language-agnostic ILIKE match indexed, and the trigger keeps
+  // messages.search_vector populated for every write path. The messages
+  // trigram index is built by the concurrent index runner, not here.
+  for (const { suffix, column } of CONTACT_TRIGRAM_INDEXES) {
+    await ensureIndex(
+      contactTrigramIndexName(schemaName, suffix),
+      (indexName) =>
+        sql`
+        CREATE INDEX IF NOT EXISTS ${sql.ref(indexName)}
+        ON ${table("contacts")} USING gin (${sql.ref(column)} public.gin_trgm_ops)
+      `.execute(db),
+    );
+  }
+  // CREATE/DROP TRIGGER takes an exclusive lock on messages; only run it when
+  // the trigger is genuinely missing so reconciling an existing tenant is a
+  // catalog read.
+  const trigger = await sql<{ present: boolean }>`
+    SELECT EXISTS (
+      SELECT 1 FROM pg_trigger t
+      JOIN pg_class c ON c.oid = t.tgrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = ${schemaName}
+        AND c.relname = 'messages'
+        AND t.tgname = ${SEARCH_VECTOR_TRIGGER}
+        AND NOT t.tgisinternal
+    ) AS present
+  `.execute(db);
+  if (!trigger.rows[0]?.present) {
+    await sql.raw(searchVectorTriggerSql(schemaName)).execute(db);
+  }
 
   // Migration 092 parity. This is additive and creates no rows, so legacy
   // reads/writes remain authoritative until workspace flags enable later

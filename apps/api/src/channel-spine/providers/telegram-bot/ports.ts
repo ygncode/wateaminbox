@@ -5,6 +5,8 @@ import {
   type TelegramOutboundTarget,
   type TelegramTransportPorts,
 } from "@wateaminbox/adapter-telegram";
+import type { TenantDatabase } from "@wateaminbox/database";
+import type { Kysely } from "kysely";
 import {
   getPresignedUrl,
   resolveMediaKeyForCompany,
@@ -14,8 +16,6 @@ import {
   readChannelCredential,
 } from "../../../services/channel-credential.service.js";
 import { getTenantConnection } from "../../../services/tenant.service.js";
-import type { TenantDatabase } from "@wateaminbox/database";
-import type { Kysely } from "kysely";
 
 /**
  * The application half of Telegram outbound sending.

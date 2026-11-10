@@ -1,14 +1,14 @@
 import { Hono } from "hono";
-import { resolveConversationSchema } from "../../lib/schemas/conversation.js";
 import { ConflictError, notFound } from "../../lib/errors.js";
 import { successData } from "../../lib/response.js";
+import { resolveConversationSchema } from "../../lib/schemas/conversation.js";
 import { zValidator } from "../../lib/validator.js";
 import { getRouteContext } from "../../middleware/context.js";
+import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import {
   hasContactVisibility,
   requireContactVisibility,
 } from "../../middleware/resource-visibility.js";
-import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import {
   resolveActiveCase,

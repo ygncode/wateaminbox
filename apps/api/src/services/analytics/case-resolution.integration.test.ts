@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
-import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
 import type { SlaWeeklySchedule } from "@wateaminbox/shared";
+import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
 import { AnalyticsRangeTooWideError } from "../../lib/errors.js";
-import { getCurrentSlaPolicy, resolveCaseTargets } from "../sla-policy/policy.service.js";
+import {
+  getCurrentSlaPolicy,
+  resolveCaseTargets,
+} from "../sla-policy/policy.service.js";
 import {
   clearTenantConnection,
   createTenantSchema,
@@ -121,7 +124,12 @@ interface CaseSeed {
   openedAt: Date;
   resolvedAt?: Date;
   resolvedBy?: string;
-  resolutionOutcome?: "handled" | "no_reply_needed" | "spam" | "duplicate" | "other";
+  resolutionOutcome?:
+    | "handled"
+    | "no_reply_needed"
+    | "spam"
+    | "duplicate"
+    | "other";
 }
 
 async function insertCase(
@@ -146,7 +154,9 @@ async function insertCase(
       resolution_target_minutes: targets.resolutionTargetMinutes,
       resolved_at: seed.resolvedAt ?? null,
       resolved_by: seed.resolvedBy ?? null,
-      resolution_outcome: seed.resolvedAt ? (seed.resolutionOutcome ?? "handled") : null,
+      resolution_outcome: seed.resolvedAt
+        ? (seed.resolutionOutcome ?? "handled")
+        : null,
     })
     .returning("id")
     .execute();
@@ -346,31 +356,28 @@ describe("case resolution analytics - business calendar (weekend/holiday)", () =
   integrationTest(
     "a weekend closure pauses the resolution clock, unlike wall-clock time",
     async () => {
-      await withTenant(
-        async (companyId, tenantDb) => {
-          const contactId = await insertContact(tenantDb);
-          // Friday 16:50 UTC -> Monday 09:10 UTC: ~56 wall-clock hours, but
-          // only 20 business minutes (10 Fri + 10 Mon) - well under the
-          // 120-minute direct resolution target.
-          const openedAt = new Date("2026-01-02T16:50:00Z");
-          const resolvedAt = new Date("2026-01-05T09:10:00Z");
-          await insertCase(tenantDb, companyId, contactId, {
-            status: "resolved",
-            openedAt,
-            resolvedAt,
-            resolvedBy: crypto.randomUUID(),
-          });
+      await withTenant(async (companyId, tenantDb) => {
+        const contactId = await insertContact(tenantDb);
+        // Friday 16:50 UTC -> Monday 09:10 UTC: ~56 wall-clock hours, but
+        // only 20 business minutes (10 Fri + 10 Mon) - well under the
+        // 120-minute direct resolution target.
+        const openedAt = new Date("2026-01-02T16:50:00Z");
+        const resolvedAt = new Date("2026-01-05T09:10:00Z");
+        await insertCase(tenantDb, companyId, contactId, {
+          status: "resolved",
+          openedAt,
+          resolvedAt,
+          resolvedBy: crypto.randomUUID(),
+        });
 
-          const stats = await getCaseResolutionStats(
-            companyId,
-            new Date("2026-01-02T00:00:00Z"),
-            new Date("2026-01-06T00:00:00Z"),
-          );
-          expect(stats.averageResolutionMinutes).toBeCloseTo(20, 5);
-          expect(stats.withinSlaCount).toBe(1);
-        },
-        OFFICE_HOURS_UTC,
-      );
+        const stats = await getCaseResolutionStats(
+          companyId,
+          new Date("2026-01-02T00:00:00Z"),
+          new Date("2026-01-06T00:00:00Z"),
+        );
+        expect(stats.averageResolutionMinutes).toBeCloseTo(20, 5);
+        expect(stats.withinSlaCount).toBe(1);
+      }, OFFICE_HOURS_UTC);
     },
   );
 });
@@ -385,8 +392,16 @@ describe("case resolution analytics - team attribution", () => {
         await db
           .insertInto("users")
           .values([
-            { id: memberA, email: `a-${memberA}@example.com`, password_hash: "x" },
-            { id: memberB, email: `b-${memberB}@example.com`, password_hash: "x" },
+            {
+              id: memberA,
+              email: `a-${memberA}@example.com`,
+              password_hash: "x",
+            },
+            {
+              id: memberB,
+              email: `b-${memberB}@example.com`,
+              password_hash: "x",
+            },
           ])
           .execute();
         await db

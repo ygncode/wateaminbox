@@ -1,9 +1,9 @@
-import { db, getTenantSchemaName } from "@wateaminbox/database";
-import { sql } from "kysely";
 import {
   downloadTelegramFile,
   getTelegramProfilePhotoFileId,
 } from "@wateaminbox/adapter-telegram";
+import { db, getTenantSchemaName } from "@wateaminbox/database";
+import { sql } from "kysely";
 import { createLogger, formatError } from "../lib/logger.js";
 import { uploadMedia } from "../lib/storage.js";
 import { readChannelCredential } from "./channel-credential.service.js";

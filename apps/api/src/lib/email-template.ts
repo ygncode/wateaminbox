@@ -1,5 +1,5 @@
-import { escapeHtml } from "./security.js";
 import { env } from "./env.js";
+import { escapeHtml } from "./security.js";
 
 const BRAND_NAME = "WATeamInbox";
 const BRAND_TAGLINE = "Shared WhatsApp inbox for teams";
@@ -57,7 +57,9 @@ function detailRows(details: EmailDetail[]): string {
  * styles so the message remains coherent in conservative clients.
  */
 export function renderBrandedEmail(content: BrandedEmailContent): string {
-  const logoUrl = escapeHtml(new URL("/favicon-96x96.png", env.APP_URL).toString());
+  const logoUrl = escapeHtml(
+    new URL("/favicon-96x96.png", env.APP_URL).toString(),
+  );
   const action = content.action;
   const actionUrl = action ? escapeHtml(action.url) : "";
   const details = content.details?.length

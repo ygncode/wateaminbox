@@ -1,5 +1,5 @@
-import { getTenantConnection } from "./tenant.service.js";
 import { AppError } from "../lib/errors.js";
+import { getTenantConnection } from "./tenant.service.js";
 
 /**
  * Notification type enum

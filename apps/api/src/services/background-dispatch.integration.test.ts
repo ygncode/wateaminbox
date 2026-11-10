@@ -8,14 +8,6 @@ import {
   resetCommandOutboxBacklogCache,
 } from "./command-outbox.service.js";
 import {
-  getMeilisearchClient,
-  getMessagesIndexName,
-} from "./meilisearch.service.js";
-import {
-  dispatchMessageSearch,
-  enqueueMessageSearch,
-} from "./message-search-outbox.service.js";
-import {
   claimReadyWorkspace,
   finishWorkspaceDispatch,
   recoverOutboxDispatch,
@@ -37,8 +29,6 @@ const companies = [
 ];
 const [companyA, companyB, companyC] = companies as [string, string, string];
 const tenant = getTenantConnection(companyA);
-let connectionId: string;
-let contactId: string;
 
 beforeAll(async () => {
   if (!enabled) return;
@@ -48,9 +38,6 @@ beforeAll(async () => {
     !["/wati_dispatch_test", "/wateaminbox"].includes(url.pathname)
   )
     throw new Error("This suite requires a local integration database");
-  await sql`DELETE FROM public.message_search_outbox WHERE company_id NOT IN (SELECT id FROM public.companies)`.execute(
-    db,
-  );
   for (const company of companies) {
     await db
       .insertInto("companies")
@@ -63,38 +50,12 @@ beforeAll(async () => {
       .execute();
     await createTenantSchema(company);
   }
-  connectionId = (
-    await tenant
-      .insertInto("whatsapp_connections")
-      .values({ name: "Fixture", status: "connected" })
-      .returning("id")
-      .executeTakeFirstOrThrow()
-  ).id;
-  contactId = (
-    await tenant
-      .insertInto("contacts")
-      .values({
-        whatsapp_connection_id: connectionId,
-        jid: "15550000001@s.whatsapp.net",
-        push_name: "Fixture",
-      })
-      .returning("id")
-      .executeTakeFirstOrThrow()
-  ).id;
 }, 120_000);
 
 afterAll(async () => {
   if (!enabled) return;
-  if (process.env.RUN_SEARCH_INTEGRATION === "1") {
-    await getMeilisearchClient()
-      .deleteIndex(getMessagesIndexName(companyA))
-      .waitTask();
-  }
   for (const company of companies) {
     await dropTenantSchema(company);
-    await sql`DELETE FROM public.message_search_outbox WHERE company_id = ${company}::uuid`.execute(
-      db,
-    );
     await sql`DELETE FROM public.outbox_dispatch_ready WHERE company_id = ${company}::uuid`.execute(
       db,
     );
@@ -235,138 +196,4 @@ integration(
     resetCommandOutboxBacklogCache();
     expect((await getCommandOutboxBacklog()).pending).toBe(1);
   },
-);
-
-async function message() {
-  return tenant.transaction().execute(async (trx) => {
-    const row = await trx
-      .insertInto("messages")
-      .values({
-        whatsapp_connection_id: connectionId,
-        contact_id: contactId,
-        message_id: crypto.randomUUID(),
-        from_me: false,
-        message_type: "text",
-        content: "Fixture message",
-        timestamp: new Date(),
-      })
-      .returning("id")
-      .executeTakeFirstOrThrow();
-    await enqueueMessageSearch(trx, companyA, connectionId, row.id);
-    return row.id;
-  });
-}
-
-integration(
-  "indexing failures retain durable jobs and successful retries batch current messages",
-  async () => {
-    const ids = [await message(), await message()];
-    await expect(
-      dispatchMessageSearch(async () => {
-        throw new Error("search offline");
-      }),
-    ).rejects.toThrow("search offline");
-    expect(
-      (
-        await sql`SELECT * FROM public.message_search_outbox WHERE company_id = ${companyA}::uuid`.execute(
-          db,
-        )
-      ).rows,
-    ).toHaveLength(2);
-    await sql`UPDATE public.message_search_outbox SET next_attempt_at = now() WHERE company_id = ${companyA}::uuid`.execute(
-      db,
-    );
-    const indexed: string[] = [];
-    expect(
-      await dispatchMessageSearch(async (_company, docs) => {
-        indexed.push(...docs.map((doc) => doc.id));
-      }),
-    ).toBe(2);
-    expect(indexed.sort()).toEqual(ids.sort());
-  },
-);
-
-integration(
-  "slow background indexing does not block message inserts; purge waits for ordered submission",
-  async () => {
-    await message();
-    let unblock!: () => void;
-    let started!: () => void;
-    const ready = new Promise<void>((resolve) => {
-      started = resolve;
-    });
-    const hold = new Promise<void>((resolve) => {
-      unblock = resolve;
-    });
-    const indexing = dispatchMessageSearch(async () => {
-      started();
-      await hold;
-    });
-    await ready;
-    try {
-      // A new message and its durable search work commit while Meilisearch stalls.
-      await message();
-      let locked!: () => void;
-      const acquired = new Promise<void>((resolve) => {
-        locked = resolve;
-      });
-      const purge = tenant.transaction().execute(async (trx) => {
-        await trx
-          .selectFrom("whatsapp_connections")
-          .select("id")
-          .where("id", "=", connectionId)
-          .forUpdate()
-          .execute();
-        locked();
-        await trx
-          .updateTable("whatsapp_connections")
-          .set({ archived_at: new Date() })
-          .where("id", "=", connectionId)
-          .execute();
-      });
-      const premature = await Promise.race([
-        acquired.then(() => true),
-        Bun.sleep(50).then(() => false),
-      ]);
-      expect(premature).toBe(false);
-      unblock();
-      await indexing;
-      await purge;
-      let submitted = false;
-      await dispatchMessageSearch(async () => {
-        submitted = true;
-      });
-      expect(submitted).toBe(false);
-    } finally {
-      unblock();
-      await indexing;
-    }
-  },
-  10_000,
-);
-
-(enabled && process.env.RUN_SEARCH_INTEGRATION === "1" ? test : test.skip)(
-  "real Meilisearch task completion indexes the durable job before removing it",
-  async () => {
-    await tenant
-      .updateTable("whatsapp_connections")
-      .set({ archived_at: null })
-      .where("id", "=", connectionId)
-      .execute();
-    const id = await message();
-    expect(await dispatchMessageSearch()).toBe(1);
-    const document = await getMeilisearchClient()
-      .index(getMessagesIndexName(companyA))
-      .getDocument(id);
-    expect(document.content).toBe("Fixture message");
-    expect(document.companyId).toBe(companyA);
-    expect(
-      (
-        await sql`SELECT * FROM public.message_search_outbox WHERE company_id = ${companyA}::uuid`.execute(
-          db,
-        )
-      ).rows,
-    ).toHaveLength(0);
-  },
-  30_000,
 );

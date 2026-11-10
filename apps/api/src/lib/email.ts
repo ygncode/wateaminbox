@@ -1,15 +1,15 @@
+import {
+  type BrandedEmailContent,
+  emailHeaderText,
+  renderBrandedEmail,
+  renderPlainTextEmail,
+} from "./email-template.js";
 import { env } from "./env.js";
 import {
   deliverEmail,
   type EmailOptions,
   type EmailResult,
 } from "./mail/index.js";
-import {
-  emailHeaderText,
-  renderBrandedEmail,
-  renderPlainTextEmail,
-  type BrandedEmailContent,
-} from "./email-template.js";
 
 export type { EmailOptions, EmailResult } from "./mail/index.js";
 

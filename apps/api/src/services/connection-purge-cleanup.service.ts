@@ -8,10 +8,6 @@ import {
   lockMediaKeys,
   MEDIA_DELETING_MARKER,
 } from "./media-reference-lock.js";
-import {
-  deleteContacts,
-  deleteMessagesForContacts,
-} from "./meilisearch.service.js";
 import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 
 const DEFAULT_BATCH_SIZE = 500;
@@ -91,14 +87,6 @@ export interface PurgeCleanupDeps {
   /** Throws when the reference is not an object in this tenant's namespace. */
   resolveOwnedMediaKey: (reference: string, companyId: string) => string;
   deleteObject: (key: string) => Promise<void>;
-  dropSearchMessages: (
-    companyId: string,
-    contactIds: string[],
-  ) => Promise<void>;
-  dropSearchContacts: (
-    companyId: string,
-    contactIds: string[],
-  ) => Promise<void>;
   finalizeBulkJob: (
     tenantDb: Kysely<TenantDatabase>,
     companyId: string,
@@ -109,8 +97,6 @@ export interface PurgeCleanupDeps {
 const defaultDeps: PurgeCleanupDeps = {
   resolveOwnedMediaKey: resolveMediaKeyForCompany,
   deleteObject: deleteMedia,
-  dropSearchMessages: deleteMessagesForContacts,
-  dropSearchContacts: deleteContacts,
   finalizeBulkJob: finalizeBulkJobIfComplete,
 };
 
@@ -445,21 +431,16 @@ export async function processConnectionPurgeCleanup(
   const result: PurgeCleanupResult = { completed: 0, failed: 0, deferred: 0 };
   if (items.length === 0) return result;
 
+  // Search is PostgreSQL-only: there is no external index to purge any more.
+  // Items of this kind that were queued before the switch drain as no-ops so
+  // old rows cannot fail forever. New purges no longer enqueue this kind.
   const searchItems = items.filter((item) => item.kind === "search_contact");
   if (searchItems.length > 0) {
-    const contactIds = searchItems.map((item) => item.reference);
-    try {
-      await deps.dropSearchMessages(companyId, contactIds);
-      await deps.dropSearchContacts(companyId, contactIds);
-      await removeItems(
-        tenantDb,
-        searchItems.map((item) => item.id),
-      );
-      result.completed += searchItems.length;
-    } catch (error) {
-      await recordFailure(tenantDb, searchItems, error);
-      result.failed += searchItems.length;
-    }
+    await removeItems(
+      tenantDb,
+      searchItems.map((item) => item.id),
+    );
+    result.completed += searchItems.length;
   }
 
   // Finalize parents before evaluating their media references. Once a parent

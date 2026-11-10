@@ -1,4 +1,3 @@
-import { zValidator } from "../../lib/validator.js";
 import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { forbidden, notFound, serverError } from "../../lib/errors.js";
@@ -13,6 +12,7 @@ import {
   extractPaginationParams,
 } from "../../lib/route-helpers.js";
 import { noteContentSchema } from "../../lib/schemas/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requireContactVisibility } from "../../middleware/resource-visibility.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";

@@ -1,10 +1,10 @@
 import {
-  isChannel,
-  isChannelProvider,
   type CapabilityContext,
   type Channel,
   type ChannelAdapter,
   type ChannelProvider,
+  isChannel,
+  isChannelProvider,
   type ResolvedCapabilities,
 } from "@wateaminbox/shared";
 

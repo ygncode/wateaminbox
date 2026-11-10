@@ -1,4 +1,3 @@
-import { zValidator } from "../../lib/validator.js";
 import { Hono } from "hono";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { validatePasswordStrength } from "../../lib/password.js";
@@ -12,6 +11,7 @@ import {
   resendVerificationSchema,
   verifyEmailSchema,
 } from "../../lib/schemas/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { getClientIp } from "../../services/audit.service.js";
 import {
   register,

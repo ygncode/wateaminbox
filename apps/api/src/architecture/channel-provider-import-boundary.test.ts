@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+
 const root = join(import.meta.dir, "../../../..");
 const protectedRoots = [
   "apps/api/src/channel-spine/contracts",

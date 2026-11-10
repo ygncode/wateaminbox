@@ -4,11 +4,11 @@
  * Handles permission listing, member permissions, and permission management.
  */
 
-import { zValidator } from "../../lib/validator.js";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { successData, successWithMessage } from "../../lib/response.js";
 import { updateMemberPermissionsSchema } from "../../lib/schemas/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission, tenantFromParam } from "../../middleware/tenant.js";
 import * as companyService from "../../services/company.service.js";

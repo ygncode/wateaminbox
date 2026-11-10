@@ -89,9 +89,7 @@ async function withTenantFixture(
     await run({ companyId, headers, tenantDb });
   } finally {
     await clearTenantConnection(companyId);
-    await sql
-      .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
-      .execute(db);
+    await sql.raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`).execute(db);
     await db
       .deleteFrom("sla_policies")
       .where("company_id", "=", companyId)
@@ -105,9 +103,7 @@ async function withTenantFixture(
   }
 }
 
-async function insertContact(
-  tenantDb: ReturnType<typeof getTenantConnection>,
-) {
+async function insertContact(tenantDb: ReturnType<typeof getTenantConnection>) {
   const [contact] = await tenantDb
     .insertInto("contacts")
     .values({
@@ -294,43 +290,43 @@ describe("Conversation tuple-keyset pagination", () => {
     },
   );
 
-  integrationTest("first page is deterministic on repeated requests", async () => {
-    await withTenantFixture(async ({ headers, tenantDb }) => {
-      const contactId = await insertContact(tenantDb);
-      const ts = new Date("2025-06-01T12:00:00Z");
-      for (let i = 0; i < 5; i++) {
-        await insertMessage(tenantDb, contactId, ts);
-      }
-
-      const res1 = await getMessages(headers, contactId, { limit: "3" });
-      const body1 = (await res1.json()) as {
-        data: { messages: { id: string }[] };
-      };
-      const res2 = await getMessages(headers, contactId, { limit: "3" });
-      const body2 = (await res2.json()) as {
-        data: { messages: { id: string }[] };
-      };
-      expect(body1.data.messages.map((m) => m.id)).toEqual(
-        body2.data.messages.map((m) => m.id),
-      );
-    });
-  });
-
   integrationTest(
-    "cursor from another contact is rejected",
+    "first page is deterministic on repeated requests",
     async () => {
       await withTenantFixture(async ({ headers, tenantDb }) => {
-        const contact1 = await insertContact(tenantDb);
-        const contact2 = await insertContact(tenantDb);
+        const contactId = await insertContact(tenantDb);
         const ts = new Date("2025-06-01T12:00:00Z");
+        for (let i = 0; i < 5; i++) {
+          await insertMessage(tenantDb, contactId, ts);
+        }
 
-        const msgId = await insertMessage(tenantDb, contact2, ts);
-
-        const res = await getMessages(headers, contact1, { cursor: msgId });
-        expect(res.status).toBe(400);
+        const res1 = await getMessages(headers, contactId, { limit: "3" });
+        const body1 = (await res1.json()) as {
+          data: { messages: { id: string }[] };
+        };
+        const res2 = await getMessages(headers, contactId, { limit: "3" });
+        const body2 = (await res2.json()) as {
+          data: { messages: { id: string }[] };
+        };
+        expect(body1.data.messages.map((m) => m.id)).toEqual(
+          body2.data.messages.map((m) => m.id),
+        );
       });
     },
   );
+
+  integrationTest("cursor from another contact is rejected", async () => {
+    await withTenantFixture(async ({ headers, tenantDb }) => {
+      const contact1 = await insertContact(tenantDb);
+      const contact2 = await insertContact(tenantDb);
+      const ts = new Date("2025-06-01T12:00:00Z");
+
+      const msgId = await insertMessage(tenantDb, contact2, ts);
+
+      const res = await getMessages(headers, contact1, { cursor: msgId });
+      expect(res.status).toBe(400);
+    });
+  });
 
   integrationTest("limit 1 works correctly", async () => {
     await withTenantFixture(async ({ headers, tenantDb }) => {

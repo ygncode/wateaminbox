@@ -2,15 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
 import { sql } from "kysely";
-import { mergeContacts } from "./contact-merge.service.js";
 import { purgeArchivedChannelAccount } from "./channel-account-purge.service.js";
-import { purgeArchivedConnection } from "./whatsapp/connection.js";
+import { mergeContacts } from "./contact-merge.service.js";
 import {
   clearTenantConnection,
   createTenantSchema,
   getSchemaName,
   getTenantConnection,
 } from "./tenant.service.js";
+import { purgeArchivedConnection } from "./whatsapp/connection.js";
 
 const integrationTest =
   process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip;

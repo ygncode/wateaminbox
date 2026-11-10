@@ -1,10 +1,10 @@
 import type { Kysely } from "kysely";
-import type { TenantDatabase } from "./tenant.service.js";
 import {
   NotFoundError,
   ServiceUnavailableError,
   ValidationError,
 } from "../lib/errors.js";
+import type { TenantDatabase } from "./tenant.service.js";
 
 export interface WhatsAppConnection {
   id: string;

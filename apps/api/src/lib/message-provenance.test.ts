@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import type { ThreadProvenance } from "../services/message-provenance.service.js";
 import {
   formatMessageForConversation,
   type MessageDbRow,
 } from "./message-formatters.js";
-import type { ThreadProvenance } from "../services/message-provenance.service.js";
 
 const row = (overrides: Partial<MessageDbRow> = {}): MessageDbRow =>
   ({

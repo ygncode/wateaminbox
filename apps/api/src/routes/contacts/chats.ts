@@ -1,11 +1,11 @@
 import { Hono } from "hono";
 import { successData } from "../../lib/response.js";
+import { getAuthorizedMediaUrlOrNull } from "../../lib/storage.js";
 import { getRouteContext } from "../../middleware/context.js";
 import {
   hasContactVisibility,
   requireContactVisibility,
 } from "../../middleware/resource-visibility.js";
-import { getAuthorizedMediaUrlOrNull } from "../../lib/storage.js";
 import { listCustomerChats } from "../../services/customer-chats.service.js";
 
 export const customerChatsRoutes = new Hono();

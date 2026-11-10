@@ -2,8 +2,8 @@ import { z } from "zod";
 import { messageTypeSchema, paginationSchema, uuidSchema } from "../schemas.js";
 import {
   offsetDateTimeSchema,
-  utcDateTimeSchema,
   urlStringSchema,
+  utcDateTimeSchema,
 } from "./string-contracts.js";
 
 /**

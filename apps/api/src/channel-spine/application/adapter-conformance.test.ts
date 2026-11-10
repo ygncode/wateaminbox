@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
+  classifyTelegramSendFailure,
+  TelegramBotAdapter,
+} from "@wateaminbox/adapter-telegram";
+import {
   assertNormalizedChannelEvent,
   type ChannelAdapter,
   type ChannelCapabilities,
@@ -8,12 +12,8 @@ import {
   type ProviderSendResult,
   type ResolvedCapabilities,
 } from "@wateaminbox/shared";
-import {
-  classifyTelegramSendFailure,
-  TelegramBotAdapter,
-} from "@wateaminbox/adapter-telegram";
-import { WhatsAppLinkedDeviceAdapter } from "../providers/whatsapp-linked-device/adapter";
 import { storedContentType } from "../../services/channel-attachment-fetch.service";
+import { WhatsAppLinkedDeviceAdapter } from "../providers/whatsapp-linked-device/adapter";
 import {
   ChannelAdapterRegistry,
   resolveAdapterCapabilities,

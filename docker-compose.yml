@@ -82,22 +82,6 @@ services:
       timeout: 5s
       retries: 10
 
-  meilisearch:
-    image: getmeili/meilisearch:v1.11
-    container_name: wateaminbox-meilisearch
-    environment:
-      MEILI_ENV: development
-      MEILI_MASTER_KEY: development_master_key
-    ports:
-      - "4449:7700"
-    volumes:
-      - wateaminbox_meilisearch_data:/meili_data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   minio:
     # MinIO's own images on quay.io and Docker Hub now require a login;
     # Chainguard's public build is the same server and ships with mc.
@@ -152,7 +136,5 @@ volumes:
     name: wateaminbox_postgres_data
   wateaminbox_nats_data:
     name: wateaminbox_nats_data
-  wateaminbox_meilisearch_data:
-    name: wateaminbox_meilisearch_data
   wateaminbox_minio_data:
     name: wateaminbox_minio_data

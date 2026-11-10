@@ -1,6 +1,6 @@
+import { createHash } from "node:crypto";
 import { db } from "@wateaminbox/database";
 import { isChannel, isChannelProvider } from "@wateaminbox/shared";
-import { createHash } from "node:crypto";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { applyNormalizedChannelEvent } from "../channel-spine/application/event-processor.js";

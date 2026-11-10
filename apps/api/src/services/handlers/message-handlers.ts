@@ -10,8 +10,8 @@ import {
 } from "@wateaminbox/shared";
 import { sql } from "kysely";
 import { normalizeLinkedDeviceMessageEvent } from "../../channel-spine/providers/whatsapp-linked-device/normalize.js";
-import { compareLinkedDeviceMessageShadow } from "../../channel-spine/providers/whatsapp-linked-device/shadow-compare.js";
 import { shadowLinkedDeviceLegacyMutation } from "../../channel-spine/providers/whatsapp-linked-device/shadow.js";
+import { compareLinkedDeviceMessageShadow } from "../../channel-spine/providers/whatsapp-linked-device/shadow-compare.js";
 import { formatError } from "../../lib/logger.js";
 import { buildInboundMessageMetadata } from "../../lib/message-formatters.js";
 import {
@@ -36,7 +36,6 @@ import {
 } from "../conversation-case.service.js";
 import { broadcastToContactViewers } from "../message-broadcast.service.js";
 import { enqueueMessageDelivery } from "../message-delivery-outbox.service.js";
-import { enqueueMessageSearch } from "../message-search-outbox.service.js";
 import { getSchemaName, getTenantConnection } from "../tenant.service.js";
 import { lockActiveConnectionForEvent } from "./connection-event-guard.js";
 import { buildIncomingMessageMetadata } from "./message-metadata.js";
@@ -555,12 +554,6 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           }
         }
 
-        await enqueueMessageSearch(
-          trx,
-          companyId,
-          connection.id,
-          insertResult.id,
-        );
         if (spineAuthority.dualWriteEnabled) {
           await shadowLinkedDeviceLegacyMutation(
             trx,

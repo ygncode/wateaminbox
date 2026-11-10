@@ -1,7 +1,7 @@
 import {
-  db,
   type ChannelSpineWriteAuthority,
   type Database,
+  db,
 } from "@wateaminbox/database";
 import type { Kysely } from "kysely";
 

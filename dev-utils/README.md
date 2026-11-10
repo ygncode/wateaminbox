@@ -22,6 +22,6 @@ If the user belongs to multiple companies, an interactive run presents a numbere
   --yes
 ```
 
-The utility stops active workers through NATS and cleans the tenant database, whatsmeow sessions, worker registry, company-scoped NATS messages, MinIO media, and Meilisearch indexes. A dead in-memory orchestrator reference may remain until the orchestrator restarts; it has no process or persisted state and does not block pairing.
+The utility stops active workers through NATS and cleans the tenant database, whatsmeow sessions, worker registry, company-scoped NATS messages, and MinIO media. A dead in-memory orchestrator reference may remain until the orchestrator restarts; it has no process or persisted state and does not block pairing.
 
 Run `--help` for supported environment overrides and the complete cleanup scope.

@@ -3,8 +3,8 @@ import { db } from "@wateaminbox/database";
 import { app } from "../app.js";
 import { generateRefreshToken } from "../lib/jwt.js";
 import { hashPassword } from "../lib/password.js";
-import { hashToken } from "../lib/security.js";
 import { readRetiredRefreshTokens } from "../lib/refresh-token-retention.js";
+import { hashToken } from "../lib/security.js";
 
 /**
  * Rotation stays single-use, but a hash retired inside
