@@ -232,8 +232,7 @@ export function SettingsPage() {
       label: "Send feedback",
       group: "Help",
       icon: MessageSquareHeart,
-      // Always reachable: the floating feedback tab can be dismissed for good,
-      // so this is the durable way back to the form.
+      // The only in-app way to reach the feedback form.
       visible: true,
     },
   ];
@@ -469,7 +468,7 @@ function SettingsSectionContent({
           title={t("settings.feedbackPanel.title", "Send feedback")}
           description={t(
             "settings.feedbackPanel.description",
-            "Tell us what's working and what we can improve. Feedback reaches the team directly, and this form stays here even if you dismissed the floating feedback tab.",
+            "Tell us what's working and what we can improve. Feedback reaches the team directly.",
           )}
         >
           <FeedbackSettings />

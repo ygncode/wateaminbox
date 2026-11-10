@@ -1,13 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
-  FEEDBACK_DISMISSED_KEY,
   FEEDBACK_MAX_LENGTH,
   FEEDBACK_MIN_LENGTH,
   isFeedbackSubmittable,
-  readFeedbackDismissed,
   toFeedbackPayload,
   validateFeedbackDraft,
-  writeFeedbackDismissed,
 } from "./feedback-form";
 
 const draft = (message: string, email = "") => ({ message, email });
@@ -81,47 +78,5 @@ describe("toFeedbackPayload", () => {
     const payload = toFeedbackPayload(draft("a real message", "   "));
     expect(payload).toEqual({ message: "a real message" });
     expect("email" in payload).toBe(false);
-  });
-});
-
-describe("feedback tab dismissal", () => {
-  const store = () => {
-    const values = new Map<string, string>();
-    return {
-      values,
-      getItem: (key: string) => values.get(key) ?? null,
-      setItem: (key: string, value: string) => {
-        values.set(key, value);
-      },
-    };
-  };
-
-  test("round-trips the dismissal flag", () => {
-    const storage = store();
-    expect(readFeedbackDismissed(storage)).toBe(false);
-    writeFeedbackDismissed(storage);
-    expect(storage.values.get(FEEDBACK_DISMISSED_KEY)).toBe("1");
-    expect(readFeedbackDismissed(storage)).toBe(true);
-  });
-
-  test("treats any other stored value as not dismissed", () => {
-    const storage = store();
-    storage.setItem(FEEDBACK_DISMISSED_KEY, "0");
-    expect(readFeedbackDismissed(storage)).toBe(false);
-  });
-
-  test("stays usable when storage is unavailable or throws", () => {
-    const throwing = {
-      getItem: () => {
-        throw new Error("blocked");
-      },
-      setItem: () => {
-        throw new Error("blocked");
-      },
-    };
-    expect(readFeedbackDismissed(null)).toBe(false);
-    expect(readFeedbackDismissed(throwing)).toBe(false);
-    expect(() => writeFeedbackDismissed(null)).not.toThrow();
-    expect(() => writeFeedbackDismissed(throwing)).not.toThrow();
   });
 });
