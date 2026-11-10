@@ -12,7 +12,7 @@ let resolveFetch: ((value: CompanyWithRole[]) => void) | null = null;
 beforeEach(() => {
   calls = 0;
   resolveFetch = null;
-  globalThis.fetch = (async () => {
+  globalThis.fetch = (async (_input: RequestInfo | URL) => {
     calls += 1;
     const body = await new Promise<CompanyWithRole[]>((resolve) => {
       resolveFetch = resolve;
