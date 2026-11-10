@@ -15,7 +15,10 @@ import type {
 import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
 import { AnalyticsRangeTooWideError } from "../../lib/errors.js";
 import { resolveActiveCase } from "../conversation-case.service.js";
-import { getCurrentSlaPolicy, resolveCaseTargets } from "../sla-policy/policy.service.js";
+import {
+  getCurrentSlaPolicy,
+  resolveCaseTargets,
+} from "../sla-policy/policy.service.js";
 import {
   clearTenantConnection,
   createTenantSchema,
@@ -261,7 +264,11 @@ describe("response-time analytics correctness (24/7 UTC policy)", () => {
     async () => {
       await withTenant(async (companyId, tenantDb) => {
         const base = new Date("2026-01-01T00:00:00Z"); // Thursday
-        const contactId = await insertContactWithCase(tenantDb, companyId, base);
+        const contactId = await insertContactWithCase(
+          tenantDb,
+          companyId,
+          base,
+        );
 
         await insertMessage(tenantDb, contactId, false, base);
         await insertMessage(
@@ -303,7 +310,11 @@ describe("response-time analytics correctness (24/7 UTC policy)", () => {
     async () => {
       await withTenant(async (companyId, tenantDb) => {
         const base = new Date("2026-01-01T00:00:00Z");
-        const contactId = await insertContactWithCase(tenantDb, companyId, base);
+        const contactId = await insertContactWithCase(
+          tenantDb,
+          companyId,
+          base,
+        );
 
         await insertMessage(tenantDb, contactId, false, base);
         await insertMessage(
@@ -347,7 +358,11 @@ describe("response-time analytics correctness (24/7 UTC policy)", () => {
       await withTenant(async (companyId, tenantDb) => {
         const base = new Date("2026-01-01T00:00:00Z");
         const replyTime = new Date(base.getTime() + 30 * HOUR);
-        const contactId = await insertContactWithCase(tenantDb, companyId, base);
+        const contactId = await insertContactWithCase(
+          tenantDb,
+          companyId,
+          base,
+        );
 
         await insertMessage(tenantDb, contactId, false, base);
         await insertMessage(tenantDb, contactId, true, replyTime);
@@ -986,62 +1001,66 @@ describe("response-time analytics - exceeding the episode cap fails explicitly",
     LARGE_DATASET_TEST_TIMEOUT_MS,
   );
 
-  integrationTest("does not throw when exactly at the cap", async () => {
-    await withTenant(async (companyId, tenantDb) => {
-      const atCap = MAX_EPISODES_PER_QUERY;
-      const base = new Date("2026-01-01T00:00:00Z");
-      const policy = await getCurrentSlaPolicy(companyId);
-      const targets = resolveCaseTargets(policy, "direct");
+  integrationTest(
+    "does not throw when exactly at the cap",
+    async () => {
+      await withTenant(async (companyId, tenantDb) => {
+        const atCap = MAX_EPISODES_PER_QUERY;
+        const base = new Date("2026-01-01T00:00:00Z");
+        const policy = await getCurrentSlaPolicy(companyId);
+        const targets = resolveCaseTargets(policy, "direct");
 
-      const contacts = Array.from({ length: atCap }, (_, i) => ({
-        jid: `${crypto.randomUUID()}@s.whatsapp.net`,
-        phone_number: `atcap-${i}`,
-        push_name: `At-cap contact ${i}`,
-      }));
-      const insertedContacts = await tenantDb
-        .insertInto("contacts")
-        .values(contacts)
-        .returning("id")
-        .execute();
+        const contacts = Array.from({ length: atCap }, (_, i) => ({
+          jid: `${crypto.randomUUID()}@s.whatsapp.net`,
+          phone_number: `atcap-${i}`,
+          push_name: `At-cap contact ${i}`,
+        }));
+        const insertedContacts = await tenantDb
+          .insertInto("contacts")
+          .values(contacts)
+          .returning("id")
+          .execute();
 
-      const cases = insertedContacts.map((contact, i) => ({
-        contact_id: contact.id,
-        kind: "direct" as const,
-        status: "open" as const,
-        opened_at: new Date(base.getTime() + i * 1000),
-        open_source: "live_inbound" as const,
-        policy_id: policy.id,
-        response_target_minutes: targets.responseTargetMinutes,
-        resolution_target_minutes: targets.resolutionTargetMinutes,
-      }));
-      const insertedCases = await tenantDb
-        .insertInto("conversation_cases")
-        .values(cases)
-        .returning(["id", "contact_id"])
-        .execute();
-      const caseIdByContact = new Map(
-        insertedCases.map((c) => [c.contact_id, c.id]),
-      );
+        const cases = insertedContacts.map((contact, i) => ({
+          contact_id: contact.id,
+          kind: "direct" as const,
+          status: "open" as const,
+          opened_at: new Date(base.getTime() + i * 1000),
+          open_source: "live_inbound" as const,
+          policy_id: policy.id,
+          response_target_minutes: targets.responseTargetMinutes,
+          resolution_target_minutes: targets.resolutionTargetMinutes,
+        }));
+        const insertedCases = await tenantDb
+          .insertInto("conversation_cases")
+          .values(cases)
+          .returning(["id", "contact_id"])
+          .execute();
+        const caseIdByContact = new Map(
+          insertedCases.map((c) => [c.contact_id, c.id]),
+        );
 
-      const messages = insertedContacts.map((contact, i) => ({
-        contact_id: contact.id,
-        message_id: crypto.randomUUID(),
-        from_me: false,
-        message_type: "text" as const,
-        content: "hello",
-        timestamp: new Date(base.getTime() + i * 1000),
-        created_at: new Date(base.getTime() + i * 1000),
-        case_id: caseIdByContact.get(contact.id) ?? null,
-      }));
-      await tenantDb.insertInto("messages").values(messages).execute();
+        const messages = insertedContacts.map((contact, i) => ({
+          contact_id: contact.id,
+          message_id: crypto.randomUUID(),
+          from_me: false,
+          message_type: "text" as const,
+          content: "hello",
+          timestamp: new Date(base.getTime() + i * 1000),
+          created_at: new Date(base.getTime() + i * 1000),
+          case_id: caseIdByContact.get(contact.id) ?? null,
+        }));
+        await tenantDb.insertInto("messages").values(messages).execute();
 
-      const start = new Date(base.getTime() - HOUR);
-      const end = new Date(base.getTime() + atCap * 1000 + HOUR);
+        const start = new Date(base.getTime() - HOUR);
+        const end = new Date(base.getTime() + atCap * 1000 + HOUR);
 
-      const stats = await getResponseTimeStats(companyId, start, end);
-      expect(stats.totalConversations).toBe(atCap);
-    });
-  }, LARGE_DATASET_TEST_TIMEOUT_MS);
+        const stats = await getResponseTimeStats(companyId, start, end);
+        expect(stats.totalConversations).toBe(atCap);
+      });
+    },
+    LARGE_DATASET_TEST_TIMEOUT_MS,
+  );
 });
 
 describe("response-time analytics - exact target boundary", () => {
@@ -1202,7 +1221,13 @@ describe("response-time analytics - authoritative ingestion time, not the WhatsA
         expect(stats.totalConversations).toBe(1);
         expect(stats.withinSlaCount).toBe(0);
 
-        const breaches = await getSlaBreaches(companyId, start, end, target, 10);
+        const breaches = await getSlaBreaches(
+          companyId,
+          start,
+          end,
+          target,
+          10,
+        );
         expect(breaches).toHaveLength(1);
         expect(breaches[0].responseMinutes).toBeCloseTo(45, 1);
       });

@@ -49,7 +49,6 @@ flowchart TB
     centrifugo["Centrifugo"]
     postgres["PostgreSQL<br/>public + tenant schemas"]
     storage["S3-compatible media storage"]
-    search["Meilisearch"]
 
     telegramAdapter["Telegram Bot adapter"]
     telegram["Telegram Bot API"]
@@ -67,7 +66,6 @@ flowchart TB
     centrifugo <-->|NATS broker| nats
     api <-->|normalized application data| postgres
     api <-->|media| storage
-    api <-->|search projections| search
 
     api <-->|adapter contract| telegramAdapter
     telegram -->|verified webhooks| telegramAdapter
@@ -171,7 +169,6 @@ This starts:
 | NATS monitoring | <http://localhost:8222> |
 | Centrifugo WebSocket/API | <http://localhost:4451> |
 | Centrifugo metrics | <http://localhost:4451/metrics> |
-| Meilisearch | <http://localhost:4449> |
 | MinIO S3 API | <http://localhost:4450> |
 | MinIO console | <http://localhost:9001> |
 

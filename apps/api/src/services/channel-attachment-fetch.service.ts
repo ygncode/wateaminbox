@@ -1,13 +1,13 @@
+import { downloadTelegramFile } from "@wateaminbox/adapter-telegram";
 import { db } from "@wateaminbox/database";
 import { sql } from "kysely";
-import { downloadTelegramFile } from "@wateaminbox/adapter-telegram";
 import { createLogger, formatError } from "../lib/logger.js";
 import { deleteMedia, uploadMedia } from "../lib/storage.js";
+import { readChannelCredential } from "./channel-credential.service.js";
 import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
 } from "./channel-spine-authority.service.js";
-import { readChannelCredential } from "./channel-credential.service.js";
 import { getTenantConnection } from "./tenant.service.js";
 
 const logger = createLogger("ChannelAttachmentFetch");

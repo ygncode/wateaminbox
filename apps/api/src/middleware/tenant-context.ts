@@ -1,14 +1,14 @@
 import { Context, Next } from "hono";
 import { HTTPException } from "hono/http-exception";
-import {
-  getTenantConnection,
-  TenantDatabase,
-} from "../services/tenant.service.js";
+import type { Kysely } from "kysely";
 import {
   getMemberWithPermissions,
   type MemberPermissions,
 } from "../services/permission.service.js";
-import type { Kysely } from "kysely";
+import {
+  getTenantConnection,
+  TenantDatabase,
+} from "../services/tenant.service.js";
 
 // Extend Hono context types for tenant-specific variables
 // Note: user, session types are defined in auth.ts middleware

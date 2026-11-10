@@ -1,8 +1,7 @@
-import { zValidator } from "../../lib/validator.js";
-import { getContactDisplayName } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import { successData } from "../../lib/response.js";
+import { zValidator } from "../../lib/validator.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { resolveWorkflowContactId } from "../../services/channel-workflow.service.js";
@@ -14,7 +13,6 @@ import {
   suggestContactMerges,
   unmergeContacts,
 } from "../../services/contact-merge.service.js";
-import * as meilisearchService from "../../services/meilisearch.service.js";
 
 const mergeSchema = z.object({
   sourceContactId: z.string().guid(),
@@ -67,7 +65,6 @@ mergeRoutes.post("/:id/merge", zValidator("json", mergeSchema), async (c) => {
     actorUserId: user.id,
     reason: c.req.valid("json").reason,
   });
-  await refreshMergeSearchProjection(tenantDb, companyId, result);
   await createAuditLog({
     companyId,
     userId: user.id,
@@ -135,14 +132,6 @@ mergeRoutes.post(
     });
     // The revived customer becomes its own search hit again, and the survivor
     // must stop advertising the endpoints it just gave back.
-    await refreshMergeSearchProjection(tenantDb, companyId, {
-      sourceContactId: result.targetContactId,
-      targetContactId: result.sourceContactId,
-    });
-    await refreshMergeSearchProjection(tenantDb, companyId, {
-      sourceContactId: result.sourceContactId,
-      targetContactId: result.targetContactId,
-    });
     await createAuditLog({
       companyId,
       userId: user.id,
@@ -155,43 +144,3 @@ mergeRoutes.post(
     return successData(c, result);
   },
 );
-
-/**
- * The merged-away customer must stop being a separate search hit, and the
- * surviving customer must reflect any endpoint/profile evidence it absorbed.
- * Search is best-effort: a failure here must not undo a committed merge.
- */
-async function refreshMergeSearchProjection(
-  tenantDb: ReturnType<typeof getRouteContext>["tenantDb"],
-  companyId: string,
-  result: { sourceContactId: string; targetContactId: string },
-): Promise<void> {
-  await meilisearchService.deleteContact(companyId, result.sourceContactId);
-  const target = await tenantDb
-    .selectFrom("contacts")
-    .select([
-      "id",
-      "jid",
-      "phone_number",
-      "push_name",
-      "username",
-      "custom_name",
-      "is_group",
-      "notes_shared",
-    ])
-    .where("id", "=", result.targetContactId)
-    .executeTakeFirst();
-  if (!target) return;
-  await meilisearchService.indexContact(companyId, {
-    id: target.id,
-    companyId,
-    jid: target.jid,
-    phoneNumber: target.phone_number,
-    pushName: target.push_name,
-    username: target.username,
-    customName: target.custom_name,
-    displayName: getContactDisplayName(target),
-    isGroup: target.is_group,
-    notesShared: target.notes_shared,
-  });
-}

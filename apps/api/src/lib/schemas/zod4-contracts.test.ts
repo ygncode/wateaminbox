@@ -22,12 +22,12 @@ import {
   listQuickRepliesQuerySchema,
   updateAutoReplySettingsSchema,
 } from "./quick-replies.js";
+import { postStatusSchema } from "./status.js";
 import {
   offsetDateTimeSchema,
-  utcDateTimeSchema,
   urlStringSchema,
+  utcDateTimeSchema,
 } from "./string-contracts.js";
-import { postStatusSchema } from "./status.js";
 
 const guid = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE";
 

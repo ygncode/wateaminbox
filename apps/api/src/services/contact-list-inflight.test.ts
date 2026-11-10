@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
-import { coalesceContactListRead } from "./contact-list-inflight.js";
 import type { GetContactsWithLastMessageOptions } from "./contact.service.js";
+import { coalesceContactListRead } from "./contact-list-inflight.js";
 
 const empty = () => ({ contacts: [], total: 0 });
 

@@ -42,9 +42,7 @@ async function withTenantAndUsers(
     companyId: string;
     ownerHeaders: Record<string, string>;
     ownerId: string;
-    createMember: (
-      permissions?: Record<string, boolean>,
-    ) => Promise<{
+    createMember: (permissions?: Record<string, boolean>) => Promise<{
       headers: Record<string, string>;
       userId: string;
     }>;
@@ -124,16 +122,18 @@ async function withTenantAndUsers(
           ...(permissions ? { permissions } : {}),
         })
         .execute();
-      const headers = await loginAndGetHeaders(memberEmail, PASSWORD, companyId);
+      const headers = await loginAndGetHeaders(
+        memberEmail,
+        PASSWORD,
+        companyId,
+      );
       return { headers, userId: memberId };
     };
 
     await run({ companyId, ownerHeaders, ownerId, createMember });
   } finally {
     await clearTenantConnection(companyId);
-    await sql
-      .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
-      .execute(db);
+    await sql.raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`).execute(db);
     await db
       .deleteFrom("sla_policies")
       .where("company_id", "=", companyId)
@@ -238,33 +238,30 @@ describe("message reaction routes - assignment/lifecycle access", () => {
   integrationTest(
     "blocks adding and removing a reaction for a contact assigned to another team member",
     async () => {
-      await withTenantAndUsers(
-        async ({ companyId, ownerId, createMember }) => {
-          const { contactId, messageId } =
-            await setupReactableMessage(companyId);
-          const tenantDb = getTenantConnection(companyId);
-          const { headers } = await createMember({
-            can_view_all_chats: true,
-          });
-          await assignContactToUser(tenantDb, contactId, ownerId, ownerId);
+      await withTenantAndUsers(async ({ companyId, ownerId, createMember }) => {
+        const { contactId, messageId } = await setupReactableMessage(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const { headers } = await createMember({
+          can_view_all_chats: true,
+        });
+        await assignContactToUser(tenantDb, contactId, ownerId, ownerId);
 
-          const addResponse = await app.request(
-            `/api/messages/${messageId}/reaction`,
-            {
-              method: "POST",
-              headers,
-              body: JSON.stringify({ emoji: "👍" }),
-            },
-          );
-          expect(addResponse.status).toBe(403);
+        const addResponse = await app.request(
+          `/api/messages/${messageId}/reaction`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ emoji: "👍" }),
+          },
+        );
+        expect(addResponse.status).toBe(403);
 
-          const removeResponse = await app.request(
-            `/api/messages/${messageId}/reaction`,
-            { method: "DELETE", headers },
-          );
-          expect(removeResponse.status).toBe(403);
-        },
-      );
+        const removeResponse = await app.request(
+          `/api/messages/${messageId}/reaction`,
+          { method: "DELETE", headers },
+        );
+        expect(removeResponse.status).toBe(403);
+      });
     },
   );
 
@@ -272,8 +269,7 @@ describe("message reaction routes - assignment/lifecycle access", () => {
     "blocks adding a reaction once the conversation is resolved",
     async () => {
       await withTenantAndUsers(async ({ companyId, ownerHeaders }) => {
-        const { contactId, messageId } =
-          await setupReactableMessage(companyId);
+        const { contactId, messageId } = await setupReactableMessage(companyId);
         const tenantDb = getTenantConnection(companyId);
         const { resolveActiveCase } = await import(
           "../../services/conversation-case.service.js"
@@ -299,25 +295,23 @@ describe("message reaction routes - assignment/lifecycle access", () => {
   integrationTest(
     "denies reacting to a member without can_send_messages",
     async () => {
-      await withTenantAndUsers(
-        async ({ companyId, createMember }) => {
-          const { messageId } = await setupReactableMessage(companyId);
-          const { headers } = await createMember({
-            can_send_messages: false,
-            can_view_all_chats: true,
-          });
+      await withTenantAndUsers(async ({ companyId, createMember }) => {
+        const { messageId } = await setupReactableMessage(companyId);
+        const { headers } = await createMember({
+          can_send_messages: false,
+          can_view_all_chats: true,
+        });
 
-          const response = await app.request(
-            `/api/messages/${messageId}/reaction`,
-            {
-              method: "POST",
-              headers,
-              body: JSON.stringify({ emoji: "👍" }),
-            },
-          );
-          expect(response.status).toBe(403);
-        },
-      );
+        const response = await app.request(
+          `/api/messages/${messageId}/reaction`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ emoji: "👍" }),
+          },
+        );
+        expect(response.status).toBe(403);
+      });
     },
   );
 });

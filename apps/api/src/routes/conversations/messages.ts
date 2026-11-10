@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { zValidator } from "../../lib/validator.js";
 import {
   isChannel,
   isChannelProvider,
@@ -8,6 +7,7 @@ import {
   toISOString,
 } from "@wateaminbox/shared";
 import { Hono } from "hono";
+import type { Kysely } from "kysely";
 import { resolveAdapterCapabilities } from "../../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../../channel-spine/registry.js";
 import { badRequest, conflict, notFound } from "../../lib/errors.js";
@@ -26,7 +26,6 @@ import {
   MEDIA_MESSAGE_TYPES,
 } from "../../lib/nats/index.js";
 import { successData, successWithMessage } from "../../lib/response.js";
-import { resolveThreadProvenance } from "../../services/message-provenance.service.js";
 import {
   listConversationMessagesQuerySchema,
   sendConversationMessageSchema,
@@ -35,6 +34,7 @@ import {
   getPrivateMediaReference,
   resolveMediaKeyForCompany,
 } from "../../lib/storage.js";
+import { zValidator } from "../../lib/validator.js";
 import { getRouteContext } from "../../middleware/context.js";
 import {
   markDeprecatedMessageSend,
@@ -58,17 +58,17 @@ import {
 } from "../../services/command-outbox.service.js";
 import { validateGroupMentionJids } from "../../services/group-mention.service.js";
 import { reserveMediaReferences } from "../../services/media-reference-lock.js";
+import { resolveThreadProvenance } from "../../services/message-provenance.service.js";
 import {
   requireConversationSendAccess,
   requireSendAccess,
 } from "../../services/send-access.service.js";
+import type { TenantDatabase } from "../../services/tenant.service.js";
 import {
   getUserAvatarSources,
   getUserNames,
 } from "../../services/user.service.js";
 import { getActiveSessionId } from "../../services/whatsapp/session.js";
-import type { TenantDatabase } from "../../services/tenant.service.js";
-import type { Kysely } from "kysely";
 
 export const messageRoutes = new Hono();
 

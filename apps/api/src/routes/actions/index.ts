@@ -5,13 +5,13 @@
  * These endpoints allow clients to trigger actions without maintaining a WebSocket connection.
  */
 
-import { zValidator } from "../../lib/validator.js";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { NoActiveCaseError } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { publishTypingCommand } from "../../lib/nats/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requireMessageSendPermission } from "../../middleware/message-send-policy.js";
 import { hasContactVisibility } from "../../middleware/resource-visibility.js";

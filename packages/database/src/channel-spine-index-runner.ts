@@ -20,6 +20,8 @@ interface ConcurrentIndexDefinition {
   columnsSql?: string;
   predicate: string;
   unique?: boolean;
+  /** Access method; defaults to btree. GIN is used for trigram search. */
+  using?: "gin";
   /**
    * A column this index needs that the spine does not own. `timestamp` belongs
    * to the legacy messages table, and a schema that has not got it yet - a
@@ -209,6 +211,21 @@ const definitions: readonly ConcurrentIndexDefinition[] = [
         HAVING count(*) > 1
       ) AS duplicates`,
   },
+  {
+    // Migration 110: PostgreSQL-only search. `ILIKE '%term%'` on message
+    // content is the match that works for every script (Thai, Burmese, CJK,
+    // phone fragments); the trigram GIN index makes it indexed. Built here,
+    // concurrently, because `messages` is the hot table workers write to and a
+    // migration-transaction build would hold a SHARE lock for its duration.
+    suffix: "msg_content_trgm_idx",
+    table: "messages",
+    columns: ["content"],
+    columnsSql: '"content" public.gin_trgm_ops',
+    predicate: "content IS NOT NULL",
+    unique: false,
+    using: "gin",
+    requiresColumn: { table: "messages", column: "content" },
+  },
 ];
 
 /**
@@ -269,7 +286,7 @@ export async function reconcileChannelSpineConcurrentIndexes<Database>(
         `CREATE ${definition.unique === false ? "" : "UNIQUE "}INDEX CONCURRENTLY ${quoteIdentifier(indexName)} ON ${qualified(
           schemaName,
           definition.table,
-        )} (${columns}) WHERE ${definition.predicate}`,
+        )}${definition.using ? ` USING ${definition.using}` : ""} (${columns}) WHERE ${definition.predicate}`,
       )
       .execute(db);
     const created = await readIndex(db, schemaName, indexName);

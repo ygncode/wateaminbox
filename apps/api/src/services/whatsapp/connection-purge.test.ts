@@ -182,7 +182,6 @@ describe("permanent connection purge", () => {
       "insert purge_cleanup_items",
       "insert purge_cleanup_items",
       "insert purge_cleanup_items",
-      "insert purge_cleanup_items",
       "update bulk_jobs",
       "delete message_reactions",
       "delete conversation_cases",

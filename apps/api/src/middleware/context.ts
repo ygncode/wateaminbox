@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import type { Kysely } from "kysely";
-import type { TenantDatabase } from "../services/tenant.service.js";
 import type { MemberPermissions } from "../services/permission.service.js";
+import type { TenantDatabase } from "../services/tenant.service.js";
 
 /**
  * User type from the auth middleware context

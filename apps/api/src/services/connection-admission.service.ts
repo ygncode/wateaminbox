@@ -18,7 +18,10 @@ function deniedResponse(payload: unknown): ConnectionAdmissionDecision {
     throw new Error("Connection admission returned an invalid denial");
   }
   const candidate = payload as Record<string, unknown>;
-  if (typeof candidate.code !== "string" || typeof candidate.message !== "string") {
+  if (
+    typeof candidate.code !== "string" ||
+    typeof candidate.message !== "string"
+  ) {
     throw new Error("Connection admission returned an invalid denial");
   }
   return {

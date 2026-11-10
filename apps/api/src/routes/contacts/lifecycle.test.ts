@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { partitionByUnread, threadKey } from "./lifecycle.js";
 import type { CustomerThread } from "../../services/customer-timeline.service.js";
+import { partitionByUnread, threadKey } from "./lifecycle.js";
 
 const conversation = (id: string, contactId?: string): CustomerThread => ({
   conversationId: id,

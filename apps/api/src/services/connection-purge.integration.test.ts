@@ -610,9 +610,10 @@ describe("permanent connection purge against PostgreSQL", () => {
           .select(["kind", "reference"])
           .where("connection_id", "=", purged.connectionId)
           .execute();
+        // Search is PostgreSQL-only: purges no longer enqueue search_contact items.
         expect(
           cleanupItems.filter((item) => item.kind === "search_contact").length,
-        ).toBe(2);
+        ).toBe(0);
         expect(cleanupItems).toContainEqual({
           kind: "bulk_job",
           reference: bulkJobId,

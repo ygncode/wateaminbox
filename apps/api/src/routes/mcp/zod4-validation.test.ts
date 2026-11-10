@@ -1,10 +1,10 @@
 import { expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { z } from "zod";
 import { InitializeRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
 import {
   batchStarSchema,
   listMessagesQuerySchema,

@@ -59,10 +59,6 @@ import {
   shutdownMessageHandler,
 } from "./services/message-handler.js";
 import {
-  initializeMessageSearch,
-  shutdownMessageSearch,
-} from "./services/message-search-outbox.service.js";
-import {
   initializeScheduledMessages,
   shutdownScheduledMessages,
 } from "./services/scheduled-message.service.js";
@@ -111,7 +107,6 @@ if (!isTestEnvironment) {
   initializeChannelAttachmentFetch();
   initializeChannelEndpointAvatars();
   initializeChannelMessageDelivery();
-  initializeMessageSearch();
   initializeMessageDelivery();
   initializeScheduledMessages();
   initializeConnectionPurgeCleanup();
@@ -192,7 +187,6 @@ function shutdownSteps(): ShutdownStep[] {
     // started, in the order it started them.
     { name: "nats", run: shutdownMessageHandler },
     { name: "message-delivery", run: shutdownMessageDelivery },
-    { name: "message-search", run: shutdownMessageSearch },
     // Stops PostgreSQL cleanup (or closes the optional Redis connection)
     // before the database pools used by the store are released.
     { name: "rate-limit-store", run: () => rateLimitStore.close() },

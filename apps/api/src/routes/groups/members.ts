@@ -10,13 +10,14 @@
  * account lost admin rights a second ago, or a number refuses group invites -
  * never leaves the workspace showing a change that did not happen.
  */
-import { zValidator } from "../../lib/validator.js";
+
 import { GROUP_MAX_PARTICIPANTS } from "@wateaminbox/shared";
 import { type Context, Hono } from "hono";
 import { badRequest, conflict } from "../../lib/errors.js";
 import type { NatsCommandPublisher } from "../../lib/nats/command-builder.js";
 import { successWithMessage } from "../../lib/response.js";
 import { groupParticipantsSchema } from "../../lib/schemas/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";
 import { enqueueConnectionCommand } from "../../services/command-outbox.service.js";

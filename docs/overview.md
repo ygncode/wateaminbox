@@ -15,7 +15,7 @@ PostgreSQL       Telegram Bot adapter       Go orchestrator
     |                    |                         |
     +-> tenant schemas   +-> Telegram API          +-> WhatsApp worker -> WhatsApp
 
-Supporting services: Meilisearch, R2/MinIO, Resend or Cloudflare Email Service
+Supporting services: R2/MinIO, Resend or Cloudflare Email Service
 ```
 
 The spine models channels, providers, channel accounts, customer endpoints, conversations, messages, attachments, and delivery outcomes separately. Provider adapters normalize ingress and advertise capabilities to the UI and outbound dispatcher. This keeps Telegram's Bot API semantics and linked-device WhatsApp's worker lifecycle out of generic inbox workflows.
@@ -102,7 +102,6 @@ Default ports:
 | API | 4445 |
 | PostgreSQL | 4447 |
 | NATS | 4448 |
-| Meilisearch | 4449 |
 | MinIO | 4450 |
 | Centrifugo | 4451 |
 

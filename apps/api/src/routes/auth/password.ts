@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { zValidator } from "../../lib/validator.js";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { validatePasswordStrength } from "../../lib/password.js";
 import { successMessage, validationError } from "../../lib/response.js";
@@ -7,6 +6,7 @@ import {
   forgotPasswordSchema,
   resetPasswordSchema,
 } from "../../lib/schemas/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { forgotPassword, resetPassword } from "../../services/auth.service.js";
 import { forgotPasswordRateLimiter } from "./rate-limiters.js";
 import { handleAuthError } from "./utils.js";

@@ -1,7 +1,7 @@
 import { db, getTenantSchemaName } from "@wateaminbox/database";
 import { sql, type Transaction } from "kysely";
-import { broadcastToUsers } from "../lib/realtime.js";
 import { createLogger, formatError } from "../lib/logger.js";
+import { broadcastToUsers } from "../lib/realtime.js";
 import {
   resolveContactViewerIds,
   resolveConversationViewerIds,

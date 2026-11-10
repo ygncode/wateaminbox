@@ -205,10 +205,6 @@ export const env = {
   S3_LEGACY_ENDPOINTS: getEnv("S3_LEGACY_ENDPOINTS", ""),
   S3_SIGNED_URL_TTL_SECONDS: getEnvNumber("S3_SIGNED_URL_TTL_SECONDS", 5 * 60),
 
-  // Search
-  MEILISEARCH_URL: getEnv("MEILISEARCH_URL", "http://localhost:7700"),
-  MEILISEARCH_API_KEY: getEnv("MEILISEARCH_API_KEY", "development_master_key"),
-
   // Feature flags
   DEBUG: getEnvBoolean("DEBUG", false),
 
@@ -514,8 +510,6 @@ export function validateProductionEnv(config: Env = env): void {
     S3_ENDPOINT: config.S3_ENDPOINT,
     S3_BUCKET: config.S3_BUCKET,
     S3_REGION: config.S3_REGION,
-    MEILISEARCH_URL: config.MEILISEARCH_URL,
-    MEILISEARCH_API_KEY: config.MEILISEARCH_API_KEY,
     ...requiredMailCredentials(config),
     EMAIL_FROM: config.EMAIL_FROM,
     FEEDBACK_TO_EMAIL: config.FEEDBACK_TO_EMAIL,
@@ -624,12 +618,6 @@ export function validateProductionEnv(config: Env = env): void {
     assertCredentialIsSafe("S3_ACCESS_KEY", config.S3_ACCESS_KEY);
     assertCredentialIsSafe("S3_SECRET_KEY", config.S3_SECRET_KEY);
   }
-
-  assertServiceURL("MEILISEARCH_URL", config.MEILISEARCH_URL, [
-    "http:",
-    "https:",
-  ]);
-  assertCredentialIsSafe("MEILISEARCH_API_KEY", config.MEILISEARCH_API_KEY);
 
   const appURL = assertServiceURL("APP_URL", config.APP_URL, [
     "http:",

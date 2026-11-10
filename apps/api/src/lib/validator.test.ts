@@ -47,7 +47,10 @@ describe("zValidator wrapper", () => {
     expect(await response.json()).toEqual({
       error: "Validation Error",
       details: [
-        { field: "messageIds", message: "Maximum 50 messages per batch request" },
+        {
+          field: "messageIds",
+          message: "Maximum 50 messages per batch request",
+        },
       ],
     });
   });

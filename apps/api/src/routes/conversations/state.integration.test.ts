@@ -461,32 +461,34 @@ describe("conversation lifecycle routes - authorization and validation", () => {
   integrationTest(
     "denies reopen to a member without can_send_messages",
     async () => {
-      await withTenantAndUsers(async ({ companyId, ownerHeaders, createMember }) => {
-        const contactId = await insertContact(companyId);
-        await app.request(`/api/conversations/${contactId}/open`, {
-          method: "POST",
-          headers: ownerHeaders,
-          body: "{}",
-        });
-        await resolveActiveCase(getTenantConnection(companyId), contactId, {
-          outcome: "no_reply_needed",
-          resolvedBy: crypto.randomUUID(),
-        });
-
-        const { headers } = await createMember({
-          can_send_messages: false,
-          can_view_all_chats: true,
-        });
-        const reopenResponse = await app.request(
-          `/api/conversations/${contactId}/reopen`,
-          {
+      await withTenantAndUsers(
+        async ({ companyId, ownerHeaders, createMember }) => {
+          const contactId = await insertContact(companyId);
+          await app.request(`/api/conversations/${contactId}/open`, {
             method: "POST",
-            headers,
-            body: JSON.stringify({ reason: "irrelevant" }),
-          },
-        );
-        expect(reopenResponse.status).toBe(403);
-      });
+            headers: ownerHeaders,
+            body: "{}",
+          });
+          await resolveActiveCase(getTenantConnection(companyId), contactId, {
+            outcome: "no_reply_needed",
+            resolvedBy: crypto.randomUUID(),
+          });
+
+          const { headers } = await createMember({
+            can_send_messages: false,
+            can_view_all_chats: true,
+          });
+          const reopenResponse = await app.request(
+            `/api/conversations/${contactId}/reopen`,
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ reason: "irrelevant" }),
+            },
+          );
+          expect(reopenResponse.status).toBe(403);
+        },
+      );
     },
   );
 
@@ -705,11 +707,13 @@ describe("conversation lifecycle routes - authorization and validation", () => {
       await withTenantAndUsers(
         async ({ companyId, ownerHeaders, ownerId, createMember }) => {
           const tenantDb = getTenantConnection(companyId);
-          const { headers: otherHeaders, userId: otherId } = await createMember({
-            can_view_all_chats: true,
-            can_send_messages: true,
-            can_assign_contacts: true,
-          });
+          const { headers: otherHeaders, userId: otherId } = await createMember(
+            {
+              can_view_all_chats: true,
+              can_send_messages: true,
+              can_assign_contacts: true,
+            },
+          );
 
           const contactId = await insertContact(companyId);
           await assignContactToUser(tenantDb, contactId, ownerId, ownerId);

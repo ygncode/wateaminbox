@@ -11,10 +11,10 @@ import {
   CompanyNotFoundError,
   InsufficientPermissionsError,
 } from "../../lib/errors.js";
+import { invalidateCompanyMembership } from "../company-membership.service.js";
 import { getEffectivePermissions } from "../permission.service.js";
 import { getCompany, toCompanyResponse } from "./core.js";
 import type { Company, CompanyMember, CompanyWithRole } from "./types.js";
-import { invalidateCompanyMembership } from "../company-membership.service.js";
 
 /**
  * Gets all members of a company

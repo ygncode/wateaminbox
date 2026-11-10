@@ -1,6 +1,6 @@
-import { canonicalResource, issuer } from "../routes/oauth.js";
 import type { ApiTokenScope } from "@wateaminbox/database";
 import { Context, Next } from "hono";
+import { canonicalResource, issuer } from "../routes/oauth.js";
 import {
   API_TOKEN_PREFIX,
   verifyApiToken,

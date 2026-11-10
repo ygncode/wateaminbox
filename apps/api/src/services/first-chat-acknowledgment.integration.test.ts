@@ -94,14 +94,14 @@ async function addConnection(
   return id;
 }
 
+import { NotFoundError } from "../lib/errors.js";
+import { firstChatAcknowledgmentSchema } from "../routes/contacts/first-chat-acknowledgment.js";
 import {
   acknowledgeFirstChat,
-  needsFirstChatAcknowledgment,
   FIRST_CHAT_ACTION,
   FIRST_CHAT_NOTICE_VERSION,
+  needsFirstChatAcknowledgment,
 } from "./first-chat-acknowledgment.service.js";
-import { firstChatAcknowledgmentSchema } from "../routes/contacts/first-chat-acknowledgment.js";
-import { NotFoundError } from "../lib/errors.js";
 
 test("requires an explicit checked box and the displayed notice version", () => {
   expect(

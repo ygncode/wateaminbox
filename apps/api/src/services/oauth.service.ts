@@ -10,11 +10,10 @@
  */
 
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import type { ApiTokenScope, Database } from "@wateaminbox/database";
 import { db } from "@wateaminbox/database";
-import type { Database } from "@wateaminbox/database";
-import type { Transaction } from "kysely";
-import type { ApiTokenScope } from "@wateaminbox/database";
 import { toDbDate } from "@wateaminbox/shared";
+import type { Transaction } from "kysely";
 import { API_TOKEN_PREFIX } from "./api-token.service.js";
 
 /** Long enough to survive a slow consent screen, short enough to be useless if leaked. */

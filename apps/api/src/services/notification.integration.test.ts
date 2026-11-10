@@ -2,16 +2,16 @@ import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { sql } from "kysely";
 import {
-  createTenantSchema,
-  getSchemaName,
-  getTenantConnection,
-} from "./tenant.service.js";
-import {
   createNotification,
   deleteNotification,
   getNotifications,
   markAllNotificationsAsRead,
 } from "./notification-history.service.js";
+import {
+  createTenantSchema,
+  getSchemaName,
+  getTenantConnection,
+} from "./tenant.service.js";
 
 const integrationTest =
   process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip;

@@ -12,6 +12,15 @@
  * ```
  */
 
+// API token
+export {
+  apiTokenIdParamSchema,
+  apiTokenScopeSchema,
+  type CreateApiTokenInput,
+  createApiTokenSchema,
+  type ListApiTokensQuery,
+  listApiTokensQuerySchema,
+} from "./api-token.js";
 // Auth
 export {
   type ChangePasswordInput,
@@ -167,8 +176,8 @@ export {
   type ListQuickRepliesQuery,
   listQuickRepliesQuerySchema,
   type UpdateAutoReplySettingsInput,
-  updateAutoReplySettingsSchema,
   type UpdateQuickReplyInput,
+  updateAutoReplySettingsSchema,
   updateQuickReplySchema,
 } from "./quick-replies.js";
 // SLA policy
@@ -180,16 +189,6 @@ export {
   timezoneSchema,
   weeklyScheduleSchema,
 } from "./sla-policy.js";
-
-// API token
-export {
-  apiTokenIdParamSchema,
-  apiTokenScopeSchema,
-  type CreateApiTokenInput,
-  createApiTokenSchema,
-  type ListApiTokensQuery,
-  listApiTokensQuerySchema,
-} from "./api-token.js";
 // Status
 export {
   type PostStatusInput,

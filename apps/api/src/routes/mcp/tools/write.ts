@@ -1,14 +1,12 @@
-import { settingsWriteTools } from "./settings.js";
+import { createHash } from "node:crypto";
 import {
   getContactDisplayName,
   isChannel,
   isChannelProvider,
   toDbDate,
 } from "@wateaminbox/shared";
-import { createHash } from "node:crypto";
 import type { Context } from "hono";
 import { z } from "zod";
-import { offsetDateTimeSchema } from "../../../lib/schemas/string-contracts.js";
 import { resolveAdapterCapabilities } from "../../../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../../../channel-spine/registry.js";
 import {
@@ -26,15 +24,12 @@ import {
   SCHEDULE_MAX_HORIZON_MS,
   SCHEDULE_MIN_LEAD_MS,
 } from "../../../lib/schemas/index.js";
+import { offsetDateTimeSchema } from "../../../lib/schemas/string-contracts.js";
 import { getRouteContext } from "../../../middleware/context.js";
 import {
   broadcastAutoAssignment,
   broadcastContactAssignmentEvent,
 } from "../../../services/assignment-broadcast.service.js";
-import {
-  enqueueOutboundRealtimeFanout,
-  recordOutboundConversationActivity,
-} from "../../../services/channel-message-fanout.service.js";
 import { getAssignmentNotificationInputs } from "../../../services/assignment-notification.service.js";
 import { decideContactAssignment } from "../../../services/assignment-policy.js";
 import {
@@ -48,7 +43,29 @@ import {
   getBulkJobProgress,
   resolveBulkAudience,
 } from "../../../services/bulk-job.service.js";
+import {
+  enqueueOutboundRealtimeFanout,
+  recordOutboundConversationActivity,
+} from "../../../services/channel-message-fanout.service.js";
+import {
+  getChannelSpineWorkspaceAuthority,
+  isChannelProviderEnabled,
+} from "../../../services/channel-spine-authority.service.js";
+import { isChannelSpineTenantReady } from "../../../services/channel-spine-readiness.service.js";
+import {
+  conversationIdForContact,
+  resolveWorkflowIdentity,
+} from "../../../services/channel-workflow.service.js";
 import { enqueueCommand } from "../../../services/command-outbox.service.js";
+import {
+  assignConversationToUser,
+  type FindOrCreateContactByPhoneResult,
+  findOrCreateContactByPhone,
+  getCurrentAssignment,
+  getCurrentConversationAssignment,
+  OutboundContactError,
+  unassignConversation,
+} from "../../../services/contact.service.js";
 import {
   ensureActiveCaseWithin,
   reopenAsNewCase,
@@ -60,15 +77,6 @@ import {
   setActiveCasePending,
   setActiveCasePendingForConversation,
 } from "../../../services/conversation-case.service.js";
-import {
-  type FindOrCreateContactByPhoneResult,
-  findOrCreateContactByPhone,
-  assignConversationToUser,
-  getCurrentAssignment,
-  getCurrentConversationAssignment,
-  OutboundContactError,
-  unassignConversation,
-} from "../../../services/contact.service.js";
 import { reserveMediaReferences } from "../../../services/media-reference-lock.js";
 import {
   broadcastNewMessageToViewers,
@@ -83,15 +91,6 @@ import {
 import { createAndPublishNotifications } from "../../../services/notification-delivery.service.js";
 import { getMemberWithPermissions } from "../../../services/permission.service.js";
 import {
-  getChannelSpineWorkspaceAuthority,
-  isChannelProviderEnabled,
-} from "../../../services/channel-spine-authority.service.js";
-import { isChannelSpineTenantReady } from "../../../services/channel-spine-readiness.service.js";
-import {
-  conversationIdForContact,
-  resolveWorkflowIdentity,
-} from "../../../services/channel-workflow.service.js";
-import {
   requireConversationSendAccess,
   requireSendAccess,
 } from "../../../services/send-access.service.js";
@@ -99,6 +98,7 @@ import { getActiveSessionId } from "../../../services/whatsapp/session.js";
 import { type McpToolDefinition, McpToolError } from "../tool-context.js";
 import { requireVisibleContact, requireVisibleWorkflow } from "./read.js";
 import { schedulingTools } from "./scheduling.js";
+import { settingsWriteTools } from "./settings.js";
 
 async function createMcpAuditLog(
   c: Context,

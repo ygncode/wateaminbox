@@ -3,6 +3,7 @@ import {
   getChannelSpineWorkspaceAuthority,
   isChannelProviderEnabled,
 } from "./channel-spine-authority.service.js";
+
 const companyId = "11111111-1111-4111-8111-111111111111";
 type AuthorityDatabase = NonNullable<
   Parameters<typeof getChannelSpineWorkspaceAuthority>[1]

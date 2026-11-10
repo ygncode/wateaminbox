@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import {
   type CompanyMemberPermissions,
-  getMembershipCacheTtlMs,
-  MAX_CACHED_COMPANIES,
-  setMembershipCacheTtlMs,
   getCompanyMemberPermissions,
   getMembershipCacheStats,
+  getMembershipCacheTtlMs,
   invalidateAllCompanyMemberships,
   invalidateCompanyMembership,
+  MAX_CACHED_COMPANIES,
   resetMembershipCache,
+  setMembershipCacheTtlMs,
 } from "./company-membership.service.js";
 import { ROLE_PRESETS } from "./permission.service.js";
 

@@ -3,11 +3,11 @@ import {
   db,
   reconcileChannelSpineConcurrentIndexes,
 } from "@wateaminbox/database";
-import { sql } from "kysely";
 import {
   DEFAULT_SLA_WEEKLY_SCHEDULE,
   type NormalizedChannelEvent,
 } from "@wateaminbox/shared";
+import { sql } from "kysely";
 import {
   clearTenantConnection,
   createTenantSchema,
