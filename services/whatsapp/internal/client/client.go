@@ -1874,7 +1874,9 @@ func (c *Client) updateBlocklistWithRetry(ctx context.Context, jidStr string, ac
 
 		// Create a timeout context for this attempt
 		attemptCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		_, err := c.client.UpdateBlocklist(attemptCtx, target, blocklistAction)
+		// No dhash: we do not cache the blocklist, so always ask the server for
+		// the full updated list (the pre-dhash behavior).
+		_, err := c.client.UpdateBlocklist(attemptCtx, target, blocklistAction, "")
 		cancel()
 
 		if err == nil {
