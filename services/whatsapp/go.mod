@@ -1,6 +1,6 @@
 module github.com/ygncode-lab/whatsapp-web/services/whatsapp
 
-go 1.26.10
+go 1.26.11
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
