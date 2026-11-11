@@ -238,6 +238,35 @@ func (s *PGSQLStore) PutArchived(ctx context.Context, chat types.JID, archived b
 	return err
 }
 
+// PutWASARootSecretID remembers the active WASA root secret for a bot chat.
+// Mirrors upstream sqlstore v16 (whatsmeow_chat_settings.wasa_root_secret_id).
+func (s *PGSQLStore) PutWASARootSecretID(ctx context.Context, chat types.JID, id types.MessageID) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO whatsmeow_chat_settings (connection_id, our_jid, chat_jid, wasa_root_secret_id)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (connection_id, our_jid, chat_jid) DO UPDATE SET wasa_root_secret_id = EXCLUDED.wasa_root_secret_id
+	`, s.connectionID, s.JID, chat.String(), string(id))
+	return err
+}
+
+// GetWASARootSecretID returns the active WASA root secret ID for a bot chat, or
+// an empty ID when none has been stored.
+func (s *PGSQLStore) GetWASARootSecretID(ctx context.Context, chat types.JID) (types.MessageID, error) {
+	var id string
+	err := s.db.QueryRowContext(ctx, `
+		SELECT wasa_root_secret_id
+		FROM whatsmeow_chat_settings
+		WHERE connection_id = $1 AND our_jid = $2 AND chat_jid = $3
+	`, s.connectionID, s.JID, chat.String()).Scan(&id)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return types.MessageID(id), nil
+}
+
 // GetChatSettings retrieves chat settings.
 func (s *PGSQLStore) GetChatSettings(ctx context.Context, chat types.JID) (types.LocalChatSettings, error) {
 	var settings types.LocalChatSettings
