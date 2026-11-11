@@ -27,7 +27,7 @@
   "devDependencies": {
     "@types/pg": "^8.23.1",
     "typescript": "^5.7.2",
-    "tsup": "^8.0.1",
+    "tsup": "^9.0.0",
     "kysely-codegen": "^0.20.0"
   }
 }
