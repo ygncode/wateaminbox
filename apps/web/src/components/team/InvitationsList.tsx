@@ -5,7 +5,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import type { ColumnDef, PaginationState } from "@tanstack/react-table";
+import type { PaginationState } from "@tanstack/react-table";
 import { dayjs, nowMs, type CompanyInvitation } from "@wateaminbox/shared";
 import { Clock, Mail, RefreshCw, X } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -13,6 +13,7 @@ import {
   Badge,
   ConfirmationDialog,
   EllipsisMenu,
+  type ServerColumnDef,
   ServerDataTable,
 } from "@/components/ui";
 import type { EllipsisMenuItem } from "@/components/ui/ellipsis-menu";
@@ -73,7 +74,7 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
     }
   };
 
-  const columns: ColumnDef<CompanyInvitation>[] = [
+  const columns: ServerColumnDef<CompanyInvitation>[] = [
     {
       id: "invitee",
       header: t("team.invitee", "Invitee"),

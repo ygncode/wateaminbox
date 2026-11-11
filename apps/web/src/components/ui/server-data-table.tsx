@@ -7,10 +7,13 @@ import {
 } from "@/components/ui/select";
 import {
   type ColumnDef,
+  columnSizingFeature,
+  columnVisibilityFeature,
   flexRender,
-  getCoreRowModel,
   type PaginationState,
-  useReactTable,
+  rowPaginationFeature,
+  tableFeatures,
+  useTable,
 } from "@tanstack/react-table";
 import {
   ChevronLeft,
@@ -28,6 +31,27 @@ import { Input } from "./input";
 import { Skeleton } from "./skeleton";
 import { useTranslation } from "react-i18next";
 
+/**
+ * The table features every server-driven table uses. TanStack Table v9 only
+ * exposes an API when its feature is registered: pagination for the
+ * server-controlled page state, sizing for `size`/`header.getSize()`, and
+ * visibility for `row.getVisibleCells()`. Kept at module scope so the object
+ * is stable across renders, as v9 requires.
+ */
+export const serverTableFeatures = tableFeatures({
+  columnSizingFeature,
+  columnVisibilityFeature,
+  rowPaginationFeature,
+});
+
+export type ServerTableFeatures = typeof serverTableFeatures;
+
+/** Column definition for a {@link ServerDataTable} row type. */
+export type ServerColumnDef<TData extends object> = ColumnDef<
+  ServerTableFeatures,
+  TData
+>;
+
 export interface ServerTableSearch {
   value: string;
   onChange: (value: string) => void;
@@ -36,8 +60,8 @@ export interface ServerTableSearch {
   debounceMs?: number;
 }
 
-export interface ServerDataTableProps<TData> {
-  columns: ColumnDef<TData>[];
+export interface ServerDataTableProps<TData extends object> {
+  columns: ServerColumnDef<TData>[];
   data: TData[];
   rowCount: number;
   pagination: PaginationState;
@@ -81,7 +105,7 @@ export function getVisibleRowRange(
  * Reusable server-driven dashboard table. Its toolbar, table viewport, and
  * pagination footer form one bounded block; only the row viewport scrolls.
  */
-export function ServerDataTable<TData>({
+export function ServerDataTable<TData extends object>({
   columns,
   data,
   rowCount,
@@ -142,14 +166,14 @@ export function ServerDataTable<TData>({
     }
   }, [error, isLoading, onPaginationChange, pageCount, pagination]);
 
-  const table = useReactTable({
+  const table = useTable({
+    features: serverTableFeatures,
     data,
     columns,
     rowCount,
     pageCount,
     state: { pagination },
     manualPagination: true,
-    getCoreRowModel: getCoreRowModel(),
     getRowId,
     onPaginationChange: (updater) => {
       onPaginationChange(
