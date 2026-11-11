@@ -1,4 +1,3 @@
-import type { ColumnDef } from "@tanstack/react-table";
 import type { BulkJob } from "@wateaminbox/shared";
 import { dayjs } from "@wateaminbox/shared";
 import {
@@ -11,7 +10,10 @@ import {
 } from "lucide-react";
 import { Link } from "react-router";
 import { Button } from "@/components/ui/button";
-import { ServerDataTable } from "@/components/ui/server-data-table";
+import {
+  type ServerColumnDef,
+  ServerDataTable,
+} from "@/components/ui/server-data-table";
 import { useBulkJobs } from "@/hooks/useBulkJobs";
 import { useTableParams } from "@/hooks/useTableParams";
 import { BroadcastProgressBar } from "./BroadcastProgressBar";
@@ -47,7 +49,7 @@ export function BroadcastJobList({
 
   const total = data?.pagination.total ?? 0;
 
-  const columns: ColumnDef<BulkJob>[] = [
+  const columns: ServerColumnDef<BulkJob>[] = [
     {
       id: "campaign",
       header: t("broadcasts.campaign", "Campaign"),

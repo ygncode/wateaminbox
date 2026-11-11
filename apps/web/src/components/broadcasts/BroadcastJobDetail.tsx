@@ -1,4 +1,3 @@
-import type { ColumnDef } from "@tanstack/react-table";
 import type { BulkJob, BulkJobRecipient } from "@wateaminbox/shared";
 import { dayjs } from "@wateaminbox/shared";
 import {
@@ -33,7 +32,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ServerDataTable } from "@/components/ui/server-data-table";
+import {
+  type ServerColumnDef,
+  ServerDataTable,
+} from "@/components/ui/server-data-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useBulkJob,
@@ -368,7 +370,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
   const cancelMutation = useCancelBulkJob();
   const rescheduleMutation = useRescheduleBulkJob();
 
-  const recipientColumns: ColumnDef<BulkJobRecipient>[] = [
+  const recipientColumns: ServerColumnDef<BulkJobRecipient>[] = [
     {
       id: "contact",
       header: t("broadcasts.contact", "Contact"),
