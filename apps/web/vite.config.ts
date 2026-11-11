@@ -98,7 +98,7 @@ export default defineConfig(({ mode }) => ({
     // Workspace-local installs can otherwise split React from React DOM.
     dedupe: ["react", "react-dom"],
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
   // Let Rollup derive the chunk graph. Manually separating ReactDOM, Radix,
