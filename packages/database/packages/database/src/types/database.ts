@@ -270,6 +270,7 @@ export interface WhatsappSessionsWhatsmeowChatSettings {
   muted_until: Generated<Int8>;
   our_jid: string;
   pinned: Generated<boolean>;
+  wasa_root_secret_id: Generated<string>;
 }
 
 export interface WhatsappSessionsWhatsmeowContacts {
