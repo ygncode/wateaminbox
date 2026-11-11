@@ -42,9 +42,8 @@ export interface UseFeedbackFormOptions {
 /**
  * Owns the feedback draft, validation, and submission.
  *
- * Every feedback surface shares this hook so the network call, the toasts, and
- * the validation rules exist once. The caller holds the hook (rather than the
- * form component) so a draft survives a dialog being closed and reopened.
+ * The caller holds the hook (rather than the form component) so the draft
+ * lives with the surface that renders it.
  */
 export function useFeedbackForm(
   options: UseFeedbackFormOptions = {},

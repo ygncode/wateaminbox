@@ -10,7 +10,6 @@ import {
   ProtectedRoute,
   WorkspaceRouteGuard,
 } from "./components/auth";
-import { FeedbackWidget } from "./components/feedback";
 import { ProtectedAppLayout } from "./components/layout/ProtectedAppLayout";
 import { KeyboardShortcutsModal } from "./components/settings";
 import { PageSkeleton, type PageSkeletonVariant } from "./components/ui";
@@ -306,7 +305,6 @@ function App() {
       <AnalyticsRouteTracker />
       <AnalyticsConsent />
       <KeyboardShortcutsModal />
-      <FeedbackWidget />
       <Toaster position="top-right" richColors />
     </>
   );

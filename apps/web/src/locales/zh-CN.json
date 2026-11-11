@@ -455,7 +455,7 @@
     },
     "feedbackPanel": {
       "title": "发送反馈",
-      "description": "告诉我们哪些功能好用，哪些需要改进。反馈会直接送达团队；即使您关闭了悬浮的反馈标签，也可以在这里提交。"
+      "description": "告诉我们哪些功能好用，哪些需要改进。反馈会直接送达团队。"
     },
     "connections": {
       "title": "渠道连接",
@@ -1803,10 +1803,6 @@
     "lastSeenDate": "{{date}} 在线"
   },
   "feedback": {
-    "tab": "反馈",
-    "dismiss": "关闭反馈标签",
-    "title": "发送反馈",
-    "description": "告诉我们哪些功能好用，哪些需要改进。",
     "messageLabel": "内容",
     "messagePlaceholder": "分享您的想法…",
     "emailLabel": "邮箱（可选）",
