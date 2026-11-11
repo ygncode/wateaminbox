@@ -146,7 +146,8 @@ func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
 
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+		// Never let the connection string (and its password) reach the log.
+		return nil, fmt.Errorf("failed to open database: %w", redactDatabaseError(err, dbURL, cfg.DatabaseURL))
 	}
 
 	db.SetMaxOpenConns(maxOpen)
@@ -158,7 +159,7 @@ func NewPGContainer(ctx context.Context, cfg PGConfig) (*PGContainer, error) {
 	// the manager/control-plane database role.
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+		return nil, fmt.Errorf("failed to ping database: %w", redactDatabaseError(err, dbURL, cfg.DatabaseURL))
 	}
 	if cfg.RequiredRole != "" {
 		var currentRole string
