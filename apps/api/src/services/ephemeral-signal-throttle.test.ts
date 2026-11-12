@@ -1,12 +1,11 @@
 import { beforeEach, describe, expect, test } from "bun:test";
+import type { EphemeralSignalSubject } from "./ephemeral-signal-throttle.js";
 import {
   ephemeralSignalKey,
   getEphemeralThrottleStats,
   resetEphemeralThrottle,
   shouldPublishEphemeralSignal,
 } from "./ephemeral-signal-throttle.js";
-
-import type { EphemeralSignalSubject } from "./ephemeral-signal-throttle.js";
 
 const KEY: EphemeralSignalSubject = {
   kind: "typing",

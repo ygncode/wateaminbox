@@ -9,5 +9,3 @@ export type UseNotificationsReturn = NotificationContextValue;
 export function useNotifications(): UseNotificationsReturn {
   return useNotificationContext();
 }
-
-export default useNotifications;

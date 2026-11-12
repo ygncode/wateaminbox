@@ -1,14 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { sql } from "kysely";
-import { getUserCompanies } from "./members.js";
-import { createCompany } from "./core.js";
 import {
   clearTenantConnection,
   createTenantSchema,
   getSchemaName,
   tenantSchemaExists,
 } from "../tenant.service.js";
+import { createCompany } from "./core.js";
+import { getUserCompanies } from "./members.js";
 
 const integrationTest =
   process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip;

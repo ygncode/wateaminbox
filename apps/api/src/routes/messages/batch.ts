@@ -4,12 +4,12 @@
  * Routes for batch operations on messages.
  */
 
-import { zValidator } from "../../lib/validator.js";
 import { toDbDate } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { notFound } from "../../lib/errors.js";
 import { successData } from "../../lib/response.js";
 import { batchDeleteSchema, batchStarSchema } from "../../lib/schemas/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { requirePermission } from "../../middleware/tenant.js";
 import { PERMISSIONS } from "../../services/permission.service.js";

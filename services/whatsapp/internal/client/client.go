@@ -107,6 +107,18 @@ type Client struct {
 	reconnectMu         sync.Mutex
 	reconnectStartTime  time.Time
 	reconnectAttemptNum int
+	connectedAt         time.Time
+	reconnectPending    bool
+	reconnectBlocked    bool
+	reconnectGeneration uint64
+	reconnectWake       chan struct{}
+	reconnectRequestCtx context.Context
+	dialReconnect       func(context.Context) error
+	resetSocket         func()
+	socketStartedAt     time.Time
+	sessionCtx          context.Context
+	cancelSession       context.CancelFunc
+	connectionEventMu   sync.Mutex
 }
 
 // New creates a new WhatsApp client wrapper.
@@ -147,6 +159,7 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	// ask the primary phone for the message after whatsmeow's retry delay.
 	waClient := whatsmeow.NewClient(device, waLogger.Sub("client"))
 	configureMessageRecovery(waClient)
+	configureReconnect(waClient)
 
 	// Create a cancellable context for controlling reconnection loops
 	reconnectCtx, cancelReconnect := context.WithCancel(ctx)
@@ -161,6 +174,9 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 		ctx:             reconnectCtx,
 		cancelReconnect: cancelReconnect,
 	}
+
+	c.dialReconnect = c.connectSocket
+	c.resetSocket = c.client.ResetConnection
 
 	// Cache the stable account identifiers before networking starts. Pairing
 	// refreshes the cache from the Connected event after whatsmeow stores them.
@@ -189,30 +205,65 @@ func (c *Client) SetStatusCallback(cb StatusCallback) {
 }
 
 // internalEventHandler forwards events to registered handlers.
-func (c *Client) internalEventHandler(evt interface{}) {
-	c.captureLabelRecoveryEvent(evt)
-	if _, connected := evt.(*events.Connected); connected {
-		c.cacheCatalogIdentity()
-	}
-
-	c.mu.RLock()
-	handlers := c.handlers
-	c.mu.RUnlock()
-
-	for _, handler := range handlers {
-		handler(evt)
-	}
+func (c *Client) internalEventHandler(evt interface{}) bool {
+	return c.dispatchEvent(evt, false)
 }
 
 // Failure retains the decrypted event and withholds the WhatsApp acknowledgement.
 func (c *Client) internalEventHandlerWithSuccessStatus(evt interface{}) bool {
-	c.internalEventHandler(evt)
+	return c.dispatchEvent(evt, true)
+}
+
+func (c *Client) dispatchEvent(evt interface{}, durable bool) bool {
+	c.captureLabelRecoveryEvent(evt)
+	if timeout, ok := evt.(*events.KeepAliveTimeout); ok {
+		c.recoverKeepAlive(timeout)
+	}
+	if _, connected := evt.(*events.Connected); connected {
+		// This event follows asynchronous post-login work. Its socket may
+		// already have closed; don't start bootstrap or a stable-session clock.
+		c.mu.RLock()
+		blocked := c.reconnectBlocked
+		c.mu.RUnlock()
+		if blocked || c.client == nil || !c.client.IsConnected() || !c.client.IsLoggedIn() {
+			return true // A stale connection event is not a message to replay.
+		}
+		c.cacheCatalogIdentity()
+	}
+	generation, accepted := c.recordConnectionEvent(evt)
+	if !accepted {
+		return true
+	}
+	return c.dispatchPreparedEvent(evt, generation, durable)
+}
+
+func (c *Client) dispatchPreparedEvent(evt interface{}, generation uint64, durable bool) bool {
+	if generation != 0 {
+		// Observation/cancellation happens BEFORE this lock, so a disconnected
+		// socket promptly cancels a blocked Connected bootstrap. Delivery is
+		// ordered so a non-cancellable status publish cannot finish after a
+		// newer terminal status. Messages never take this lifecycle lock.
+		c.connectionEventMu.Lock()
+		defer c.connectionEventMu.Unlock()
+		c.mu.RLock()
+		current := generation == c.reconnectGeneration
+		c.mu.RUnlock()
+		if !current {
+			return true
+		}
+	}
 	c.mu.RLock()
-	handlers := append([]func(interface{}) bool(nil), c.durableHandlers...)
+	handlers := append([]func(interface{}){}, c.handlers...)
+	durableHandlers := append([]func(interface{}) bool(nil), c.durableHandlers...)
 	c.mu.RUnlock()
 	for _, handler := range handlers {
-		if !handler(evt) {
-			return false
+		handler(evt)
+	}
+	if durable {
+		for _, handler := range durableHandlers {
+			if !handler(evt) {
+				return false
+			}
 		}
 	}
 	return true
@@ -294,7 +345,7 @@ func (c *Client) connectWithQR(ctx context.Context) error {
 	}
 
 	// Connect to WhatsApp
-	if err := c.client.Connect(); err != nil {
+	if err := c.reconnect(ctx); err != nil {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 
@@ -311,12 +362,8 @@ func (c *Client) connectWithQR(ctx context.Context) error {
 			case "success":
 				// Pairing successful
 				log.Println("QR code pairing successful")
-				c.mu.Lock()
-				c.connected = true
-				c.mu.Unlock()
-				if c.statusCb != nil {
-					c.statusCb("connected", "paired")
-				}
+				// PairSuccess is not protocol readiness. The authenticated
+				// Connected event will publish the usable-session status.
 			case "timeout":
 				// QR code timeout
 				log.Println("QR code timeout")
@@ -332,14 +379,11 @@ func (c *Client) connectWithQR(ctx context.Context) error {
 
 // reconnect reconnects an existing session.
 func (c *Client) reconnect(ctx context.Context) error {
-	if err := ensureSocketConnected(c.client.IsConnected, c.client.Connect); err != nil {
+	c.reconnectMu.Lock()
+	defer c.reconnectMu.Unlock()
+	if err := c.connectSocket(ctx); err != nil {
 		return fmt.Errorf("failed to reconnect: %w", err)
 	}
-
-	c.mu.Lock()
-	c.connected = true
-	c.mu.Unlock()
-
 	return nil
 }
 
@@ -375,12 +419,12 @@ func (c *Client) calculateBackoff() time.Duration {
 		// Calculate which attempt number we're on (0-indexed)
 		attempt := c.reconnectAttemptNum
 
-		// Exponential formula: min(initial * 2^attempt, maxTransientBackoff)
-		exponentialBackoff := initialBackoff * time.Duration(1<<uint(attempt))
-		if exponentialBackoff > maxTransientBackoff {
-			exponentialBackoff = maxTransientBackoff
+		// Cap before shifting: retained attempts can grow across many short
+		// authenticated sessions, so multiplying first can overflow.
+		baseDuration = maxTransientBackoff
+		if attempt >= 0 && attempt < 4 {
+			baseDuration = initialBackoff * time.Duration(1<<uint(attempt))
 		}
-		baseDuration = exponentialBackoff
 	} else {
 		// Phase 2: Persistent phase with fixed 2-minute intervals
 		baseDuration = persistentBackoff
@@ -395,122 +439,16 @@ func (c *Client) calculateBackoff() time.Duration {
 	return time.Duration(durationWithJitter)
 }
 
-// HandleReconnect handles reconnection on disconnect with an infinite loop.
-// It implements a two-phase backoff strategy and continues indefinitely until
-// successful connection or context cancellation.
-//
-// The ctx parameter is optional for cancellation control. If nil, the client's
-// stored context is used. If the stored context is also nil, context.Background()
-// is used (which never cancels).
-func (c *Client) HandleReconnect(ctx context.Context) {
-	// Prevent duplicate reconnection loops
-	if !c.reconnectMu.TryLock() {
-		log.Println("Reconnection loop already active, skipping duplicate call")
-		return
-	}
-	defer c.reconnectMu.Unlock()
-
-	// Determine which context to use for cancellation
-	// Priority: passed ctx > stored c.ctx > context.Background()
-	shutdownCtx := ctx
-	if shutdownCtx == nil {
-		shutdownCtx = c.ctx
-	}
-	if shutdownCtx == nil {
-		shutdownCtx = context.Background()
-	}
-
-	// Mark as not connected and start reconnection
-	c.mu.Lock()
-	c.reconnecting = true
-	c.connected = false
-	c.mu.Unlock()
-
-	defer func() {
-		c.mu.Lock()
-		c.reconnecting = false
-		c.mu.Unlock()
-	}()
-
-	// Initialize reconnection tracking
-	c.reconnectStartTime = time.Now()
-	c.reconnectAttemptNum = 0
-
-	log.Println("Starting infinite reconnection loop...")
-
-	for {
-		// Check if context is cancelled
-		select {
-		case <-shutdownCtx.Done():
-			log.Println("Reconnection loop cancelled by context")
-			if c.statusCb != nil {
-				c.statusCb("disconnected", "shutdown")
-			}
-			return
-		default:
-		}
-
-		// Increment attempt counter
-		c.reconnectAttemptNum++
-
-		// Determine if we're in transient phase
-		elapsed := time.Since(c.reconnectStartTime)
-		isTransientPhase := elapsed < transientPhaseDuration
-
-		// Log every attempt in Phase 1, every 10th in Phase 2
-		if isTransientPhase || c.reconnectAttemptNum%10 == 1 {
-			phase := "transient"
-			if !isTransientPhase {
-				phase = "persistent"
-			}
-			log.Printf("Reconnection attempt #%d (phase: %s, elapsed: %v)",
-				c.reconnectAttemptNum, phase, elapsed.Round(time.Second))
-		}
-
-		// Attempt connection
-		if err := ensureSocketConnected(c.client.IsConnected, c.client.Connect); err != nil {
-			log.Printf("Reconnection attempt #%d failed: %v", c.reconnectAttemptNum, err)
-
-			// Calculate backoff duration
-			backoff := c.calculateBackoff()
-
-			if isTransientPhase || c.reconnectAttemptNum%10 == 1 {
-				log.Printf("Waiting %v before next attempt...", backoff.Round(time.Millisecond))
-			}
-
-			// Wait for backoff duration or context cancellation
-			select {
-			case <-shutdownCtx.Done():
-				log.Println("Reconnection loop cancelled during backoff")
-				if c.statusCb != nil {
-					c.statusCb("disconnected", "shutdown")
-				}
-				return
-			case <-time.After(backoff):
-				// Continue to next attempt
-			}
-
-			continue
-		}
-
-		// Connection successful
-		c.mu.Lock()
-		c.connected = true
-		c.mu.Unlock()
-
-		log.Printf("Reconnect socket established after %d attempts (elapsed: %v); awaiting Connected event",
-			c.reconnectAttemptNum, time.Since(c.reconnectStartTime).Round(time.Millisecond))
-		// Connect() only establishes the socket. The WhatsApp protocol handshake
-		// completes asynchronously, so the Connected event is the only reliable
-		// point at which the connection may be reported as usable.
-		return
-	}
-}
-
 // StopReconnect cancels any active reconnection loop for graceful shutdown.
-// It causes an active HandleReconnect loop to exit within 1 second.
+// It prevents further retries and cancels in-flight recovery dials.
 func (c *Client) StopReconnect() {
 	log.Println("Stopping reconnection loop...")
+	c.mu.Lock()
+	c.reconnectBlocked = true
+	c.reconnectPending = false
+	c.cancelSessionLocked()
+	c.wakeReconnectLocked()
+	c.mu.Unlock()
 	if c.cancelReconnect != nil {
 		c.cancelReconnect()
 	}
@@ -519,6 +457,7 @@ func (c *Client) StopReconnect() {
 // Disconnect closes the WhatsApp connection and the database.
 func (c *Client) Disconnect() {
 	log.Println("Disconnecting from WhatsApp...")
+	c.StopReconnect()
 
 	// Recover from any panics during disconnect
 	defer func() {
@@ -1935,7 +1874,9 @@ func (c *Client) updateBlocklistWithRetry(ctx context.Context, jidStr string, ac
 
 		// Create a timeout context for this attempt
 		attemptCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		_, err := c.client.UpdateBlocklist(attemptCtx, target, blocklistAction)
+		// No dhash: we do not cache the blocklist, so always ask the server for
+		// the full updated list (the pre-dhash behavior).
+		_, err := c.client.UpdateBlocklist(attemptCtx, target, blocklistAction, "")
 		cancel()
 
 		if err == nil {

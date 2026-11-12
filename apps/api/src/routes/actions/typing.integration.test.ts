@@ -120,16 +120,18 @@ async function withTenantAndUsers(
         .insertInto("company_members")
         .values({ company_id: companyId, user_id: memberId, role: "member" })
         .execute();
-      const headers = await loginAndGetHeaders(memberEmail, PASSWORD, companyId);
+      const headers = await loginAndGetHeaders(
+        memberEmail,
+        PASSWORD,
+        companyId,
+      );
       return { headers, userId: memberId };
     };
 
     await run({ companyId, ownerHeaders, ownerId, createMember });
   } finally {
     await clearTenantConnection(companyId);
-    await sql
-      .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
-      .execute(db);
+    await sql.raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`).execute(db);
     await db
       .deleteFrom("sla_policies")
       .where("company_id", "=", companyId)
@@ -228,57 +230,47 @@ describe("POST /api/actions/messages/typing - assignment-aware access", () => {
   integrationTest(
     "blocks starting typing for a contact assigned to another team member",
     async () => {
-      await withTenantAndUsers(
-        async ({ companyId, ownerId, createMember }) => {
-          const { contactId, jid } = await setupContactWithCase(companyId);
-          const tenantDb = getTenantConnection(companyId);
-          const { headers } = await createMember();
-          // The owner claims the contact first.
-          await assignContactToUser(tenantDb, contactId, ownerId, ownerId);
+      await withTenantAndUsers(async ({ companyId, ownerId, createMember }) => {
+        const { contactId, jid } = await setupContactWithCase(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const { headers } = await createMember();
+        // The owner claims the contact first.
+        await assignContactToUser(tenantDb, contactId, ownerId, ownerId);
 
-          const response = await app.request(
-            "/api/actions/messages/typing",
-            {
-              method: "POST",
-              headers,
-              body: JSON.stringify({
-                conversationId: jid,
-                contactId,
-                isTyping: true,
-              }),
-            },
-          );
-          expect(response.status).toBe(403);
-        },
-      );
+        const response = await app.request("/api/actions/messages/typing", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            conversationId: jid,
+            contactId,
+            isTyping: true,
+          }),
+        });
+        expect(response.status).toBe(403);
+      });
     },
   );
 
   integrationTest(
     "stopping typing is always allowed, even for a contact assigned to someone else",
     async () => {
-      await withTenantAndUsers(
-        async ({ companyId, ownerId, createMember }) => {
-          const { contactId, jid } = await setupContactWithCase(companyId);
-          const tenantDb = getTenantConnection(companyId);
-          const { headers } = await createMember();
-          await assignContactToUser(tenantDb, contactId, ownerId, ownerId);
+      await withTenantAndUsers(async ({ companyId, ownerId, createMember }) => {
+        const { contactId, jid } = await setupContactWithCase(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        const { headers } = await createMember();
+        await assignContactToUser(tenantDb, contactId, ownerId, ownerId);
 
-          const response = await app.request(
-            "/api/actions/messages/typing",
-            {
-              method: "POST",
-              headers,
-              body: JSON.stringify({
-                conversationId: jid,
-                contactId,
-                isTyping: false,
-              }),
-            },
-          );
-          expect(response.status).toBe(200);
-        },
-      );
+        const response = await app.request("/api/actions/messages/typing", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            conversationId: jid,
+            contactId,
+            isTyping: false,
+          }),
+        });
+        expect(response.status).toBe(200);
+      });
     },
   );
 

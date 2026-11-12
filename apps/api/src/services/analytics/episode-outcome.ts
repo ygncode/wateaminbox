@@ -157,5 +157,9 @@ export function computeExactPendingBusinessMinutes(
 ): number {
   if (!row.policy) return 0;
   const measureEnd = row.caseResolvedAt ?? now;
-  return businessMinutesBetween(row.policy.calendar, row.inboundTime, measureEnd);
+  return businessMinutesBetween(
+    row.policy.calendar,
+    row.inboundTime,
+    measureEnd,
+  );
 }

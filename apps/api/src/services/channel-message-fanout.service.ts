@@ -1,6 +1,6 @@
 import type { TenantDatabase } from "@wateaminbox/database";
-import { sql } from "kysely";
 import type { Transaction } from "kysely";
+import { sql } from "kysely";
 
 /**
  * Queue realtime fanout for a message that this workspace just wrote.

@@ -75,5 +75,3 @@ export const DeleteMessageDialog = memo(function DeleteMessageDialog({
     </Dialog>
   );
 });
-
-export default DeleteMessageDialog;

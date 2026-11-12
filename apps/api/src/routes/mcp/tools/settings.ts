@@ -1,15 +1,15 @@
 import { z } from "zod";
-import { createSlaPolicySchema } from "../../../lib/schemas/sla-policy.js";
 import {
   createQuickReplySchema,
-  updateQuickReplySchema,
   updateAutoReplySettingsSchema,
+  updateQuickReplySchema,
 } from "../../../lib/schemas/quick-replies.js";
+import { createSlaPolicySchema } from "../../../lib/schemas/sla-policy.js";
 import { getRouteContext } from "../../../middleware/context.js";
-import * as sla from "../../../services/sla-policy/policy.service.js";
-import * as replies from "../../../services/quick-replies.service.js";
 import * as autoReply from "../../../services/auto-reply.service.js";
-import { McpToolError, type McpToolDefinition } from "../tool-context.js";
+import * as replies from "../../../services/quick-replies.service.js";
+import * as sla from "../../../services/sla-policy/policy.service.js";
+import { type McpToolDefinition, McpToolError } from "../tool-context.js";
 
 // MCP accepts a raw object shape, which cannot carry object-level refinements.
 // Parse the full REST schema again before invoking a service.
@@ -26,11 +26,17 @@ function validated<T extends z.ZodTypeAny>(
   return result.data;
 }
 
-const replyId = { quickReplyId: z.string().uuid() };
+const replyId = { quickReplyId: z.string().guid() };
 const listSchema = z.object({
   search: z.string().optional(),
   limit: z.number().int().min(1).max(50).default(20),
-  offset: z.number().int().min(0).default(0),
+  // Preserve v3's integer contract without adding a safe-integer ceiling.
+  offset: z
+    .number()
+    .refine(Number.isInteger, "Expected integer, received float")
+    .meta({ type: "integer" })
+    .min(0)
+    .default(0),
 });
 const editSchema = updateQuickReplySchema.extend(replyId);
 
@@ -164,7 +170,7 @@ export const settingsWriteTools: McpToolDefinition[] = [
     description:
       "Replace the first-contact automatic reply rule. HIGH IMPACT: enabling it authorizes future outbound replies; confirm template wording, delay, and send mode. Direct chats only, once per contact, excluding history sync; skips sending if the team replies during the wait. Delay is 1–1440 minutes. Use always or outside_business_hours (SLA calendar). Read current settings first. Saving cancels pending automatic replies; future first contacts use the new rule. A template is required when enabled.",
     scope: "write",
-    inputSchema: updateAutoReplySettingsSchema.innerType().shape,
+    inputSchema: updateAutoReplySettingsSchema.shape,
     handler: async (args, c) => {
       const { companyId, user } = getRouteContext(c);
       return autoReply.updateAutoReplySettings(

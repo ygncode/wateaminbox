@@ -1,9 +1,9 @@
-import { seedDefaultSlaPolicy } from "../../services/sla-policy/policy.service.js";
 import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
 import type { Context } from "hono";
 import { sql } from "kysely";
+import { seedDefaultSlaPolicy } from "../../services/sla-policy/policy.service.js";
 import {
   clearTenantConnection,
   createTenantSchema,
@@ -11,6 +11,7 @@ import {
   getTenantConnection,
 } from "../../services/tenant.service.js";
 import { settingsReadTools, settingsWriteTools } from "./tools/settings.js";
+
 const integrationTest =
   process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip;
 const all = [...settingsReadTools, ...settingsWriteTools];

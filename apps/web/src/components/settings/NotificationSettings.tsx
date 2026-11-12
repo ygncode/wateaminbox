@@ -313,5 +313,3 @@ export function NotificationSettings() {
     </div>
   );
 }
-
-export default NotificationSettings;

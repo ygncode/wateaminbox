@@ -1,10 +1,10 @@
 module github.com/ygncode-lab/whatsapp-web/services/shared
 
-go 1.26.10
+go 1.26.11
 
 require (
-	github.com/nats-io/nats.go v1.54.0
-	hegel.dev/go/hegel v0.9.28
+	github.com/nats-io/nats.go v1.55.0
+	hegel.dev/go/hegel v0.9.30
 )
 
 require (

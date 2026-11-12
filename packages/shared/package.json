@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "typescript": "^5.3.3",
-    "tsup": "^8.0.1"
+    "tsup": "^9.0.0"
   },
   "dependencies": {
     "dayjs": "^1.11.23"

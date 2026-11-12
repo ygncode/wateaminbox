@@ -9,8 +9,8 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { nowMs } from "@wateaminbox/shared";
-import { env } from "./env.js";
 import { createAvatarUrlSigner } from "./avatar-url-cache.js";
+import { env } from "./env.js";
 
 // S3 client configuration
 const s3Client = new S3Client({

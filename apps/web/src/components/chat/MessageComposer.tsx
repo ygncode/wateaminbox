@@ -69,7 +69,9 @@ import { ScheduleMessagePopover } from "./ScheduleMessagePopover";
 
 // Lazy load emoji picker - only loaded when user opens it
 // This keeps the emoji data (~1200 lines) out of the initial bundle
-const EmojiInputPicker = lazy(() => import("./EmojiInputPicker"));
+const EmojiInputPicker = lazy(() =>
+  import("./EmojiInputPicker").then((m) => ({ default: m.EmojiInputPicker })),
+);
 
 /**
  * Skeleton loading state for the emoji picker

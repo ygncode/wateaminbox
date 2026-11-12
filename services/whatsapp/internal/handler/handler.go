@@ -141,11 +141,11 @@ type Handler struct {
 	// a live NATS connection. Production leaves it nil.
 	publishDownloadResponseFn func(messageID, mediaURL string, mediaSize int64, success bool, errMsg string) error
 
-	// Group metadata syncs are connection-scoped. A new Connected event cancels
-	// the previous sync, while the heavier LID directory repair runs at most once
-	// during a worker process lifetime.
+	bootstrap connectionBootstrap
+
+	// The heavier LID directory repair remains once per worker lifetime,
+	// independently of retryable contact/group metadata bootstrap repairs.
 	groupSyncMu              sync.Mutex
-	groupSyncCancel          context.CancelFunc
 	groupLIDRepairStarted    bool
 	groupLIDRepairInProgress bool
 
@@ -246,10 +246,14 @@ func (h *Handler) HandleEvent(evt interface{}) {
 		h.handleBusinessName(v)
 	case *events.AppStateSyncComplete:
 		if v.Name == appstate.WAPatchCriticalUnblockLow {
-			go h.syncKnownContactNames()
+			h.requestContactRepair(0)
 		}
 	case *events.StreamReplaced:
 		h.handleStreamReplaced(v)
+	case *events.TemporaryBan, *events.ClientOutdated, *events.ConnectFailure, *events.CATRefreshError:
+		// Stop session bootstrap only. The client owns retry policy, and the
+		// worker/socket parent must remain alive for credential cleanup.
+		h.cancelBootstrap()
 	case *events.Picture:
 		h.handlePicture(v)
 	case *events.GroupInfo:

@@ -1,22 +1,22 @@
 import { Hono } from "hono";
-import { zValidator } from "../lib/validator.js";
-import { authMiddleware } from "../middleware/auth.js";
-import { tenantMiddleware } from "../middleware/tenant.js";
-import { getRouteContext } from "../middleware/context.js";
-import * as notificationPreferencesService from "../services/notification-preferences.service.js";
-import * as notificationHistoryService from "../services/notification-history.service.js";
-import { createAndPublishNotification } from "../services/notification-delivery.service.js";
-import * as webPushService from "../services/web-push.service.js";
 import { isTableNotFoundError, notFound } from "../lib/errors.js";
-import { successData, created } from "../lib/response.js";
+import { created, successData } from "../lib/response.js";
 import {
-  updatePreferencesSchema,
-  muteContactSchema,
-  listNotificationsQuerySchema,
   createNotificationSchema,
   deletePushSubscriptionSchema,
+  listNotificationsQuerySchema,
+  muteContactSchema,
   pushSubscriptionSchema,
+  updatePreferencesSchema,
 } from "../lib/schemas/index.js";
+import { zValidator } from "../lib/validator.js";
+import { authMiddleware } from "../middleware/auth.js";
+import { getRouteContext } from "../middleware/context.js";
+import { tenantMiddleware } from "../middleware/tenant.js";
+import { createAndPublishNotification } from "../services/notification-delivery.service.js";
+import * as notificationHistoryService from "../services/notification-history.service.js";
+import * as notificationPreferencesService from "../services/notification-preferences.service.js";
+import * as webPushService from "../services/web-push.service.js";
 
 export const notificationRoutes = new Hono();
 

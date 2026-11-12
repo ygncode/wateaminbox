@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log"
 	"strings"
 	"time"
@@ -52,13 +53,23 @@ func mergeContactInfo(current, incoming types.ContactInfo) types.ContactInfo {
 }
 
 func (h *Handler) publishContactInfo(jid, alternative types.JID, info types.ContactInfo) {
+	_ = h.publishContactInfoContext(context.Background(), jid, alternative, info)
+}
+
+func (h *Handler) publishContactInfoContext(ctx context.Context, jid, alternative types.JID, info types.ContactInfo) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if h.publisher == nil {
-		return
+		return nil
 	}
 
-	resolved := h.resolvePreferredJID(jid, alternative)
+	resolved := h.resolvePreferredJIDContext(ctx, jid, alternative)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if resolved.Server != types.DefaultUserServer || resolved.User == "" {
-		return
+		return nil
 	}
 
 	// A redacted phone is metadata, not a person's name. Push names can also
@@ -76,7 +87,7 @@ func (h *Handler) publishContactInfo(jid, alternative types.JID, info types.Cont
 		info.BusinessName = ""
 	}
 	if info.FirstName == "" && info.FullName == "" && info.PushName == "" && info.BusinessName == "" {
-		return
+		return nil
 	}
 
 	if err := h.publisher.PublishContactName(
@@ -87,28 +98,30 @@ func (h *Handler) publishContactInfo(jid, alternative types.JID, info types.Cont
 		info.BusinessName,
 	); err != nil {
 		log.Printf("Failed to publish name for contact %s: %v", resolved.String(), err)
+		return err
 	}
+	return nil
 }
 
 // syncKnownContactNames copies whatsmeow's durable contact-name cache into the
 // tenant contacts used by the inbox. It runs on connection and after the first
 // app-state contact sync, repairing names even when the worker was restarted.
-func (h *Handler) syncKnownContactNames() {
+func (h *Handler) syncKnownContactNames(parent context.Context) error {
 	if h.config.Client == nil || h.publisher == nil {
-		return
+		return errBootstrapNotReady
 	}
 	client := h.config.Client.GetClient()
 	if client == nil || client.Store == nil || client.Store.Contacts == nil {
-		return
+		return errBootstrapNotReady
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
 	defer cancel()
 
 	contacts, err := client.Store.Contacts.GetAllContacts(ctx)
 	if err != nil {
 		log.Printf("Failed to load cached WhatsApp contact names: %v", err)
-		return
+		return err
 	}
 
 	// A person may be cached under both a private LID and a phone-number JID.
@@ -116,7 +129,10 @@ func (h *Handler) syncKnownContactNames() {
 	// a lower-quality push name.
 	merged := make(map[types.JID]types.ContactInfo, len(contacts))
 	for jid, info := range contacts {
-		resolved := h.resolvePreferredJID(jid, types.EmptyJID)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		resolved := h.resolvePreferredJIDContext(ctx, jid, types.EmptyJID)
 		if resolved.Server != types.DefaultUserServer || resolved.User == "" {
 			continue
 		}
@@ -125,14 +141,22 @@ func (h *Handler) syncKnownContactNames() {
 	}
 
 	published := 0
+	var publishErr error
 	for jid, info := range merged {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		before := info
-		h.publishContactInfo(jid, types.EmptyJID, info)
+		if err := h.publishContactInfoContext(ctx, jid, types.EmptyJID, info); err != nil {
+			publishErr = errors.Join(publishErr, err)
+			continue
+		}
 		if before.FirstName != "" || before.FullName != "" || before.PushName != "" || before.BusinessName != "" {
 			published++
 		}
 	}
 	log.Printf("Published cached names for %d WhatsApp contacts", published)
+	return errors.Join(publishErr, ctx.Err())
 }
 
 func (h *Handler) publishContactUsername(jid, alternative types.JID, username *string) {

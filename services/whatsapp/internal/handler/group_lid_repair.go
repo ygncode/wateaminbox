@@ -226,32 +226,6 @@ func repairMissingGroupLIDs(
 	return stats, nil
 }
 
-func (h *Handler) startJoinedGroupSync() {
-	parent := h.config.Ctx
-	if parent == nil {
-		parent = context.Background()
-	}
-
-	h.groupSyncMu.Lock()
-	if h.groupSyncCancel != nil {
-		h.groupSyncCancel()
-	}
-	ctx, cancel := context.WithCancel(parent)
-	h.groupSyncCancel = cancel
-	h.groupSyncMu.Unlock()
-
-	go h.syncJoinedGroups(ctx)
-}
-
-func (h *Handler) cancelJoinedGroupSync() {
-	h.groupSyncMu.Lock()
-	if h.groupSyncCancel != nil {
-		h.groupSyncCancel()
-		h.groupSyncCancel = nil
-	}
-	h.groupSyncMu.Unlock()
-}
-
 func (h *Handler) beginGroupLIDRepair(parent context.Context) (context.Context, func(), bool) {
 	h.groupSyncMu.Lock()
 	if h.groupLIDRepairStarted || h.groupLIDRepairInProgress || parent.Err() != nil {

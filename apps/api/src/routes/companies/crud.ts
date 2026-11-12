@@ -5,17 +5,17 @@
  */
 
 import { Hono } from "hono";
-import { zValidator } from "../../lib/validator.js";
 import { ForbiddenError } from "../../lib/errors.js";
+import { created, successData, successMessage } from "../../lib/response.js";
+import {
+  type CreateCompanyInput,
+  createCompanySchema,
+  updateCompanySchema,
+} from "../../lib/schemas/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { tenantFromParam } from "../../middleware/tenant.js";
 import * as companyService from "../../services/company.service.js";
-import { created, successData, successMessage } from "../../lib/response.js";
-import {
-  createCompanySchema,
-  updateCompanySchema,
-  type CreateCompanyInput,
-} from "../../lib/schemas/index.js";
 
 export const crudRoutes = new Hono();
 

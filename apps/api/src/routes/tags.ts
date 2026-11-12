@@ -1,4 +1,3 @@
-import { zValidator } from "../lib/validator.js";
 import { Hono } from "hono";
 import { conflict, notFound } from "../lib/errors.js";
 import {
@@ -13,6 +12,7 @@ import {
   listTagsQuerySchema,
   updateTagSchema,
 } from "../lib/schemas/index.js";
+import { zValidator } from "../lib/validator.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { getRouteContext } from "../middleware/context.js";
 import { tenantMiddleware } from "../middleware/tenant.js";

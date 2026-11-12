@@ -80,9 +80,7 @@ async function withTenantAndOwner(
     await run({ companyId, ownerHeaders, ownerId });
   } finally {
     await clearTenantConnection(companyId);
-    await sql
-      .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
-      .execute(db);
+    await sql.raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`).execute(db);
     await db
       .deleteFrom("company_members")
       .where("company_id", "=", companyId)
@@ -235,65 +233,62 @@ describe("contact assignment routes - audit trail for first-assign and unassign"
     },
   );
 
-  integrationTest(
-    "unassigning a contact is audited",
-    async () => {
-      await withTenantAndOwner(async ({ companyId, ownerHeaders, ownerId }) => {
-        const tenantDb = getTenantConnection(companyId);
-        const [contact] = await tenantDb
-          .insertInto("contacts")
-          .values({
-            jid: `${crypto.randomUUID()}@s.whatsapp.net`,
-            phone_number: crypto.randomUUID().slice(0, 10),
-            push_name: "Unassign test contact",
-          })
-          .returning("id")
-          .execute();
+  integrationTest("unassigning a contact is audited", async () => {
+    await withTenantAndOwner(async ({ companyId, ownerHeaders, ownerId }) => {
+      const tenantDb = getTenantConnection(companyId);
+      const [contact] = await tenantDb
+        .insertInto("contacts")
+        .values({
+          jid: `${crypto.randomUUID()}@s.whatsapp.net`,
+          phone_number: crypto.randomUUID().slice(0, 10),
+          push_name: "Unassign test contact",
+        })
+        .returning("id")
+        .execute();
 
-        const assignResponse = await app.request(
-          `/api/contacts/${contact.id}/assign`,
-          { method: "POST", headers: ownerHeaders, body: "{}" },
-        );
-        expect(assignResponse.status).toBe(201);
+      const assignResponse = await app.request(
+        `/api/contacts/${contact.id}/assign`,
+        { method: "POST", headers: ownerHeaders, body: "{}" },
+      );
+      expect(assignResponse.status).toBe(201);
 
-        const unassignResponse = await app.request(
-          `/api/contacts/${contact.id}/assign`,
-          { method: "DELETE", headers: ownerHeaders },
-        );
-        expect(unassignResponse.status).toBe(200);
+      const unassignResponse = await app.request(
+        `/api/contacts/${contact.id}/assign`,
+        { method: "DELETE", headers: ownerHeaders },
+      );
+      expect(unassignResponse.status).toBe(200);
 
-        const activeAssignment = await tenantDb
-          .selectFrom("contact_assignments")
-          .select("id")
-          .where("contact_id", "=", contact.id)
-          .where("unassigned_at", "is", null)
-          .executeTakeFirst();
-        expect(activeAssignment).toBeUndefined();
+      const activeAssignment = await tenantDb
+        .selectFrom("contact_assignments")
+        .select("id")
+        .where("contact_id", "=", contact.id)
+        .where("unassigned_at", "is", null)
+        .executeTakeFirst();
+      expect(activeAssignment).toBeUndefined();
 
-        const auditRow = await tenantDb
-          .selectFrom("audit_logs")
-          .selectAll()
-          .where("action", "=", "contact.unassigned")
-          .where("entity_id", "=", contact.id)
-          .executeTakeFirst();
-        expect(auditRow).toBeDefined();
-        expect(auditRow?.user_id).toBe(ownerId);
+      const auditRow = await tenantDb
+        .selectFrom("audit_logs")
+        .selectAll()
+        .where("action", "=", "contact.unassigned")
+        .where("entity_id", "=", contact.id)
+        .executeTakeFirst();
+      expect(auditRow).toBeDefined();
+      expect(auditRow?.user_id).toBe(ownerId);
 
-        // Unassigning again (already unassigned) is a no-op - no duplicate
-        // audit row.
-        const secondUnassign = await app.request(
-          `/api/contacts/${contact.id}/assign`,
-          { method: "DELETE", headers: ownerHeaders },
-        );
-        expect(secondUnassign.status).toBe(200);
-        const auditRows = await tenantDb
-          .selectFrom("audit_logs")
-          .selectAll()
-          .where("action", "=", "contact.unassigned")
-          .where("entity_id", "=", contact.id)
-          .execute();
-        expect(auditRows).toHaveLength(1);
-      });
-    },
-  );
+      // Unassigning again (already unassigned) is a no-op - no duplicate
+      // audit row.
+      const secondUnassign = await app.request(
+        `/api/contacts/${contact.id}/assign`,
+        { method: "DELETE", headers: ownerHeaders },
+      );
+      expect(secondUnassign.status).toBe(200);
+      const auditRows = await tenantDb
+        .selectFrom("audit_logs")
+        .selectAll()
+        .where("action", "=", "contact.unassigned")
+        .where("entity_id", "=", contact.id)
+        .execute();
+      expect(auditRows).toHaveLength(1);
+    });
+  });
 });

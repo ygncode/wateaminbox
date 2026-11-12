@@ -51,7 +51,9 @@ describe("readiness policy", () => {
   });
 });
 
-const probes = (overrides: Partial<DependencyProbes> = {}): DependencyProbes => ({
+const probes = (
+  overrides: Partial<DependencyProbes> = {},
+): DependencyProbes => ({
   pingPostgres: async () => undefined,
   loadOutboxBacklog: async () => ({ pending: 0, oldestPendingAt: null }),
   healthCheckRateLimiter: async () => true,

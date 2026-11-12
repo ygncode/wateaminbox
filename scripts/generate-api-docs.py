@@ -66,7 +66,6 @@ DESC_OVERRIDES = {
     ("POST", "/labels/sync"): "Queue a label sync request (200)",
     ("POST", "/labels/:labelId/apply/:contactId"): "Queue applying a label to a contact (200)",
     ("DELETE", "/labels/:labelId/apply/:contactId"): "Queue removing a label from a contact (200)",
-    ("POST", "/search/reindex"): "Rebuild the tenant's message and contact indexes (200)",
     ("POST", "/status"): "Create a pending local status and queue publication (201)",
     ("DELETE", "/status/:id"): "Delete the creator's local status row only (does not retract it from WhatsApp)",
     ("GET", "/debug/nats/messages/:stream"): "Get stream statistics and CLI inspection instructions (not message content)",
@@ -81,7 +80,6 @@ ACCESS_OVERRIDES = {
     ("GET", "/conversations/stats/resolution-trend"): ["`can_view_dashboard`"],
     ("GET", "/conversations/stats/resolution-breaches"): ["`can_view_dashboard`"],
     ("GET", "/conversations/stats/resolution-team"): ["`can_view_dashboard`"],
-    ("POST", "/search/reindex"): ["Admin role"],
     ("PATCH", "/companies/:id"): ["Owner role when changing status"],
     ("POST", "/contacts/:id/assign"): [
         "Conditional `can_assign_contacts` (other-user assignment or takeover)",
@@ -1032,25 +1030,19 @@ GROUPS = [
         "title": "Search",
         "prefixes": ["/search"],
         "overview": (
-            "Full-text search across messages and contacts, backed by Meilisearch "
-            "with a PostgreSQL fallback. Results are returned directly by the search "
-            "service (not hydrated afterward). `POST /reindex` requires Admin/Owner "
-            "role, rebuilds both tenant indexes, and returns 200."
+            "Full-text search across messages and contacts, served by PostgreSQL "
+            "full-text and trigram indexes in the tenant schema. Results are returned "
+            "directly by the search service (not hydrated afterward)."
         ),
         "flows": [
-            ("Search & reindex", """sequenceDiagram
+            ("Search", """sequenceDiagram
     participant U as Agent
     participant A as API (Hono)
-    participant M as Meilisearch
     participant D as Postgres (tenantDb)
     U->>A: GET /api/search/messages?q=...
-    A->>M: query tenant message index with assignment filter
-    M-->>A: direct indexed results
+    A->>D: full-text + trigram query with assignment filter
+    D-->>A: ranked rows
     A-->>U: 200 {query, data, pagination}
-    U->>A: POST /api/search/reindex
-    A->>D: read documents
-    A->>M: rebuild message + contact indexes
-    A-->>U: 200 {message, data: indexed counts}
 """),
         ],
     },

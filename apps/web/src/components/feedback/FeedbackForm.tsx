@@ -15,8 +15,8 @@ export interface FeedbackFormProps {
   /** Controller from `useFeedbackForm`, owned by the surface rendering this. */
   form: FeedbackFormController;
   /**
-   * Prefix for element ids so two feedback surfaces (dialog and Settings) can
-   * be mounted at once without colliding label/`aria-describedby` targets.
+   * Prefix for element ids so label/`aria-describedby` targets stay unique if
+   * the form is ever mounted more than once.
    */
   idPrefix: string;
   autoFocus?: boolean;
@@ -29,8 +29,7 @@ export interface FeedbackFormProps {
  * Shared feedback fields: message, optional email, and the submit action.
  *
  * Purely presentational — validation, submission, toasts, and reset all live in
- * `useFeedbackForm`, so the floating widget and the Settings panel behave
- * identically.
+ * `useFeedbackForm`.
  */
 export function FeedbackForm({
   form,

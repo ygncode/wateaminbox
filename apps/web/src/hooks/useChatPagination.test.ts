@@ -114,6 +114,39 @@ describe("infinite chat pages", () => {
     }
   });
 
+  test("a sparse channel account scopes contacts before paging and isolates its cache", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      contactsResponse([contact("merged-customer")], 0, 1),
+    );
+    const options = chatListQueryOptions(
+      "",
+      true,
+      "all",
+      undefined,
+      "all",
+      [],
+      "telegram-a",
+    );
+    const observer = new InfiniteQueryObserver(client, options);
+    const result = await observer.fetchNextPage();
+    expect(result.data?.map((chat) => chat.id)).toEqual(["merged-customer"]);
+    expect(result.hasNextPage).toBe(false);
+    expect(result.hasPreviousPage).toBe(false);
+    await observer.fetchNextPage();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(requestUrl(0).searchParams.get("channelAccountId")).toBe(
+      "telegram-a",
+    );
+    expect(requestUrl(0).searchParams.has("connectionId")).toBe(false);
+    expect(options.queryKey).not.toEqual(
+      chatListQueryOptions("", true, "all", undefined, "all").queryKey,
+    );
+    expect(options.queryKey).not.toEqual(
+      chatListQueryOptions("", true, "all", undefined, "all", [], "telegram-b")
+        .queryKey,
+    );
+  });
+
   test("asks the server for unread chats before pagination instead of scanning read pages", async () => {
     fetchSpy.mockResolvedValueOnce(
       contactsResponse([contact("old-unread", 2)], 0, 1),
@@ -306,6 +339,41 @@ describe("infinite chat pages", () => {
 });
 
 describe("infinite channel conversations", () => {
+  test("a sparse account sends its scope to the API and stops after its short page", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      Response.json({ data: [{ id: "a" }, { id: "b" }] }),
+    );
+    const observer = new InfiniteQueryObserver(
+      client,
+      channelConversationListOptions(100, ["tag-a"], {
+        accountFilter: "telegram-a",
+        assignmentFilter: "unread",
+      }),
+    );
+    const result = await observer.fetchNextPage();
+    expect(result.data).toHaveLength(2);
+    expect(result.hasNextPage).toBe(false);
+    expect(result.hasPreviousPage).toBe(false);
+    await observer.fetchNextPage();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(Object.fromEntries(requestUrl(0).searchParams)).toEqual({
+      limit: "100",
+      offset: "0",
+      channelAccountId: "telegram-a",
+      unreadOnly: "true",
+      tagIds: "tag-a",
+    });
+  });
+
+  test("all accounts does not send the UI sentinel to the API", async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json({ data: [] }));
+    const observer = new InfiniteQueryObserver(
+      client,
+      channelConversationListOptions(100, [], { accountFilter: "all" }),
+    );
+    await observer.fetchNextPage();
+    expect(requestUrl(0).searchParams.has("channelAccountId")).toBe(false);
+  });
   test("channel windows also evict and reload pages in both directions", async () => {
     fetchSpy.mockImplementation(
       Object.assign(

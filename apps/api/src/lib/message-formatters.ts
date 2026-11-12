@@ -6,6 +6,10 @@
  */
 
 import {
+  legacyProvenance,
+  type ThreadProvenance,
+} from "../services/message-provenance.service.js";
+import {
   type ContactCardData,
   normalizeContactCards,
   type RawContactCard,
@@ -16,10 +20,6 @@ import {
   resolveDownloadContentType,
   resolveDownloadFileName,
 } from "./media-download-name.js";
-import {
-  legacyProvenance,
-  type ThreadProvenance,
-} from "../services/message-provenance.service.js";
 import {
   getAuthorizedMediaUrl,
   type SignedResponseOverrides,

@@ -2,11 +2,11 @@ import {
   TelegramBotAdapter,
   TelegramBotApiTransport,
 } from "@wateaminbox/adapter-telegram";
-import { ChannelAdapterRegistry } from "./application/adapter-registry.js";
 import {
   ChannelCredentialKeyError,
   resolveTelegramWebhookSecret,
 } from "../services/channel-credential.service.js";
+import { ChannelAdapterRegistry } from "./application/adapter-registry.js";
 import { telegramTransportPorts } from "./providers/telegram-bot/ports.js";
 import { WhatsAppLinkedDeviceAdapter } from "./providers/whatsapp-linked-device/adapter.js";
 import { LinkedDeviceNatsTransport } from "./providers/whatsapp-linked-device/transport.js";

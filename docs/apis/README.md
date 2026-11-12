@@ -81,7 +81,7 @@ Durable, state-changing WhatsApp actions persist state and enqueue a command in 
 | MCP | [`mcp.md`](mcp.md) | 3 |
 | Tags | [`tags.md`](tags.md) | 4 |
 | Quick Replies | [`quick-replies.md`](quick-replies.md) | 8 |
-| Search | [`search.md`](search.md) | 5 |
+| Search | [`search.md`](search.md) | 3 |
 | Status (Stories) | [`status.md`](status.md) | 6 |
 | Audit | [`audit.md`](audit.md) | 4 |
 | Export | [`export.md`](export.md) | 5 |

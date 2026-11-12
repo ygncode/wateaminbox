@@ -6,7 +6,7 @@ import {
   SelectItem,
   EMPTY_SELECT_VALUE,
 } from "@/components/ui/select";
-import type { ColumnDef, PaginationState } from "@tanstack/react-table";
+import type { PaginationState } from "@tanstack/react-table";
 import { dayjs } from "@wateaminbox/shared";
 import {
   Activity,
@@ -22,7 +22,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ServerDataTable } from "@/components/ui/server-data-table";
+import {
+  type ServerColumnDef,
+  ServerDataTable,
+} from "@/components/ui/server-data-table";
 import {
   type AuditAction,
   type AuditLog as AuditLogType,
@@ -129,7 +132,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
     });
   };
 
-  const columns: ColumnDef<AuditLogType>[] = [
+  const columns: ServerColumnDef<AuditLogType>[] = [
     {
       accessorKey: "createdAt",
       header: t("audit.time", "Time"),

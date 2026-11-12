@@ -5,16 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "bun run --watch src/index.ts",
-    "build": "bun build src/index.ts src/scripts/reindex-search.ts src/scripts/repair-document-names.ts src/scripts/reconcile-channel-spine-indexes.ts src/scripts/backfill-channel-spine.ts src/scripts/set-channel-spine-flags.ts --outdir dist --target bun",
+    "build": "bun build src/index.ts src/scripts/repair-document-names.ts src/scripts/reconcile-channel-spine-indexes.ts src/scripts/backfill-channel-spine.ts src/scripts/set-channel-spine-flags.ts --outdir dist --target bun",
     "start": "bun run dist/index.js",
     "lint": "bunx biome lint src",
     "format": "bunx biome format --write src",
     "test": "bun test"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1155.0",
-    "@aws-sdk/s3-request-presigner": "^3.1155.0",
-    "@hono/mcp": "^0.3.2",
+    "@aws-sdk/client-s3": "^3.1164.0",
+    "@aws-sdk/s3-request-presigner": "^3.1164.0",
+    "@hono/mcp": "^0.3.5",
     "@hono/zod-validator": "^0.9.1",
     "@modelcontextprotocol/sdk": "^1.32.1",
     "@wateaminbox/adapter-telegram": "workspace:*",
@@ -23,13 +23,12 @@
     "bcrypt": "^6.0.0",
     "dayjs": "^1.11.23",
     "fflate": "^0.8.2",
-    "hono": "^4.13.13",
-    "jose": "^6.2.13",
-    "meilisearch": "^0.62.0",
+    "hono": "^4.13.17",
+    "jose": "^6.2.15",
     "nats": "^2.29.3",
     "pino": "^10.4.0",
     "web-push": "^3.6.7",
-    "zod": "^3.25.76"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

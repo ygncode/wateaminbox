@@ -4,7 +4,6 @@
  * Handles invitation listing, creation, cancellation, acceptance, and resending.
  */
 
-import { zValidator } from "../../lib/validator.js";
 import { Hono } from "hono";
 import {
   successData,
@@ -18,6 +17,7 @@ import {
   inviteMemberSchema,
   listCompanyInvitationsQuerySchema,
 } from "../../lib/schemas/index.js";
+import { zValidator } from "../../lib/validator.js";
 import { authMiddleware } from "../../middleware/auth.js";
 import { requirePermission, tenantFromParam } from "../../middleware/tenant.js";
 import { createAuditLog, getClientIp } from "../../services/audit.service.js";

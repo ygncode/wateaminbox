@@ -44,9 +44,7 @@ async function withTenant(
     await run(companyId);
   } finally {
     await clearTenantConnection(companyId);
-    await sql
-      .raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
-      .execute(db);
+    await sql.raw(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`).execute(db);
     await db.deleteFrom("companies").where("id", "=", companyId).execute();
     await db.deleteFrom("users").where("id", "=", ownerId).execute();
   }

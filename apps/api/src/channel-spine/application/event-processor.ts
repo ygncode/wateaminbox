@@ -1,17 +1,16 @@
+import { createHash } from "node:crypto";
 import type { TenantDatabase } from "@wateaminbox/database";
 import {
   assertNormalizedChannelEvent,
-  isDurableChannelEvent,
   type ExternalConversationReference,
   type ExternalEndpointReference,
+  isDurableChannelEvent,
   type MessageUpsertEventPayload,
   type NormalizedChannelEvent,
 } from "@wateaminbox/shared";
 import type { Kysely, Transaction } from "kysely";
 import { sql } from "kysely";
-import { createHash } from "node:crypto";
 import { openOrReopenCaseForInboundConversation } from "../../services/conversation-case.service.js";
-import { enqueueMessageSearch } from "../../services/message-search-outbox.service.js";
 
 export interface AppliedChannelEvent {
   outcome: "applied" | "duplicate" | "transient";
@@ -467,12 +466,6 @@ async function applyMessageUpsert(
         .execute();
     }
   }
-  await enqueueMessageSearch(
-    trx,
-    event.companyId,
-    event.channelAccountId,
-    messageId,
-  );
   await replaceAttachments(trx, messageId, payload);
   await trx
     .updateTable("conversations")

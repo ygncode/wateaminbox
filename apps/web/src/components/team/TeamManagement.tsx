@@ -142,5 +142,3 @@ function Tab({
     </button>
   );
 }
-
-export default TeamManagement;

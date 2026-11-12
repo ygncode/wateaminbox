@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { isAllowedRedirectUri } from "./oauth-client.service.js";
 import {
   findPreRegisteredClient,
   PRE_REGISTERED_CLIENTS,
 } from "./oauth-hosted-clients.js";
-import { isAllowedRedirectUri } from "./oauth-client.service.js";
 
 /**
  * Grok presents its own client_id, https://grok.com/oauth/mcp-client.json, and

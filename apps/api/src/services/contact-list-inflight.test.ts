@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
-import { coalesceContactListRead } from "./contact-list-inflight.js";
 import type { GetContactsWithLastMessageOptions } from "./contact.service.js";
+import { coalesceContactListRead } from "./contact-list-inflight.js";
 
 const empty = () => ({ contacts: [], total: 0 });
 
@@ -83,6 +83,7 @@ describe("pending contact list reads", () => {
     { offset: 1 },
     { includeGroups: true },
     { connectionId: "account-a" },
+    { channelAccountId: "channel-a" },
     { tagIds: ["tag-a"] },
     { conversationStatus: "open" },
     { unreadOnly: true },

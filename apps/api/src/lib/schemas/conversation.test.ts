@@ -37,15 +37,10 @@ describe("resolveConversationSchema", () => {
   });
 
   test("accepts every documented outcome", () => {
-    for (const outcome of [
-      "handled",
-      "no_reply_needed",
-      "spam",
-      "duplicate",
-    ]) {
-      expect(
-        resolveConversationSchema.safeParse({ outcome }).success,
-      ).toBe(true);
+    for (const outcome of ["handled", "no_reply_needed", "spam", "duplicate"]) {
+      expect(resolveConversationSchema.safeParse({ outcome }).success).toBe(
+        true,
+      );
     }
   });
 

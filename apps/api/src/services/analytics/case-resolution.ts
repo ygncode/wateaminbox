@@ -26,7 +26,7 @@
  */
 
 import { dayjs } from "@wateaminbox/shared";
-import { sql, type RawBuilder } from "kysely";
+import { type RawBuilder, sql } from "kysely";
 import { AnalyticsRangeTooWideError, NotFoundError } from "../../lib/errors.js";
 import {
   businessMinutesBetween,
@@ -91,7 +91,8 @@ function mapRow(row: CaseWithPolicyRow): ResolvedCaseRow {
     calendar: row.policy_timezone
       ? {
           timezone: row.policy_timezone,
-          weeklySchedule: row.policy_weekly_schedule as SlaCalendar["weeklySchedule"],
+          weeklySchedule:
+            row.policy_weekly_schedule as SlaCalendar["weeklySchedule"],
           exceptions: row.policy_exceptions as SlaCalendar["exceptions"],
         }
       : null,
@@ -292,8 +293,14 @@ export async function getCaseResolutionTrend(
     const minutes = resolutionMinutes(row);
     if (minutes === null) continue;
 
-    const dateKey = dayjs.tz(row.resolvedAt, reportingTimezone).format("YYYY-MM-DD");
-    const bucket = byDate.get(dateKey) ?? { minutes: [], total: 0, withinSla: 0 };
+    const dateKey = dayjs
+      .tz(row.resolvedAt, reportingTimezone)
+      .format("YYYY-MM-DD");
+    const bucket = byDate.get(dateKey) ?? {
+      minutes: [],
+      total: 0,
+      withinSla: 0,
+    };
     bucket.minutes.push(minutes);
     bucket.total += 1;
     if (minutes <= row.resolutionTargetMinutes) bucket.withinSla += 1;
@@ -311,7 +318,9 @@ export async function getCaseResolutionTrend(
       resolvedCount: bucket?.total ?? 0,
       averageResolutionMinutes: bucket ? average(bucket.minutes) : 0,
       slaComplianceRate:
-        bucket && bucket.total > 0 ? (bucket.withinSla / bucket.total) * 100 : 0,
+        bucket && bucket.total > 0
+          ? (bucket.withinSla / bucket.total) * 100
+          : 0,
     });
     current = current.add(1, "day");
   }
@@ -388,7 +397,11 @@ export async function getOverdueActiveCases(
   const overdue: OverdueCase[] = [];
   for (const row of rows) {
     if (!row.calendar) continue;
-    const elapsedMinutes = businessMinutesBetween(row.calendar, row.openedAt, now);
+    const elapsedMinutes = businessMinutesBetween(
+      row.calendar,
+      row.openedAt,
+      now,
+    );
     if (elapsedMinutes <= row.resolutionTargetMinutes) continue;
     overdue.push({
       caseId: row.caseId,

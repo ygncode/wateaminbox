@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { DEFAULT_SLA_WEEKLY_SCHEDULE } from "@wateaminbox/shared";
-import { mergeContacts } from "./contact-merge.service.js";
 import { getContactsWithLastMessage } from "./contact.service.js";
+import { mergeContacts } from "./contact-merge.service.js";
 import {
   clearTenantConnection,
   createTenantSchema,

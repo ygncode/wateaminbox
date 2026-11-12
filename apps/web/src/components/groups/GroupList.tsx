@@ -385,5 +385,3 @@ function GroupListItemSkeleton() {
     </div>
   );
 }
-
-export default GroupList;

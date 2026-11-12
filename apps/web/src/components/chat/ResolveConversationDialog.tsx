@@ -218,5 +218,3 @@ export function ResolveConversationDialog({
     </Dialog>
   );
 }
-
-export default ResolveConversationDialog;

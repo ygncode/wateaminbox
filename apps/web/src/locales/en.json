@@ -459,7 +459,7 @@
     },
     "feedbackPanel": {
       "title": "Send feedback",
-      "description": "Tell us what's working and what we can improve. Feedback reaches the team directly, and this form stays here even if you dismissed the floating feedback tab."
+      "description": "Tell us what's working and what we can improve. Feedback reaches the team directly."
     },
     "connections": {
       "title": "Channel connections",
@@ -1820,10 +1820,6 @@
     "lastSeenDate": "last seen {{date}}"
   },
   "feedback": {
-    "tab": "Feedback",
-    "dismiss": "Dismiss feedback tab",
-    "title": "Send feedback",
-    "description": "Tell us what's working and what we can improve.",
     "messageLabel": "Message",
     "messagePlaceholder": "Share your thoughts…",
     "emailLabel": "Email (optional)",

@@ -369,5 +369,3 @@ function Legend({
     </button>
   );
 }
-
-export default EngagementTrendChart;

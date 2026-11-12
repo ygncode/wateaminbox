@@ -28,6 +28,8 @@ import {
   toDbDate,
 } from "@wateaminbox/shared";
 import { sql, type Transaction } from "kysely";
+import { createLogger } from "../lib/logger.js";
+import type { GroupSnapshotPayload } from "../lib/nats/index.js";
 import {
   batchPlannedContacts,
   isPhoneAddressableJid,
@@ -35,10 +37,8 @@ import {
   resolveMemberPushName,
   shouldNameExistingMember,
 } from "./group-participant-contacts.js";
-import { fetchStoredWhatsAppNames } from "./whatsapp-stored-names.js";
-import { createLogger } from "../lib/logger.js";
-import type { GroupSnapshotPayload } from "../lib/nats/index.js";
 import type { TenantDatabase } from "./tenant.service.js";
+import { fetchStoredWhatsAppNames } from "./whatsapp-stored-names.js";
 
 const logger = createLogger("GroupSync");
 

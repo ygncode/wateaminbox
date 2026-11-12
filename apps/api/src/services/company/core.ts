@@ -11,12 +11,12 @@ import type { Transaction } from "kysely";
 import { CompanyNotFoundError, ValidationError } from "../../lib/errors.js";
 import { createLogger, formatError } from "../../lib/logger.js";
 import { sniffMediaType } from "../../lib/media-sniff.js";
-import { seedChannelSpineFlags } from "../channel-spine-provisioning.service.js";
 import {
   deleteMedia,
   getPresignedUrl,
   uploadMedia,
 } from "../../lib/storage.js";
+import { seedChannelSpineFlags } from "../channel-spine-provisioning.service.js";
 import { invalidateCompanyMembership } from "../company-membership.service.js";
 import { seedDefaultSlaPolicy } from "../sla-policy/policy.service.js";
 import {

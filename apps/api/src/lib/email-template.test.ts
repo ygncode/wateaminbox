@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
+  type BrandedEmailContent,
   emailHeaderText,
   renderBrandedEmail,
   renderPlainTextEmail,
-  type BrandedEmailContent,
 } from "./email-template.js";
 
 const content: BrandedEmailContent = {

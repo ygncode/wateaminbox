@@ -12,7 +12,6 @@ NC='\033[0m' # No Color
 VOLUMES=(
     "wateaminbox_postgres_data"
     "wateaminbox_nats_data"
-    "wateaminbox_meilisearch_data"
     "wateaminbox_minio_data"
 )
 
@@ -20,7 +19,6 @@ VOLUMES=(
 CONTAINERS=(
     "wateaminbox-postgres"
     "wateaminbox-nats"
-    "wateaminbox-meilisearch"
     "wateaminbox-minio"
     "wateaminbox-minio-init"
 )
@@ -131,7 +129,6 @@ main() {
     print_warning "This will DELETE ALL DATA including:"
     echo "  - PostgreSQL database (all tenants, users, messages)"
     echo "  - NATS JetStream data (clears stale message queues)"
-    echo "  - Meilisearch indexes"
     echo "  - MinIO stored files (media)"
     echo "  - Stop any running dev processes"
     echo ""

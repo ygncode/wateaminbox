@@ -60,10 +60,6 @@ function recordingDeps(
       deleteObject: async (key) => {
         deletedKeys.push(key);
       },
-      dropSearchMessages: async (_companyId, contactIds) => {
-        searchedContactIds.push(...contactIds);
-      },
-      dropSearchContacts: async () => undefined,
       finalizeBulkJob: async (_tenantDb, _companyId, bulkJobId) => {
         finalizedBulkJobs.push(bulkJobId);
       },
@@ -911,7 +907,7 @@ describe("permanent purge media cleanup against PostgreSQL", () => {
           }),
         ).toEqual({ completed: 1, failed: 0, deferred: 0 });
 
-        expect(recorded.searchedContactIds).toEqual([contactId]);
+        // search_contact rows are legacy: they drain as no-ops (search is PostgreSQL-only)
         expect(recorded.deletedKeys).toEqual([]);
         expect(
           (await listItems(companyId)).map((item) => item.kind).sort(),

@@ -314,5 +314,3 @@ function formatMinutes(
       })
     : t("duration.hours", { defaultValue: "{{hours}}h", hours });
 }
-
-export default ResponseTimeTrendChart;

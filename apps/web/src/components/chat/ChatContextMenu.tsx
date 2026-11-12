@@ -132,5 +132,3 @@ function SelectIcon({ className }: { className?: string }) {
     </svg>
   );
 }
-
-export default ChatContextMenu;

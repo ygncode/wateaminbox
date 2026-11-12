@@ -1,11 +1,12 @@
-import type { TenantDatabase } from "@wateaminbox/database";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import type { TenantDatabase } from "@wateaminbox/database";
 import type { Kysely } from "kysely";
 import { env } from "../lib/env.js";
 import { getTenantConnection } from "./tenant.service.js";
 
 export type ChannelCredentialKind =
-  "telegram_webhook_secret" | "telegram_bot_token";
+  | "telegram_webhook_secret"
+  | "telegram_bot_token";
 
 interface EncryptedCredential {
   encryptedValue: Buffer;

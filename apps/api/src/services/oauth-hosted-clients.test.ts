@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { app } from "../app.js";
+import { isAllowedRedirectUri } from "./oauth-client.service.js";
 import {
   findHostedClient,
   HOSTED_CLIENTS,
   hostedClientId,
 } from "./oauth-hosted-clients.js";
-import { isAllowedRedirectUri } from "./oauth-client.service.js";
 
 const ISSUER = "https://app.example.com";
 

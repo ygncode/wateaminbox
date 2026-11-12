@@ -149,7 +149,9 @@ function storeCacheEntry(
  */
 export async function getCompanyMemberPermissions(
   companyId: string,
-  load: (id: string) => Promise<CompanyMemberPermissions[]> = loadCompanyMembers,
+  load: (
+    id: string,
+  ) => Promise<CompanyMemberPermissions[]> = loadCompanyMembers,
 ): Promise<CompanyMemberPermissions[]> {
   const ttl = ttlMs;
   if (ttl <= 0) {

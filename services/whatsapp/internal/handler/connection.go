@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log"
 	"time"
 
@@ -74,9 +75,13 @@ func (h *Handler) handleChatPresence(presence *events.ChatPresence) {
 
 // handleConnected is called when connection is established.
 func (h *Handler) handleConnected(evt *events.Connected) {
+	session, started := h.beginBootstrap()
+	if !started {
+		return
+	}
 	log.Printf("Worker %s connected to WhatsApp", h.config.WorkerID)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(session, 10*time.Second)
 	defer cancel()
 
 	// Extract phone number and JID from the client. Existing installations may
@@ -112,13 +117,11 @@ func (h *Handler) handleConnected(evt *events.Connected) {
 		} else {
 			log.Printf("Marked presence as available")
 		}
+	}
 
-		// WhatsApp presence subscriptions are connection-scoped. Restore them
-		// after every reconnect rather than waiting for another history sync or
-		// an incoming message.
-		go h.subscribeToKnownContacts()
-		go h.syncKnownContactNames()
-		h.startJoinedGroupSync()
+	h.startBootstrap(session)
+	if session.Err() != nil {
+		return
 	}
 
 	// Publish connection status to NATS
@@ -137,40 +140,54 @@ func (h *Handler) handleConnected(evt *events.Connected) {
 // mentions use those opaque IDs. Querying missing group members through USync
 // repairs the connection's own mapping store without copying identity data from
 // another tenant or connection.
-func (h *Handler) syncJoinedGroups(parent context.Context) {
+func (h *Handler) syncJoinedGroups(parent context.Context) error {
 	if h.config.Client == nil || h.publisher == nil {
-		return
+		return errBootstrapNotReady
 	}
 	client := h.config.Client.GetClient()
 	if client == nil {
-		return
+		return errBootstrapNotReady
 	}
 
 	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
+	defer cancel()
 	groups, err := client.GetJoinedGroups(ctx)
-	cancel()
 	if err != nil {
 		log.Printf("Failed to refresh joined groups: %v", err)
-		return
+		return err
 	}
 
+	var publishErr error
+	resolve := func(primary, alternative types.JID) types.JID {
+		return h.resolvePreferredJIDContext(ctx, primary, alternative)
+	}
 	for _, group := range groups {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if group == nil || group.JID.IsEmpty() {
 			continue
 		}
-		snapshot := waClient.SnapshotFromGroupInfo(group, h.resolvePreferredJID)
+		snapshot := waClient.SnapshotFromGroupInfo(group, resolve)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := h.publisher.PublishGroupSnapshot("", sharednats.GroupActionSnapshot, snapshot); err != nil {
 			log.Printf("Failed to publish metadata for group %s: %v", group.JID.String(), err)
+			publishErr = errors.Join(publishErr, err)
 		}
 	}
 	log.Printf("Refreshed metadata for %d joined groups", len(groups))
 
+	if err := errors.Join(publishErr, ctx.Err()); err != nil {
+		return err
+	}
 	if client.Store == nil || client.Store.LIDs == nil {
-		return
+		return nil
 	}
 	repairCtx, finishRepair, shouldRepair := h.beginGroupLIDRepair(parent)
 	if !shouldRepair {
-		return
+		return parent.Err()
 	}
 	defer finishRepair()
 	stats, repairErr := repairMissingGroupLIDs(
@@ -193,7 +210,7 @@ func (h *Handler) syncJoinedGroups(parent context.Context) {
 			stats.FailedBatches,
 			repairErr,
 		)
-		return
+		return repairErr
 	}
 	log.Printf(
 		"Group LID mapping repair completed: candidates=%d missing=%d attempted=%d resolved=%d unresolved=%d skipped=%d failed_batches=%d",
@@ -205,6 +222,7 @@ func (h *Handler) syncJoinedGroups(parent context.Context) {
 		stats.Skipped,
 		stats.FailedBatches,
 	)
+	return parent.Err()
 }
 
 // refreshGroup re-reads one group from WhatsApp and republishes it.
@@ -362,65 +380,10 @@ func (h *Handler) isSelfLeaving(evt *events.GroupInfo) bool {
 	return false
 }
 
-// subscribeToKnownContacts restores presence subscriptions after a connection
-// is established. The contacts store survives worker restarts, while server
-// subscriptions do not.
-func (h *Handler) subscribeToKnownContacts() {
-	client := h.config.Client.GetClient()
-	if client == nil || client.Store == nil || client.Store.Contacts == nil {
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-
-	contacts, err := client.Store.Contacts.GetAllContacts(ctx)
-	if err != nil {
-		log.Printf("Failed to load contacts for presence subscriptions: %v", err)
-		return
-	}
-
-	ownJID := types.EmptyJID
-	if client.Store.ID != nil {
-		ownJID = client.Store.ID.ToNonAD()
-	}
-
-	seen := make(map[string]struct{}, len(contacts))
-	subscribed := 0
-	for jid := range contacts {
-		resolved := h.resolvePreferredJID(jid, types.EmptyJID)
-		if resolved.Server != types.DefaultUserServer || resolved.User == "" || resolved == ownJID {
-			continue
-		}
-
-		key := resolved.String()
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-
-		if err := h.config.Client.SubscribePresence(ctx, resolved); err != nil {
-			log.Printf("Failed to restore presence subscription for %s: %v", key, err)
-		} else {
-			subscribed++
-		}
-
-		// Avoid sending a large contact list as a burst to WhatsApp.
-		select {
-		case <-ctx.Done():
-			log.Printf("Presence subscription restore stopped after %d contacts: %v", subscribed, ctx.Err())
-			return
-		case <-time.After(25 * time.Millisecond):
-		}
-	}
-
-	log.Printf("Restored presence subscriptions for %d contacts", subscribed)
-}
-
 // handleDisconnected is called when connection is lost.
 func (h *Handler) handleDisconnected(evt *events.Disconnected) {
 	log.Printf("Worker %s disconnected from WhatsApp", h.config.WorkerID)
-	h.cancelJoinedGroupSync()
+	h.cancelBootstrap()
 
 	// Publish disconnection status to NATS
 	if h.publisher != nil {
@@ -445,7 +408,7 @@ func (h *Handler) handleDisconnected(evt *events.Disconnected) {
 
 // handleLoggedOut is called when session is terminated.
 func (h *Handler) handleLoggedOut(evt *events.LoggedOut) {
-	h.cancelJoinedGroupSync()
+	h.cancelBootstrap()
 	reason := "unknown"
 	if evt.Reason != 0 {
 		reason = evt.Reason.String()
@@ -486,7 +449,7 @@ func (h *Handler) handlePairSuccess(evt *events.PairSuccess) {
 // handleStreamReplaced is called when the stream is replaced (logged in elsewhere).
 func (h *Handler) handleStreamReplaced(evt *events.StreamReplaced) {
 	log.Printf("Worker %s: stream replaced (logged in elsewhere)", h.config.WorkerID)
-	h.cancelJoinedGroupSync()
+	h.cancelBootstrap()
 
 	// Publish stream replaced status to NATS
 	if h.publisher != nil {

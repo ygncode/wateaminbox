@@ -113,5 +113,3 @@ const TabButton = memo(function TabButton({
     </button>
   );
 });
-
-export default ChatSidebar;

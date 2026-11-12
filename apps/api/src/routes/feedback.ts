@@ -5,18 +5,18 @@
  * Sends feedback to the configured feedback recipient via email.
  */
 
-import { zValidator } from "../lib/validator.js";
 import { Hono } from "hono";
 import { z } from "zod";
 import { sendEmail } from "../lib/email.js";
 import {
+  type BrandedEmailContent,
   emailHeaderText,
   renderBrandedEmail,
   renderPlainTextEmail,
-  type BrandedEmailContent,
 } from "../lib/email-template.js";
 import { env } from "../lib/env.js";
 import { serverError } from "../lib/errors.js";
+import { zValidator } from "../lib/validator.js";
 
 export const feedbackRoutes = new Hono();
 

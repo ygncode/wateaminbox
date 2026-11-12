@@ -32,5 +32,3 @@ export function StatRow({ label, value, total }: StatRowProps) {
     </div>
   );
 }
-
-export default StatRow;
