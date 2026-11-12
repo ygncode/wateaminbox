@@ -129,6 +129,27 @@ export async function purgeArchivedChannelAccount(
         ]),
       )
       .execute();
+    // Reactions must go before their account: message_reactions_account_fk is
+    // ON DELETE RESTRICT, so one surviving row makes the account delete fail
+    // and rolls back the whole purge. message_id has no foreign key, so rows
+    // without channel_account_id would also outlive their messages; match
+    // both.
+    await trx
+      .deleteFrom("message_reactions")
+      .where((eb) =>
+        eb.or([
+          eb("channel_account_id", "=", accountId),
+          eb(
+            "message_id",
+            "in",
+            trx
+              .selectFrom("messages")
+              .select("id")
+              .where("channel_account_id", "=", accountId),
+          ),
+        ]),
+      )
+      .execute();
     const deletedMessages = await trx
       .deleteFrom("messages")
       .where("channel_account_id", "=", accountId)

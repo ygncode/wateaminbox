@@ -19,7 +19,7 @@ const integrationTest =
 
 describe("purgeArchivedChannelAccount", () => {
   integrationTest(
-    "purges a Telegram account whose conversations have no contact",
+    "purges a Telegram account whose conversations have no contact and whose messages have reactions",
     async () => {
       const companyId = crypto.randomUUID();
       const schemaName = getSchemaName(companyId);
@@ -83,8 +83,20 @@ describe("purgeArchivedChannelAccount", () => {
           })
           .returning("id")
           .executeTakeFirstOrThrow();
+        const otherAccountId = crypto.randomUUID();
+        await tenantDb
+          .insertInto("channel_accounts")
+          .values({
+            id: otherAccountId,
+            channel: "telegram",
+            provider: "telegram_bot",
+            display_name: "Other bot",
+            status: "connected",
+          })
+          .execute();
+        const messageId = crypto.randomUUID();
+        const otherMessageId = crypto.randomUUID();
         await tenantDb.transaction().execute(async (trx) => {
-          const messageId = crypto.randomUUID();
           await trx
             .insertInto("messages")
             .values({
@@ -109,6 +121,33 @@ describe("purgeArchivedChannelAccount", () => {
             },
           );
         });
+        // message_reactions.channel_account_id is ON DELETE RESTRICT, so a
+        // reaction left behind blocks the account delete (#380). The legacy
+        // row without channel_account_id must not outlive its message either,
+        // and the other account's reaction must survive.
+        await tenantDb
+          .insertInto("message_reactions")
+          .values([
+            {
+              message_id: messageId,
+              reactor_jid: "telegram:1",
+              emoji: "👍",
+              channel_account_id: accountId,
+            },
+            {
+              message_id: messageId,
+              reactor_jid: "telegram:2",
+              emoji: "🎉",
+              channel_account_id: null,
+            },
+            {
+              message_id: otherMessageId,
+              reactor_jid: "telegram:3",
+              emoji: "❤️",
+              channel_account_id: otherAccountId,
+            },
+          ])
+          .execute();
 
         const result = await purgeArchivedChannelAccount(tenantDb, accountId);
         expect(result.contactIds).toEqual([]);
@@ -137,6 +176,14 @@ describe("purgeArchivedChannelAccount", () => {
             ).count,
           ),
         ).toBe(0);
+        expect(
+          await tenantDb
+            .selectFrom("message_reactions")
+            .select(["message_id", "channel_account_id"])
+            .execute(),
+        ).toEqual([
+          { message_id: otherMessageId, channel_account_id: otherAccountId },
+        ]);
       } finally {
         await clearTenantConnection(companyId);
         await sql
