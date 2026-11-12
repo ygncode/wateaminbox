@@ -218,7 +218,7 @@ export function NotificationSettings() {
                 <SelectContent>
                   {Object.keys(NOTIFICATION_SOUNDS).map((sound) => (
                     <SelectItem key={sound} value={sound}>
-                      {sound.charAt(0).toUpperCase() + sound.slice(1)}
+                      {t(`settings.notificationSounds.${sound}`, sound)}
                     </SelectItem>
                   ))}
                 </SelectContent>

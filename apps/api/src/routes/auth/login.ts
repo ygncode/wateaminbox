@@ -59,6 +59,7 @@ loginRoutes.post(
           gravatarUrl: publicUser.gravatarUrl,
           hasCustomAvatar: publicUser.hasCustomAvatar,
           emailVerified: publicUser.emailVerified,
+          preferredLanguage: publicUser.preferredLanguage,
         },
         tokens: {
           accessToken: tokens.accessToken,

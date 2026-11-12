@@ -76,6 +76,7 @@ registerRoutes.post(
             gravatarUrl: publicUser.gravatarUrl,
             hasCustomAvatar: publicUser.hasCustomAvatar,
             emailVerified: publicUser.emailVerified,
+            preferredLanguage: publicUser.preferredLanguage,
             createdAt: user.createdAt,
           },
           verificationEmailSent,

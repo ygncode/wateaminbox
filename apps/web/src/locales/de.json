@@ -637,7 +637,11 @@
     "workspaceLeaveFailed": "Der Workspace konnte nicht verlassen werden",
     "themePanel": {
       "title": "Design",
-      "description": "Wechseln Sie zwischen Hell, Dunkel und Ihrer Systemeinstellung."
+      "description": "Wechseln Sie zwischen Hell, Dunkel und Ihrer Systemeinstellung.",
+      "changed": "Design geändert zu {{theme}}",
+      "system": "System ({{resolved}})",
+      "light": "Hell",
+      "dark": "Dunkel"
     },
     "languagePanel": {
       "title": "Sprache",
@@ -669,7 +673,14 @@
     },
     "viewShortcuts": "Tastenkürzel anzeigen",
     "leftWorkspace": "Sie haben {{name}} verlassen",
-    "languageSaveFailed": "Die Sprache konnte nicht in Ihrem Konto gespeichert werden. Sie gilt nur in diesem Browser."
+    "languageSaveFailed": "Die Sprache konnte nicht in Ihrem Konto gespeichert werden. Sie gilt nur in diesem Browser.",
+    "notificationSounds": {
+      "default": "Standard",
+      "chime": "Glockenspiel",
+      "bell": "Glocke",
+      "pop": "Plopp",
+      "none": "Keiner"
+    }
   },
   "dashboard": {
     "totalMessages": "Nachrichten gesamt",
@@ -1369,7 +1380,8 @@
     "stepDetails": "Details",
     "stepReview": "Prüfen",
     "stepOf": "Schritt {{current}} von {{total}}",
-    "emailPlaceholder": "kollege@firma.de"
+    "emailPlaceholder": "kollege@firma.de",
+    "roleOwner": "Inhaber"
   },
   "export": {
     "title": "Exportieren",

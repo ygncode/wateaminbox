@@ -23,10 +23,12 @@ import { WorkspaceAvatar } from "./WorkspaceAvatar";
 
 export { workspaceMonogram } from "./WorkspaceAvatar";
 
-function roleLabel(role: "owner" | "admin" | "member") {
-  return role === "admin"
-    ? "Administrator"
-    : `${role[0].toUpperCase()}${role.slice(1)}`;
+function roleLabel(
+  role: "owner" | "admin" | "member",
+  t: (key: string) => string,
+) {
+  if (role === "owner") return t("team.roleOwner");
+  return role === "admin" ? t("team.roleAdmin") : t("team.roleMember");
 }
 
 export function WorkspaceSwitcher({
@@ -169,7 +171,7 @@ export function WorkspaceSwitcher({
                     : activeWorkspace.name}
                 </span>
                 <span className="block truncate text-[11px] text-[#a7bbb3]">
-                  {roleLabel(activeWorkspace.role)}
+                  {roleLabel(activeWorkspace.role, t)}
                 </span>
               </span>
             )}
@@ -226,7 +228,7 @@ export function WorkspaceSwitcher({
                     {workspace.name}
                   </span>
                   <span className="text-xs text-gray-500 dark:text-dark-text-secondary">
-                    {roleLabel(workspace.role)}
+                    {roleLabel(workspace.role, t)}
                     {workspace.status !== "active" && " · Suspended"}
                   </span>
                 </span>

@@ -625,7 +625,11 @@
     "workspaceLeaveFailed": "Tidak dapat meninggalkan ruang kerja",
     "themePanel": {
       "title": "Tema",
-      "description": "Tukar antara cerah, gelap dan keutamaan sistem anda."
+      "description": "Tukar antara cerah, gelap dan keutamaan sistem anda.",
+      "changed": "Tema ditukar kepada {{theme}}",
+      "system": "Sistem ({{resolved}})",
+      "light": "Cerah",
+      "dark": "Gelap"
     },
     "languagePanel": {
       "title": "Bahasa",
@@ -657,7 +661,14 @@
     },
     "viewShortcuts": "Lihat pintasan",
     "leftWorkspace": "Anda telah meninggalkan {{name}}",
-    "languageSaveFailed": "Bahasa tidak dapat disimpan ke akaun anda. Ia hanya digunakan dalam pelayar ini."
+    "languageSaveFailed": "Bahasa tidak dapat disimpan ke akaun anda. Ia hanya digunakan dalam pelayar ini.",
+    "notificationSounds": {
+      "default": "Lalai",
+      "chime": "Loceng angin",
+      "bell": "Loceng",
+      "pop": "Pop",
+      "none": "Tiada"
+    }
   },
   "dashboard": {
     "totalMessages": "Jumlah mesej",
@@ -1346,7 +1357,8 @@
     "stepDetails": "Butiran",
     "stepReview": "Semak",
     "stepOf": "Langkah {{current}} daripada {{total}}",
-    "emailPlaceholder": "rakan@syarikat.com"
+    "emailPlaceholder": "rakan@syarikat.com",
+    "roleOwner": "Pemilik"
   },
   "export": {
     "title": "Eksport",

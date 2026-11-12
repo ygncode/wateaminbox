@@ -32,7 +32,12 @@ export function MemberCard({
       : member.role === "admin"
         ? ShieldCheck
         : Shield;
-  const roleLabel = member.role.charAt(0).toUpperCase() + member.role.slice(1);
+  const roleLabel =
+    member.role === "owner"
+      ? t("team.roleOwner")
+      : member.role === "admin"
+        ? t("team.roleAdmin")
+        : t("team.roleMember");
   const hasCustomAccess = Boolean(
     member.permissions && Object.keys(member.permissions).length,
   );

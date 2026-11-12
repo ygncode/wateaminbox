@@ -685,7 +685,11 @@
     "workspaceLeaveFailed": "تعذرت مغادرة مساحة العمل",
     "themePanel": {
       "title": "السمة",
-      "description": "بدّل بين الفاتح والداكن وتفضيل النظام."
+      "description": "بدّل بين الفاتح والداكن وتفضيل النظام.",
+      "changed": "تم تغيير السمة إلى {{theme}}",
+      "system": "النظام ({{resolved}})",
+      "light": "فاتح",
+      "dark": "داكن"
     },
     "languagePanel": {
       "title": "اللغة",
@@ -717,7 +721,14 @@
     },
     "viewShortcuts": "عرض الاختصارات",
     "leftWorkspace": "لقد غادرت {{name}}",
-    "languageSaveFailed": "تعذّر حفظ اللغة في حسابك. ستُطبَّق في هذا المتصفح فقط."
+    "languageSaveFailed": "تعذّر حفظ اللغة في حسابك. ستُطبَّق في هذا المتصفح فقط.",
+    "notificationSounds": {
+      "default": "افتراضي",
+      "chime": "رنين",
+      "bell": "جرس",
+      "pop": "نقرة",
+      "none": "بدون"
+    }
   },
   "dashboard": {
     "totalMessages": "إجمالي الرسائل",
@@ -1461,7 +1472,8 @@
     "stepDetails": "التفاصيل",
     "stepReview": "المراجعة",
     "stepOf": "الخطوة {{current}} من {{total}}",
-    "emailPlaceholder": "colleague@company.com"
+    "emailPlaceholder": "colleague@company.com",
+    "roleOwner": "المالك"
   },
   "export": {
     "title": "تصدير",

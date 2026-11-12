@@ -625,7 +625,11 @@
     "workspaceLeaveFailed": "无法退出工作区",
     "themePanel": {
       "title": "主题",
-      "description": "在浅色、深色与跟随系统之间切换。"
+      "description": "在浅色、深色与跟随系统之间切换。",
+      "changed": "主题已切换为{{theme}}",
+      "system": "跟随系统（{{resolved}}）",
+      "light": "浅色",
+      "dark": "深色"
     },
     "languagePanel": {
       "title": "语言",
@@ -657,7 +661,14 @@
     },
     "viewShortcuts": "查看快捷键",
     "leftWorkspace": "你已退出 {{name}}",
-    "languageSaveFailed": "无法将语言保存到您的账号，仅在此浏览器中生效。"
+    "languageSaveFailed": "无法将语言保存到您的账号，仅在此浏览器中生效。",
+    "notificationSounds": {
+      "default": "默认",
+      "chime": "风铃",
+      "bell": "铃声",
+      "pop": "轻响",
+      "none": "无"
+    }
   },
   "dashboard": {
     "totalMessages": "消息总数",
@@ -1346,7 +1357,8 @@
     "stepDetails": "详情",
     "stepReview": "确认",
     "stepOf": "第 {{current}} 步，共 {{total}} 步",
-    "emailPlaceholder": "colleague@company.com"
+    "emailPlaceholder": "colleague@company.com",
+    "roleOwner": "所有者"
   },
   "export": {
     "title": "导出",

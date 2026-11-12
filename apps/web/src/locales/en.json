@@ -637,7 +637,11 @@
     "workspaceLeaveFailed": "Could not leave workspace",
     "themePanel": {
       "title": "Theme",
-      "description": "Cycle between light, dark, and your system preference."
+      "description": "Cycle between light, dark, and your system preference.",
+      "changed": "Theme changed to {{theme}}",
+      "system": "System ({{resolved}})",
+      "light": "Light",
+      "dark": "Dark"
     },
     "languagePanel": {
       "title": "Language",
@@ -669,7 +673,14 @@
     },
     "viewShortcuts": "View shortcuts",
     "leftWorkspace": "You left {{name}}",
-    "languageSaveFailed": "Couldn’t save your language to your account. It will apply in this browser only."
+    "languageSaveFailed": "Couldn’t save your language to your account. It will apply in this browser only.",
+    "notificationSounds": {
+      "default": "Default",
+      "chime": "Chime",
+      "bell": "Bell",
+      "pop": "Pop",
+      "none": "None"
+    }
   },
   "dashboard": {
     "totalMessages": "Total Messages",
@@ -1369,7 +1380,8 @@
     "stepDetails": "Details",
     "stepReview": "Review",
     "stepOf": "Step {{current}} of {{total}}",
-    "emailPlaceholder": "colleague@company.com"
+    "emailPlaceholder": "colleague@company.com",
+    "roleOwner": "Owner"
   },
   "export": {
     "title": "Export",

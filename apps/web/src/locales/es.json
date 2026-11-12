@@ -649,7 +649,11 @@
     "workspaceLeaveFailed": "No se pudo salir del espacio de trabajo",
     "themePanel": {
       "title": "Tema",
-      "description": "Alterna entre claro, oscuro y la preferencia de tu sistema."
+      "description": "Alterna entre claro, oscuro y la preferencia de tu sistema.",
+      "changed": "Tema cambiado a {{theme}}",
+      "system": "Sistema ({{resolved}})",
+      "light": "Claro",
+      "dark": "Oscuro"
     },
     "languagePanel": {
       "title": "Idioma",
@@ -681,7 +685,14 @@
     },
     "viewShortcuts": "Ver atajos",
     "leftWorkspace": "Saliste de {{name}}",
-    "languageSaveFailed": "No se pudo guardar el idioma en tu cuenta. Solo se aplicará en este navegador."
+    "languageSaveFailed": "No se pudo guardar el idioma en tu cuenta. Solo se aplicará en este navegador.",
+    "notificationSounds": {
+      "default": "Predeterminado",
+      "chime": "Campanilla",
+      "bell": "Campana",
+      "pop": "Pop",
+      "none": "Ninguno"
+    }
   },
   "dashboard": {
     "totalMessages": "Total de mensajes",
@@ -1392,7 +1403,8 @@
     "stepDetails": "Detalles",
     "stepReview": "Revisión",
     "stepOf": "Paso {{current}} de {{total}}",
-    "emailPlaceholder": "colega@empresa.com"
+    "emailPlaceholder": "colega@empresa.com",
+    "roleOwner": "Propietario"
   },
   "export": {
     "title": "Exportar",
