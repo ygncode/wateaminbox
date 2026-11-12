@@ -110,7 +110,7 @@ function CopyBlock({
           )}
         </Button>
       </div>
-      <pre className="overflow-x-auto p-3 text-xs leading-relaxed">
+      <pre dir="ltr" className="overflow-x-auto p-3 text-xs leading-relaxed">
         <code>{value}</code>
       </pre>
     </div>
@@ -499,7 +499,7 @@ export function ApiTokensSection() {
             </Select>
           </div>
           <Button onClick={handleCreate} disabled={isCreating}>
-            <KeyRound className="mr-2 h-4 w-4" />
+            <KeyRound className="me-2 h-4 w-4" />
             {t("apiTokens.createButton", "Create token")}
           </Button>
         </div>
@@ -558,7 +558,7 @@ export function ApiTokensSection() {
                     )}
                   </div>
                   <p className="truncate text-xs text-muted-foreground">
-                    <code>{token.tokenPrefix}…</code>
+                    <code dir="ltr">{token.tokenPrefix}…</code>
                     {" · "}
                     {token.lastUsedAt
                       ? t("apiTokens.lastUsed", "Last used {{date}}", {

@@ -32,7 +32,10 @@ export function BroadcastsHeader({
                 "Back to broadcasts",
               )}
             >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              <ArrowLeft
+                className="h-4 w-4 rtl:-scale-x-100"
+                aria-hidden="true"
+              />
             </button>
           ) : (
             <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/60 dark:text-emerald-300">

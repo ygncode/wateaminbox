@@ -17,10 +17,10 @@ describe("notification sheet presentation", () => {
   });
 
   test("anchors flush to the right edge from md upwards", () => {
-    expect(NOTIFICATION_SHEET_CLASS).toContain("md:right-0");
+    expect(NOTIFICATION_SHEET_CLASS).toContain("md:end-0");
     expect(NOTIFICATION_SHEET_CLASS).toContain("md:inset-y-0");
     // inset-0 pins the left edge on mobile; md must release it
-    expect(NOTIFICATION_SHEET_CLASS).toContain("md:left-auto");
+    expect(NOTIFICATION_SHEET_CLASS).toContain("md:start-auto");
     expect(NOTIFICATION_SHEET_CLASS).toContain("md:h-dvh");
   });
 
@@ -33,7 +33,7 @@ describe("notification sheet presentation", () => {
   test("stays a bounded, separated column on md+", () => {
     expect(NOTIFICATION_SHEET_CLASS).toMatch(/md:w-\[[^\]]+\]/);
     expect(NOTIFICATION_SHEET_CLASS).toMatch(/md:max-w-\[[^\]]+\]/);
-    expect(NOTIFICATION_SHEET_CLASS).toContain("md:border-l");
+    expect(NOTIFICATION_SHEET_CLASS).toContain("md:border-s");
   });
 
   test("scrim covers the viewport and sits behind the sheet", () => {

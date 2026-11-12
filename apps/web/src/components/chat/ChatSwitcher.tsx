@@ -54,7 +54,7 @@ export function ChatSwitcher({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex min-w-0 shrink-0 items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-1.5 text-[11px] text-[#667781] transition-colors hover:bg-black/[0.04] dark:text-dark-text-secondary dark:hover:bg-white/[0.06]"
+          className="inline-flex min-w-0 shrink-0 items-center gap-1.5 rounded-full py-0.5 ps-0.5 pe-1.5 text-[11px] text-[#667781] transition-colors hover:bg-black/[0.04] dark:text-dark-text-secondary dark:hover:bg-white/[0.06]"
           aria-haspopup="dialog"
           aria-expanded={open}
         >
@@ -92,7 +92,7 @@ export function ChatSwitcher({
                     if (!isCurrent) onSelectChat(chat.chatId);
                   }}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors",
+                    "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-start transition-colors",
                     isCurrent
                       ? "bg-black/[0.04] dark:bg-white/[0.06]"
                       : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",

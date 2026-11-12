@@ -23,9 +23,9 @@ export const NOTIFICATION_SHEET_CLASS = [
   // Mobile: the sheet is the page.
   "inset-0 h-dvh w-full",
   // md+: flush against the right edge, full height, bounded width.
-  "md:inset-y-0 md:left-auto md:right-0 md:h-dvh",
+  "md:inset-y-0 md:start-auto md:end-0 md:h-dvh",
   "md:w-[400px] md:max-w-[calc(100vw-3rem)]",
-  "md:border-l md:border-gray-200 md:shadow-2xl md:dark:border-dark-border",
+  "md:border-s md:border-gray-200 md:shadow-2xl md:dark:border-dark-border",
 ].join(" ");
 
 /** Fills the container it is portalled into instead of the viewport. */

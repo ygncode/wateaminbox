@@ -127,8 +127,8 @@ export function InviteFormModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="mx-4 max-h-[92dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto rounded-2xl border-[#dce3de] p-0 [&>button]:right-4 [&>button]:top-4 [&>button]:grid [&>button]:h-8 [&>button]:w-8 [&>button]:place-items-center [&>button]:rounded-full [&>button]:border [&>button]:border-[#d7e0da] [&>button]:bg-white [&>button]:opacity-100 [&>button]:shadow-sm [&>button]:transition-colors hover:[&>button]:bg-[#edf3ef] sm:w-full dark:border-dark-border dark:[&>button]:border-dark-border dark:[&>button]:bg-dark-elevated dark:hover:[&>button]:bg-dark-tertiary">
-        <div className="border-b border-[#e6ebe7] bg-[#f8faf8] py-4 pl-5 pr-16 dark:border-dark-border dark:bg-dark-tertiary/40 sm:pl-6 sm:pr-20">
+      <DialogContent className="mx-4 max-h-[92dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto rounded-2xl border-[#dce3de] p-0 [&>button]:end-4 [&>button]:top-4 [&>button]:grid [&>button]:h-8 [&>button]:w-8 [&>button]:place-items-center [&>button]:rounded-full [&>button]:border [&>button]:border-[#d7e0da] [&>button]:bg-white [&>button]:opacity-100 [&>button]:shadow-sm [&>button]:transition-colors hover:[&>button]:bg-[#edf3ef] sm:w-full dark:border-dark-border dark:[&>button]:border-dark-border dark:[&>button]:bg-dark-elevated dark:hover:[&>button]:bg-dark-tertiary">
+        <div className="border-b border-[#e6ebe7] bg-[#f8faf8] py-4 ps-5 pe-16 dark:border-dark-border dark:bg-dark-tertiary/40 sm:ps-6 sm:pe-20">
           <div
             className="mb-4"
             aria-label={t("team.stepProgress", "Step progress")}
@@ -142,7 +142,7 @@ export function InviteFormModal({
                 <span className="text-[#075c41] dark:text-emerald-300">
                   {t("team.stepDetails")}
                 </span>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#9ca9a2]" />
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#9ca9a2] rtl:-scale-x-100" />
                 <span
                   className={
                     step === "review"
@@ -472,7 +472,7 @@ export function InviteFormModal({
                 }}
                 className="gap-1.5"
               >
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4 rtl:-scale-x-100" />
                 {t("common.back")}
               </Button>
             ) : (
@@ -485,16 +485,16 @@ export function InviteFormModal({
                 type="button"
                 disabled={!isValid}
                 onClick={handleSubmit(() => setStep("review"))}
-                className="ml-auto gap-1.5 bg-[#0b7a55] text-white hover:bg-[#096747]"
+                className="ms-auto gap-1.5 bg-[#0b7a55] text-white hover:bg-[#096747]"
               >
                 {t("team.reviewInvitation", "Review invitation")}
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
               </Button>
             ) : (
               <Button
                 type="submit"
                 disabled={inviteMember.isPending}
-                className="ml-auto bg-[#0b7a55] text-white hover:bg-[#096747]"
+                className="ms-auto bg-[#0b7a55] text-white hover:bg-[#096747]"
               >
                 {inviteMember.isPending
                   ? t("team.sending", "Sending…")
@@ -528,7 +528,7 @@ function RoleButton({
       aria-checked={selected}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors",
+        "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-start transition-colors",
         selected
           ? "border-[#81bea4] bg-[#f0f8f4] text-[#075c41] dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-200"
           : "border-[#dce3de] hover:border-[#b9c8bf] hover:bg-[#f8faf8] dark:border-dark-border dark:hover:bg-dark-tertiary/50",
@@ -563,7 +563,7 @@ function AccessModeButton({
       aria-checked={selected}
       onClick={onClick}
       className={cn(
-        "rounded-lg px-3 py-2 text-left transition-colors",
+        "rounded-lg px-3 py-2 text-start transition-colors",
         selected
           ? "bg-[#10211b] text-white shadow-sm dark:bg-white dark:text-[#10211b]"
           : "text-[#65736d] hover:bg-[#f4f7f5] dark:text-dark-text-secondary dark:hover:bg-dark-tertiary",

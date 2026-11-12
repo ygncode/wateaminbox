@@ -63,7 +63,7 @@ function ShortcutItem({ shortcut }: { shortcut: KeyboardShortcut }) {
           {shortcut.description}
         </p>
       </div>
-      <div className="flex-shrink-0 ml-4">
+      <div className="flex-shrink-0 ms-4">
         <kbd className="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono font-medium text-gray-700 dark:text-dark-text-primary bg-gray-100 dark:bg-dark-tertiary border border-gray-300 dark:border-dark-border rounded shadow-sm">
           {formattedKeys}
         </kbd>
@@ -166,7 +166,7 @@ export function KeyboardShortcutsModal({
           <DialogDescription>{platformHint}</DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[60vh] pr-4">
+        <ScrollArea className="max-h-[60vh] pe-4">
           <div className="py-2">
             {categories.map((category) => {
               const categoryShortcuts = groupedShortcuts.get(category.id) || [];

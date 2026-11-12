@@ -60,7 +60,7 @@ export function AddConnectionDialog({
     <Dialog open onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="mx-4 w-[calc(100vw-2rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl p-0 sm:w-full">
         <div className="border-b border-[#dce3de] bg-[#f8faf8] p-5 dark:border-dark-border dark:bg-white/[0.025] sm:p-6">
-          <DialogHeader className="text-left">
+          <DialogHeader className="text-start">
             <div className="mb-2 grid h-11 w-11 place-items-center rounded-xl bg-[#dcefe7] text-[#087a5c] dark:bg-emerald-400/10 dark:text-emerald-300">
               {isConnected ? (
                 <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
@@ -167,7 +167,7 @@ export function AddConnectionDialog({
                 ) : (
                   <>
                     {t("connections.continue", "Continue")}
-                    <ArrowRight className="h-4 w-4" />
+                    <ArrowRight className="h-4 w-4 rtl:-scale-x-100" />
                   </>
                 )}
               </Button>
@@ -228,7 +228,7 @@ export function AddConnectionDialog({
                     ].map((step, index, steps) => (
                       <li
                         key={step.titleKey}
-                        className="relative flex min-w-0 flex-1 items-center gap-3 border-b border-[#e2e8e3] px-3.5 py-3 last:border-b-0 dark:border-white/[0.07] sm:border-b-0 sm:border-r sm:last:border-r-0"
+                        className="relative flex min-w-0 flex-1 items-center gap-3 border-b border-[#e2e8e3] px-3.5 py-3 last:border-b-0 dark:border-white/[0.07] sm:border-b-0 sm:border-e sm:last:border-e-0"
                       >
                         <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#dcefe7] text-xs font-bold text-[#087a5c] dark:bg-emerald-400/10 dark:text-emerald-300">
                           {index + 1}
@@ -242,8 +242,8 @@ export function AddConnectionDialog({
                           </span>
                         </span>
                         {index < steps.length - 1 && (
-                          <span className="absolute -right-2 z-10 hidden h-4 w-4 place-items-center rounded-full border border-[#dce3de] bg-white text-[#829089] dark:border-white/10 dark:bg-dark-elevated sm:grid">
-                            <ChevronRight className="h-2.5 w-2.5" />
+                          <span className="absolute -end-2 z-10 hidden h-4 w-4 place-items-center rounded-full border border-[#dce3de] bg-white text-[#829089] dark:border-white/10 dark:bg-dark-elevated sm:grid">
+                            <ChevronRight className="h-2.5 w-2.5 rtl:-scale-x-100" />
                           </span>
                         )}
                       </li>
@@ -288,7 +288,7 @@ export function AddConnectionDialog({
                 >
                   <div className="relative grid h-16 w-16 place-items-center rounded-2xl bg-[#dcefe7] text-[#087a5c] dark:bg-emerald-400/10 dark:text-emerald-300">
                     <Smartphone className="h-7 w-7" aria-hidden="true" />
-                    <Loader2 className="absolute -bottom-2 -right-2 h-6 w-6 animate-spin rounded-full bg-white p-1 dark:bg-dark-elevated" />
+                    <Loader2 className="absolute -bottom-2 -end-2 h-6 w-6 animate-spin rounded-full bg-white p-1 dark:bg-dark-elevated" />
                   </div>
                   <p className="mt-5 font-semibold">
                     {t("connections.preparingQr", "Preparing secure QR code…")}
@@ -305,7 +305,7 @@ export function AddConnectionDialog({
 
             {!isConnected && (
               <DialogFooter className="border-t border-[#dce3de] bg-[#fbfcfb] px-5 py-4 dark:border-dark-border dark:bg-white/[0.02] sm:px-6">
-                <p className="mr-auto self-center text-xs text-[#65736d] dark:text-dark-text-secondary">
+                <p className="me-auto self-center text-xs text-[#65736d] dark:text-dark-text-secondary">
                   {t(
                     "connections.resumeLater",
                     "You can close this and resume from the pending connection.",

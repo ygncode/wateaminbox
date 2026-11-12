@@ -208,7 +208,7 @@ export function ScheduledMessagesBar({ contactId }: ScheduledMessagesBarProps) {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="ml-auto shrink-0 text-[11px] font-semibold text-[#008069] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-emerald-300"
+          className="ms-auto shrink-0 text-[11px] font-semibold text-[#008069] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-emerald-300"
         >
           View
         </button>
@@ -217,7 +217,7 @@ export function ScheduledMessagesBar({ contactId }: ScheduledMessagesBarProps) {
       <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
         <DialogPrimitive.Portal>
           <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/45 animate-in fade-in-0" />
-          <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-4 shadow-xl animate-in fade-in-0 zoom-in-95 dark:bg-dark-elevated">
+          <DialogPrimitive.Content className="fixed start-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white p-4 shadow-xl animate-in fade-in-0 zoom-in-95 dark:bg-dark-elevated">
             <div className="flex items-center justify-between">
               <DialogPrimitive.Title className="text-base font-semibold text-[#111b21] dark:text-dark-text-primary">
                 {t("chat.scheduledMessages", "Scheduled messages")}

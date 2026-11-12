@@ -392,7 +392,7 @@ export function ResponseTimeAnalytics({
                     {member.totalResponses} responses
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-end">
                   <div className="text-xs font-semibold text-[#203b32] dark:text-dark-text-primary">
                     {formatMinutes(member.averageResponseTimeMinutes, t)}
                   </div>
@@ -430,20 +430,20 @@ export function ResponseTimeAnalytics({
                   <span className="font-medium text-gray-900 dark:text-dark-text-primary">
                     {breach.contactName || breach.contactId}
                   </span>
-                  <span className="ml-2 text-gray-500 dark:text-dark-text-secondary">
+                  <span className="ms-2 text-gray-500 dark:text-dark-text-secondary">
                     {dayjs(breach.inboundMessageTime).format("MMM D, YYYY")}
                   </span>
                 </div>
-                <div className="text-right">
+                <div className="text-end">
                   <span className="font-medium text-red-600 dark:text-red-400">
                     {formatMinutes(breach.responseMinutes, t)}
                   </span>
                   {breach.responseTime ? (
-                    <span className="ml-2 text-xs text-gray-500 dark:text-dark-text-secondary">
+                    <span className="ms-2 text-xs text-gray-500 dark:text-dark-text-secondary">
                       {t("dashboard.response.responded", "responded")}
                     </span>
                   ) : (
-                    <span className="ml-2 text-xs text-red-500 dark:text-red-400">
+                    <span className="ms-2 text-xs text-red-500 dark:text-red-400">
                       {t("dashboard.response.noResponse", "no response")}
                     </span>
                   )}

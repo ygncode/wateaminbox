@@ -112,7 +112,9 @@ export function ConnectionBadge({
       </span>
       <span className="truncate font-semibold">{label}</span>
       {!compact && phone && phone !== label && (
-        <span className="hidden truncate opacity-70 xl:inline">{phone}</span>
+        <span dir="ltr" className="hidden truncate opacity-70 xl:inline">
+          {phone}
+        </span>
       )}
     </span>
   );

@@ -94,7 +94,7 @@ export function GroupList({
   return (
     <div
       className={cn(
-        "flex flex-col h-full bg-white dark:bg-dark-primary border-r border-gray-200 dark:border-dark-border",
+        "flex flex-col h-full bg-white dark:bg-dark-primary border-e border-gray-200 dark:border-dark-border",
         className,
       )}
       role="navigation"
@@ -103,7 +103,7 @@ export function GroupList({
       {/* Search */}
       <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border">
         <div className="relative flex items-center flex-1">
-          <div className="absolute left-3 pointer-events-none">
+          <div className="absolute start-3 pointer-events-none">
             <Search className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary" />
           </div>
           <input
@@ -112,14 +112,14 @@ export function GroupList({
             onChange={handleSearchChange}
             onKeyDown={handleKeyDown}
             placeholder={t("groups.searchGroups", "Search groups")}
-            className="w-full py-2 pl-9 pr-8 text-sm bg-gray-100 dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-lg placeholder-gray-500 dark:placeholder-dark-text-tertiary text-gray-900 dark:text-dark-text-primary focus:outline-none focus:border-whatsapp-green focus:ring-1 focus:ring-whatsapp-green focus:bg-white dark:focus:bg-dark-elevated transition-all"
+            className="w-full py-2 ps-9 pe-8 text-sm bg-gray-100 dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-lg placeholder-gray-500 dark:placeholder-dark-text-tertiary text-gray-900 dark:text-dark-text-primary focus:outline-none focus:border-whatsapp-green focus:ring-1 focus:ring-whatsapp-green focus:bg-white dark:focus:bg-dark-elevated transition-all"
             aria-label={t("groups.searchGroups", "Search groups")}
           />
           {searchQuery && (
             <button
               type="button"
               onClick={handleSearchClear}
-              className="absolute right-2 p-1 text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary focus:outline-none transition-colors"
+              className="absolute end-2 p-1 text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary focus:outline-none transition-colors"
               aria-label={t("common.clearSearch", "Clear search")}
             >
               <X className="w-4 h-4" />
@@ -157,7 +157,7 @@ export function GroupList({
           </span>
           <Select value={connectionFilter} onValueChange={setConnectionFilter}>
             <SelectTrigger
-              className="ml-auto h-8 min-w-0 max-w-[190px] text-xs"
+              className="ms-auto h-8 min-w-0 max-w-[190px] text-xs"
               aria-label={t(
                 "groups.filterByAccount",
                 "Filter groups by WhatsApp account",
@@ -285,7 +285,7 @@ function GroupListItemComponent({
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full flex items-center gap-3 px-3 py-3 text-left",
+        "w-full flex items-center gap-3 px-3 py-3 text-start",
         "transition-colors duration-150 border-b border-gray-100 dark:border-dark-border",
         isSelected
           ? "bg-gray-200 dark:bg-dark-tertiary"

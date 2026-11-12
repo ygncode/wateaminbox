@@ -150,7 +150,7 @@ export function QuickRepliesManager() {
 
       <div className="relative overflow-hidden rounded-2xl border border-[#cfe4da] bg-[#f3faf7] p-4 dark:border-emerald-400/15 dark:bg-emerald-400/[0.045]">
         <div
-          className="absolute -right-6 -top-8 size-24 rounded-full bg-[#25d366]/10 blur-2xl"
+          className="absolute -end-6 -top-8 size-24 rounded-full bg-[#25d366]/10 blur-2xl"
           aria-hidden="true"
         />
         <div className="relative flex items-start gap-3">
@@ -178,7 +178,7 @@ export function QuickRepliesManager() {
       {/* Search and Add */}
       <div className="flex gap-2">
         <div className="relative flex-1">
-          <div className="absolute left-3 top-0 bottom-0 flex items-center pointer-events-none">
+          <div className="absolute start-3 top-0 bottom-0 flex items-center pointer-events-none">
             <Search className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
           </div>
           <Input
@@ -192,7 +192,7 @@ export function QuickRepliesManager() {
             onKeyDown={(event) => {
               if (event.key === "Escape") setSearchQuery("");
             }}
-            className="pl-9 pr-9"
+            className="ps-9 pe-9"
             aria-label={t(
               "quickReplies.searchPlaceholder",
               "Search quick replies…",
@@ -202,7 +202,7 @@ export function QuickRepliesManager() {
             <button
               type="button"
               onClick={() => setSearchQuery("")}
-              className="absolute right-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-gray-400 transition-colors hover:bg-black/[0.05] hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06]"
+              className="absolute end-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-gray-400 transition-colors hover:bg-black/[0.05] hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06]"
               aria-label={t("quickReplies.clearSearch", "Clear search")}
             >
               <X className="size-4" aria-hidden="true" />

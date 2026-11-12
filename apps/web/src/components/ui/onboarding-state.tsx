@@ -9,11 +9,11 @@ function OnboardingFrame({ children }: { children: React.ReactNode }) {
   return (
     <main className="relative min-h-dvh overflow-hidden bg-[#edf4f0] px-3 py-3 text-slate-950 sm:px-6 sm:py-6 dark:bg-dark-primary dark:text-dark-text-primary">
       <div
-        className="pointer-events-none absolute -left-28 -top-28 h-80 w-80 rounded-full bg-[#25d366]/12 blur-3xl"
+        className="pointer-events-none absolute -start-28 -top-28 h-80 w-80 rounded-full bg-[#25d366]/12 blur-3xl"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none absolute -bottom-36 -right-24 h-96 w-96 rounded-full bg-[#075e54]/14 blur-3xl"
+        className="pointer-events-none absolute -bottom-36 -end-24 h-96 w-96 rounded-full bg-[#075e54]/14 blur-3xl"
         aria-hidden="true"
       />
       <section className="relative mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-white/80 bg-white shadow-[0_24px_80px_rgba(15,55,43,0.14)] sm:min-h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(0,1.08fr)_minmax(23rem,0.92fr)] dark:border-dark-border dark:bg-dark-elevated dark:shadow-none">
@@ -51,7 +51,7 @@ function OnboardingFrame({ children }: { children: React.ReactNode }) {
             }}
           />
           <div
-            className="absolute -right-32 -top-24 h-80 w-80 rounded-full border-[72px] border-[#25d366]/20"
+            className="absolute -end-32 -top-24 h-80 w-80 rounded-full border-[72px] border-[#25d366]/20"
             aria-hidden="true"
           />
           <div className="absolute inset-x-12 bottom-12 rounded-2xl border border-white/10 bg-white/[0.07] p-5">
@@ -162,7 +162,7 @@ export function OnboardingErrorScreen({
             className="h-12 flex-1 rounded-xl"
           >
             {t("nav.signOut", "Sign out")}
-            <ArrowRight aria-hidden="true" />
+            <ArrowRight aria-hidden="true" className="rtl:-scale-x-100" />
           </Button>
         </div>
       </div>

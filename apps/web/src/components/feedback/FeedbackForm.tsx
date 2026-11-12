@@ -72,7 +72,7 @@ export function FeedbackForm({
         />
         <p
           id={counterId}
-          className="text-right text-xs tabular-nums text-gray-500 dark:text-dark-text-tertiary"
+          className="text-end text-xs tabular-nums text-gray-500 dark:text-dark-text-tertiary"
         >
           {t("feedback.counter", "{{current}}/{{max}}", {
             current: form.draft.message.length,
@@ -144,7 +144,7 @@ export function FeedbackForm({
             <>
               <LoaderCircle
                 aria-hidden="true"
-                className="mr-2 h-4 w-4 animate-spin"
+                className="me-2 h-4 w-4 animate-spin"
               />
               {t("feedback.submitting", "Sending…")}
             </>

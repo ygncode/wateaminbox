@@ -209,19 +209,19 @@ export function ServerDataTable<TData extends object>({
               <span className="sr-only">
                 {search.label ?? `Search ${tableLabel}`}
               </span>
-              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-[#718078]" />
+              <Search className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-[#718078]" />
               <Input
                 id={searchId}
                 value={searchDraft}
                 onChange={(event) => setSearchDraft(event.target.value)}
                 placeholder={search.placeholder ?? `Search ${tableLabel}…`}
-                className="h-9 border-[#d7e0da] bg-white pl-9 pr-9 shadow-none dark:border-dark-border dark:bg-dark-tertiary"
+                className="h-9 border-[#d7e0da] bg-white ps-9 pe-9 shadow-none dark:border-dark-border dark:bg-dark-tertiary"
               />
               {searchDraft && (
                 <button
                   type="button"
                   onClick={() => setSearchDraft("")}
-                  className="absolute right-2 top-1.5 grid h-6 w-6 place-items-center rounded-md text-[#718078] hover:bg-[#edf1ed] hover:text-[#10211b] dark:hover:bg-dark-border dark:hover:text-white"
+                  className="absolute end-2 top-1.5 grid h-6 w-6 place-items-center rounded-md text-[#718078] hover:bg-[#edf1ed] hover:text-[#10211b] dark:hover:bg-dark-border dark:hover:text-white"
                   aria-label={t("common.clearSearch", "Clear search")}
                 >
                   <X className="h-3.5 w-3.5" />
@@ -230,7 +230,7 @@ export function ServerDataTable<TData extends object>({
             </label>
           )}
           {toolbarActions && (
-            <div className="ml-auto flex shrink-0 items-center gap-2">
+            <div className="ms-auto flex shrink-0 items-center gap-2">
               {toolbarActions}
             </div>
           )}
@@ -246,7 +246,7 @@ export function ServerDataTable<TData extends object>({
       <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
         <table
           className={cn(
-            "w-full min-w-[48rem] border-separate border-spacing-0 text-left",
+            "w-full min-w-[48rem] border-separate border-spacing-0 text-start",
             tableClassName,
           )}
         >
@@ -332,7 +332,7 @@ export function ServerDataTable<TData extends object>({
                         <td
                           key={cell.id}
                           className={cn(
-                            "border-b border-[#edf1ed] px-4 align-middle text-sm last:text-right dark:border-dark-border",
+                            "border-b border-[#edf1ed] px-4 align-middle text-sm last:text-end dark:border-dark-border",
                             density === "compact" ? "py-2.5" : "py-3.5",
                           )}
                         >
@@ -347,7 +347,7 @@ export function ServerDataTable<TData extends object>({
                       <tr>
                         <td
                           colSpan={row.getVisibleCells().length}
-                          className="border-b border-[#d7e0da] bg-[#f8faf8] px-4 py-4 text-left dark:border-dark-border dark:bg-dark-tertiary/35"
+                          className="border-b border-[#d7e0da] bg-[#f8faf8] px-4 py-4 text-start dark:border-dark-border dark:bg-dark-tertiary/35"
                         >
                           {subRow}
                         </td>
@@ -434,7 +434,7 @@ export function ServerDataTable<TData extends object>({
               }
               className="h-7 w-7"
             >
-              <ChevronsLeft />
+              <ChevronsLeft className="rtl:-scale-x-100" />
             </Button>
             <Button
               type="button"
@@ -450,7 +450,7 @@ export function ServerDataTable<TData extends object>({
               }
               className="h-7 w-7"
             >
-              <ChevronLeft />
+              <ChevronLeft className="rtl:-scale-x-100" />
             </Button>
             <Button
               type="button"
@@ -466,7 +466,7 @@ export function ServerDataTable<TData extends object>({
               }
               className="h-7 w-7"
             >
-              <ChevronRight />
+              <ChevronRight className="rtl:-scale-x-100" />
             </Button>
             <Button
               type="button"
@@ -482,7 +482,7 @@ export function ServerDataTable<TData extends object>({
               }
               className="h-7 w-7"
             >
-              <ChevronsRight />
+              <ChevronsRight className="rtl:-scale-x-100" />
             </Button>
           </div>
         </div>

@@ -50,7 +50,7 @@ export function RightPanel({
         "flex h-full min-h-0 flex-col bg-white dark:bg-dark-secondary",
         surface === "docked"
           ? // Desktop third column; the slide-in panel is used below `lg`.
-            "hidden border-l border-gray-200 dark:border-dark-border lg:flex lg:w-[350px] xl:w-[400px]"
+            "hidden border-s border-gray-200 dark:border-dark-border lg:flex lg:w-[350px] xl:w-[400px]"
           : "w-full",
         className,
       )}

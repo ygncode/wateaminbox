@@ -81,7 +81,7 @@ function EmojiPickerSkeleton() {
   const { t } = useTranslation();
 
   return (
-    <div className="absolute bottom-full mb-2 left-0 w-80 bg-white dark:bg-dark-elevated rounded-xl shadow-lg border border-gray-200 dark:border-dark-border overflow-hidden z-20">
+    <div className="absolute bottom-full mb-2 start-0 w-80 bg-white dark:bg-dark-elevated rounded-xl shadow-lg border border-gray-200 dark:border-dark-border overflow-hidden z-20">
       {/* Search placeholder */}
       <div className="p-2 border-b border-gray-200 dark:border-dark-border">
         <div className="h-8 bg-gray-100 dark:bg-dark-tertiary rounded-lg animate-pulse" />
@@ -862,7 +862,7 @@ function AcknowledgedMessageComposer({
             />
           ) : null}
           {trailing && (
-            <div className="ml-auto flex shrink-0 items-center">{trailing}</div>
+            <div className="ms-auto flex shrink-0 items-center">{trailing}</div>
           )}
         </div>
 
@@ -899,7 +899,7 @@ function AcknowledgedMessageComposer({
               <button
                 type="button"
                 onClick={onClearReply}
-                className="mr-2 grid size-8 shrink-0 place-items-center rounded-full text-[#8696a0] transition-colors hover:bg-black/[0.055] hover:text-[#54656f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06] dark:hover:text-dark-text-secondary"
+                className="me-2 grid size-8 shrink-0 place-items-center rounded-full text-[#8696a0] transition-colors hover:bg-black/[0.055] hover:text-[#54656f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06] dark:hover:text-dark-text-secondary"
                 aria-label={t("chat.cancelReply", "Cancel reply")}
               >
                 <X className="size-4.5" aria-hidden="true" />
@@ -994,13 +994,13 @@ function AcknowledgedMessageComposer({
                 {showAttachmentMenu && (
                   <div
                     id="message-attachment-menu"
-                    className="absolute bottom-full left-0 z-30 mb-3 w-52 origin-bottom-left animate-in rounded-2xl border border-black/[0.07] bg-white p-2 shadow-[0_12px_36px_rgba(11,20,26,0.18)] fade-in-0 zoom-in-95 duration-150 dark:border-white/[0.08] dark:bg-dark-elevated dark:shadow-black/40"
+                    className="absolute bottom-full start-0 z-30 mb-3 w-52 origin-bottom-left animate-in rounded-2xl border border-black/[0.07] bg-white p-2 shadow-[0_12px_36px_rgba(11,20,26,0.18)] fade-in-0 zoom-in-95 duration-150 dark:border-white/[0.08] dark:bg-dark-elevated dark:shadow-black/40"
                   >
                     {(features.attachmentTypes.includes("image") ||
                       features.attachmentTypes.includes("video")) && (
                       <button
                         type="button"
-                        className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
+                        className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-start text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
                         onClick={() => triggerFileInput("image")}
                       >
                         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#bf59cf] text-white">
@@ -1014,7 +1014,7 @@ function AcknowledgedMessageComposer({
                     {features.attachmentTypes.includes("document") && (
                       <button
                         type="button"
-                        className="mt-0.5 flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
+                        className="mt-0.5 flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-start text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
                         onClick={() => triggerFileInput("document")}
                       >
                         <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#5157ae] text-white">

@@ -264,7 +264,7 @@ export function EllipsisMenu({
           aria-orientation="vertical"
           className={cn(
             "absolute top-full z-50 mt-1 w-48 rounded-md border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated py-1 shadow-lg",
-            align === "right" ? "right-0" : "left-0",
+            align === "right" ? "end-0" : "start-0",
             menuClassName,
           )}
         >

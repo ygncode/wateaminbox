@@ -86,7 +86,7 @@ function NavigationLink({
         <span
           className={cn(
             "flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#25d366] px-1 text-[10px] font-bold leading-none text-[#073b2a] tabular-nums shadow-sm",
-            collapsed ? "absolute right-1.5 top-1" : "ml-auto",
+            collapsed ? "absolute end-1.5 top-1" : "ms-auto",
           )}
           aria-hidden="true"
           data-testid="inbox-unread-badge"

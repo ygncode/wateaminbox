@@ -183,7 +183,7 @@ function ThreadRow({
     </>
   );
 
-  const className = "flex w-full items-center gap-2.5 px-2.5 py-2 text-left";
+  const className = "flex w-full items-center gap-2.5 px-2.5 py-2 text-start";
   if (!onSelect) return <div className={className}>{body}</div>;
   return (
     <button

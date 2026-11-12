@@ -251,7 +251,7 @@ export function LoginPage() {
             ) : (
               <>
                 {t("auth.signInAction", "Sign in")}
-                <ArrowRight aria-hidden="true" />
+                <ArrowRight aria-hidden="true" className="rtl:-scale-x-100" />
               </>
             )}
           </Button>

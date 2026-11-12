@@ -140,11 +140,11 @@ export function CompanySetupPage() {
   return (
     <main className="relative min-h-dvh overflow-hidden bg-[#edf4f0] px-3 py-3 text-slate-950 sm:px-6 sm:py-6 dark:bg-dark-primary dark:text-dark-text-primary">
       <div
-        className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-[#25d366]/12 blur-3xl"
+        className="pointer-events-none absolute -start-32 -top-32 h-96 w-96 rounded-full bg-[#25d366]/12 blur-3xl"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none absolute -bottom-40 -right-24 h-[28rem] w-[28rem] rounded-full bg-[#075e54]/14 blur-3xl"
+        className="pointer-events-none absolute -bottom-40 -end-24 h-[28rem] w-[28rem] rounded-full bg-[#075e54]/14 blur-3xl"
         aria-hidden="true"
       />
 
@@ -260,7 +260,7 @@ export function CompanySetupPage() {
                   <button
                     type="button"
                     onClick={() => logoInputRef.current?.click()}
-                    className="flex w-full cursor-pointer items-center gap-4 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:focus-visible:ring-[#52df83]"
+                    className="flex w-full cursor-pointer items-center gap-4 rounded-xl text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:focus-visible:ring-[#52df83]"
                   >
                     <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#dcefe7] text-[#075e54] shadow-sm dark:bg-[#25d366]/15 dark:text-[#52df83]">
                       {isProcessingLogo ? (
@@ -314,7 +314,7 @@ export function CompanySetupPage() {
                     <button
                       type="button"
                       onClick={removeLogo}
-                      className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-white hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:hover:bg-dark-secondary"
+                      className="absolute end-2 top-2 grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-white hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:hover:bg-dark-secondary"
                       aria-label={t(
                         "setup.removeLogo",
                         "Remove workspace logo",
@@ -419,7 +419,10 @@ export function CompanySetupPage() {
                 ) : (
                   <>
                     {t("setup.createWorkspace", "Create workspace")}
-                    <ArrowRight aria-hidden="true" />
+                    <ArrowRight
+                      aria-hidden="true"
+                      className="rtl:-scale-x-100"
+                    />
                   </>
                 )}
               </Button>
@@ -445,7 +448,7 @@ export function CompanySetupPage() {
             }}
           />
           <div
-            className="pointer-events-none absolute -right-32 -top-24 h-80 w-80 rounded-full border-[72px] border-[#25d366]/20"
+            className="pointer-events-none absolute -end-32 -top-24 h-80 w-80 rounded-full border-[72px] border-[#25d366]/20"
             aria-hidden="true"
           />
 

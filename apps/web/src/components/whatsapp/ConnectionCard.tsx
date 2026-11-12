@@ -109,7 +109,7 @@ export function ConnectionCard({
             </span>
             <span
               className={cn(
-                "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-[#172622]",
+                "absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-[#172622]",
                 connection.status === "connected"
                   ? "bg-emerald-500"
                   : connection.status === "pending"
@@ -156,7 +156,7 @@ export function ConnectionCard({
                     )}
                   >
                     {statusIcon}
-                    <span className="ml-1 capitalize">{connection.status}</span>
+                    <span className="ms-1 capitalize">{connection.status}</span>
                   </Badge>
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#65736d] dark:text-[#9cafa8]">
@@ -183,9 +183,9 @@ export function ConnectionCard({
               <div className="mt-3 animate-fade-in">
                 <div className="relative overflow-hidden rounded-lg border border-red-200/60 dark:border-red-800/60 bg-red-50 dark:bg-red-900/30 p-3 shadow-sm">
                   {/* Decorative accent line */}
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-400" />
+                  <div className="absolute start-0 top-0 bottom-0 w-1 bg-red-400" />
 
-                  <div className="flex items-start gap-2.5 pl-2">
+                  <div className="flex items-start gap-2.5 ps-2">
                     <div className="flex-shrink-0 w-7 h-7 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
                       <AlertCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
                     </div>
@@ -241,7 +241,7 @@ export function ConnectionCard({
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <Power className="h-4 w-4 mr-1.5" />
+                    <Power className="h-4 w-4 me-1.5" />
                     {t("connections.reconnect")}
                   </>
                 )}
@@ -285,9 +285,9 @@ export function ConnectionCard({
                     className="fixed inset-0 z-10"
                     onClick={() => setShowMenu(false)}
                   />
-                  <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-dark-elevated border border-gray-200 dark:border-dark-border rounded-xl shadow-xl shadow-gray-200/50 dark:shadow-black/30 z-20 py-1.5 animate-fade-in">
+                  <div className="absolute end-0 mt-2 w-44 bg-white dark:bg-dark-elevated border border-gray-200 dark:border-dark-border rounded-xl shadow-xl shadow-gray-200/50 dark:shadow-black/30 z-20 py-1.5 animate-fade-in">
                     <button
-                      className="w-full px-3.5 py-2.5 text-left text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary flex items-center gap-2.5 transition-colors"
+                      className="w-full px-3.5 py-2.5 text-start text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-50 dark:hover:bg-dark-tertiary flex items-center gap-2.5 transition-colors"
                       onClick={() => {
                         onStartEdit();
                         setShowMenu(false);
@@ -298,7 +298,7 @@ export function ConnectionCard({
                     </button>
                     {connection.status === "connected" ? (
                       <button
-                        className="w-full px-3.5 py-2.5 text-left text-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 flex items-center gap-2.5 transition-colors"
+                        className="w-full px-3.5 py-2.5 text-start text-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/30 flex items-center gap-2.5 transition-colors"
                         onClick={() => {
                           onDisconnect();
                           setShowMenu(false);
@@ -314,7 +314,7 @@ export function ConnectionCard({
                       </button>
                     ) : connection.status === "pending" ? (
                       <button
-                        className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-orange-600 transition-colors hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-900/30"
+                        className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-orange-600 transition-colors hover:bg-orange-50 dark:text-orange-400 dark:hover:bg-orange-900/30"
                         onClick={() => {
                           onDisconnect();
                           setShowMenu(false);
@@ -330,7 +330,7 @@ export function ConnectionCard({
                       </button>
                     ) : (
                       <button
-                        className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-whatsapp-teal-green transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                        className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-whatsapp-teal-green transition-colors hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
                         onClick={() => {
                           onReconnect();
                           setShowMenu(false);
@@ -347,7 +347,7 @@ export function ConnectionCard({
                     )}
                     <div className="my-1.5 border-t border-gray-100 dark:border-dark-border" />
                     <button
-                      className="w-full px-3.5 py-2.5 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2.5 transition-colors"
+                      className="w-full px-3.5 py-2.5 text-start text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 flex items-center gap-2.5 transition-colors"
                       onClick={() => {
                         setDeleteOpen(true);
                         setShowMenu(false);

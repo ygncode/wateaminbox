@@ -390,7 +390,7 @@ export const ChatList = memo(function ChatList({
 
   return (
     <div
-      className={`flex flex-col h-full bg-white dark:bg-dark-secondary border-r border-gray-200 dark:border-dark-border ${className}`}
+      className={`flex flex-col h-full bg-white dark:bg-dark-secondary border-e border-gray-200 dark:border-dark-border ${className}`}
       role="navigation"
       aria-label={t("chat.chatListAria", "Chat list")}
     >
@@ -421,7 +421,7 @@ export const ChatList = memo(function ChatList({
           </span>
           <Select value={accountFilter} onValueChange={setAccountFilter}>
             <SelectTrigger
-              className="ml-auto h-8 min-w-0 max-w-[190px] text-xs"
+              className="ms-auto h-8 min-w-0 max-w-[190px] text-xs"
               aria-label={t("chat.filterByAccount", "Filter by account")}
             >
               <SelectValue
@@ -498,7 +498,7 @@ export const ChatList = memo(function ChatList({
           <PopoverTrigger asChild>
             <button
               type="button"
-              className={`mr-1 inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 ${
+              className={`me-1 inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 ${
                 selectedTags.length > 0
                   ? "border-whatsapp-teal-green/40 bg-whatsapp-teal-green/10 text-whatsapp-teal-green hover:bg-whatsapp-teal-green/15 dark:bg-whatsapp-teal-green/15"
                   : "border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary"
@@ -575,7 +575,7 @@ export const ChatList = memo(function ChatList({
                       key={tag.id}
                       type="button"
                       onClick={() => toggleTagFilter(tag)}
-                      className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-gray-200 bg-white py-1 pl-2 pr-1.5 text-xs text-gray-700 shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-primary dark:hover:border-red-900/60 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+                      className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-gray-200 bg-white py-1 ps-2 pe-1.5 text-xs text-gray-700 shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-primary dark:hover:border-red-900/60 dark:hover:bg-red-950/30 dark:hover:text-red-300"
                       aria-label={`Remove ${tag.name} tag filter`}
                     >
                       <span
@@ -646,7 +646,7 @@ export const ChatList = memo(function ChatList({
                           ? `You can select up to ${MAX_TAG_FILTERS} tags`
                           : undefined
                       }
-                      className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-left text-sm transition-colors last:mb-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green/40 disabled:cursor-not-allowed disabled:opacity-45 ${
+                      className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-start text-sm transition-colors last:mb-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green/40 disabled:cursor-not-allowed disabled:opacity-45 ${
                         selected
                           ? "bg-whatsapp-teal-green/[0.08] text-gray-900 dark:bg-whatsapp-teal-green/10 dark:text-dark-text-primary"
                           : "text-gray-700 hover:bg-gray-50 dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
@@ -745,7 +745,7 @@ export const ChatList = memo(function ChatList({
           <button
             type="button"
             onClick={() => setIsAddContactOpen(true)}
-            className="mr-1 flex-shrink-0 rounded-full p-1.5 text-whatsapp-teal-green transition-colors hover:bg-whatsapp-teal-green/10 dark:hover:bg-whatsapp-teal-green/20"
+            className="me-1 flex-shrink-0 rounded-full p-1.5 text-whatsapp-teal-green transition-colors hover:bg-whatsapp-teal-green/10 dark:hover:bg-whatsapp-teal-green/20"
             aria-label={t("contacts.addNew", "Add new contact")}
             data-testid="add-contact-button"
           >
@@ -895,7 +895,7 @@ export const ChatList = memo(function ChatList({
           isFirstRun &&
           !searchQuery &&
           selectedTags.length === 0 && (
-            <div className="flex h-full flex-col px-5 py-7 text-left sm:px-6">
+            <div className="flex h-full flex-col px-5 py-7 text-start sm:px-6">
               <div className="flex items-center gap-3">
                 <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e5f2ec] text-[#14795e] ring-1 ring-[#d2e5dc] dark:bg-[#00a884]/10 dark:text-[#4dd1af] dark:ring-white/[0.07]">
                   <Smartphone
@@ -949,7 +949,7 @@ export const ChatList = memo(function ChatList({
                     </p>
                   </div>
                 </div>
-                <div className="ml-3.5 h-5 border-l border-dashed border-[#bfd2c9] dark:border-white/15" />
+                <div className="ms-3.5 h-5 border-s border-dashed border-[#bfd2c9] dark:border-white/15" />
                 <div className="flex items-center gap-3 opacity-55">
                   <span className="grid size-7 shrink-0 place-items-center rounded-full border border-[#cfdcd6] bg-white text-xs font-semibold text-[#7c8d86] dark:border-white/10 dark:bg-white/[0.04] dark:text-[#91a79f]">
                     2
@@ -973,7 +973,10 @@ export const ChatList = memo(function ChatList({
                   className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#14795e] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#0f684f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 dark:bg-[#20b68e] dark:text-[#071b16] dark:hover:bg-[#35c59e] dark:focus-visible:ring-offset-dark-secondary md:hidden"
                 >
                   {t("chat.connectChannels", "Connect channels")}
-                  <ArrowRight className="size-4" aria-hidden="true" />
+                  <ArrowRight
+                    className="size-4 rtl:-scale-x-100"
+                    aria-hidden="true"
+                  />
                 </Link>
               )}
 

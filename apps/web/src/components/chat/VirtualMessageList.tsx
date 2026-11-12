@@ -180,7 +180,7 @@ export function VirtualMessageList({
       {canLoadRemoteHistory &&
         !hasNextPage &&
         remoteHistoryStatus === "unavailable" && (
-          <div className="mx-auto my-3 flex max-w-sm items-center gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/85 px-3.5 py-2.5 text-left text-xs leading-5 text-amber-900 shadow-sm backdrop-blur dark:border-amber-300/10 dark:bg-amber-300/[0.07] dark:text-amber-100">
+          <div className="mx-auto my-3 flex max-w-sm items-center gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/85 px-3.5 py-2.5 text-start text-xs leading-5 text-amber-900 shadow-sm backdrop-blur dark:border-amber-300/10 dark:bg-amber-300/[0.07] dark:text-amber-100">
             <Smartphone className="size-4 shrink-0 text-amber-600 dark:text-amber-300" />
             {t(
               "chat.earlierOnPrimaryPhone",

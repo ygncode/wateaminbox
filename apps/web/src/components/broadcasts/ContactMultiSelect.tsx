@@ -36,7 +36,7 @@ export function ContactMultiSelect({
         <ul className="mb-2 flex flex-wrap gap-1.5">
           {[...selected.entries()].map(([contactId, displayName]) => (
             <li key={contactId}>
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#00a884]/10 py-1 pl-2.5 pr-1 text-xs font-medium text-[#008069] dark:bg-emerald-900/30 dark:text-emerald-300">
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#00a884]/10 py-1 ps-2.5 pe-1 text-xs font-medium text-[#008069] dark:bg-emerald-900/30 dark:text-emerald-300">
                 {displayName}
                 <button
                   type="button"
@@ -54,7 +54,7 @@ export function ContactMultiSelect({
 
       <div className="relative">
         <Search
-          className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8696a0] dark:text-dark-text-tertiary"
+          className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-[#8696a0] dark:text-dark-text-tertiary"
           aria-hidden="true"
         />
         <input
@@ -63,14 +63,14 @@ export function ContactMultiSelect({
           onChange={(event) => setSearchQuery(event.target.value)}
           placeholder={t("chat.searchContactsEllipsis", "Search contacts…")}
           aria-label={t("chat.searchContactsAria", "Search contacts")}
-          className="w-full rounded-lg border border-black/[0.1] bg-white py-2 pl-9 pr-9 text-sm text-[#111b21] outline-none placeholder:text-[#8696a0] focus:border-[#00a884] focus:ring-1 focus:ring-[#00a884]/40 dark:border-white/[0.1] dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary"
+          className="w-full rounded-lg border border-black/[0.1] bg-white py-2 ps-9 pe-9 text-sm text-[#111b21] outline-none placeholder:text-[#8696a0] focus:border-[#00a884] focus:ring-1 focus:ring-[#00a884]/40 dark:border-white/[0.1] dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary"
         />
         {searchQuery && (
           <button
             type="button"
             onClick={() => setSearchQuery("")}
             aria-label={t("common.clearSearch", "Clear search")}
-            className="absolute right-2.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full text-[#8696a0] hover:bg-black/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06]"
+            className="absolute end-2.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full text-[#8696a0] hover:bg-black/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06]"
           >
             <X className="size-3.5" aria-hidden="true" />
           </button>
@@ -109,7 +109,7 @@ export function ContactMultiSelect({
                     role="checkbox"
                     aria-checked={isSelected}
                     onClick={() => onToggle(chat.id, displayName)}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[#f5f7f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#00a884]/40 dark:hover:bg-dark-tertiary/60"
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-start transition-colors hover:bg-[#f5f7f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#00a884]/40 dark:hover:bg-dark-tertiary/60"
                   >
                     <span
                       className={cn(

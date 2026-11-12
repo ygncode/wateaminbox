@@ -55,7 +55,7 @@ export function TeamManagement({
               onClick={() => setShowInviteForm(true)}
               className="bg-[#0b7a55] text-white hover:bg-[#096747]"
             >
-              <UserPlus className="mr-2 h-4 w-4" /> Invite member
+              <UserPlus className="me-2 h-4 w-4" /> Invite member
             </Button>
           )}
         </div>

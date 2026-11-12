@@ -67,7 +67,10 @@ export function ContactInfoSection({
           <div className="flex items-center gap-3">
             <Phone className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
             <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
+              <p
+                dir="ltr"
+                className="text-sm font-medium text-gray-900 dark:text-dark-text-primary text-end"
+              >
                 {formatPhoneNumber(contact.phoneNumber)}
               </p>
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">

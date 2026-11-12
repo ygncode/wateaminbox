@@ -271,7 +271,7 @@ export function LabelSyncManager() {
         )}
 
         {status?.lastSyncAt && (
-          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-text-secondary ml-auto">
+          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-text-secondary ms-auto">
             <Clock className="h-3 w-3" />
             {formatLastSync(status.lastSyncAt)}
           </div>

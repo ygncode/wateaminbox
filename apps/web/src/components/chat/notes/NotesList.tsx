@@ -92,7 +92,7 @@ export function NotesList({
           <button
             type="button"
             onClick={toggleExpanded}
-            className="ml-auto text-xs text-whatsapp-teal-green hover:text-whatsapp-dark-green font-medium flex items-center gap-1"
+            className="ms-auto text-xs text-whatsapp-teal-green hover:text-whatsapp-dark-green font-medium flex items-center gap-1"
           >
             {isExpanded ? (
               <>

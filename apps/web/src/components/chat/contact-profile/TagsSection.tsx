@@ -109,7 +109,7 @@ export function TagsSection({ contact, conversationId }: TagsSectionProps) {
                 key={tag.id}
                 variant="secondary"
                 className={cn(
-                  "group cursor-pointer pr-1",
+                  "group cursor-pointer pe-1",
                   tag.color && `bg-${tag.color}-100 text-${tag.color}-700`,
                 )}
                 style={
@@ -121,7 +121,7 @@ export function TagsSection({ contact, conversationId }: TagsSectionProps) {
                 {tag.name}
                 <button
                   onClick={() => handleRemoveTag(tag.id)}
-                  className="ml-1 rounded-full p-0.5 opacity-0 transition-opacity hover:bg-black/10 dark:hover:bg-white/10 group-hover:opacity-100"
+                  className="ms-1 rounded-full p-0.5 opacity-0 transition-opacity hover:bg-black/10 dark:hover:bg-white/10 group-hover:opacity-100"
                 >
                   <X className="h-3 w-3" />
                 </button>

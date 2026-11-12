@@ -339,12 +339,12 @@ export function AddContactDialog({
               >
                 {createContact.isPending ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Loader2 className="h-4 w-4 me-2 animate-spin" />
                     {t("common.creating")}
                   </>
                 ) : (
                   <>
-                    <UserPlus className="h-4 w-4 mr-2" />
+                    <UserPlus className="h-4 w-4 me-2" />
                     {t("contacts.addContact", "Add Contact")}
                   </>
                 )}

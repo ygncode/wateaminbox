@@ -120,7 +120,7 @@ export function MemberPermissionsDialog({
                   key={group.label}
                   className="overflow-hidden rounded-xl border border-[#dce3de] dark:border-dark-border"
                 >
-                  <legend className="ml-3 px-1 text-xs font-bold uppercase tracking-[0.12em] text-[#65736d] dark:text-dark-text-secondary">
+                  <legend className="ms-3 px-1 text-xs font-bold uppercase tracking-[0.12em] text-[#65736d] dark:text-dark-text-secondary">
                     {group.label}
                   </legend>
                   <div className="divide-y divide-[#e6ebe7] dark:divide-dark-border">
@@ -208,7 +208,7 @@ function ModeButton({
       aria-checked={active}
       onClick={onClick}
       className={cn(
-        "rounded-lg px-3 py-2 text-left transition-colors",
+        "rounded-lg px-3 py-2 text-start transition-colors",
         active
           ? "bg-white shadow-sm dark:bg-dark-elevated"
           : "text-[#65736d] dark:text-dark-text-secondary",

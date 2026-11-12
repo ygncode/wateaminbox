@@ -67,7 +67,7 @@ export function GroupMentionPicker({
   return (
     <div
       id="group-mention-picker"
-      className="absolute inset-x-0 bottom-full z-40 mb-2 min-w-0 overflow-hidden rounded-[1.15rem] border border-black/[0.07] bg-white shadow-[0_14px_38px_rgba(11,20,26,0.2)] animate-in fade-in-0 slide-in-from-bottom-1 duration-150 sm:right-auto sm:w-[28rem] dark:border-white/[0.08] dark:bg-[#202c33] dark:shadow-black/50"
+      className="absolute inset-x-0 bottom-full z-40 mb-2 min-w-0 overflow-hidden rounded-[1.15rem] border border-black/[0.07] bg-white shadow-[0_14px_38px_rgba(11,20,26,0.2)] animate-in fade-in-0 slide-in-from-bottom-1 duration-150 sm:end-auto sm:w-[28rem] dark:border-white/[0.08] dark:bg-[#202c33] dark:shadow-black/50"
     >
       <div
         ref={listRef}
@@ -93,7 +93,7 @@ export function GroupMentionPicker({
                 type="button"
                 role="option"
                 aria-selected={isSelected}
-                className={`group flex min-h-14 w-full min-w-0 items-center gap-3 px-3 py-1.5 text-left outline-none transition-colors sm:px-3.5 ${
+                className={`group flex min-h-14 w-full min-w-0 items-center gap-3 px-3 py-1.5 text-start outline-none transition-colors sm:px-3.5 ${
                   isSelected
                     ? "bg-[#edf3f1] dark:bg-white/[0.055]"
                     : "hover:bg-[#f3f5f4] dark:hover:bg-white/[0.04]"

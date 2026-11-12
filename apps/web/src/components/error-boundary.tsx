@@ -147,7 +147,7 @@ export function ErrorFallback({
 
         {/* Error Details (dev only) */}
         {process.env.NODE_ENV === "development" && error && (
-          <details className="text-left mb-6 bg-gray-50 dark:bg-dark-secondary rounded-lg p-4">
+          <details className="text-start mb-6 bg-gray-50 dark:bg-dark-secondary rounded-lg p-4">
             <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-2">
               {t("errors.errorDetails", "Error Details")}
             </summary>

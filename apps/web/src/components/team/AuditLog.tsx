@@ -240,7 +240,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
             <ChevronRight
               className={cn(
                 "h-4 w-4 transition-transform",
-                expanded && "rotate-90",
+                expanded ? "rotate-90" : "rtl:-scale-x-100",
               )}
             />
           </Button>
@@ -348,10 +348,10 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                 )}
                 aria-expanded={showFilters}
               >
-                <Filter className="mr-1.5 h-3.5 w-3.5" />
+                <Filter className="me-1.5 h-3.5 w-3.5" />
                 {t("audit.filters")}
                 {activeFilterCount > 0 && (
-                  <span className="ml-1.5 grid min-w-4 place-items-center rounded-full bg-[#0b7a55] px-1 py-0.5 text-[9px] font-bold leading-none text-white">
+                  <span className="ms-1.5 grid min-w-4 place-items-center rounded-full bg-[#0b7a55] px-1 py-0.5 text-[9px] font-bold leading-none text-white">
                     {activeFilterCount}
                   </span>
                 )}
@@ -366,7 +366,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                     disabled={isExporting}
                     className="h-8 rounded-md px-2.5 text-xs"
                   >
-                    <FileDown className="mr-1.5 h-3.5 w-3.5" />
+                    <FileDown className="me-1.5 h-3.5 w-3.5" />
                     <span className="hidden sm:inline">
                       {isExporting
                         ? t("audit.exporting", "Exporting…")
@@ -604,7 +604,10 @@ function AuditDetails({ log, t }: { log: AuditLogType; t: TFunction }) {
           <summary className="cursor-pointer font-medium">
             {t("audit.rawEventData", "Raw event data")}
           </summary>
-          <pre className="mt-2 max-h-52 overflow-auto rounded-lg bg-[#edf1ed] p-3 dark:bg-dark-primary">
+          <pre
+            dir="ltr"
+            className="mt-2 max-h-52 overflow-auto rounded-lg bg-[#edf1ed] p-3 dark:bg-dark-primary"
+          >
             {JSON.stringify(Object.fromEntries(details), null, 2)}
           </pre>
         </details>

@@ -108,7 +108,7 @@ export function ResolutionRateSection({
             )}
           </p>
         </div>
-        <span className="ml-auto rounded-full border border-[#dce3de] bg-[#fafcfb] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#718078] dark:border-dark-border dark:bg-dark-secondary dark:text-dark-text-secondary">
+        <span className="ms-auto rounded-full border border-[#dce3de] bg-[#fafcfb] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#718078] dark:border-dark-border dark:bg-dark-secondary dark:text-dark-text-secondary">
           {dayjs(startDate).format("MMM D")} – {dayjs(endDate).format("MMM D")}
         </span>
       </div>
@@ -270,7 +270,7 @@ export function ResolutionRateSection({
                       <span className="font-medium text-gray-900 dark:text-dark-text-primary">
                         {item.contactName || item.contactId}
                       </span>
-                      <span className="ml-2 capitalize text-gray-500 dark:text-dark-text-secondary">
+                      <span className="ms-2 capitalize text-gray-500 dark:text-dark-text-secondary">
                         {item.kind}
                       </span>
                     </div>
@@ -314,7 +314,7 @@ export function ResolutionRateSection({
                         {member.totalResolvedCases} resolved
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-end">
                       <div className="text-xs font-semibold text-[#203b32] dark:text-dark-text-primary">
                         {formatMinutes(member.averageResolutionMinutes, t)}
                       </div>

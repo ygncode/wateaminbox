@@ -88,8 +88,8 @@ export function CustomerEngagementSection({
             <div className="space-y-6">
               <div className="grid gap-4 xl:grid-cols-[17rem_1fr]">
                 <div className="relative overflow-hidden rounded-xl bg-[#173c31] p-5 text-white shadow-[inset_0_1px_rgba(255,255,255,0.08)]">
-                  <div className="absolute -right-10 -top-12 h-40 w-40 rounded-full border border-white/10" />
-                  <div className="absolute -bottom-16 right-8 h-32 w-32 rounded-full bg-emerald-300/5" />
+                  <div className="absolute -end-10 -top-12 h-40 w-40 rounded-full border border-white/10" />
+                  <div className="absolute -bottom-16 end-8 h-32 w-32 rounded-full bg-emerald-300/5" />
                   <p className="relative text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-100/70">
                     {t("dashboard.engagementPanel.score", "Engagement score")}
                   </p>

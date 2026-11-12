@@ -367,7 +367,7 @@ export function EmojiReactionPicker({
           ))}
           <button
             onClick={() => setShowExtended(true)}
-            className="w-10 h-10 flex items-center justify-center text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-full transition-colors ml-1"
+            className="w-10 h-10 flex items-center justify-center text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-full transition-colors ms-1"
             title={t("chat.moreReactions", "More reactions")}
             aria-label={t("chat.showMoreReactions", "Show more reactions")}
           >

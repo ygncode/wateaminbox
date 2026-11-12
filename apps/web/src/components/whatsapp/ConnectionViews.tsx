@@ -45,12 +45,12 @@ export function DisconnectedView({
       >
         {isConnecting ? (
           <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            <Loader2 className="h-4 w-4 me-2 animate-spin" />
             {t("connections.connecting")}
           </>
         ) : (
           <>
-            <QrCode className="h-4 w-4 mr-2" />
+            <QrCode className="h-4 w-4 me-2" />
             {t("connections.connectDevice", "Connect Device")}
           </>
         )}
@@ -131,7 +131,7 @@ export function LegacyQRCodeView({
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <RefreshCw className="h-4 w-4 mr-1" />
+                    <RefreshCw className="h-4 w-4 me-1" />
                     {t("common.refresh")}
                   </>
                 )}
@@ -146,7 +146,7 @@ export function LegacyQRCodeView({
         <h3 className="text-lg font-medium text-gray-900 dark:text-dark-text-primary">
           {t("connections.scanWithWhatsapp", "Scan with WhatsApp")}
         </h3>
-        <ol className="text-sm text-gray-600 dark:text-dark-text-secondary text-left max-w-xs mx-auto space-y-1">
+        <ol className="text-sm text-gray-600 dark:text-dark-text-secondary text-start max-w-xs mx-auto space-y-1">
           <li>{t("connections.step1", "1. Open WhatsApp on your phone")}</li>
           <li>{t("connections.step2", "2. Tap Menu or Settings")}</li>
           <li>{t("connections.step3", "3. Select Linked Devices")}</li>
@@ -207,7 +207,7 @@ export function ConnectedView({
       )}
       <div className="flex items-center justify-center gap-2">
         <Button variant="outline" size="sm" onClick={onRefresh}>
-          <RefreshCw className="h-4 w-4 mr-1" />
+          <RefreshCw className="h-4 w-4 me-1" />
           {t("connections.refreshStatus", "Refresh Status")}
         </Button>
         <Button
@@ -256,12 +256,12 @@ export function ErrorView({
       <Button onClick={onRetry} disabled={isRetrying}>
         {isRetrying ? (
           <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            <Loader2 className="h-4 w-4 me-2 animate-spin" />
             {t("connections.retrying")}
           </>
         ) : (
           <>
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RefreshCw className="h-4 w-4 me-2" />
             {t("connections.tryAgain", "Try Again")}
           </>
         )}

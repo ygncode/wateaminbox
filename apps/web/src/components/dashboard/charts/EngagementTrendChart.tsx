@@ -120,7 +120,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
             </p>
             <p className="text-xl font-semibold tabular-nums text-[#075c41] dark:text-emerald-300">
               {averageScore}
-              <span className="ml-0.5 text-xs font-medium text-[#7c8983]">
+              <span className="ms-0.5 text-xs font-medium text-[#7c8983]">
                 /100
               </span>
             </p>

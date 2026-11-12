@@ -182,7 +182,7 @@ describe("notification type presentation", () => {
     for (const type of types) {
       const visual = getNotificationVisual(type);
       expect(visual.label.length).toBeGreaterThan(0);
-      expect(visual.accent).toContain("border-l-");
+      expect(visual.accent).toContain("border-s-");
       expect(visual.tile).toContain("dark:");
     }
   });

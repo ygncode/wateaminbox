@@ -176,7 +176,7 @@ export function ScheduleMessagePopover({
           // The home indicator sits under the confirm button on a sheet.
           "pb-[max(env(safe-area-inset-bottom),1rem)]",
           // From `sm` up, back to the anchored popover.
-          "sm:absolute sm:inset-x-auto sm:bottom-full sm:right-0 sm:z-30 sm:mb-3 sm:max-h-none sm:w-72 sm:origin-bottom-right sm:rounded-2xl sm:border sm:p-3 sm:pb-3 sm:shadow-[0_12px_36px_rgba(11,20,26,0.18)] sm:animate-in sm:fade-in-0 sm:zoom-in-95 sm:duration-150",
+          "sm:absolute sm:inset-x-auto sm:bottom-full sm:end-0 sm:z-30 sm:mb-3 sm:max-h-none sm:w-72 sm:origin-bottom-right sm:rounded-2xl sm:border sm:p-3 sm:pb-3 sm:shadow-[0_12px_36px_rgba(11,20,26,0.18)] sm:animate-in sm:fade-in-0 sm:zoom-in-95 sm:duration-150",
         )}
       >
         <div className="flex items-center justify-between gap-2">
@@ -195,7 +195,7 @@ export function ScheduleMessagePopover({
           <button
             type="button"
             onClick={onClose}
-            className="-mr-2 grid size-11 shrink-0 touch-manipulation place-items-center rounded-full text-[#54656f] transition-colors hover:bg-black/[0.055] active:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] sm:hidden"
+            className="-me-2 grid size-11 shrink-0 touch-manipulation place-items-center rounded-full text-[#54656f] transition-colors hover:bg-black/[0.055] active:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] sm:hidden"
             aria-label={t("common.close", "Close")}
           >
             <X className="size-5" aria-hidden="true" />

@@ -141,7 +141,7 @@ export function WorkspaceSwitcher({
             type="button"
             disabled={isSwitching}
             className={cn(
-              "group relative flex items-center rounded-xl text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-300",
+              "group relative flex items-center rounded-xl text-start outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-300",
               collapsed
                 ? "h-11 w-full justify-center p-1 hover:bg-white/10"
                 : compact
@@ -177,7 +177,7 @@ export function WorkspaceSwitcher({
               <Loader2
                 className={cn(
                   "h-4 w-4 shrink-0 animate-spin text-emerald-300",
-                  collapsed && "absolute bottom-0.5 right-0.5",
+                  collapsed && "absolute bottom-0.5 end-0.5",
                 )}
               />
             ) : (
@@ -199,12 +199,12 @@ export function WorkspaceSwitcher({
           </div>
           {memberships.length >= 4 && (
             <div className="relative mb-2">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+              <Search className="absolute start-3 top-2.5 h-4 w-4 text-gray-400" />
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t("workspaces.find", "Find a workspace")}
-                className="h-9 rounded-lg pl-9"
+                className="h-9 rounded-lg ps-9"
               />
             </div>
           )}
@@ -215,7 +215,7 @@ export function WorkspaceSwitcher({
                 type="button"
                 onClick={() => void handleSwitch(workspace.id)}
                 disabled={workspace.status !== "active"}
-                className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-[#edf1ed] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-dark-tertiary"
+                className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-start hover:bg-[#edf1ed] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-dark-tertiary"
               >
                 <WorkspaceAvatar
                   workspace={workspace}

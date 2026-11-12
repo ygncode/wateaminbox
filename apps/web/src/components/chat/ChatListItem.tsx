@@ -157,7 +157,7 @@ export const ChatListItem = memo(function ChatListItem({
       type="button"
       onClick={onClick}
       onMouseEnter={handlePrefetch}
-      className={`w-full flex items-center gap-3 px-3 text-left
+      className={`w-full flex items-center gap-3 px-3 text-start
                   transition-colors duration-150 border-b border-gray-100 dark:border-dark-border
                   touch-manipulation active:bg-gray-200 dark:active:bg-dark-border
                   ${isSelected ? "bg-gray-200 dark:bg-dark-tertiary" : "hover:bg-gray-50 dark:hover:bg-dark-elevated"}
@@ -208,7 +208,7 @@ export const ChatListItem = memo(function ChatListItem({
           // stand for the person.
           <MergedCustomerAvatarBadge
             channelCount={chat.chatCount ?? 1}
-            className="absolute -bottom-0.5 -right-0.5"
+            className="absolute -bottom-0.5 -end-0.5"
           />
         ) : (
           (contact.channel || contact.connection) && (
@@ -218,14 +218,14 @@ export const ChatListItem = memo(function ChatListItem({
                   ? contact.channel
                   : "whatsapp"
               }
-              className="absolute -bottom-0.5 -right-0.5"
+              className="absolute -bottom-0.5 -end-0.5"
             />
           )
         )}
         {/* Online Indicator - only for individual contacts */}
         {!contact.isGroup && contact.isOnline && (
           <span
-            className="absolute top-0 right-0 w-3 h-3 bg-whatsapp-green
+            className="absolute top-0 end-0 w-3 h-3 bg-whatsapp-green
                        border-2 border-white dark:border-dark-secondary rounded-full"
             aria-label={t("chat.online", "Online")}
           />

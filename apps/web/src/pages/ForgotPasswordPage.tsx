@@ -94,7 +94,7 @@ export function ForgotPasswordPage() {
             />
           </p>
 
-          <div className="mt-7 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left dark:border-dark-border dark:bg-dark-tertiary/60">
+          <div className="mt-7 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-start dark:border-dark-border dark:bg-dark-tertiary/60">
             <p className="text-sm font-semibold text-slate-800 dark:text-dark-text-primary">
               {t("auth.nothingYet", "Nothing yet?")}
             </p>
@@ -122,7 +122,7 @@ export function ForgotPasswordPage() {
           >
             <Link to={buildAuthUrl("/login", redirectTo, submittedEmail)}>
               {t("auth.returnToSignIn", "Return to sign in")}
-              <ArrowRight aria-hidden="true" />
+              <ArrowRight aria-hidden="true" className="rtl:-scale-x-100" />
             </Link>
           </Button>
         </div>
@@ -137,7 +137,7 @@ export function ForgotPasswordPage() {
           to={buildAuthUrl("/login", redirectTo, suggestedEmail)}
           className="mb-8 inline-flex items-center gap-2 rounded-sm text-sm font-semibold text-slate-500 transition-colors hover:text-[#075e54] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-dark-text-secondary dark:hover:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
         >
-          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+          <ArrowLeft aria-hidden="true" className="h-4 w-4 rtl:-scale-x-100" />
           {t("auth.backToSignIn", "Back to sign in")}
         </Link>
 
@@ -185,7 +185,7 @@ export function ForgotPasswordPage() {
             ) : (
               <>
                 {t("auth.sendResetLink", "Send reset link")}
-                <ArrowRight aria-hidden="true" />
+                <ArrowRight aria-hidden="true" className="rtl:-scale-x-100" />
               </>
             )}
           </Button>

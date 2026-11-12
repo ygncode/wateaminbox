@@ -166,9 +166,13 @@ export function MobileViewContainer({
         "absolute inset-0 flex flex-col bg-white dark:bg-dark-secondary transition-transform duration-300 ease-in-out",
         // Slide animations
         view === "chat-list" &&
-          (isVisible ? "translate-x-0" : "-translate-x-full"),
+          (isVisible
+            ? "translate-x-0"
+            : "-translate-x-full rtl:translate-x-full"),
         view === "message-thread" &&
-          (isVisible ? "translate-x-0" : "translate-x-full"),
+          (isVisible
+            ? "translate-x-0"
+            : "translate-x-full rtl:-translate-x-full"),
         // Z-index layering
         view === "chat-list" && "z-10",
         view === "message-thread" && "z-20",
@@ -232,7 +236,7 @@ export function MobileHeader({
           className="flex h-11 w-11 items-center justify-center rounded-full text-gray-600 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
           aria-label={t("common.goBack", "Go back")}
         >
-          <ArrowLeft className="h-6 w-6" />
+          <ArrowLeft className="h-6 w-6 rtl:-scale-x-100" />
         </button>
       )}
 
@@ -407,8 +411,8 @@ export function MobileSlideInPanel({
         className={cn(
           "fixed z-50 flex flex-col overflow-hidden bg-white shadow-xl transition-[transform,translate] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform dark:bg-dark-secondary",
           isDragging && "transition-none",
-          position === "right" && "right-0",
-          position === "left" && "left-0",
+          position === "right" && "end-0",
+          position === "left" && "start-0",
           position !== "bottom" &&
             "inset-y-0 w-full max-w-[26rem] safe-area-left safe-area-right",
           position === "bottom" &&
@@ -420,8 +424,8 @@ export function MobileSlideInPanel({
             : position === "bottom"
               ? "translate-y-full"
               : position === "right"
-                ? "translate-x-full"
-                : "-translate-x-full",
+                ? "translate-x-full rtl:-translate-x-full"
+                : "-translate-x-full rtl:translate-x-full",
           className,
         )}
         role="dialog"

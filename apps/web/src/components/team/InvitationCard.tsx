@@ -29,7 +29,9 @@ export function InvitationCard({
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate font-medium">{invitation.email}</p>
+            <p dir="ltr" className="truncate font-medium">
+              {invitation.email}
+            </p>
             <Badge variant="secondary" className="capitalize">
               {invitation.role}
             </Badge>

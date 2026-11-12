@@ -191,7 +191,7 @@ export function GroupInfoSections({
               <button
                 type="button"
                 onClick={() => setShowAll((current) => !current)}
-                className="mt-2 w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-whatsapp-teal-green transition-colors hover:bg-gray-50 dark:hover:bg-dark-tertiary"
+                className="mt-2 w-full rounded-lg px-3 py-2 text-start text-sm font-medium text-whatsapp-teal-green transition-colors hover:bg-gray-50 dark:hover:bg-dark-tertiary"
               >
                 {showAll
                   ? t("groups.showFewerParticipants", "Show fewer participants")
@@ -380,7 +380,7 @@ function ParticipantRow({
             defaultValue: "Open {{name}}'s contact info",
             name: displayName,
           })}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/50"
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/50"
         >
           {identity}
         </button>

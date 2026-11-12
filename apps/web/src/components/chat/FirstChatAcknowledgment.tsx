@@ -116,7 +116,7 @@ export function useFirstChatAcknowledgment(contactId: string | undefined) {
       }}
     >
       <DialogContent className="sm:max-w-md">
-        <DialogHeader className="text-left">
+        <DialogHeader className="text-start">
           <DialogTitle>
             {t("chat.firstChat.title", "Start the conversation thoughtfully")}
           </DialogTitle>

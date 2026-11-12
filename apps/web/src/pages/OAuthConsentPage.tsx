@@ -111,7 +111,7 @@ export function OAuthConsentPage() {
 
   return (
     <main className="relative min-h-dvh overflow-hidden bg-[#f5f7f4] px-5 py-10 text-[#10211b] dark:bg-dark-primary dark:text-dark-text-primary">
-      <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-[#dcefe7] blur-3xl dark:bg-emerald-500/10" />
+      <div className="pointer-events-none absolute -end-32 -top-32 h-96 w-96 rounded-full bg-[#dcefe7] blur-3xl dark:bg-emerald-500/10" />
 
       <div className="relative mx-auto max-w-lg">
         <div className="mb-8 flex items-center gap-3">

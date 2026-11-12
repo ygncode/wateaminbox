@@ -259,7 +259,7 @@ export function SettingsPage() {
 
   return (
     <div className="flex h-full min-h-0 w-full bg-[#f5f7f4] dark:bg-dark-primary">
-      <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-[#dce3de] bg-[#edf1ed] px-4 py-6 dark:border-dark-border dark:bg-dark-secondary md:block">
+      <aside className="hidden w-64 shrink-0 overflow-y-auto border-e border-[#dce3de] bg-[#edf1ed] px-4 py-6 dark:border-dark-border dark:bg-dark-secondary md:block">
         <p className="px-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0b7a55] dark:text-emerald-400">
           {t("settings.title", "Settings")}
         </p>

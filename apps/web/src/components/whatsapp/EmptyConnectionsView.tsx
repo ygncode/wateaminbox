@@ -73,7 +73,7 @@ export function EmptyConnectionsView({
                   <Icon className="h-4 w-4" aria-hidden="true" />
                 </span>
                 <span className="min-w-0 text-xs font-semibold text-[#315348] dark:text-[#c9d8d2]">
-                  <span className="mr-1 text-[#829089]">{index + 1}.</span>
+                  <span className="me-1 text-[#829089]">{index + 1}.</span>
                   {t(step.labelKey, step.label)}
                 </span>
               </li>

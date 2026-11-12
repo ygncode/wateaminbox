@@ -97,16 +97,16 @@ export function PreviewStep({
         <table className="w-full text-sm">
           <thead className="bg-gray-50 dark:bg-dark-tertiary">
             <tr>
-              <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-dark-text-secondary">
+              <th className="px-4 py-2 text-start font-medium text-gray-600 dark:text-dark-text-secondary">
                 #
               </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-dark-text-secondary">
+              <th className="px-4 py-2 text-start font-medium text-gray-600 dark:text-dark-text-secondary">
                 {t("contacts.phone")}
               </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-dark-text-secondary">
+              <th className="px-4 py-2 text-start font-medium text-gray-600 dark:text-dark-text-secondary">
                 {t("contacts.name")}
               </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-dark-text-secondary">
+              <th className="px-4 py-2 text-start font-medium text-gray-600 dark:text-dark-text-secondary">
                 {t("contacts.status")}
               </th>
             </tr>

@@ -146,7 +146,7 @@ export function QRCodeDisplay({
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <RefreshCw className="h-3 w-3 mr-1" />
+                    <RefreshCw className="h-3 w-3 me-1" />
                     {t("common.refresh")}
                   </>
                 )}

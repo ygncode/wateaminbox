@@ -70,8 +70,8 @@ function bubbleRadiusClass(
 ): string {
   if (!startsGroup(position)) return "rounded-[1.15rem]";
   return isOwn
-    ? "rounded-[1.15rem] rounded-tr-[0.35rem]"
-    : "rounded-[1.15rem] rounded-tl-[0.35rem]";
+    ? "rounded-[1.15rem] rounded-se-[0.35rem]"
+    : "rounded-[1.15rem] rounded-ss-[0.35rem]";
 }
 
 export function shouldShowReplyPreview(
@@ -520,7 +520,7 @@ function MessageMeta({
           : "text-[#667781] dark:text-dark-text-secondary",
         variant === "inline"
           ? // `select-none` keeps the timestamp out of a copied message.
-            "float-right ml-2 mt-1 inline-flex translate-y-0.5 select-none"
+            "float-right ms-2 mt-1 inline-flex translate-y-0.5 select-none"
           : "mt-1 flex justify-end",
       )}
     >
@@ -573,7 +573,7 @@ function SelectionCheckbox({
 
   return (
     <div
-      className={`flex items-center ${isOwn ? "order-2 ml-2" : "mr-2"}`}
+      className={`flex items-center ${isOwn ? "order-2 ms-2" : "me-2"}`}
       role="checkbox"
       aria-checked={isSelected}
       aria-label={
@@ -668,7 +668,7 @@ function ReplyPreview({
             "aria-label": `${t("chat.reply")}: ${replySender}`,
           }
         : {})}
-      className={`mb-1.5 w-full overflow-hidden rounded-lg border-l-[3px] p-2 text-left ${
+      className={`mb-1.5 w-full overflow-hidden rounded-lg border-s-[3px] p-2 text-start ${
         isOwn
           ? "border-[#0e7a52] bg-black/[0.06] dark:border-[#68e0b6] dark:bg-black/20"
           : "border-whatsapp-green bg-black/[0.045] dark:bg-white/[0.06]"
@@ -1067,7 +1067,7 @@ function SenderAvatar({
   if (hidden) {
     return (
       <div
-        className={cn("size-8 shrink-0", side === "left" ? "mr-2" : "ml-2")}
+        className={cn("size-8 shrink-0", side === "left" ? "me-2" : "ms-2")}
         aria-hidden="true"
       />
     );
@@ -1075,7 +1075,7 @@ function SenderAvatar({
 
   return (
     <div
-      className={`${side === "left" ? "mr-2" : "ml-2"} mb-0.5 flex h-8 w-8 shrink-0 self-end items-center justify-center overflow-hidden rounded-full shadow-sm ring-1 ring-black/5 dark:ring-white/10`}
+      className={`${side === "left" ? "me-2" : "ms-2"} mb-0.5 flex h-8 w-8 shrink-0 self-end items-center justify-center overflow-hidden rounded-full shadow-sm ring-1 ring-black/5 dark:ring-white/10`}
       title={label}
       aria-label={`${label}'s profile picture`}
     >
@@ -1155,7 +1155,7 @@ function GroupParticipantLabel({
         name: label,
       })}
       title={senderIdentity || label}
-      className={`mb-1 block max-w-full truncate rounded text-left text-[13px] font-semibold leading-4 underline-offset-2 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/50 ${color}`}
+      className={`mb-1 block max-w-full truncate rounded text-start text-[13px] font-semibold leading-4 underline-offset-2 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/50 ${color}`}
     >
       {label}
     </button>

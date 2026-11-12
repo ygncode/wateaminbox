@@ -18,7 +18,7 @@ export function StatRow({ label, value, total }: StatRowProps) {
         </span>
         <span className="font-semibold tabular-nums text-[#203b32] dark:text-dark-text-primary">
           {value}
-          <span className="ml-1 text-[10px] font-normal text-[#95a099]">
+          <span className="ms-1 text-[10px] font-normal text-[#95a099]">
             {Math.round(percentage)}%
           </span>
         </span>

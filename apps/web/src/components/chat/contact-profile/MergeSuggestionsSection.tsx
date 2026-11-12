@@ -118,7 +118,7 @@ export function MergeSuggestionsSection({
             type="button"
             onClick={() => setPending(suggestion)}
             disabled={merge.isPending}
-            className="flex w-full items-center gap-2 rounded-lg border border-dashed border-gray-300 px-2.5 py-2 text-left transition-colors hover:bg-black/[0.03] disabled:opacity-60 dark:border-dark-border dark:hover:bg-white/[0.04]"
+            className="flex w-full items-center gap-2 rounded-lg border border-dashed border-gray-300 px-2.5 py-2 text-start transition-colors hover:bg-black/[0.03] disabled:opacity-60 dark:border-dark-border dark:hover:bg-white/[0.04]"
           >
             <Merge
               className="size-4 shrink-0 text-whatsapp-teal-green"
@@ -148,7 +148,7 @@ export function MergeSuggestionsSection({
               />
             )}
             <ChevronRight
-              className="size-4 shrink-0 opacity-50"
+              className="size-4 shrink-0 opacity-50 rtl:-scale-x-100"
               aria-hidden="true"
             />
           </button>

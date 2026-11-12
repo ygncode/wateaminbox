@@ -45,7 +45,7 @@ export function TelegramConnectDialog({
     <Dialog open onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="mx-4 w-[calc(100vw-2rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl p-0 sm:w-full">
         <div className="border-b border-[#dce3de] bg-[#f8faf8] p-5 dark:border-dark-border dark:bg-white/[0.025] sm:p-6">
-          <DialogHeader className="text-left">
+          <DialogHeader className="text-start">
             <div className="mb-2 grid h-11 w-11 place-items-center rounded-xl bg-[#2AABEE] text-white">
               {connectedName ? (
                 <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
@@ -194,7 +194,7 @@ export function TelegramConnectDialog({
               >
                 {isConnecting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="me-2 h-4 w-4 animate-spin" />
                     {t("connections.telegram.connecting")}
                   </>
                 ) : (

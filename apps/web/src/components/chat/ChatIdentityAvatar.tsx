@@ -59,7 +59,7 @@ export function ChatIdentityAvatar({
         <ChannelAvatarBadge
           channel={chat.channel as Channel}
           className={cn(
-            "absolute -bottom-1 -right-1 size-3 ring-1",
+            "absolute -bottom-1 -end-1 size-3 ring-1",
             badgeClassName,
           )}
         />

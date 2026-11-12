@@ -175,7 +175,7 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
                 <SelectValue />
                 {isPending && (
                   <Loader2
-                    className="ml-auto h-3.5 w-3.5 animate-spin text-gray-400"
+                    className="ms-auto h-3.5 w-3.5 animate-spin text-gray-400"
                     aria-hidden="true"
                   />
                 )}
@@ -222,9 +222,9 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
             className="w-full bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
           >
             {assignContact.isPending ? (
-              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              <Loader2 className="me-1 h-4 w-4 animate-spin" />
             ) : (
-              <UserPlus className="mr-1 h-4 w-4" />
+              <UserPlus className="me-1 h-4 w-4" />
             )}
             {t("contacts.assignToMe", "Assign to me")}
           </Button>
@@ -351,9 +351,9 @@ export function ConversationAssignmentSection({
             className="w-full bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
           >
             {assign.isPending ? (
-              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              <Loader2 className="me-1 h-4 w-4 animate-spin" />
             ) : (
-              <UserPlus className="mr-1 h-4 w-4" />
+              <UserPlus className="me-1 h-4 w-4" />
             )}
             {t("contacts.assignToMe", "Assign to me")}
           </Button>

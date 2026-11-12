@@ -358,7 +358,7 @@ export function MultiConnectionPanel({
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  <Plus className="h-4 w-4 mr-1" />
+                  <Plus className="h-4 w-4 me-1" />
                   {t("connections.addConnection", "Add Connection")}
                 </>
               )}
@@ -375,7 +375,7 @@ export function MultiConnectionPanel({
               <Smartphone className="h-5 w-5" aria-hidden="true" />
               <span
                 className={cn(
-                  "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#f8faf8] dark:border-[#172622]",
+                  "absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-[#f8faf8] dark:border-[#172622]",
                   connectedCount > 0 ? "bg-emerald-500" : "bg-slate-400",
                 )}
               />

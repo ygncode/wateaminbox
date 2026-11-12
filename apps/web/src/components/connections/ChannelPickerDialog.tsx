@@ -58,7 +58,7 @@ export function ChannelPickerDialog({
     <Dialog open onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="mx-4 w-[calc(100vw-2rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl p-0 sm:w-full">
         <div className="border-b border-[#dce3de] bg-[#f8faf8] p-5 dark:border-dark-border dark:bg-white/[0.025] sm:p-6">
-          <DialogHeader className="text-left">
+          <DialogHeader className="text-start">
             <DialogTitle className="text-xl">
               {t("connections.picker.title")}
             </DialogTitle>
@@ -68,7 +68,7 @@ export function ChannelPickerDialog({
           </DialogHeader>
           <div className="relative mt-4">
             <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#829089]"
+              className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#829089]"
               aria-hidden="true"
             />
             <Input
@@ -77,7 +77,7 @@ export function ChannelPickerDialog({
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t("connections.picker.search")}
               aria-label={t("connections.picker.searchAria")}
-              className="pl-9"
+              className="ps-9"
             />
           </div>
         </div>

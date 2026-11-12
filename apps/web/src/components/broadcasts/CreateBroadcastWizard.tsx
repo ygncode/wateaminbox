@@ -149,7 +149,7 @@ function BroadcastStepProgress({ currentStep }: { currentStep: WizardStep }) {
               {index > 0 && (
                 <span
                   className={cn(
-                    "absolute right-1/2 top-3.5 h-px w-full -translate-y-1/2",
+                    "absolute end-1/2 top-3.5 h-px w-full -translate-y-1/2",
                     index <= currentIndex
                       ? "bg-[#7db69f] dark:bg-emerald-700"
                       : "bg-[#d7e0da] dark:bg-dark-border",
@@ -514,7 +514,7 @@ export function CreateBroadcastWizard({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="mx-3 flex max-h-[94dvh] w-[calc(100vw-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden rounded-2xl border-[#d7e0da] p-0 shadow-2xl dark:border-dark-border sm:w-full">
-        <DialogHeader className="border-b border-[#e3e9e5] bg-white px-5 py-4 pr-12 text-left dark:border-dark-border dark:bg-dark-elevated sm:px-6">
+        <DialogHeader className="border-b border-[#e3e9e5] bg-white px-5 py-4 pe-12 text-start dark:border-dark-border dark:bg-dark-elevated sm:px-6">
           <div className="flex items-center gap-3">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/60 dark:text-emerald-300">
               <Megaphone className="h-4.5 w-4.5" aria-hidden="true" />
@@ -1053,7 +1053,7 @@ export function CreateBroadcastWizard({
                         <p className="text-xs font-semibold uppercase tracking-wide text-[#667781] dark:text-dark-text-tertiary">
                           {t("broadcasts.sampleMessage", "Sample message")}
                         </p>
-                        <div className="mt-2 max-w-md rounded-xl rounded-tl-sm bg-[#d9fdd3] p-3 text-sm text-[#111b21] shadow-sm dark:bg-emerald-900/40 dark:text-dark-text-primary">
+                        <div className="mt-2 max-w-md rounded-xl rounded-ss-sm bg-[#d9fdd3] p-3 text-sm text-[#111b21] shadow-sm dark:bg-emerald-900/40 dark:text-dark-text-primary">
                           <p className="whitespace-pre-wrap">
                             {personalizeSample(content, sampleName)}
                           </p>

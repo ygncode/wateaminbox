@@ -111,7 +111,7 @@ export function ChannelAccountCard({
           </span>
           <span
             className={cn(
-              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-[#172622]",
+              "absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-[#172622]",
               isLive ? "bg-emerald-500" : "bg-slate-400",
             )}
           />
@@ -211,10 +211,10 @@ export function ChannelAccountCard({
                 className="fixed inset-0 z-10"
                 onClick={() => setShowMenu(false)}
               />
-              <div className="absolute right-0 z-20 mt-2 w-48 animate-fade-in rounded-xl border border-gray-200 bg-white py-1.5 shadow-xl shadow-gray-200/50 dark:border-dark-border dark:bg-dark-elevated dark:shadow-black/30">
+              <div className="absolute end-0 z-20 mt-2 w-48 animate-fade-in rounded-xl border border-gray-200 bg-white py-1.5 shadow-xl shadow-gray-200/50 dark:border-dark-border dark:bg-dark-elevated dark:shadow-black/30">
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
                   onClick={() => {
                     setEditName(name);
                     setEditing(true);
@@ -228,7 +228,7 @@ export function ChannelAccountCard({
                   <button
                     type="button"
                     disabled={isBusy}
-                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-whatsapp-teal-green transition-colors hover:bg-emerald-50 disabled:opacity-50 dark:hover:bg-emerald-900/30"
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-whatsapp-teal-green transition-colors hover:bg-emerald-50 disabled:opacity-50 dark:hover:bg-emerald-900/30"
                     onClick={() => {
                       onResume();
                       setShowMenu(false);
@@ -245,7 +245,7 @@ export function ChannelAccountCard({
                   <button
                     type="button"
                     disabled={isBusy}
-                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-orange-600 transition-colors hover:bg-orange-50 disabled:opacity-50 dark:text-orange-400 dark:hover:bg-orange-900/30"
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-orange-600 transition-colors hover:bg-orange-50 disabled:opacity-50 dark:text-orange-400 dark:hover:bg-orange-900/30"
                     onClick={() => {
                       onPause();
                       setShowMenu(false);
@@ -262,7 +262,7 @@ export function ChannelAccountCard({
                 <div className="my-1.5 border-t border-gray-100 dark:border-dark-border" />
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30"
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30"
                   onClick={() => {
                     if (isArchived) setPurgeOpen(true);
                     else setUnlinkOpen(true);

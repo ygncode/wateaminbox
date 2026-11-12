@@ -120,7 +120,7 @@ export function MemberCard({
       <time className="font-mono text-xs text-[#65736d] dark:text-dark-text-secondary">
         {new Date(member.joinedAt).toLocaleDateString()}
       </time>
-      <div className="absolute right-4 mt-1 md:static md:mt-0">
+      <div className="absolute end-4 mt-1 md:static md:mt-0">
         {menuItems.length > 0 && (
           <EllipsisMenu
             items={menuItems}

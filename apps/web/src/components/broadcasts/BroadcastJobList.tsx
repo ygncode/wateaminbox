@@ -174,7 +174,7 @@ export function BroadcastJobList({
           aria-hidden="true"
           className="inline-grid h-8 w-8 place-items-center rounded-full text-[#9aa69f] transition-colors hover:bg-[#e8f1ec] hover:text-[#075c41] dark:text-dark-text-tertiary dark:hover:bg-dark-tertiary dark:hover:text-emerald-300"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
         </Link>
       ),
     },
