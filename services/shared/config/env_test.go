@@ -2,10 +2,13 @@ package config
 
 import (
 	"errors"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"hegel.dev/go/hegel"
 )
 
 func TestGetEnv(t *testing.T) {
@@ -403,4 +406,30 @@ func TestRedactErrorForURLRemovesNATSCredentials(t *testing.T) {
 	if !strings.Contains(message, "nats://nats:4222") {
 		t.Fatalf("redaction removed the useful endpoint: %q", message)
 	}
+}
+
+func TestRedactErrorForURLNeverLeaksAnyPasswordEncoding(t *testing.T) {
+	hegel.Test(t, func(ht *hegel.T) {
+		password := hegel.Draw(ht, hegel.Text().MinSize(1))
+		userinfo := url.UserPassword("svc", password)
+		configured := (&url.URL{Scheme: "nats", User: userinfo, Host: "nats:4222"}).String()
+		leak := hegel.Draw(ht, hegel.SampledFrom([]string{
+			password,
+			url.QueryEscape(password),
+			userinfo.String(), // how url.URL renders credentials, e.g. in a transport error
+			configured,
+		}))
+		// Over-redaction is fine, but the check below cannot tell a leak apart
+		// from a password that the redacted text itself happens to contain.
+		redactedContext := "dial failed: " + RedactURL(configured) + " [REDACTED]"
+		ht.Assume(!strings.Contains(redactedContext, password))
+
+		message := RedactErrorForURL(errors.New("dial failed: "+leak), configured)
+
+		for _, form := range []string{password, url.QueryEscape(password), url.PathEscape(password), userinfo.String()} {
+			if strings.Contains(message, form) {
+				ht.Fatalf("password %q leaked as %q in %q (configured %q)", password, form, message, configured)
+			}
+		}
+	})
 }
