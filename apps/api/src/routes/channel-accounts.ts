@@ -7,7 +7,7 @@ import {
 import { db, type TenantDatabase } from "@wateaminbox/database";
 import { isChannel, isChannelProvider } from "@wateaminbox/shared";
 import { Hono } from "hono";
-import type { Transaction } from "kysely";
+import { sql, type Transaction } from "kysely";
 import { z } from "zod";
 import { resolveAdapterCapabilities } from "../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../channel-spine/registry.js";
@@ -231,26 +231,6 @@ channelAccountRoutes.post(
       return c.json({ error: "Telegram bot is already connected" }, 409);
     }
 
-    // The plan sells connection slots, not WhatsApp slots. Reusing the same
-    // ceiling here keeps a workspace from adding channel accounts outside the
-    // plan it pays for. Reconnecting an account that already exists does not
-    // consume a new slot, so only a genuinely new account is counted.
-    if (!existingAccount) {
-      const maxConnections = await getMaxConnections(companyId);
-      const used = await countUsedConnectionSlots(tenantDb);
-      if (used >= maxConnections) {
-        return c.json(
-          {
-            error: "Connection limit reached for this plan",
-            code: "MAX_CONNECTIONS_EXCEEDED",
-            used,
-            max: maxConnections,
-          },
-          402,
-        );
-      }
-    }
-
     const company = await db
       .selectFrom("companies")
       .select("schema_name")
@@ -263,10 +243,27 @@ channelAccountRoutes.post(
       "SHA-256",
       new TextEncoder().encode(routeKey),
     );
-    await db.transaction().execute(async (trx) => {
+    const limitReached = await db.transaction().execute(async (trx) => {
       const tenant = trx.withSchema(
         company.schema_name,
       ) as unknown as Transaction<TenantDatabase>;
+      // The plan sells connection slots, not WhatsApp slots. Reusing the same
+      // ceiling here keeps a workspace from adding channel accounts outside
+      // the plan it pays for. Reconnecting an account that already exists does
+      // not consume a new slot, so only a genuinely new account is counted.
+      //
+      // The count and the insert must be one step: checked outside this
+      // transaction, two concurrent connects both saw the same count and both
+      // inserted (#379). spawnConnection takes this same company-scoped lock,
+      // so a Telegram connect also serializes against a WhatsApp spawn.
+      if (!existingAccount) {
+        await sql`SELECT pg_advisory_xact_lock(hashtextextended(${companyId}, 0))`.execute(
+          trx,
+        );
+        const max = await getMaxConnections(companyId);
+        const used = await countUsedConnectionSlots(tenant);
+        if (used >= max) return { used, max };
+      }
       if (existingAccount) {
         await trx
           .updateTable("channel_ingress_routes")
@@ -347,7 +344,22 @@ channelAccountRoutes.post(
           revoked_at: null,
         })
         .execute();
+      return null;
     });
+    // Returned rather than thrown so the transaction commits nothing; it
+    // keeps the route's established 402 contract, which the generic
+    // MaxConnectionsExceededError (a 429) would not.
+    if (limitReached) {
+      return c.json(
+        {
+          error: "Connection limit reached for this plan",
+          code: "MAX_CONNECTIONS_EXCEEDED",
+          used: limitReached.used,
+          max: limitReached.max,
+        },
+        402,
+      );
+    }
 
     const webhookUrl = `${channelIngressBaseUrl()}/api/channel-ingress/telegram_bot/${routeKey}`;
     try {
