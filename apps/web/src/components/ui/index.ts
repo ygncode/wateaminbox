@@ -102,6 +102,9 @@ export {
 export {
   ServerDataTable,
   getVisibleRowRange,
+  type ServerColumnDef,
   type ServerDataTableProps,
+  type ServerTableFeatures,
+  serverTableFeatures,
   type ServerTableSearch,
 } from "./server-data-table";

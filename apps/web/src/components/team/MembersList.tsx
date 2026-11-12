@@ -5,7 +5,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import type { ColumnDef, PaginationState } from "@tanstack/react-table";
+import type { PaginationState } from "@tanstack/react-table";
 import type { CompanyMember, MemberPermissions } from "@wateaminbox/shared";
 import { Crown, Settings2, Shield, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -15,6 +15,7 @@ import {
   Badge,
   ConfirmationDialog,
   EllipsisMenu,
+  type ServerColumnDef,
   ServerDataTable,
 } from "@/components/ui";
 import type { EllipsisMenuItem } from "@/components/ui/ellipsis-menu";
@@ -108,7 +109,7 @@ export function MembersList({
     }
   };
 
-  const columns: ColumnDef<CompanyMember>[] = [
+  const columns: ServerColumnDef<CompanyMember>[] = [
     {
       id: "member",
       header: t("team.member", "Member"),

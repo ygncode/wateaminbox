@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
-import { Migrator, FileMigrationProvider, type Kysely } from 'kysely'
+import type { Kysely } from 'kysely'
+import { FileMigrationProvider, Migrator } from 'kysely/migration'
 
 export async function runMigrations(db: Kysely<unknown>) {
   const migrator = new Migrator({

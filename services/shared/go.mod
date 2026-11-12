@@ -1,8 +1,8 @@
 module github.com/ygncode-lab/whatsapp-web/services/shared
 
-go 1.26.10
+go 1.26.11
 
-require github.com/nats-io/nats.go v1.54.0
+require github.com/nats-io/nats.go v1.55.0
 
 require (
 	github.com/klauspost/compress v1.20.0 // indirect
