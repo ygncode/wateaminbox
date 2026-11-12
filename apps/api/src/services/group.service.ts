@@ -2,6 +2,7 @@ import {
   extractPhoneFromJid,
   getGroupDisplayName,
   getLidDisplayName,
+  getSafeIdentityName,
   normalizeJid,
 } from "@wateaminbox/shared";
 import { type Kysely, sql } from "kysely";
@@ -410,11 +411,14 @@ export async function getEnrichedGroupParticipants(
       const phoneNumber = jid.endsWith("@s.whatsapp.net")
         ? extractPhoneFromJid(jid)
         : null;
+      // Every stored name goes through the same LID guard the contact profile
+      // uses: migration 034 backfilled sender_name with bare LID digits, and
+      // any such restatement must fall through to the masked label (#382).
       const displayName =
-        contact?.custom_name ||
-        contact?.push_name ||
-        storedNameByJid.get(jid) ||
-        sender?.sender_name ||
+        getSafeIdentityName(contact?.custom_name, jid) ||
+        getSafeIdentityName(contact?.push_name, jid) ||
+        getSafeIdentityName(storedNameByJid.get(jid), jid) ||
+        getSafeIdentityName(sender?.sender_name, jid) ||
         (phoneNumber ? `+${phoneNumber}` : null) ||
         getLidDisplayName(jid) ||
         "Unknown participant";

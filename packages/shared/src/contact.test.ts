@@ -3,8 +3,29 @@ import {
   formatWhatsAppUsername,
   getContactDisplayName,
   getContactName,
+  getSafeIdentityName,
   normalizeWhatsAppUsername,
 } from "./contact";
+
+describe("getSafeIdentityName", () => {
+  test("rejects names that only restate an opaque LID identity", () => {
+    const jid = "6585719494172749@lid";
+    expect(getSafeIdentityName("6585719494172749", jid)).toBeNull();
+    expect(getSafeIdentityName(jid, jid)).toBeNull();
+    expect(getSafeIdentityName("+65 8571 9494 172 749", jid)).toBeNull();
+    expect(getSafeIdentityName("99112233", "99112233:4@hosted.lid")).toBeNull();
+    expect(getSafeIdentityName("  ", jid)).toBeNull();
+  });
+
+  test("keeps real names, and every name on a phone JID", () => {
+    expect(getSafeIdentityName(" Mya Mya ", "6585719494172749@lid")).toBe(
+      "Mya Mya",
+    );
+    expect(getSafeIdentityName("6591234567", "6591234567@s.whatsapp.net")).toBe(
+      "6591234567",
+    );
+  });
+});
 
 describe("contact identity display", () => {
   test("never presents a stored LID local part as a phone number", () => {

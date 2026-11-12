@@ -16,7 +16,13 @@ export interface ContactNameFields {
   name?: string | null;
 }
 
-function getSafeIdentityName(
+/**
+ * A name, unless it only restates an opaque LID identity (the whole JID, its
+ * local part, or the same digits). Those carry nothing but the token the LID
+ * label exists to hide, so they return null and the caller falls through to
+ * getLidDisplayName. Names on non-LID JIDs pass through trimmed.
+ */
+export function getSafeIdentityName(
   value: string | null | undefined,
   jid: string | null | undefined,
 ): string | null {
