@@ -544,6 +544,9 @@ describe("permanent purge media cleanup against PostgreSQL", () => {
           .insertInto("purge_cleanup_items")
           .values({ connection_id: connectionId, kind: "media", reference })
           .execute();
+        // The row's default due time is the database clock; align it with the
+        // application clock the claim compares against.
+        await makeDue(companyId);
 
         // Pass one: genuinely unreferenced, so it is only deferred.
         const first = recordingDeps();
@@ -688,7 +691,12 @@ describe("permanent purge media cleanup against PostgreSQL", () => {
           .values({ connection_id: connectionId, kind: "media", reference })
           .execute();
 
-        // Bring the item to the point where the next pass would delete.
+        // Bring the item to the point where the next pass would delete. The
+        // inserted row's `next_attempt_at` defaults to the database's now(),
+        // which can sit a tick ahead of the application clock the claim
+        // compares against; make it due explicitly so the warm-up pass always
+        // sees it.
+        await makeDue(companyId);
         const warmup = recordingDeps();
         expect(
           (
@@ -769,11 +777,19 @@ describe("permanent purge media cleanup against PostgreSQL", () => {
           .execute();
 
         // Drive cleanup to a committed intent, but make the object-store call
-        // fail so the intent stays on the row.
+        // fail so the intent stays on the row. Make the fresh row due first
+        // (database and application clocks can straddle a tick), and assert
+        // the warm-up reached the settle phase so a miss fails here, clearly,
+        // instead of as a wrong count two steps later.
+        await makeDue(companyId);
         const warmup = recordingDeps();
-        await processConnectionPurgeCleanup(tenantDb, companyId, {
-          deps: warmup.deps,
-        });
+        expect(
+          (
+            await processConnectionPurgeCleanup(tenantDb, companyId, {
+              deps: warmup.deps,
+            })
+          ).deferred,
+        ).toBe(1);
         await makeDue(companyId);
         const failing = recordingDeps({
           deleteObject: async () => {
@@ -897,6 +913,7 @@ describe("permanent purge media cleanup against PostgreSQL", () => {
             },
           ])
           .execute();
+        await makeDue(companyId);
 
         const recorded = recordingDeps();
         expect(
