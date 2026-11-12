@@ -32,9 +32,11 @@ import { getTenantConnection, type TenantDatabase } from "./tenant.service.js";
 
 const logger = createLogger("ChannelOutbound");
 const LEASE_MS = 30_000;
+const LEASE_EXPIRED_ERROR_CODE = "dispatch_lease_expired_outcome_unknown";
 let timer: ReturnType<typeof setTimeout> | null = null;
 let running = false;
 let stopping = false;
+let lastLeaseRecoveryAt = 0;
 
 interface ClaimedIntent extends OutboundMessageIntent {
   leaseToken: string;
@@ -585,8 +587,18 @@ async function completeClaim(
       .execute();
     if (
       fenced.message_id &&
+      failure.outcome === "uncertain" &&
+      !claim.operation.startsWith("action:")
+    ) {
+      await markSendOutcomeUnknown(trx, companyId, {
+        messageId: fenced.message_id,
+        channelAccountId: claim.channelAccountId,
+        conversationId: claim.conversationId,
+        reason: failure.errorCode,
+      });
+    } else if (
+      fenced.message_id &&
       !transient &&
-      failure.outcome !== "uncertain" &&
       !claim.operation.startsWith("action:")
     ) {
       await trx
@@ -607,6 +619,60 @@ async function completeClaim(
   });
 }
 
+/**
+ * Show a send whose outcome is unknown as unconfirmed rather than sending.
+ *
+ * It cannot be retried: Telegram has no send idempotency key, so a send that
+ * may already have been delivered would be delivered twice. It cannot be
+ * failed either, for the same reason. What the sender needs is the legacy
+ * path's amber "unconfirmed" mark - the message stays pending, with
+ * metadata.error = send_outcome_unknown - so they check the conversation
+ * before sending again. Without it the message spun as "Sending" for ever,
+ * because nothing else ever moves an uncertain intent's message (#381).
+ */
+async function markSendOutcomeUnknown(
+  trx: Transaction<TenantDatabase>,
+  companyId: string,
+  message: {
+    messageId: string;
+    channelAccountId: string;
+    conversationId: string;
+    reason: string;
+  },
+): Promise<void> {
+  const metadata = {
+    error: "send_outcome_unknown",
+    error_message: message.reason,
+  };
+  const updated = await trx
+    .updateTable("messages")
+    .set({
+      metadata: sql`COALESCE(metadata, '{}'::jsonb) || ${JSON.stringify(metadata)}::jsonb`,
+    })
+    .where("id", "=", message.messageId)
+    // A receipt that already proved delivery wins over an unknown outcome.
+    .where("status", "=", "pending")
+    .returning("id")
+    .executeTakeFirst();
+  if (!updated) return;
+  await enqueueOutboundRealtimeFanout(
+    trx,
+    companyId,
+    message.channelAccountId,
+    message.conversationId,
+    message.messageId,
+  );
+}
+
+/**
+ * Settle intents whose dispatcher lost its lease without recording a result.
+ *
+ * The provider may or may not have accepted the send, so the intent becomes
+ * uncertain and its message is marked unconfirmed, exactly as an uncertain
+ * provider result is. Runs at startup and then periodically: a process that
+ * stops inside the lease leaves the intent dispatching with a lease that has
+ * not expired yet, which a startup-only sweep would never see again.
+ */
 async function recoverExpiredLeases(): Promise<void> {
   const companies = await db
     .selectFrom("companies")
@@ -621,18 +687,36 @@ async function recoverExpiredLeases(): Promise<void> {
     // messages sitting pending for ever, with nothing logged against them.
     try {
       const tenantDb = await getTenantConnection(company.id);
-      await tenantDb
-        .updateTable("outbound_message_intents")
-        .set({
-          status: "uncertain",
-          lease_token: null,
-          lease_expires_at: null,
-          last_error_code: "dispatch_lease_expired_outcome_unknown",
-          updated_at: new Date(),
-        })
-        .where("status", "=", "dispatching")
-        .where("lease_expires_at", "<", new Date())
-        .execute();
+      await tenantDb.transaction().execute(async (trx) => {
+        const recovered = await trx
+          .updateTable("outbound_message_intents")
+          .set({
+            status: "uncertain",
+            lease_token: null,
+            lease_expires_at: null,
+            last_error_code: LEASE_EXPIRED_ERROR_CODE,
+            updated_at: new Date(),
+          })
+          .where("status", "=", "dispatching")
+          .where("lease_expires_at", "<", new Date())
+          .returning([
+            "message_id",
+            "operation",
+            "channel_account_id",
+            "conversation_id",
+          ])
+          .execute();
+        for (const intent of recovered) {
+          if (!intent.message_id || intent.operation.startsWith("action:"))
+            continue;
+          await markSendOutcomeUnknown(trx, company.id, {
+            messageId: intent.message_id,
+            channelAccountId: intent.channel_account_id,
+            conversationId: intent.conversation_id,
+            reason: LEASE_EXPIRED_ERROR_CODE,
+          });
+        }
+      });
     } catch (error) {
       logger.warn(
         { err: formatError(error), companyId: company.id },
@@ -647,6 +731,10 @@ async function poll(): Promise<void> {
   running = true;
   let processed = 0;
   try {
+    if (Date.now() - lastLeaseRecoveryAt >= LEASE_MS) {
+      lastLeaseRecoveryAt = Date.now();
+      await recoverExpiredLeases();
+    }
     processed = await dispatchNextChannelOutbound();
   } catch (error) {
     logger.warn({ err: formatError(error) }, "Channel outbound polling failed");
@@ -658,6 +746,7 @@ async function poll(): Promise<void> {
 
 export function initializeChannelOutbound(): void {
   stopping = false;
+  lastLeaseRecoveryAt = Date.now();
   void recoverExpiredLeases().finally(() => {
     if (!stopping && !timer) timer = setTimeout(poll, 0);
   });
