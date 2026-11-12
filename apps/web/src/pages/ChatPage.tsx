@@ -633,7 +633,6 @@ function ConversationLoadingState() {
 
       <ConversationMessagesSkeleton decorative />
 
-
       <div
         className="flex min-h-[64px] items-center gap-3 border-t border-gray-200 bg-gray-100 px-3 py-2.5 dark:border-dark-border dark:bg-dark-secondary"
         aria-hidden="true"

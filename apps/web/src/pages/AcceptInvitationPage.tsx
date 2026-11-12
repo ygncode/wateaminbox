@@ -144,7 +144,7 @@ export function AcceptInvitationPage() {
             <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
           </div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-dark-text-primary mb-2">
-            Welcome to {invitation.companyName}!
+            {t("invitation.welcomeTo", { name: invitation.companyName })}
           </h1>
           <p className="text-gray-600 dark:text-dark-text-secondary mb-4">
             {t(
@@ -183,7 +183,7 @@ export function AcceptInvitationPage() {
             <Building2 className="h-5 w-5 text-gray-500 dark:text-dark-text-tertiary flex-shrink-0" />
             <div>
               <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                Workspace
+                {t("invitation.workspace")}
               </p>
               <p className="font-medium text-gray-900 dark:text-dark-text-primary">
                 {invitation.companyName}

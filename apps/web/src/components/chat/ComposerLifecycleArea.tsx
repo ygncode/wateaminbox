@@ -168,7 +168,7 @@ export function ComposerLifecycleArea({
             ) : (
               <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
             )}
-            {isReopen ? "Reopen" : "Open"} to send
+            {isReopen ? t("chat.reopenToSend") : t("chat.openToSend")}
           </button>
           <OpenOrReopenConversationDialog
             open={dialogOpen}

@@ -92,7 +92,7 @@ export function MemberCard({
             <p className="truncate text-sm font-semibold">{displayName}</p>
             {isCurrentUser && (
               <Badge variant="secondary" className="text-[10px]">
-                You
+                {t("team.you")}
               </Badge>
             )}
           </div>

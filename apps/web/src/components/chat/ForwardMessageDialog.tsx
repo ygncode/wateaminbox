@@ -156,7 +156,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
                 {t("chat.contactsLoadFailed", "Failed to load contacts")}
               </p>
               <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-4">
-                {error.message || "Please try again"}
+                {error.message || t("chat.pleaseTryAgain")}
               </p>
               <button
                 type="button"
@@ -189,7 +189,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
               </p>
               <p className="text-xs text-gray-500 dark:text-dark-text-secondary max-w-[200px]">
                 {searchQuery
-                  ? `No results for "${searchQuery}"`
+                  ? t("chat.noResultsFor", { query: searchQuery })
                   : t(
                       "chat.startConversationHint",
                       "Start a conversation to see contacts here",
@@ -244,7 +244,7 @@ const ContactListItem = memo(function ContactListItem({
 
   const { contact } = chat;
   const displayName = formatPhoneLikeText(
-    contact.customName || contact.name || contact.jid || "Unknown",
+    contact.customName || contact.name || contact.jid || t("chat.unknownName"),
   );
 
   return (

@@ -349,7 +349,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                 aria-expanded={showFilters}
               >
                 <Filter className="mr-1.5 h-3.5 w-3.5" />
-                Filters
+                {t("audit.filters")}
                 {activeFilterCount > 0 && (
                   <span className="ml-1.5 grid min-w-4 place-items-center rounded-full bg-[#0b7a55] px-1 py-0.5 text-[9px] font-bold leading-none text-white">
                     {activeFilterCount}

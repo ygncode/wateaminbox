@@ -99,7 +99,9 @@ export function ParticipantPicker({
                 <button
                   type="button"
                   onClick={() => onToggle(participant)}
-                  aria-label={`Remove ${participant.displayName}`}
+                  aria-label={t("groups.removeParticipantAria", {
+                    name: participant.displayName,
+                  })}
                   className="grid size-4.5 place-items-center rounded-full hover:bg-black/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:hover:bg-white/[0.1]"
                 >
                   <X className="size-3" aria-hidden="true" />
@@ -164,15 +166,15 @@ export function ParticipantPicker({
             />
             <p className="mt-2 text-sm text-[#667781] dark:text-dark-text-secondary">
               {searchQuery
-                ? `No contacts match "${searchQuery}"`
-                : "No contacts on this WhatsApp account"}
+                ? t("groups.noContactsMatch", { query: searchQuery })
+                : t("groups.noContactsOnAccount")}
             </p>
           </div>
         ) : (
           <ul
             className="divide-y divide-black/[0.04] dark:divide-white/[0.05]"
             role="group"
-            aria-label={labelledBy ? undefined : "Contacts"}
+            aria-label={labelledBy ? undefined : t("chat.contacts")}
             aria-labelledby={labelledBy}
           >
             {candidates.map((participant) => {
@@ -186,7 +188,7 @@ export function ParticipantPicker({
               const disabledReason =
                 explicitReason ??
                 (atLimit && !isSelected
-                  ? `Selection limit of ${limit} reached`
+                  ? t("groups.selectionLimit", { limit })
                   : undefined);
               return (
                 <li key={participant.jid}>

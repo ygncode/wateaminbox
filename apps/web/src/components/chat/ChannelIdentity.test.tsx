@@ -32,7 +32,9 @@ describe("channel identity badges", () => {
   });
 
   test("avatar badges draw the provider's own mark, named for a screen reader", () => {
-    const html = renderToStaticMarkup(<ChannelAvatarBadge channel="telegram" />);
+    const html = renderToStaticMarkup(
+      <ChannelAvatarBadge channel="telegram" />,
+    );
     expect(html).toContain('aria-label="Telegram channel"');
     expect(html).toContain("<svg");
     expect(html).not.toContain("TG");

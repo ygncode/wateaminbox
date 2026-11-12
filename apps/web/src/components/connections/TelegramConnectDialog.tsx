@@ -1,5 +1,6 @@
 import { CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,6 +32,7 @@ export function TelegramConnectDialog({
   error,
   connectedName,
 }: TelegramConnectDialogProps) {
+  const { t } = useTranslation();
   const [botToken, setBotToken] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [touched, setTouched] = useState(false);
@@ -52,12 +54,16 @@ export function TelegramConnectDialog({
               )}
             </div>
             <DialogTitle className="text-xl">
-              {connectedName ? "Telegram connected" : "Connect a Telegram bot"}
+              {connectedName
+                ? t("connections.telegram.connected")
+                : t("connections.telegram.connectTitle")}
             </DialogTitle>
             <DialogDescription className="leading-6">
               {connectedName
-                ? `${connectedName} is now delivering messages into this workspace inbox.`
-                : "Create a bot with @BotFather, then paste the token it gives you. The token is encrypted and never shown again."}
+                ? t("connections.telegram.connectedBody", {
+                    name: connectedName,
+                  })
+                : t("connections.telegram.connectHint")}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -65,7 +71,7 @@ export function TelegramConnectDialog({
         {connectedName ? (
           <DialogFooter className="gap-2 p-5 sm:p-6">
             <Button onClick={onCancel} className="bg-[#087a5c]">
-              Done
+              {t("connections.telegram.done")}
             </Button>
           </DialogFooter>
         ) : (
@@ -95,7 +101,7 @@ export function TelegramConnectDialog({
                   htmlFor="telegram-bot-token"
                   className="block text-sm font-medium"
                 >
-                  Bot token
+                  {t("connections.telegram.botToken")}
                 </label>
                 <Input
                   id="telegram-bot-token"
@@ -120,8 +126,8 @@ export function TelegramConnectDialog({
                   }
                 >
                   {showTokenError
-                    ? "That does not look like a BotFather token."
-                    : "Looks like 123456789 followed by a colon and a long secret."}
+                    ? t("connections.telegram.tokenInvalid")
+                    : t("connections.telegram.tokenHint")}
                 </p>
               </div>
 
@@ -130,14 +136,16 @@ export function TelegramConnectDialog({
                   htmlFor="telegram-display-name"
                   className="block text-sm font-medium"
                 >
-                  Name{" "}
-                  <span className="font-normal text-[#829089]">(optional)</span>
+                  {t("connections.telegram.name")}{" "}
+                  <span className="font-normal text-[#829089]">
+                    {t("connections.telegram.optional")}
+                  </span>
                 </label>
                 <Input
                   id="telegram-display-name"
                   value={displayName}
                   onChange={(event) => setDisplayName(event.target.value)}
-                  placeholder="Support bot"
+                  placeholder={t("connections.telegram.namePlaceholder")}
                   maxLength={100}
                   className="mt-1.5"
                 />
@@ -147,23 +155,21 @@ export function TelegramConnectDialog({
                   with privacy mode on receives nothing, and the resulting
                   empty inbox looks like a product fault rather than a setting. */}
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/[0.06] dark:text-amber-200">
-                <p className="font-semibold">Planning to use group chats?</p>
-                <p className="mt-1">
-                  New bots start with privacy mode on, so they only receive
-                  commands and replies in groups — not ordinary messages. In
-                  @BotFather, send{" "}
-                  <code className="rounded bg-amber-900/10 px-1 py-0.5 font-mono text-xs dark:bg-amber-100/10">
-                    /setprivacy
-                  </code>
-                  , pick this bot, and choose{" "}
-                  <strong className="font-semibold">Disable</strong>. Then
-                  remove the bot from any group and add it again — the change
-                  only applies when it re-joins.
+                <p className="font-semibold">
+                  {t("connections.telegram.groupsTitle")}
                 </p>
                 <p className="mt-1">
-                  Direct chats are unaffected. This is a Telegram account
-                  setting, so it cannot be changed from here.
+                  <Trans
+                    i18nKey="connections.telegram.groupsBody"
+                    components={{
+                      code: (
+                        <code className="rounded bg-amber-900/10 px-1 py-0.5 font-mono text-xs dark:bg-amber-100/10" />
+                      ),
+                      strong: <strong className="font-semibold" />,
+                    }}
+                  />
                 </p>
+                <p className="mt-1">{t("connections.telegram.groupsDirect")}</p>
               </div>
 
               <a
@@ -172,14 +178,14 @@ export function TelegramConnectDialog({
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-[#087a5c] hover:underline dark:text-emerald-300"
               >
-                Open @BotFather
+                {t("connections.telegram.openBotFather")}
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
               </a>
             </div>
 
             <DialogFooter className="gap-2 border-t border-[#e6ece8] p-5 dark:border-white/[0.08] sm:p-6">
               <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 type="submit"
@@ -189,10 +195,10 @@ export function TelegramConnectDialog({
                 {isConnecting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Connecting
+                    {t("connections.telegram.connecting")}
                   </>
                 ) : (
-                  "Connect"
+                  t("connections.telegram.connect")
                 )}
               </Button>
             </DialogFooter>

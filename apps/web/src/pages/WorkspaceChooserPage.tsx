@@ -45,7 +45,7 @@ export function WorkspaceChooserPage() {
             onClick={() => void logout()}
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[#65736d] hover:bg-white hover:text-[#10211b] dark:hover:bg-dark-tertiary dark:hover:text-white"
           >
-            <LogOut className="h-4 w-4" /> Sign out
+            <LogOut className="h-4 w-4" /> {t("nav.signOut")}
           </button>
         </div>
 
@@ -78,7 +78,7 @@ export function WorkspaceChooserPage() {
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold">
                   {switchingTo?.id === workspace.id
-                    ? `Opening ${workspace.name}…`
+                    ? t("workspaces.opening", { name: workspace.name })
                     : workspace.name}
                 </span>
                 <span className="mt-0.5 block text-sm capitalize text-[#65736d] dark:text-dark-text-secondary">

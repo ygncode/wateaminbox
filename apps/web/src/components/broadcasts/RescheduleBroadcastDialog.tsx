@@ -116,7 +116,7 @@ export function RescheduleBroadcastDialog({
               {t("broadcasts.newStartTime", "New start time")}
             </span>
             <span className="mt-0.5 block text-[11px] text-[#718078] dark:text-dark-text-secondary">
-              Times are shown in {timezone}.
+              {t("broadcasts.timesShownIn", { timezone })}
             </span>
             <input
               id="broadcast-reschedule-at"
@@ -172,7 +172,7 @@ export function RescheduleBroadcastDialog({
             {isSubmitting && (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             )}
-            Save new time
+            {t("broadcasts.saveNewTime")}
           </Button>
         </DialogFooter>
       </DialogContent>

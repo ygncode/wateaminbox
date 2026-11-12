@@ -211,7 +211,7 @@ function McpSetupGuide({
               )}
             </p>
             <CopyBlock
-              label="Endpoint URL"
+              label={t("apiTokens.setup.endpointUrl")}
               caption={t("apiTokens.endpointTitle", "MCP endpoint")}
               value={mcpUrl}
             />
@@ -243,7 +243,7 @@ function McpSetupGuide({
               )}
             </p>
             <CopyBlock
-              label="Endpoint URL"
+              label={t("apiTokens.setup.endpointUrl")}
               caption={t("apiTokens.endpointTitle", "MCP endpoint")}
               value={mcpUrl}
             />
@@ -274,7 +274,7 @@ function McpSetupGuide({
             )}
           </p>
           <CopyBlock
-            label="Client ID"
+            label={t("apiTokens.setup.clientIdCaption", "Client ID")}
             caption={t("apiTokens.setup.clientIdCaption", "Client ID")}
             value={grokClientId}
           />
@@ -297,7 +297,7 @@ function McpSetupGuide({
               )}
             </p>
             <CopyBlock
-              label="Claude Code command"
+              label={t("apiTokens.setup.claudeCodeCommand")}
               caption={t("apiTokens.setup.terminal", "Terminal")}
               value={`claude mcp add --transport http wateaminbox ${mcpUrl} --header "Authorization: Bearer ${secret}"`}
             />

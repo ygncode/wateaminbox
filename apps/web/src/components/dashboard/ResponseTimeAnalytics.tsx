@@ -8,6 +8,7 @@ import {
   Users,
 } from "lucide-react";
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { queryKeys } from "@/hooks/query-keys";
 import { useCurrentSlaPolicy } from "@/hooks/useSlaPolicy";
 import {
@@ -17,7 +18,6 @@ import {
   getTeamResponseTimeStats,
 } from "../../lib/api";
 import { ResponseTimeTrendChart } from "./charts";
-import { useTranslation } from "react-i18next";
 
 type TimeRange = "7d" | "30d" | "90d";
 

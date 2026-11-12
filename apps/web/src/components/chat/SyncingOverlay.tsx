@@ -83,7 +83,10 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
   const connectionCount = syncingConnections.size;
   const hasProgress = totals.conversations > 0 || totals.messages > 0;
   const compactSummary = hasProgress
-    ? `${numberFormatter.format(totals.conversations)} chats ready`
+    ? t("chat.chatsReady", {
+        count: totals.conversations,
+        formattedCount: numberFormatter.format(totals.conversations),
+      })
     : t("chat.preparingHistory", "Preparing history");
 
   return (
@@ -97,7 +100,10 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
           transition={{ type: "spring", stiffness: 360, damping: 30 }}
           role="status"
           aria-live="polite"
-          aria-label={`WhatsApp history is syncing. ${totals.conversations} conversations and ${totals.messages} messages ready.`}
+          aria-label={t("chat.syncingAria", {
+            conversations: totals.conversations,
+            messages: totals.messages,
+          })}
           className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 sm:left-auto sm:right-5 sm:w-[390px] lg:bottom-5"
         >
           <motion.div

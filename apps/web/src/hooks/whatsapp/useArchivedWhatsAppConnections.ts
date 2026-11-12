@@ -6,6 +6,7 @@ import {
   purgeArchivedWhatsAppConnection,
   relinkArchivedWhatsAppConnection,
 } from "@/lib/api/whatsapp";
+import i18n from "@/lib/i18n";
 import { queryKeys } from "../query-keys";
 
 const archivedConnectionsKey = () =>
@@ -19,7 +20,7 @@ const archivedConnectionsKey = () =>
 export function resolvePurgeErrorMessage(error: unknown): string {
   return error instanceof Error && error.message
     ? error.message
-    : "Could not permanently delete this connection";
+    : i18n.t("connections.purgeFailed");
 }
 
 /**
@@ -58,7 +59,7 @@ export function useArchivedWhatsAppConnections() {
     mutationFn: purgeArchivedWhatsAppConnection,
     onSuccess: async () => {
       await invalidate();
-      toast.success("Connection and its inbox data were permanently deleted");
+      toast.success(i18n.t("connections.purgeSucceeded"));
     },
     onError: async (error) => {
       if (purgeErrorNeedsRefetch(error)) await invalidate();

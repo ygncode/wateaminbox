@@ -413,7 +413,7 @@ export function MultiConnectionPanel({
               ) : (
                 <Plus className="h-4 w-4" />
               )}
-              Add connection
+              {t("connections.addConnectionButton")}
             </Button>
           </div>
         </div>
@@ -444,7 +444,7 @@ export function MultiConnectionPanel({
           error={
             connectTelegram.error
               ? ((connectTelegram.error as Error).message ??
-                "Could not connect the bot")
+                t("connections.telegramConnectFailed"))
               : null
           }
           connectedName={connectedTelegramName}
@@ -452,7 +452,8 @@ export function MultiConnectionPanel({
             connectTelegram.mutate(input, {
               onSuccess: (account) => {
                 setConnectedTelegramName(
-                  account.displayName?.trim() || "Your Telegram bot",
+                  account.displayName?.trim() ||
+                    t("connections.yourTelegramBot"),
                 );
               },
             });

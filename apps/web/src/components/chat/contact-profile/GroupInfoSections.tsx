@@ -137,7 +137,9 @@ export function GroupInfoSections({
       )}
 
       <RightPanelSection
-        title={`Participants · ${group?.participantCount ?? group?.participants.length ?? 0}`}
+        title={t("groups.participantsTitle", {
+          count: group?.participantCount ?? group?.participants.length ?? 0,
+        })}
       >
         {group && (
           <div className="mb-3 flex flex-wrap gap-2">
@@ -168,7 +170,7 @@ export function GroupInfoSections({
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
-              Refresh from WhatsApp
+              {t("groups.refreshFromWhatsapp")}
             </Button>
           </div>
         )}
@@ -396,8 +398,8 @@ function ParticipantRow({
           <IconAction
             label={
               participant.isAdmin
-                ? `Remove ${displayName}'s admin rights`
-                : `Make ${displayName} an admin`
+                ? t("groups.removeAdminRightsAria", { name: displayName })
+                : t("groups.makeAdminAria", { name: displayName })
             }
             busy={busy}
             onClick={() => onAction(participant.isAdmin ? "demote" : "promote")}
@@ -409,7 +411,7 @@ function ParticipantRow({
             )}
           </IconAction>
           <IconAction
-            label={`Remove ${displayName} from the group`}
+            label={t("groups.removeFromGroupAria", { name: displayName })}
             busy={busy}
             destructive
             onClick={() => onAction("remove")}

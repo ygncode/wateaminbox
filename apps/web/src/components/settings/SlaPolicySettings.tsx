@@ -1020,7 +1020,8 @@ export function SlaPolicySettings() {
                           onClick={() => addExceptionInterval(exception.key)}
                           className="gap-1.5"
                         >
-                          <Plus className="h-3.5 w-3.5" /> Add interval
+                          <Plus className="h-3.5 w-3.5" />{" "}
+                          {t("sla.addInterval")}
                         </Button>
                       </div>
                     )}

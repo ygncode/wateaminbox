@@ -140,7 +140,7 @@ export function InviteFormModal({
             <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold">
                 <span className="text-[#075c41] dark:text-emerald-300">
-                  Details
+                  {t("team.stepDetails")}
                 </span>
                 <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#9ca9a2]" />
                 <span
@@ -150,11 +150,14 @@ export function InviteFormModal({
                       : "text-[#89968f] dark:text-dark-text-secondary"
                   }
                 >
-                  Review
+                  {t("team.stepReview")}
                 </span>
               </div>
               <span className="shrink-0 rounded-full border border-[#d7e0da] bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#65736d] shadow-sm dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-secondary">
-                Step {step === "details" ? "1" : "2"} of 2
+                {t("team.stepOf", {
+                  current: step === "details" ? 1 : 2,
+                  total: 2,
+                })}
               </span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-[#dce3de] dark:bg-dark-border">
@@ -194,7 +197,7 @@ export function InviteFormModal({
                 label={t("team.emailAddress", "Email address")}
                 type="email"
                 inputMode="email"
-                placeholder="colleague@company.com"
+                placeholder={t("team.emailPlaceholder")}
                 autoComplete="email"
                 registration={register("email")}
                 error={errors.email}
@@ -470,11 +473,11 @@ export function InviteFormModal({
                 className="gap-1.5"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Back
+                {t("common.back")}
               </Button>
             ) : (
               <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
+                {t("common.cancel")}
               </Button>
             )}
             {step === "details" ? (

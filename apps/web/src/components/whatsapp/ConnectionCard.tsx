@@ -137,10 +137,10 @@ export function ConnectionCard({
                   }}
                 />
                 <Button size="sm" onClick={onSaveEdit}>
-                  Save
+                  {t("common.save")}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={onCancelEdit}>
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
               </div>
             ) : (
@@ -202,13 +202,13 @@ export function ConnectionCard({
                           className="inline-flex items-center gap-1 text-xs font-medium text-red-700 dark:text-red-300 hover:text-red-800 dark:hover:text-red-200 bg-red-100 dark:bg-red-900/50 hover:bg-red-200/70 dark:hover:bg-red-800/50 px-2.5 py-1 rounded-md transition-all duration-200"
                         >
                           <RefreshCw className="h-3 w-3" />
-                          Retry
+                          {t("common.retry")}
                         </button>
                         <button
                           onClick={onClearError}
                           className="text-xs text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
                         >
-                          Dismiss
+                          {t("common.dismiss")}
                         </button>
                       </div>
                     </div>
@@ -242,7 +242,7 @@ export function ConnectionCard({
                 ) : (
                   <>
                     <Power className="h-4 w-4 mr-1.5" />
-                    Reconnect
+                    {t("connections.reconnect")}
                   </>
                 )}
               </Button>
@@ -294,7 +294,7 @@ export function ConnectionCard({
                       }}
                     >
                       <Edit2 className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
-                      Rename
+                      {t("connections.rename")}
                     </button>
                     {connection.status === "connected" ? (
                       <button
@@ -310,7 +310,7 @@ export function ConnectionCard({
                         ) : (
                           <PowerOff className="h-4 w-4" />
                         )}
-                        Disconnect
+                        {t("connections.disconnect")}
                       </button>
                     ) : connection.status === "pending" ? (
                       <button
@@ -326,7 +326,7 @@ export function ConnectionCard({
                         ) : (
                           <X className="h-4 w-4" />
                         )}
-                        Cancel setup
+                        {t("connections.cancelSetup")}
                       </button>
                     ) : (
                       <button
@@ -342,7 +342,7 @@ export function ConnectionCard({
                         ) : (
                           <Power className="h-4 w-4" />
                         )}
-                        Reconnect
+                        {t("connections.reconnect")}
                       </button>
                     )}
                     <div className="my-1.5 border-t border-gray-100 dark:border-dark-border" />

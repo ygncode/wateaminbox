@@ -472,7 +472,65 @@
     },
     "mentionMatching": "Matching “@{{query}}”",
     "mentionSuggestions": "Group member suggestions",
-    "noMentionMatch": "No matching group member"
+    "noMentionMatch": "No matching group member",
+    "lifecycle": {
+      "resolved": "Conversation resolved",
+      "resolveFailed": "Could not resolve conversation",
+      "resolvedChats_one": "Resolved {{count}} chat",
+      "resolvedChats_other": "Resolved {{count}} chats",
+      "resolvedPartial": "Resolved {{closed}} of {{total}} chats",
+      "stayedOpen": "{{chats}} chat(s) stayed open with {{unread}} unread message(s).",
+      "resolveCustomerFailed": "Could not resolve this customer",
+      "staleState": "This conversation's state changed - refreshed to the current status.",
+      "somethingWrong": "Something went wrong",
+      "reopened": "Conversation reopened",
+      "opened": "Conversation opened",
+      "markedPending": "Conversation marked pending",
+      "updateFailed": "Could not update conversation"
+    },
+    "sendingMedia_one": "Sending {{count}} photo or video...",
+    "sendingMedia_other": "Sending {{count}} photos and videos...",
+    "sendingFile": "Sending {{name}}...",
+    "gallerySent": "Gallery sent",
+    "attachmentSent": "Attachment sent",
+    "sendAttachmentFailedWithReason": "Failed to send attachment: {{message}}",
+    "sendAttachmentFailed": "Failed to send attachment. Please try again.",
+    "deleteMessageFailed": "Failed to delete message: {{message}}",
+    "forwardedMedia": "Media collection forwarded successfully",
+    "forwardedSuccess": "Message forwarded successfully",
+    "autoAssigned": "Contact was automatically assigned to you",
+    "forwardFailed": "Failed to forward message: {{message}}",
+    "takeOver": "Take over",
+    "channelCapabilitiesLoading": "Loading channel capabilities",
+    "channelMessagingUnavailable": "Messaging is not available for this channel account",
+    "imageMessage": "Image message",
+    "videoMessage": "Video message",
+    "document": "Document",
+    "openImage": "Open image: {{label}}",
+    "playVideo": "Play video: {{label}}",
+    "previewPdf": "Preview PDF: {{name}}",
+    "matchingShortcut": "Matching “/{{query}}”",
+    "chooseSavedResponse": "Choose a saved response",
+    "tryAgainLater": "Please try again later",
+    "pleaseTryAgain": "Please try again",
+    "unknownName": "Unknown",
+    "reopenToSend": "Reopen to send",
+    "openToSend": "Open to send",
+    "reopening": "Reopening…",
+    "opening": "Opening…",
+    "chatsReady_one": "{{formattedCount}} chat ready",
+    "chatsReady_other": "{{formattedCount}} chats ready",
+    "syncingAria": "WhatsApp history is syncing. {{conversations}} conversations and {{messages}} messages ready.",
+    "todayAt": "today at {{time}}",
+    "tomorrowAt": "tomorrow at {{time}}",
+    "dateAt": "{{date}} at {{time}}",
+    "cancelFailedWithReason": "Failed to cancel: {{message}}",
+    "scheduledCount_one": "{{count}} scheduled message",
+    "scheduledCount_other": "{{count}} scheduled messages",
+    "failedCount": "{{count}} failed",
+    "connectionBadgeTitle": "{{identity}} · {{status}}",
+    "accountDisconnected": "Disconnected",
+    "whatsappAccountAria": "WhatsApp account: {{title}}"
   },
   "settings": {
     "title": "Settings",
@@ -608,7 +666,9 @@
     "apiTokensPanel": {
       "title": "AI agents (MCP)",
       "description": "Connect AI agents to this workspace through the MCP endpoint with personal, revocable tokens."
-    }
+    },
+    "viewShortcuts": "View shortcuts",
+    "leftWorkspace": "You left {{name}}"
   },
   "dashboard": {
     "totalMessages": "Total Messages",
@@ -682,7 +742,13 @@
       "slaCompliance": "SLA compliance",
       "resolved": "Resolved",
       "conversations": "Conversations",
-      "noMessageActivity": "No message activity in this period"
+      "noMessageActivity": "No message activity in this period",
+      "hourlyAria": "Hourly activity with {{messages}} messages and a peak at {{hour}}",
+      "messageTrendAria": "Message trend showing {{sent}} sent and {{received}} received messages",
+      "responseTrendAria": "Average response-time trend with a {{minutes}}-minute SLA target",
+      "engagementAria": "Engagement trend with an average score of {{score}} out of 100",
+      "hideSeries": "Hide {{label}} series",
+      "showSeries": "Show {{label}} series"
     },
     "engagementPanel": {
       "title": "Customer engagement",
@@ -1045,7 +1111,30 @@
     "channelUsername": "{{channel}} username",
     "usernameLabel": "Username",
     "channelProfileName": "{{channel}} name",
-    "profileNameLabel": "Profile name"
+    "profileNameLabel": "Profile name",
+    "importCount_one": "Import {{count}} contact",
+    "importCount_other": "Import {{count}} contacts",
+    "linkedTo": "Contacts will be linked to <strong>{{name}}</strong>",
+    "downloadTemplate": "Download CSV template",
+    "csvColPhone": "(required) - Phone number with country code",
+    "csvColName": "- Contact display name",
+    "csvColNotes": "- Shared notes about the contact",
+    "csvColTags": "- Comma-separated tag names",
+    "createFailed": "Failed to create contact",
+    "whatsappAccount": "WhatsApp account",
+    "phoneNumber": "Phone Number",
+    "createdCount": "Created",
+    "updatedCount": "Updated",
+    "skippedCount": "Skipped",
+    "errorsCount": "Errors ({{count}})",
+    "rowPhone": "Row {{row}}: {{phone}}",
+    "phone": "Phone",
+    "name": "Name",
+    "status": "Status",
+    "exists": "Exists",
+    "newLabel": "New",
+    "andMore_one": "And {{count}} more contact...",
+    "andMore_other": "And {{count}} more contacts..."
   },
   "groups": {
     "participants": "Participants",
@@ -1118,7 +1207,18 @@
     "onlyAdminsAddHint": "Otherwise any member can add someone.",
     "participantsSyncing": "Participant details are syncing from WhatsApp. They refresh when the connected account comes online.",
     "showAllParticipants_one": "Show all {{count}} participants",
-    "showAllParticipants_other": "Show all {{count}} participants"
+    "showAllParticipants_other": "Show all {{count}} participants",
+    "refreshFromWhatsapp": "Refresh from WhatsApp",
+    "participantsTitle": "Participants · {{count}}",
+    "removeAdminRightsAria": "Remove {{name}}'s admin rights",
+    "makeAdminAria": "Make {{name}} an admin",
+    "removeFromGroupAria": "Remove {{name}} from the group",
+    "createGroup": "Create group",
+    "saveNameDescription": "Save name and description",
+    "removeParticipantAria": "Remove {{name}}",
+    "selectionLimit": "Selection limit of {{limit}} reached",
+    "noContactsMatch": "No contacts match \"{{query}}\"",
+    "noContactsOnAccount": "No contacts on this WhatsApp account"
   },
   "notifications": {
     "title": "Notifications",
@@ -1165,7 +1265,14 @@
     "loadFailed": "Notifications could not be loaded",
     "loadFailedHint": "The connection to your workspace failed. Your notifications are safe.",
     "unreadAcrossWorkspace_one": "Unread notification across this workspace.",
-    "unreadAcrossWorkspace_other": "Unread notifications across this workspace."
+    "unreadAcrossWorkspace_other": "Unread notifications across this workspace.",
+    "unreadCount": "{{count}} unread",
+    "previous": "Previous",
+    "next": "Next",
+    "pageNumber": "Page {{page}}",
+    "markTitleRead": "Mark \"{{title}}\" as read",
+    "deleteTitle": "Delete \"{{title}}\"",
+    "retrying": "Retrying…"
   },
   "team": {
     "title": "Team",
@@ -1253,7 +1360,15 @@
     "resetToDefaults": "Reset to defaults",
     "saveAccess": "Save access",
     "customOverrideCount_one": "{{count}} custom override",
-    "customOverrideCount_other": "{{count}} custom overrides"
+    "customOverrideCount_other": "{{count}} custom overrides",
+    "resend": "Resend",
+    "cancelInvitationFor": "Cancel invitation for {{email}}",
+    "you": "You",
+    "followPreset": "Follow the {{role}} preset",
+    "stepDetails": "Details",
+    "stepReview": "Review",
+    "stepOf": "Step {{current}} of {{total}}",
+    "emailPlaceholder": "colleague@company.com"
   },
   "export": {
     "title": "Export",
@@ -1345,7 +1460,8 @@
       "generic": "{{actor}} performed {{action}} on {{target}}."
     },
     "eventCount_one": "{{count}} event",
-    "eventCount_other": "{{count}} events"
+    "eventCount_other": "{{count}} events",
+    "filters": "Filters"
   },
   "keyboard": {
     "title": "Keyboard Shortcuts",
@@ -1423,7 +1539,9 @@
     "createNew": "Create new tag",
     "search": "Search tags",
     "searchPlaceholder": "Search tags…",
-    "clearSearch": "Clear tag search"
+    "clearSearch": "Clear tag search",
+    "noTagsMatch": "No tags match “{{query}}”",
+    "create": "Create"
   },
   "account": {
     "profile": "Profile",
@@ -1571,7 +1689,53 @@
     "deletePermanently": "Delete permanently",
     "deletePermanentlyConfirm": "Permanently delete {{name}}?",
     "channelPurgeDescription": "This erases the conversations, messages, and customers this account brought in. Disconnecting kept them; this does not. It cannot be undone.",
-    "deletePermanentlyAction": "Delete data"
+    "deletePermanentlyAction": "Delete data",
+    "purgeFailed": "Could not permanently delete this connection",
+    "purgeSucceeded": "Connection and its inbox data were permanently deleted",
+    "picker": {
+      "title": "Add a connection",
+      "description": "Choose the account this workspace should receive messages from.",
+      "search": "Search",
+      "searchAria": "Search channels",
+      "noMatch": "No channel matches “{{query}}”.",
+      "connect": "Connect {{name}}",
+      "connectedCount": "{{count}} connected"
+    },
+    "telegram": {
+      "connected": "Telegram connected",
+      "connectTitle": "Connect a Telegram bot",
+      "connectedBody": "{{name}} is now delivering messages into this workspace inbox.",
+      "connectHint": "Create a bot with @BotFather, then paste the token it gives you. The token is encrypted and never shown again.",
+      "done": "Done",
+      "botToken": "Bot token",
+      "tokenInvalid": "That does not look like a BotFather token.",
+      "tokenHint": "Looks like 123456789 followed by a colon and a long secret.",
+      "name": "Name",
+      "optional": "(optional)",
+      "namePlaceholder": "Support bot",
+      "groupsTitle": "Planning to use group chats?",
+      "groupsBody": "New bots start with privacy mode on, so they only receive commands and replies in groups — not ordinary messages. In @BotFather, send <code>/setprivacy</code>, pick this bot, and choose <strong>Disable</strong>. Then remove the bot from any group and add it again — the change only applies when it re-joins.",
+      "groupsDirect": "Direct chats are unaffected. This is a Telegram account setting, so it cannot be changed from here.",
+      "openBotFather": "Open @BotFather",
+      "connecting": "Connecting",
+      "connect": "Connect",
+      "groupRestricted": "Group messages are limited: this bot has Telegram's privacy mode on, so it only receives commands and replies in groups. Send <code>/setprivacy</code> to @BotFather, choose this bot, select Disable, then remove and re-add it to each group. Direct chats are unaffected."
+    },
+    "archived": "Archived",
+    "identityRetained": "Identity retained for historical inbox",
+    "linkAgain": "Link again",
+    "deviceName": "Device name",
+    "optional": "(optional)",
+    "duplicatePhone": "This number is already linked",
+    "qrPrepareFailed": "Could not prepare the QR code",
+    "reconnect": "Reconnect",
+    "cancelSetup": "Cancel setup",
+    "connecting": "Connecting...",
+    "retrying": "Retrying...",
+    "unableToConnect": "Unable to connect to WhatsApp. Please try again.",
+    "telegramConnectFailed": "Could not connect the bot",
+    "yourTelegramBot": "Your Telegram bot",
+    "addConnectionButton": "Add connection"
   },
   "sla": {
     "title": "Response SLA",
@@ -1753,7 +1917,45 @@
     "rescheduleWindowHint": "Rescheduling is available only until the first recipient begins processing. If sending starts while this dialog is open, the update will be safely rejected.",
     "keepCurrentTime": "Keep current time",
     "new": "New",
-    "messagePlaceholder": "Hi {{firstName}}, …"
+    "messagePlaceholder": "Hi {{firstName}}, …",
+    "invalidDateTime": "Enter a valid date and time",
+    "timeTooSoon": "Pick a time at least a minute from now",
+    "scheduledFor": "Broadcast scheduled for {{time}}",
+    "scheduleFailedWithReason": "Failed to schedule broadcast: {{message}}",
+    "noTagsMatch": "No tags match “{{query}}”",
+    "maxTags": "You can select up to {{count}} tags",
+    "characterCount_one": "{{count}} character",
+    "characterCount_other": "{{count}} characters",
+    "insert": "Insert:",
+    "tokensExplain": "{{nameToken}} becomes the contact's full name and {{firstNameToken}} their first name. Other tokens are not supported.",
+    "unsupportedTokens_one": "Unsupported token: {{tokens}}. Only {{nameToken}} and {{firstNameToken}} are allowed.",
+    "unsupportedTokens_other": "Unsupported tokens: {{tokens}}. Only {{nameToken}} and {{firstNameToken}} are allowed.",
+    "sentWithEveryMessage": "{{size}} · sent with every message",
+    "recipientCount_one": "{{count}} recipient",
+    "recipientCount_other": "{{count}} recipients",
+    "estimatedSendTime": "Estimated send time: {{duration}} (one message every {{seconds}}s)",
+    "overMaxRecipients": "This audience exceeds the maximum of {{max}} recipients per broadcast. Narrow the audience to continue.",
+    "overDailyCap": "More than {{cap}} recipients on one account — sending will span multiple days to respect the daily cap.",
+    "skippedCount": "{{count}} skipped",
+    "sendSummary_one": "Send to <strong>{{count}} contact</strong> starting {{time}}, ~{{seconds}}s apart ({{duration}} total).",
+    "sendSummary_other": "Send to <strong>{{count}} contacts</strong> starting {{time}}, ~{{seconds}}s apart ({{duration}} total).",
+    "scheduleBroadcast": "Schedule broadcast",
+    "next": "Next",
+    "unknownContact": "Unknown contact",
+    "noIssues": "No issues reported",
+    "rescheduledFor": "Broadcast rescheduled for {{time}}",
+    "rescheduleFailedWithReason": "Could not reschedule broadcast: {{message}}",
+    "cancelFailedWithReason": "Failed to cancel broadcast: {{message}}",
+    "sends": "Sends",
+    "started": "Started",
+    "unknown": "Unknown",
+    "ofSent": "of {{total}} sent",
+    "timesShownIn": "Times are shown in {{timezone}}.",
+    "saveNewTime": "Save new time",
+    "createdByName": "Created by {{name}}",
+    "waitingCount": "{{count}} waiting",
+    "sendsAt": "Sends {{time}}",
+    "startedAt": "Started {{time}}"
   },
   "duration": {
     "lessThanAMinute": "< 1 min",
@@ -1785,7 +1987,9 @@
     "inboxUnread_other": "{{label}}, {{count}} unread messages",
     "profile": "Profile",
     "profileMenu": "Profile navigation",
-    "account": "Account"
+    "account": "Account",
+    "signedInAs": "Signed in as {{name}}",
+    "switchingTo": "Switching to {{name}}…"
   },
   "layout": {
     "resizeConversationList": "Resize conversation list",
@@ -1814,7 +2018,9 @@
     "accepting": "Accepting…",
     "acceptFailed": "Failed to accept invitation",
     "accessSummary_one": "{{mode}} · {{count}} capability enabled",
-    "accessSummary_other": "{{mode}} · {{count}} capabilities enabled"
+    "accessSummary_other": "{{mode}} · {{count}} capabilities enabled",
+    "welcomeTo": "Welcome to {{name}}!",
+    "workspace": "Workspace"
   },
   "setup": {
     "whatsappForTeams": "WhatsApp for teams",
@@ -1843,7 +2049,9 @@
     "privateWorkspace": "Private workspace",
     "separateData": "Separate data and access",
     "readyForConnection": "Ready for your first WhatsApp connection",
-    "ownerNote": "You’ll be the owner of this workspace."
+    "ownerNote": "You’ll be the owner of this workspace.",
+    "defaultWorkspaceName": "Your workspace",
+    "defaultDescription": "A shared place for your team to manage every customer conversation."
   },
   "verify": {
     "oneMoment": "One moment",
@@ -1868,7 +2076,14 @@
     "createHint": "Start a separate inbox with its own team, connections, and data.",
     "switchFailed": "Could not switch workspace",
     "switchFailedGeneric": "Workspace switch failed",
-    "loadFailed": "Unable to load workspaces"
+    "loadFailed": "Unable to load workspaces",
+    "opening": "Opening {{name}}…",
+    "switchedTo": "Switched to {{name}}",
+    "redirectedToInbox": "This workspace opened in Inbox because the previous view is unavailable.",
+    "ready": "{{name}} is ready",
+    "activeAria": "Active workspace: {{name}}. Switch workspace",
+    "workspaceTitle": "Workspace: {{name}}",
+    "switchingTo": "Switching to {{name}}…"
   },
   "analytics": {
     "consent": "Analytics consent",
@@ -1881,7 +2096,9 @@
     "storedLocally": "Your choice is stored only in this browser.",
     "defaultOnHint": "This deployment enables analytics by default (operator policy); you can still opt this browser out.",
     "sessionOffHint": "Analytics stays fully off for the rest of this session; it resumes after your next page reload.",
-    "onHint": "When on, this deployment reports anonymous page views and product events (for example “message sent” or “workspace created”) to its own Google Analytics property. Messages, contacts, names, email addresses, and workspace identifiers are never sent. Opting out takes effect immediately and also removes Google Analytics cookies where possible."
+    "onHint": "When on, this deployment reports anonymous page views and product events (for example “message sent” or “workspace created”) to its own Google Analytics property. Messages, contacts, names, email addresses, and workspace identifiers are never sent. Opting out takes effect immediately and also removes Google Analytics cookies where possible.",
+    "decline": "Decline",
+    "accept": "Accept"
   },
   "table": {
     "emptyTitle": "Nothing here yet",
@@ -1997,7 +2214,9 @@
       "grokStep2": "Continue, sign in to WATeamInbox, choose the workspace, and approve.",
       "clientIdCaption": "Client ID",
       "grokClientIdSummary": "Grok is asking me for a Client ID",
-      "grokClientIdBody": "Newer versions of Grok fill this in themselves. If yours asks, paste the value below, leave Client Secret empty, and keep PKCE set to S256."
+      "grokClientIdBody": "Newer versions of Grok fill this in themselves. If yours asks, paste the value below, leave Client Secret empty, and keep PKCE set to S256.",
+      "endpointUrl": "Endpoint URL",
+      "claudeCodeCommand": "Claude Code command"
     },
     "createDescription": "Only for Claude Code, Cursor and scripts. If you are connecting ChatGPT, Claude or Grok, skip this — those sign in through the browser."
   },
@@ -2020,5 +2239,24 @@
     "loadFailed": "Could not load connected apps. They may still be connected.",
     "authorizedBy": "Authorized by {{name}}",
     "confirmOwner": "Authorized by {{name}}"
+  },
+  "oauth": {
+    "verifyFailed": "This application could not be verified",
+    "authorizeFailed": "Could not complete authorization",
+    "authorizeAccess": "Authorize access",
+    "connectName": "Connect {{name}}",
+    "requesting": "<strong>{{host}}</strong> is requesting access to your WhatsApp inbox.",
+    "requestingAs": "<strong>{{host}}</strong> is requesting access to your WhatsApp inbox as <strong>{{email}}</strong>.",
+    "readTitle": "Read your conversations",
+    "readDesc": "Messages, contacts and notes",
+    "sendTitle": "Send messages as you",
+    "sendDesc": "Replies go out from your WhatsApp number",
+    "limitTitle": "Never more than you can see",
+    "limitDesc": "Disconnect any time in Settings",
+    "workspace": "Workspace",
+    "whichWorkspace": "Which workspace should it use?",
+    "cancelling": "Cancelling…",
+    "connecting": "Connecting…",
+    "returnedTo": "You will be returned to {{host}} after connecting."
   }
 }

@@ -1,5 +1,6 @@
 import { Search } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +40,7 @@ export function ChannelPickerDialog({
   onSelect,
   onCancel,
 }: ChannelPickerDialogProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
 
   const entries = useMemo(() => {
@@ -57,9 +59,11 @@ export function ChannelPickerDialog({
       <DialogContent className="mx-4 w-[calc(100vw-2rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl p-0 sm:w-full">
         <div className="border-b border-[#dce3de] bg-[#f8faf8] p-5 dark:border-dark-border dark:bg-white/[0.025] sm:p-6">
           <DialogHeader className="text-left">
-            <DialogTitle className="text-xl">Add a connection</DialogTitle>
+            <DialogTitle className="text-xl">
+              {t("connections.picker.title")}
+            </DialogTitle>
             <DialogDescription className="leading-6">
-              Choose the account this workspace should receive messages from.
+              {t("connections.picker.description")}
             </DialogDescription>
           </DialogHeader>
           <div className="relative mt-4">
@@ -71,8 +75,8 @@ export function ChannelPickerDialog({
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search"
-              aria-label="Search channels"
+              placeholder={t("connections.picker.search")}
+              aria-label={t("connections.picker.searchAria")}
               className="pl-9"
             />
           </div>
@@ -81,7 +85,7 @@ export function ChannelPickerDialog({
         <div className="p-5 sm:p-6">
           {entries.length === 0 ? (
             <p className="py-8 text-center text-sm text-[#65736d] dark:text-[#a9bab4]">
-              No channel matches “{query.trim()}”.
+              {t("connections.picker.noMatch", { query: query.trim() })}
             </p>
           ) : (
             <ul className="grid grid-cols-3 gap-x-2 gap-y-5 sm:grid-cols-4">
@@ -94,7 +98,10 @@ export function ChannelPickerDialog({
                       type="button"
                       disabled={Boolean(reason)}
                       onClick={() => onSelect(entry)}
-                      title={reason ?? `Connect ${entry.name}`}
+                      title={
+                        reason ??
+                        t("connections.picker.connect", { name: entry.name })
+                      }
                       className={cn(
                         "group flex w-full flex-col items-center gap-2 rounded-xl px-1 py-2 text-center transition-colors",
                         reason
@@ -115,7 +122,9 @@ export function ChannelPickerDialog({
                       </span>
                       {connected > 0 && (
                         <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
-                          {connected} connected
+                          {t("connections.picker.connectedCount", {
+                            count: connected,
+                          })}
                         </span>
                       )}
                     </button>

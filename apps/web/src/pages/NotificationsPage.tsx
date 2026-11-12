@@ -142,14 +142,14 @@ export function NotificationsPage() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-lg font-semibold leading-none text-[#10211b] dark:text-dark-text-primary">
-                Notifications
+                {t("notifications.title")}
               </h1>
               {unreadCount > 0 && (
                 <Badge
                   variant="outline"
                   className="px-2 py-0 text-[10px] tabular-nums"
                 >
-                  {unreadCount} unread
+                  {t("notifications.unreadCount", { count: unreadCount })}
                 </Badge>
               )}
             </div>
@@ -327,10 +327,10 @@ export function NotificationsPage() {
                   onClick={() => setPage(page - 1)}
                 >
                   <ChevronLeft className="mr-1 size-4" />
-                  Previous
+                  {t("notifications.previous")}
                 </Button>
                 <span className="text-[11px] font-medium text-[#7a8881] tabular-nums dark:text-dark-text-secondary">
-                  Page {page + 1}
+                  {t("notifications.pageNumber", { page: page + 1 })}
                 </span>
                 <Button
                   variant="outline"
@@ -339,7 +339,7 @@ export function NotificationsPage() {
                   disabled={!hasMore}
                   onClick={() => setPage(page + 1)}
                 >
-                  Next
+                  {t("notifications.next")}
                   <ChevronRight className="ml-1 size-4" />
                 </Button>
               </nav>

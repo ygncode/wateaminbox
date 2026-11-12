@@ -110,8 +110,10 @@ export function AddConnectionDialog({
                   htmlFor="connection-name"
                   className="block text-sm font-medium"
                 >
-                  Device name{" "}
-                  <span className="font-normal text-[#829089]">(optional)</span>
+                  {t("connections.deviceName")}{" "}
+                  <span className="font-normal text-[#829089]">
+                    {t("connections.optional")}
+                  </span>
                 </label>
                 <Input
                   id="connection-name"
@@ -252,8 +254,8 @@ export function AddConnectionDialog({
                 <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-400/20 dark:bg-red-400/[0.06]">
                   <p className="font-semibold text-red-800 dark:text-red-200">
                     {isDuplicatePhone
-                      ? "This number is already linked"
-                      : "Could not prepare the QR code"}
+                      ? t("connections.duplicatePhone")
+                      : t("connections.qrPrepareFailed")}
                   </p>
                   <p className="mt-1 text-sm leading-6 text-red-700 dark:text-red-300">
                     {setupError}
@@ -265,7 +267,7 @@ export function AddConnectionDialog({
                       onClick={onCancel}
                       className="mt-4"
                     >
-                      Close
+                      {t("common.close")}
                     </Button>
                   ) : (
                     <Button

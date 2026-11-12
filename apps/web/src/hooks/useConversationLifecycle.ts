@@ -20,6 +20,7 @@ import {
   resumeConversation,
   setConversationPending,
 } from "@/lib/api/conversation-state";
+import i18n from "@/lib/i18n";
 import { queryKeys } from "./query-keys";
 
 export function useConversationState(contactId: string | null) {
@@ -64,11 +65,13 @@ export function useResolveConversation(contactId: string) {
       resolveConversation(contactId, input),
     onSuccess: () => {
       invalidate();
-      toast.success("Conversation resolved");
+      toast.success(i18n.t("chat.lifecycle.resolved"));
     },
     onError: (err) => {
       toast.error(
-        err instanceof Error ? err.message : "Could not resolve conversation",
+        err instanceof Error
+          ? err.message
+          : i18n.t("chat.lifecycle.resolveFailed"),
       );
     },
   });
@@ -92,7 +95,9 @@ export function useResolveCustomer(chatId: string) {
       const closed = result.resolved.length + result.alreadyResolved.length;
       if (result.skipped.length === 0) {
         toast.success(
-          closed > 1 ? `Resolved ${closed} chats` : "Conversation resolved",
+          closed > 1
+            ? i18n.t("chat.lifecycle.resolvedChats", { count: closed })
+            : i18n.t("chat.lifecycle.resolved"),
         );
         return;
       }
@@ -101,16 +106,24 @@ export function useResolveCustomer(chatId: string) {
         0,
       );
       toast.success(
-        `Resolved ${closed} of ${closed + result.skipped.length} chats`,
+        i18n.t("chat.lifecycle.resolvedPartial", {
+          closed,
+          total: closed + result.skipped.length,
+        }),
         {
-          description: `${result.skipped.length} chat(s) stayed open with ${unread} unread message(s).`,
+          description: i18n.t("chat.lifecycle.stayedOpen", {
+            chats: result.skipped.length,
+            unread,
+          }),
           duration: 12_000,
         },
       );
     },
     onError: (err) => {
       toast.error(
-        err instanceof Error ? err.message : "Could not resolve this customer",
+        err instanceof Error
+          ? err.message
+          : i18n.t("chat.lifecycle.resolveCustomerFailed"),
       );
     },
   });
@@ -130,12 +143,14 @@ function useRefetchOnStaleTransitionConflict(contactId: string) {
       queryClient.invalidateQueries({
         queryKey: queryKeys.conversations.detail(contactId),
       });
-      toast.error(
-        "This conversation's state changed - refreshed to the current status.",
-      );
+      toast.error(i18n.t("chat.lifecycle.staleState"));
       return;
     }
-    toast.error(err instanceof Error ? err.message : "Something went wrong");
+    toast.error(
+      err instanceof Error
+        ? err.message
+        : i18n.t("chat.lifecycle.somethingWrong"),
+    );
   };
 }
 
@@ -147,7 +162,7 @@ export function useReopenConversation(contactId: string) {
       reopenConversation(contactId, input),
     onSuccess: () => {
       invalidate();
-      toast.success("Conversation reopened");
+      toast.success(i18n.t("chat.lifecycle.reopened"));
     },
     onError: handleStaleConflict,
   });
@@ -161,7 +176,7 @@ export function useOpenConversation(contactId: string) {
       openConversation(contactId, input),
     onSuccess: () => {
       invalidate();
-      toast.success("Conversation opened");
+      toast.success(i18n.t("chat.lifecycle.opened"));
     },
     onError: handleStaleConflict,
   });
@@ -173,11 +188,13 @@ export function usePendingConversation(contactId: string) {
     mutationFn: () => setConversationPending(contactId),
     onSuccess: () => {
       invalidate();
-      toast.success("Conversation marked pending");
+      toast.success(i18n.t("chat.lifecycle.markedPending"));
     },
     onError: (err) => {
       toast.error(
-        err instanceof Error ? err.message : "Could not update conversation",
+        err instanceof Error
+          ? err.message
+          : i18n.t("chat.lifecycle.updateFailed"),
       );
     },
   });
@@ -194,11 +211,13 @@ export function useResumeConversation(contactId: string) {
     mutationFn: () => resumeConversation(contactId),
     onSuccess: () => {
       invalidate();
-      toast.success("Conversation reopened");
+      toast.success(i18n.t("chat.lifecycle.reopened"));
     },
     onError: (err) => {
       toast.error(
-        err instanceof Error ? err.message : "Could not update conversation",
+        err instanceof Error
+          ? err.message
+          : i18n.t("chat.lifecycle.updateFailed"),
       );
     },
   });

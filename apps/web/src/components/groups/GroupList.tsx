@@ -206,7 +206,7 @@ export function GroupList({
                 {t("groups.loadFailed", "Failed to load groups")}
               </p>
               <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
-                {error?.message || "Please try again later"}
+                {error?.message || t("chat.tryAgainLater")}
               </p>
             </div>
           ),

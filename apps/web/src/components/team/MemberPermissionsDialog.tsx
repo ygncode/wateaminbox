@@ -76,7 +76,7 @@ export function MemberPermissionsDialog({
               active={mode === "defaults"}
               onClick={() => setMode("defaults")}
               title={t("team.useRoleDefaults", "Use role defaults")}
-              description={`Follow the ${member.role} preset`}
+              description={t("team.followPreset", { role: member.role })}
             />
             <ModeButton
               active={mode === "custom"}
@@ -167,7 +167,7 @@ export function MemberPermissionsDialog({
               onClick={onClose}
               disabled={isSaving}
             >
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               type="button"

@@ -78,6 +78,7 @@ function NotificationRow({
   onMarkAsRead,
   onDelete,
 }: NotificationRowProps) {
+  const { t } = useTranslation();
   const visual = getNotificationVisual(notification.notificationType);
   const isCompact = density === "compact";
   const isUnread = !notification.isRead;
@@ -175,7 +176,9 @@ function NotificationRow({
             <Button
               variant="ghost"
               size="icon"
-              aria-label={`Mark "${notification.title}" as read`}
+              aria-label={t("notifications.markTitleRead", {
+                title: notification.title,
+              })}
               className={cn(
                 "rounded-full text-gray-400 hover:bg-whatsapp-green/10 hover:text-whatsapp-dark-green dark:text-dark-text-tertiary",
                 isCompact ? "size-7" : "size-8",
@@ -191,7 +194,9 @@ function NotificationRow({
           <Button
             variant="ghost"
             size="icon"
-            aria-label={`Delete "${notification.title}"`}
+            aria-label={t("notifications.deleteTitle", {
+              title: notification.title,
+            })}
             className={cn(
               "rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 dark:text-dark-text-tertiary dark:hover:bg-red-900/30 dark:hover:text-red-400",
               isCompact ? "size-7" : "size-8",
@@ -402,7 +407,9 @@ export function NotificationErrorState({
         <RefreshCw
           className={cn("mr-2 size-4", isRetrying && "animate-spin")}
         />
-        {isRetrying ? "Retrying…" : "Try again"}
+        {isRetrying
+          ? t("notifications.retrying")
+          : t("connections.tryAgainShort")}
       </Button>
     </div>
   );

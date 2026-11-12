@@ -374,7 +374,9 @@ export function ProtectedAppLayout() {
               <div className="mt-2 flex flex-col items-center gap-1.5">
                 <Avatar
                   className="h-10 w-10 rounded-xl border border-white/10 bg-white/10"
-                  title={`Signed in as ${user?.name || user?.email}`}
+                  title={t("nav.signedInAs", {
+                    name: user?.name || user?.email,
+                  })}
                 >
                   <AvatarImage
                     src={user?.avatarUrl}
@@ -414,7 +416,7 @@ export function ProtectedAppLayout() {
                   </Avatar>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold leading-5 text-white">
-                      {user?.name || "Account"}
+                      {user?.name || t("nav.account")}
                     </p>
                     <p className="truncate text-[11px] leading-4 text-[#91a8a0]">
                       {user?.email}
@@ -477,7 +479,7 @@ export function ProtectedAppLayout() {
               <div className="flex flex-col items-center text-center">
                 <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#0b7a55] border-t-transparent" />
                 <p className="mt-4 text-sm font-semibold">
-                  Switching to {switchingTo?.name}…
+                  {t("nav.switchingTo", { name: switchingTo?.name })}
                 </p>
                 <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
                   {t("nav.preparingWorkspace", "Preparing a clean workspace")}

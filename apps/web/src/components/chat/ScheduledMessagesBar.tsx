@@ -1,6 +1,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import type { ScheduledMessage } from "@wateaminbox/shared";
 import { dayjs } from "@wateaminbox/shared";
+import i18n from "@/lib/i18n";
 import {
   AlertCircle,
   CalendarClock,
@@ -27,11 +28,15 @@ interface ScheduledMessagesBarProps {
 function formatScheduledTime(iso: string): string {
   // dayjs renders ISO UTC input in the viewer's local timezone by default.
   const value = dayjs(iso);
-  if (value.isSame(dayjs(), "day")) return `today at ${value.format("HH:mm")}`;
+  if (value.isSame(dayjs(), "day"))
+    return i18n.t("chat.todayAt", { time: value.format("HH:mm") });
   if (value.isSame(dayjs().add(1, "day"), "day")) {
-    return `tomorrow at ${value.format("HH:mm")}`;
+    return i18n.t("chat.tomorrowAt", { time: value.format("HH:mm") });
   }
-  return value.format("MMM D, YYYY [at] HH:mm");
+  return i18n.t("chat.dateAt", {
+    date: value.format("MMM D, YYYY"),
+    time: value.format("HH:mm"),
+  });
 }
 
 function mediaKind(
@@ -73,7 +78,7 @@ function ScheduledMessageRow({
       onError: (error) => {
         toast.error(
           error instanceof Error
-            ? `Failed to cancel: ${error.message}`
+            ? t("chat.cancelFailedWithReason", { message: error.message })
             : t(
                 "chat.cancelScheduledFailed",
                 "Failed to cancel scheduled message",
@@ -180,9 +185,8 @@ export function ScheduledMessagesBar({ contactId }: ScheduledMessagesBarProps) {
   const upcomingCount = scheduledMessages.length - failedCount;
 
   const summary = [
-    upcomingCount > 0 &&
-      `${upcomingCount} scheduled message${upcomingCount === 1 ? "" : "s"}`,
-    failedCount > 0 && `${failedCount} failed`,
+    upcomingCount > 0 && t("chat.scheduledCount", { count: upcomingCount }),
+    failedCount > 0 && t("chat.failedCount", { count: failedCount }),
   ]
     .filter(Boolean)
     .join(" · ");

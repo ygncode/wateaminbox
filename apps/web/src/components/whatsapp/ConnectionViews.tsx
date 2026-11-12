@@ -46,7 +46,7 @@ export function DisconnectedView({
         {isConnecting ? (
           <>
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Connecting...
+            {t("connections.connecting")}
           </>
         ) : (
           <>
@@ -132,7 +132,7 @@ export function LegacyQRCodeView({
                 ) : (
                   <>
                     <RefreshCw className="h-4 w-4 mr-1" />
-                    Refresh
+                    {t("common.refresh")}
                   </>
                 )}
               </Button>
@@ -251,13 +251,13 @@ export function ErrorView({
         {t("connections.failed", "Connection Failed")}
       </h3>
       <p className="text-sm text-gray-500 dark:text-dark-text-secondary mb-4 max-w-sm mx-auto">
-        {error || "Unable to connect to WhatsApp. Please try again."}
+        {error || t("connections.unableToConnect")}
       </p>
       <Button onClick={onRetry} disabled={isRetrying}>
         {isRetrying ? (
           <>
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Retrying...
+            {t("connections.retrying")}
           </>
         ) : (
           <>

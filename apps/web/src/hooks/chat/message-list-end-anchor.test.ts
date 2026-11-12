@@ -16,7 +16,11 @@ const ESTIMATED_ROW_HEIGHT = 80;
 const ROW_COUNT = 30;
 const LAST_ROW = ROW_COUNT - 1;
 
-function createThreadHarness({ endAnchor = true }: { endAnchor?: boolean } = {}) {
+function createThreadHarness({
+  endAnchor = true,
+}: {
+  endAnchor?: boolean;
+} = {}) {
   const rafQueue: Array<() => void> = [];
   const fakeWindow = {
     requestAnimationFrame: (cb: () => void) => rafQueue.push(cb),

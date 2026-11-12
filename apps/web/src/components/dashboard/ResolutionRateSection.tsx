@@ -1,6 +1,7 @@
 import { dayjs, getDateRange } from "@wateaminbox/shared";
 import { AlertTriangle, CheckCircle, Clock, Target, Users } from "lucide-react";
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   useOverdueActiveCases,
   useResolutionStats,
@@ -9,7 +10,6 @@ import {
 } from "@/hooks/analytics";
 import { ResolutionTrendChart } from "./charts";
 import type { DateRange } from "./DashboardHeader";
-import { useTranslation } from "react-i18next";
 
 interface ResolutionRateSectionProps {
   companyId: string;

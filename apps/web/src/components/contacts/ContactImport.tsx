@@ -243,7 +243,9 @@ export function ContactImport({
               onClick={onClose}
               className="px-4 py-2 text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-lg"
             >
-              {step === "complete" ? "Done" : "Cancel"}
+              {step === "complete"
+                ? t("contacts.steps.done")
+                : t("common.cancel")}
             </button>
           )}
 
@@ -253,7 +255,7 @@ export function ContactImport({
               disabled={loading}
               className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50"
             >
-              Import {preview?.total} contacts
+              {t("contacts.importCount", { count: preview?.total ?? 0 })}
             </button>
           )}
         </div>

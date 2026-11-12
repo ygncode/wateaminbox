@@ -7,7 +7,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import type { ChannelAccount } from "@/lib/api/channel-accounts";
@@ -282,11 +282,10 @@ export function ChannelAccountCard({
 
       {groupMessagesRestricted && (
         <p className="border-t border-amber-200/70 bg-amber-50 px-3.5 py-2.5 text-xs leading-5 text-amber-900 dark:border-amber-400/15 dark:bg-amber-400/[0.06] dark:text-amber-200">
-          Group messages are limited: this bot has Telegram&apos;s privacy mode
-          on, so it only receives commands and replies in groups. Send{" "}
-          <code className="font-mono">/setprivacy</code> to @BotFather, choose
-          this bot, select Disable, then remove and re-add it to each group.
-          Direct chats are unaffected.
+          <Trans
+            i18nKey="connections.telegram.groupRestricted"
+            components={{ code: <code className="font-mono" /> }}
+          />
         </p>
       )}
 

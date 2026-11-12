@@ -121,7 +121,7 @@ export function AddContactDialog({
           setServerError(err.message);
         }
       } else {
-        setServerError("Failed to create contact");
+        setServerError(t("contacts.createFailed"));
       }
     }
   };
@@ -167,7 +167,8 @@ export function AddContactDialog({
             {activeConnections.length > 1 && (
               <div className="space-y-2">
                 <Label htmlFor="connectionId">
-                  WhatsApp account <span className="text-red-500">*</span>
+                  {t("contacts.whatsappAccount")}{" "}
+                  <span className="text-red-500">*</span>
                 </Label>
                 <Controller
                   name="connectionId"
@@ -212,7 +213,8 @@ export function AddContactDialog({
             {/* Phone Number Input */}
             <div className="space-y-2">
               <Label htmlFor="phoneNumber">
-                Phone Number <span className="text-red-500">*</span>
+                {t("contacts.phoneNumber")}{" "}
+                <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="phoneNumber"
@@ -325,7 +327,7 @@ export function AddContactDialog({
                 onClick={handleClose}
                 disabled={createContact.isPending}
               >
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 type="submit"
@@ -338,7 +340,7 @@ export function AddContactDialog({
                 {createContact.isPending ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating…
+                    {t("common.creating")}
                   </>
                 ) : (
                   <>

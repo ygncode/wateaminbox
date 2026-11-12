@@ -612,7 +612,9 @@ function GeneralSettings() {
   const leaveWorkspace = async () => {
     try {
       await leaveCompany.mutateAsync(activeWorkspace.id);
-      toast.success(`You left ${activeWorkspace.name}`);
+      toast.success(
+        t("settings.leftWorkspace", { name: activeWorkspace.name }),
+      );
       await navigateAfterExit();
     } catch (error) {
       toast.error(
@@ -1028,7 +1030,7 @@ function AppearanceSettings() {
         )}
       >
         <Button variant="outline" onClick={openHelpModal} className="gap-2">
-          <Keyboard className="h-4 w-4" /> View shortcuts
+          <Keyboard className="h-4 w-4" /> {t("settings.viewShortcuts")}
         </Button>
       </Panel>
     </div>

@@ -99,7 +99,7 @@ export function MessageContent({
         );
       }
       const mediaUrl = message.metadata?.mediaUrl;
-      const imageAlt = mediaCaption || "Image message";
+      const imageAlt = mediaCaption || t("chat.imageMessage");
 
       return (
         <div className="max-w-xs">
@@ -117,7 +117,7 @@ export function MessageContent({
                   event.stopPropagation();
                   setMediaPreviewOpen(true);
                 }}
-                aria-label={`Open image: ${imageAlt}`}
+                aria-label={t("chat.openImage", { label: imageAlt })}
                 tabIndex={enableMediaPreview ? 0 : -1}
               >
                 <img
@@ -174,7 +174,7 @@ export function MessageContent({
         );
       }
       const mediaUrl = message.metadata?.mediaUrl;
-      const videoLabel = mediaCaption || "Video message";
+      const videoLabel = mediaCaption || t("chat.videoMessage");
 
       return (
         <div className="max-w-xs">
@@ -192,7 +192,7 @@ export function MessageContent({
                   event.stopPropagation();
                   setMediaPreviewOpen(true);
                 }}
-                aria-label={`Play video: ${videoLabel}`}
+                aria-label={t("chat.playVideo", { label: videoLabel })}
                 tabIndex={enableMediaPreview ? 0 : -1}
               >
                 <video
@@ -293,7 +293,7 @@ export function MessageContent({
         );
       }
       const mediaUrl = message.metadata?.mediaUrl;
-      const fileName = message.metadata?.fileName || "Document";
+      const fileName = message.metadata?.fileName || t("chat.document");
       const mimeType = message.metadata?.mimeType?.toLowerCase();
       const isPdf =
         mimeType === "application/pdf" ||
@@ -344,7 +344,9 @@ export function MessageContent({
               {fileName}
             </p>
             <p className="text-xs uppercase text-gray-500 dark:text-dark-text-secondary">
-              {isPdf ? "PDF" : fileExtension || mimeSubtype || "Document"}
+              {isPdf
+                ? "PDF"
+                : fileExtension || mimeSubtype || t("chat.document")}
               {message.metadata?.fileSize
                 ? ` · ${formatFileSize(message.metadata.fileSize)}`
                 : ""}
@@ -378,7 +380,7 @@ export function MessageContent({
                 event.stopPropagation();
                 setMediaPreviewOpen(true);
               }}
-              aria-label={`Preview PDF: ${fileName}`}
+              aria-label={t("chat.previewPdf", { name: fileName })}
             >
               {documentCard}
             </button>

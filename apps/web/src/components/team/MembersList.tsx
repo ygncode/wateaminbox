@@ -345,6 +345,7 @@ function MemberIdentity({
   member: CompanyMember;
   isCurrentUser: boolean;
 }) {
+  const { t } = useTranslation();
   const displayName = member.name || member.email;
   const initials = displayName
     .split(/\s+/)
@@ -367,7 +368,7 @@ function MemberIdentity({
           </p>
           {isCurrentUser && (
             <Badge variant="outline" className="text-[9px]">
-              You
+              {t("team.you")}
             </Badge>
           )}
         </div>

@@ -44,12 +44,11 @@ export function ArchivedConnectionCard({
                 {connection.name}
               </p>
               <span className="rounded-full bg-stone-200/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-stone-600 dark:bg-white/10 dark:text-stone-300">
-                Archived
+                {t("connections.archived")}
               </span>
             </div>
             <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
-              {connection.phoneNumber ||
-                "Identity retained for historical inbox"}
+              {connection.phoneNumber || t("connections.identityRetained")}
             </p>
           </div>
         </div>
@@ -67,7 +66,7 @@ export function ArchivedConnectionCard({
             ) : (
               <ArchiveRestore className="h-4 w-4" />
             )}
-            Link again
+            {t("connections.linkAgain")}
           </Button>
           <Button
             variant="ghost"

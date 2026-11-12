@@ -57,7 +57,7 @@ import {
   personalizeSample,
 } from "./broadcast-format";
 import { ContactMultiSelect } from "./ContactMultiSelect";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 
 const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
 const MAX_AUDIENCE_TAGS = 50;
@@ -426,11 +426,11 @@ export function CreateBroadcastWizard({
     if (!preview) return;
     const parsed = new Date(scheduleValue);
     if (Number.isNaN(parsed.getTime())) {
-      setScheduleError("Enter a valid date and time");
+      setScheduleError(t("broadcasts.invalidDateTime"));
       return;
     }
     if (parsed.getTime() - Date.now() < MIN_LEAD_MS) {
-      setScheduleError("Pick a time at least a minute from now");
+      setScheduleError(t("broadcasts.timeTooSoon"));
       return;
     }
     setScheduleError(null);
@@ -468,9 +468,9 @@ export function CreateBroadcastWizard({
         idempotencyKey: idempotencyKeyRef.current,
       });
       toast.success(
-        `Broadcast scheduled for ${dayjs(parsed.toISOString()).format(
-          "MMM D [at] HH:mm",
-        )}`,
+        t("broadcasts.scheduledFor", {
+          time: dayjs(parsed.toISOString()).format("MMM D [at] HH:mm"),
+        }),
       );
       onCreated(job);
     } catch (error) {
@@ -490,7 +490,9 @@ export function CreateBroadcastWizard({
       } else {
         toast.error(
           error instanceof Error
-            ? `Failed to schedule broadcast: ${error.message}`
+            ? t("broadcasts.scheduleFailedWithReason", {
+                message: error.message,
+              })
             : t(
                 "broadcasts.scheduleFailed",
                 "Failed to schedule broadcast. Please try again.",
@@ -590,7 +592,9 @@ export function CreateBroadcastWizard({
                       ) : !tags || tags.length === 0 ? (
                         <span className="text-sm text-[#667781] dark:text-dark-text-secondary">
                           {debouncedTagSearch
-                            ? `No tags match “${debouncedTagSearch}”`
+                            ? t("broadcasts.noTagsMatch", {
+                                query: debouncedTagSearch,
+                              })
                             : t(
                                 "broadcasts.noTagsHint",
                                 "No tags yet — pick contacts below instead.",
@@ -611,7 +615,9 @@ export function CreateBroadcastWizard({
                               disabled={isDisabled}
                               title={
                                 isDisabled
-                                  ? `You can select up to ${MAX_AUDIENCE_TAGS} tags`
+                                  ? t("broadcasts.maxTags", {
+                                      count: MAX_AUDIENCE_TAGS,
+                                    })
                                   : undefined
                               }
                               className={cn(
@@ -751,10 +757,12 @@ export function CreateBroadcastWizard({
                         htmlFor="broadcast-content"
                         className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary"
                       >
-                        Message
+                        {t("broadcasts.steps.message")}
                       </Label>
                       <span className="text-xs tabular-nums text-[#667781] dark:text-dark-text-tertiary">
-                        {content.length} characters
+                        {t("broadcasts.characterCount", {
+                          count: content.length,
+                        })}
                       </span>
                     </div>
                     <Textarea
@@ -774,7 +782,7 @@ export function CreateBroadcastWizard({
                     />
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       <span className="text-xs text-[#667781] dark:text-dark-text-tertiary">
-                        Insert:
+                        {t("broadcasts.insert")}
                       </span>
                       <Button
                         type="button"
@@ -794,21 +802,24 @@ export function CreateBroadcastWizard({
                       </Button>
                     </div>
                     <p className="mt-1.5 text-xs text-[#667781] dark:text-dark-text-tertiary">
-                      {"{{name}}"} becomes the contact's full name and{" "}
-                      {"{{firstName}}"} their first name. Other tokens are not
-                      supported.
+                      {t("broadcasts.tokensExplain", {
+                        nameToken: "{{name}}",
+                        firstNameToken: "{{firstName}}",
+                      })}
                     </p>
                     {unknownTokens.length > 0 && (
                       <p
                         className="mt-1.5 text-xs text-red-600 dark:text-red-400"
                         role="alert"
                       >
-                        Unsupported token{unknownTokens.length === 1 ? "" : "s"}
-                        :{" "}
-                        {unknownTokens
-                          .map((token) => `{{${token}}}`)
-                          .join(", ")}
-                        . Only {"{{name}}"} and {"{{firstName}}"} are allowed.
+                        {t("broadcasts.unsupportedTokens", {
+                          count: unknownTokens.length,
+                          tokens: unknownTokens
+                            .map((token) => `{{${token}}}`)
+                            .join(", "),
+                          nameToken: "{{name}}",
+                          firstNameToken: "{{firstName}}",
+                        })}
                       </p>
                     )}
                   </div>
@@ -855,8 +866,9 @@ export function CreateBroadcastWizard({
                             {attachment.file.name}
                           </p>
                           <p className="text-xs text-[#667781] dark:text-dark-text-tertiary">
-                            {formatBytes(attachment.file.size)} · sent with
-                            every message
+                            {t("broadcasts.sentWithEveryMessage", {
+                              size: formatBytes(attachment.file.size),
+                            })}
                           </p>
                         </div>
                         <Button
@@ -922,7 +934,7 @@ export function CreateBroadcastWizard({
                       onClick={() => void runPreview()}
                     >
                       <RefreshCw aria-hidden="true" />
-                      Retry
+                      {t("common.retry")}
                     </Button>
                   </div>
                 ) : preview ? (
@@ -930,15 +942,17 @@ export function CreateBroadcastWizard({
                     <div className="flex flex-wrap items-end justify-between gap-3">
                       <div>
                         <p className="text-2xl font-semibold text-[#111b21] dark:text-dark-text-primary">
-                          {preview.recipientCount} recipient
-                          {preview.recipientCount === 1 ? "" : "s"}
+                          {t("broadcasts.recipientCount", {
+                            count: preview.recipientCount,
+                          })}
                         </p>
                         <p className="mt-0.5 text-sm text-[#667781] dark:text-dark-text-secondary">
-                          Estimated send time:{" "}
-                          {humanizeDuration(preview.estimatedDurationSeconds)}{" "}
-                          (one message every{" "}
-                          {preview.limits.sendIntervalSeconds}
-                          s)
+                          {t("broadcasts.estimatedSendTime", {
+                            duration: humanizeDuration(
+                              preview.estimatedDurationSeconds,
+                            ),
+                            seconds: preview.limits.sendIntervalSeconds,
+                          })}
                         </p>
                       </div>
                       <Button
@@ -966,17 +980,17 @@ export function CreateBroadcastWizard({
                         className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300"
                         role="alert"
                       >
-                        This audience exceeds the maximum of{" "}
-                        {preview.limits.maxRecipientsPerJob} recipients per
-                        broadcast. Narrow the audience to continue.
+                        {t("broadcasts.overMaxRecipients", {
+                          max: preview.limits.maxRecipientsPerJob,
+                        })}
                       </div>
                     )}
 
                     {overDailyCap && (
                       <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
-                        More than {preview.limits.dailyCapPerConnection}{" "}
-                        recipients on one account — sending will span multiple
-                        days to respect the daily cap.
+                        {t("broadcasts.overDailyCap", {
+                          cap: preview.limits.dailyCapPerConnection,
+                        })}
                       </div>
                     )}
 
@@ -1010,7 +1024,9 @@ export function CreateBroadcastWizard({
                     {preview.skippedCount > 0 && (
                       <div className="rounded-xl border border-black/[0.06] dark:border-white/[0.07]">
                         <p className="border-b border-black/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#667781] dark:border-white/[0.07] dark:text-dark-text-tertiary">
-                          {preview.skippedCount} skipped
+                          {t("broadcasts.skippedCount", {
+                            count: preview.skippedCount,
+                          })}
                         </p>
                         <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
                           {Object.entries(preview.skippedByReason).map(
@@ -1110,18 +1126,22 @@ export function CreateBroadcastWizard({
 
                   {preview && (
                     <p className="text-sm text-[#111b21] dark:text-dark-text-primary">
-                      Send to{" "}
-                      <span className="font-semibold">
-                        {preview.recipientCount} contact
-                        {preview.recipientCount === 1 ? "" : "s"}
-                      </span>{" "}
-                      starting{" "}
-                      {formatScheduledTime(
-                        new Date(scheduleValue).toISOString(),
-                      )}
-                      , ~{preview.limits.sendIntervalSeconds}s apart (
-                      {humanizeDuration(preview.estimatedDurationSeconds)}{" "}
-                      total).
+                      <Trans
+                        i18nKey="broadcasts.sendSummary"
+                        count={preview.recipientCount}
+                        values={{
+                          time: formatScheduledTime(
+                            new Date(scheduleValue).toISOString(),
+                          ),
+                          seconds: preview.limits.sendIntervalSeconds,
+                          duration: humanizeDuration(
+                            preview.estimatedDurationSeconds,
+                          ),
+                        }}
+                        components={{
+                          strong: <span className="font-semibold" />,
+                        }}
+                      />
                     </p>
                   )}
 
@@ -1175,7 +1195,7 @@ export function CreateBroadcastWizard({
                 onClick={handleBack}
                 disabled={submitting}
               >
-                Back
+                {t("common.back")}
               </Button>
             )}
           </div>
@@ -1189,7 +1209,7 @@ export function CreateBroadcastWizard({
               {submitting && (
                 <Loader2 className="animate-spin" aria-hidden="true" />
               )}
-              Schedule broadcast
+              {t("broadcasts.scheduleBroadcast")}
             </Button>
           ) : (
             <Button
@@ -1202,7 +1222,7 @@ export function CreateBroadcastWizard({
                 (step === "preview" && !canLeavePreviewStep)
               }
             >
-              Next
+              {t("broadcasts.next")}
             </Button>
           )}
         </div>

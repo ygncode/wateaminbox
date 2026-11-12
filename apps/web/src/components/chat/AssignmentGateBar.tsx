@@ -60,7 +60,7 @@ export function AssignmentGateBar({
           {takeOverMutation.isPending && (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
           )}
-          Take over
+          {t("chat.takeOver")}
         </button>
       </div>
     );

@@ -49,7 +49,9 @@ export function QuickReplyPicker({
               {t("quickReplies.pickerTitle", "Quick replies")}
             </p>
             <p className="truncate text-[11px] text-[#667781] dark:text-dark-text-tertiary">
-              {query ? `Matching “/${query}”` : "Choose a saved response"}
+              {query
+                ? t("chat.matchingShortcut", { query })
+                : t("chat.chooseSavedResponse")}
             </p>
           </div>
         </div>

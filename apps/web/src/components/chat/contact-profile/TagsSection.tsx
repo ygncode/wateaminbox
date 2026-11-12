@@ -172,7 +172,7 @@ export function TagsSection({ contact, conversationId }: TagsSectionProps) {
                   ) : (
                     <p className="mb-2 px-1 py-2 text-center text-xs text-gray-500 dark:text-dark-text-secondary">
                       {debouncedTagSearch
-                        ? `No tags match “${debouncedTagSearch}”`
+                        ? t("tags.noTagsMatch", { query: debouncedTagSearch })
                         : t("tags.noneAvailable", "No other tags available")}
                     </p>
                   )}
@@ -204,7 +204,7 @@ export function TagsSection({ contact, conversationId }: TagsSectionProps) {
                         disabled={!newTagName.trim() || createTag.isPending}
                         className="h-7 px-2 text-xs"
                       >
-                        {createTag.isPending ? "…" : "Create"}
+                        {createTag.isPending ? "…" : t("tags.create")}
                       </Button>
                       <Button
                         size="sm"

@@ -1,11 +1,11 @@
 import { useSyncExternalStore } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router";
 import { Button } from "@/components/ui";
 import {
   type ConsentDecision,
   productAnalytics,
 } from "@/lib/product-analytics";
-import { useTranslation } from "react-i18next";
 
 /**
  * First-party analytics choice, shown only when the deployer enabled GA,
@@ -58,14 +58,14 @@ export function AnalyticsConsent() {
           variant="outline"
           onClick={() => decide("denied")}
         >
-          Decline
+          {t("analytics.decline")}
         </Button>
         <Button
           type="button"
           onClick={() => decide("granted")}
           className="bg-[#0b7a55] text-white hover:bg-[#096747]"
         >
-          Accept
+          {t("analytics.accept")}
         </Button>
       </div>
     </section>

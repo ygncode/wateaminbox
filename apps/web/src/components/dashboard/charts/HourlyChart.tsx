@@ -1,7 +1,7 @@
 import { MousePointer2, Pin, X } from "lucide-react";
 import { useState } from "react";
-import { formatNumber } from "@/hooks/analytics";
 import { useTranslation } from "react-i18next";
+import { formatNumber } from "@/hooks/analytics";
 
 export interface HourlyChartProps {
   data: { hour: number; count: number }[];
@@ -84,7 +84,10 @@ export function HourlyChart({ data }: HourlyChartProps) {
       <div
         className="relative h-[220px] w-full"
         role="group"
-        aria-label={`Hourly activity with ${formatNumber(totalMessages)} messages and a peak at ${formatHour(peak.hour)}`}
+        aria-label={t("dashboard.charts.hourlyAria", {
+          messages: formatNumber(totalMessages),
+          hour: formatHour(peak.hour),
+        })}
       >
         <div
           className="pointer-events-none absolute inset-x-0 bottom-7 top-0 flex flex-col justify-between"

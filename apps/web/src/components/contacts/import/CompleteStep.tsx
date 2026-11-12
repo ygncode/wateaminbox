@@ -24,7 +24,7 @@ export function CompleteStep({ result }: CompleteStepProps) {
             {result.summary.created}
           </div>
           <div className="text-sm text-green-600 dark:text-green-400">
-            Created
+            {t("contacts.createdCount")}
           </div>
         </div>
         <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 text-center">
@@ -32,7 +32,7 @@ export function CompleteStep({ result }: CompleteStepProps) {
             {result.summary.updated}
           </div>
           <div className="text-sm text-blue-600 dark:text-blue-400">
-            Updated
+            {t("contacts.updatedCount")}
           </div>
         </div>
         <div className="bg-gray-50 dark:bg-dark-tertiary rounded-lg p-4 text-center">
@@ -40,7 +40,7 @@ export function CompleteStep({ result }: CompleteStepProps) {
             {result.summary.skipped}
           </div>
           <div className="text-sm text-gray-600 dark:text-dark-text-secondary">
-            Skipped
+            {t("contacts.skippedCount")}
           </div>
         </div>
         <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-4 text-center">
@@ -57,7 +57,7 @@ export function CompleteStep({ result }: CompleteStepProps) {
       {result.summary.errors > 0 && (
         <div className="border border-red-200 dark:border-red-800 rounded-lg overflow-hidden">
           <div className="bg-red-50 dark:bg-red-900/30 px-4 py-2 font-medium text-red-700 dark:text-red-400">
-            Errors ({result.summary.errors})
+            {t("contacts.errorsCount", { count: result.summary.errors })}
           </div>
           <div className="max-h-40 overflow-y-auto">
             {result.results
@@ -68,7 +68,10 @@ export function CompleteStep({ result }: CompleteStepProps) {
                   className="px-4 py-2 border-t border-red-100 dark:border-red-900 text-sm flex justify-between text-gray-700 dark:text-dark-text-primary"
                 >
                   <span>
-                    Row {r.row}: {formatPhoneNumber(r.phoneNumber)}
+                    {t("contacts.rowPhone", {
+                      row: r.row,
+                      phone: formatPhoneNumber(r.phoneNumber),
+                    })}
                   </span>
                   <span className="text-red-600 dark:text-red-400">
                     {r.error}

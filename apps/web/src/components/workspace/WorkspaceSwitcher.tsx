@@ -76,11 +76,9 @@ export function WorkspaceSwitcher({
         membership.permissions,
       );
       navigate(destination.path);
-      toast.success(`Switched to ${membership.name}`);
+      toast.success(t("workspaces.switchedTo", { name: membership.name }));
       if (destination.wasRedirected) {
-        toast.info(
-          "This workspace opened in Inbox because the previous view is unavailable.",
-        );
+        toast.info(t("workspaces.redirectedToInbox"));
       }
     } catch (error) {
       toast.error(
@@ -107,7 +105,7 @@ export function WorkspaceSwitcher({
             await switchWorkspace(membership.id);
             setWorkspaceName("");
             setCreateOpen(false);
-            toast.success(`${created.name} is ready`);
+            toast.success(t("workspaces.ready", { name: created.name }));
             const billingUrl = getWorkspaceBillingUrl(membership.id, {
               onboarding: true,
             });
@@ -126,7 +124,7 @@ export function WorkspaceSwitcher({
           }
           setWorkspaceName("");
           setCreateOpen(false);
-          toast.success(`${created.name} is ready`);
+          toast.success(t("workspaces.ready", { name: created.name }));
         },
         onError: (error) => toast.error(error.message),
       },
@@ -150,8 +148,14 @@ export function WorkspaceSwitcher({
                   ? "h-10 max-w-[210px] gap-2 px-2 hover:bg-white/10"
                   : "w-full gap-3 border border-white/10 bg-white/[0.06] p-2.5 hover:bg-white/10",
             )}
-            aria-label={`Active workspace: ${activeWorkspace.name}. Switch workspace`}
-            title={collapsed ? `Workspace: ${activeWorkspace.name}` : undefined}
+            aria-label={t("workspaces.activeAria", {
+              name: activeWorkspace.name,
+            })}
+            title={
+              collapsed
+                ? t("workspaces.workspaceTitle", { name: activeWorkspace.name })
+                : undefined
+            }
           >
             <WorkspaceAvatar
               workspace={activeWorkspace}
@@ -161,7 +165,7 @@ export function WorkspaceSwitcher({
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-white">
                   {isSwitching
-                    ? `Switching to ${switchingTo?.name}…`
+                    ? t("workspaces.switchingTo", { name: switchingTo?.name })
                     : activeWorkspace.name}
                 </span>
                 <span className="block truncate text-[11px] text-[#a7bbb3]">
@@ -279,14 +283,16 @@ export function WorkspaceSwitcher({
           </label>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleCreate}
               disabled={!workspaceName.trim() || createWorkspace.isPending}
               className="bg-[#0b7a55] text-white hover:bg-[#096747]"
             >
-              {createWorkspace.isPending ? "Creating…" : "Create workspace"}
+              {createWorkspace.isPending
+                ? t("common.creating")
+                : t("workspaces.create")}
             </Button>
           </DialogFooter>
         </DialogContent>

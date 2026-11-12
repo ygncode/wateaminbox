@@ -73,10 +73,9 @@ export function CompanySetupPage() {
 
   const workspaceName = watch("name");
   const description = watch("description") ?? "";
-  const previewName = workspaceName.trim() || "Your workspace";
+  const previewName = workspaceName.trim() || t("setup.defaultWorkspaceName");
   const previewDescription =
-    description.trim() ||
-    "A shared place for your team to manage every customer conversation.";
+    description.trim() || t("setup.defaultDescription");
 
   const handleLogo = async (file?: File) => {
     if (!file) return;
@@ -215,8 +214,10 @@ export function CompanySetupPage() {
             >
               <fieldset disabled={isBusy}>
                 <legend className="mb-2 text-sm font-semibold text-slate-700 dark:text-dark-text-secondary">
-                  Workspace logo{" "}
-                  <span className="font-normal text-slate-400">(optional)</span>
+                  {t("settings.workspaceLogo")}{" "}
+                  <span className="font-normal text-slate-400">
+                    {t("setup.optional")}
+                  </span>
                 </legend>
 
                 <div

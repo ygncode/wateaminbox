@@ -129,12 +129,12 @@ export function OpenOrReopenConversationDialog({
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                {isReopen ? "Reopening…" : "Opening…"}
+                {isReopen ? t("chat.reopening") : t("chat.opening")}
               </>
             ) : isReopen ? (
-              "Reopen"
+              t("chat.reopen")
             ) : (
-              "Open"
+              t("chat.open")
             )}
           </button>
         </DialogFooter>

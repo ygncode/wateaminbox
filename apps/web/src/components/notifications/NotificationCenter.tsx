@@ -196,7 +196,7 @@ function NotificationPanel({
             id={titleId}
             className="text-base font-semibold text-gray-900 dark:text-dark-text-primary"
           >
-            Notifications
+            {t("notifications.title")}
           </h2>
           {unreadCount > 0 && (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium tabular-nums bg-whatsapp-green/10 dark:bg-whatsapp-green/20 text-whatsapp-dark-green">

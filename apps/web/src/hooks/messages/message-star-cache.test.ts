@@ -32,10 +32,7 @@ function message(id: string, isStarred = false): Message {
  * Two pages, so the assertions cover the cross-page walk rather than only the
  * page that happens to hold the newest messages.
  */
-function seedInfiniteMessages(
-  client: QueryClient,
-  starredIds: string[] = [],
-) {
+function seedInfiniteMessages(client: QueryClient, starredIds: string[] = []) {
   const key = infiniteMessageKeys.list(CONVERSATION_ID);
   const starred = new Set(starredIds);
   client.setQueryData(key, {
@@ -107,9 +104,11 @@ describe("starring a message", () => {
     const client = new QueryClient();
     setCompanyId(COMPANY_ID);
     seedInfiniteMessages(client, ["middle"]);
-    expect(
-      renderedMessages(client).map((entry) => entry.isStarred),
-    ).toEqual([false, true, false]);
+    expect(renderedMessages(client).map((entry) => entry.isStarred)).toEqual([
+      false,
+      true,
+      false,
+    ]);
 
     setMessageStarredInCaches(client, {
       conversationId: CONVERSATION_ID,
