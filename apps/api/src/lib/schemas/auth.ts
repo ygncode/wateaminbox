@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SUPPORTED_LANGUAGES } from "@wateaminbox/shared";
 import {
   emailSchema,
   optionalNameSchema,
@@ -127,12 +128,15 @@ export const updateProfileSchema = z
       .optional(),
     currentPassword: z.string().min(1).max(128).optional(),
     avatarDataUrl: avatarDataUrlSchema.nullable().optional(),
+    // A supported interface language, or null to forget the choice.
+    preferredLanguage: z.enum(SUPPORTED_LANGUAGES).nullable().optional(),
   })
   .refine(
     (value) =>
       value.name !== undefined ||
       value.email !== undefined ||
-      value.avatarDataUrl !== undefined,
+      value.avatarDataUrl !== undefined ||
+      value.preferredLanguage !== undefined,
     "No profile changes were provided",
   );
 

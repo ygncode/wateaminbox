@@ -24,6 +24,29 @@ describe("account settings validation", () => {
     ).toBe(false);
   });
 
+  test("accepts a supported interface language on its own", () => {
+    expect(updateProfileSchema.parse({ preferredLanguage: "zh-CN" })).toEqual({
+      preferredLanguage: "zh-CN",
+    });
+    expect(updateProfileSchema.parse({ preferredLanguage: "ar" })).toEqual({
+      preferredLanguage: "ar",
+    });
+  });
+
+  test("lets a user clear their language choice", () => {
+    expect(updateProfileSchema.parse({ preferredLanguage: null })).toEqual({
+      preferredLanguage: null,
+    });
+  });
+
+  test("rejects an unsupported or malformed language", () => {
+    for (const preferredLanguage of ["xx", "zh-cn", "en-US", "", "<script>"]) {
+      expect(
+        updateProfileSchema.safeParse({ preferredLanguage }).success,
+      ).toBe(false);
+    }
+  });
+
   test("requires a different new password", () => {
     expect(
       changePasswordSchema.safeParse({

@@ -26,3 +26,6 @@ export * from "./user-utils";
 
 // Phone utilities
 export * from "./phone";
+
+// Interface languages
+export * from "./languages";

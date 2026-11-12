@@ -71,6 +71,7 @@ export interface AuthUser {
   email: string;
   name: string | null;
   avatarKey: string | null;
+  preferredLanguage: string | null;
   emailVerifiedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -84,6 +85,7 @@ export interface AuthUserResponse {
   gravatarUrl: string;
   hasCustomAvatar: boolean;
   emailVerified: boolean;
+  preferredLanguage: string | null;
 }
 
 // Re-export AuthError for backward compatibility with routes
@@ -172,6 +174,7 @@ async function discardAuthToken(token: string): Promise<void> {
 export async function toAuthUserResponse(
   user: Pick<AuthUser, "id" | "email" | "name" | "emailVerifiedAt"> & {
     avatarKey?: string | null;
+    preferredLanguage?: string | null;
   },
 ): Promise<AuthUserResponse> {
   const gravatarUrl = getGravatarUrl(user.email);
@@ -191,6 +194,7 @@ export async function toAuthUserResponse(
     gravatarUrl,
     hasCustomAvatar: Boolean(user.avatarKey),
     emailVerified: Boolean(user.emailVerifiedAt),
+    preferredLanguage: user.preferredLanguage ?? null,
   };
 }
 
@@ -321,6 +325,7 @@ export async function register(
           "email",
           "name",
           "avatar_key",
+          "preferred_language",
           "email_verified_at",
           "created_at",
           "updated_at",
@@ -368,6 +373,7 @@ export async function register(
       email: user.email,
       name: user.name,
       avatarKey: user.avatar_key,
+      preferredLanguage: user.preferred_language,
       emailVerifiedAt: user.email_verified_at,
       createdAt: user.created_at,
       updatedAt: user.updated_at,
@@ -481,6 +487,7 @@ export async function login(
         email: lockedUser.email,
         name: lockedUser.name,
         avatarKey: lockedUser.avatar_key,
+        preferredLanguage: lockedUser.preferred_language,
         emailVerifiedAt: lockedUser.email_verified_at,
         createdAt: lockedUser.created_at,
         updatedAt: lockedUser.updated_at,
@@ -546,6 +553,7 @@ export async function verifyEmail(
         "email",
         "name",
         "avatar_key",
+        "preferred_language",
         "email_verified_at",
         "created_at",
         "updated_at",
@@ -593,6 +601,7 @@ export async function verifyEmail(
         email: user.email,
         name: user.name,
         avatarKey: user.avatar_key,
+        preferredLanguage: user.preferred_language,
         emailVerifiedAt: user.email_verified_at,
         createdAt: user.created_at,
         updatedAt: user.updated_at,
@@ -830,6 +839,9 @@ export async function updateProfile(
     updated_at: toDbDate(),
   };
   if (input.name !== undefined) updateData.name = input.name;
+  if (input.preferredLanguage !== undefined) {
+    updateData.preferred_language = input.preferredLanguage;
+  }
   if (emailChanged) {
     updateData.email = normalizedEmail;
     updateData.email_verified_at = null;
@@ -843,6 +855,7 @@ export async function updateProfile(
     email: string;
     name: string | null;
     avatar_key: string | null;
+    preferred_language: string | null;
     email_verified_at: Date | null;
     created_at: Date;
     updated_at: Date;
@@ -860,6 +873,7 @@ export async function updateProfile(
           "email",
           "name",
           "avatar_key",
+          "preferred_language",
           "email_verified_at",
           "created_at",
           "updated_at",
@@ -930,6 +944,7 @@ export async function updateProfile(
       email: updated.email,
       name: updated.name,
       avatarKey: updated.avatar_key,
+      preferredLanguage: updated.preferred_language,
       emailVerifiedAt: updated.email_verified_at,
       createdAt: updated.created_at,
       updatedAt: updated.updated_at,
@@ -1176,6 +1191,7 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
       "email",
       "name",
       "avatar_key",
+      "preferred_language",
       "email_verified_at",
       "created_at",
       "updated_at",
@@ -1191,6 +1207,7 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
     email: user.email,
     name: user.name,
     avatarKey: user.avatar_key,
+    preferredLanguage: user.preferred_language,
     emailVerifiedAt: user.email_verified_at,
     createdAt: user.created_at,
     updatedAt: user.updated_at,

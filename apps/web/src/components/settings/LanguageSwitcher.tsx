@@ -1,6 +1,7 @@
 import { Globe } from "lucide-react";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -8,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAuth } from "@/contexts/auth-context";
 import { type LanguageCode, languages, saveLanguage } from "@/lib/i18n";
 
 interface LanguageSwitcherProps {
@@ -18,23 +20,31 @@ interface LanguageSwitcherProps {
 }
 
 /**
- * Language switcher dropdown component
- * Allows users to change the application language
- * Persists the language choice to localStorage
+ * Language switcher dropdown component.
+ *
+ * Switches immediately, remembers the choice in this browser, and saves it on
+ * the signed-in account so the same language is used on every device.
  */
 export function LanguageSwitcher({
   className,
   showLabel = true,
 }: LanguageSwitcherProps) {
   const { t, i18n } = useTranslation();
+  const { user, updateProfile } = useAuth();
 
   const handleLanguageChange = useCallback(
     (value: string) => {
       const languageCode = value as LanguageCode;
-      i18n.changeLanguage(languageCode);
+      void i18n.changeLanguage(languageCode);
       saveLanguage(languageCode);
+      if (!user || user.preferredLanguage === languageCode) return;
+      updateProfile({ preferredLanguage: languageCode }).catch(() => {
+        // The switch already applied in this browser; only saving it to the
+        // account failed, so other devices keep their current language.
+        toast.error(t("settings.languageSaveFailed"));
+      });
     },
-    [i18n],
+    [i18n, t, user, updateProfile],
   );
 
   return (
@@ -51,7 +61,11 @@ export function LanguageSwitcher({
         </SelectTrigger>
         <SelectContent>
           {languages.map((language) => (
-            <SelectItem key={language.code} value={language.code}>
+            <SelectItem
+              key={language.code}
+              value={language.code}
+              lang={language.code}
+            >
               {language.nativeName}
             </SelectItem>
           ))}

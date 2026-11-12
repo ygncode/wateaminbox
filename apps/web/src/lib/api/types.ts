@@ -114,6 +114,7 @@ export interface CurrentUserResponse {
   gravatarUrl: string;
   hasCustomAvatar: boolean;
   emailVerified: boolean;
+  preferredLanguage: string | null;
 }
 
 export interface UpdateProfileRequest {
@@ -121,6 +122,7 @@ export interface UpdateProfileRequest {
   email?: string;
   currentPassword?: string;
   avatarDataUrl?: string | null;
+  preferredLanguage?: string | null;
 }
 
 export interface UpdateProfileResponse {
