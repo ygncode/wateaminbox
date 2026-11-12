@@ -450,7 +450,11 @@ export async function purgeArchivedConnection(
     // would still point at a row about to disappear.
     const separatedContacts = await trx
       .updateTable("contacts")
-      .set({ merged_into_contact_id: null, updated_at: new Date() })
+      .set({
+        merged_into_contact_id: null,
+        active_merge_event_id: null,
+        updated_at: new Date(),
+      })
       .where("merged_into_contact_id", "in", purgedContacts)
       // A customer on this connection is deleted, not separated. Reporting it
       // would tell an operator a customer came back when the row disappeared

@@ -164,6 +164,7 @@ export async function mergeContacts(
       .updateTable("contacts")
       .set({
         merged_into_contact_id: target.id,
+        active_merge_event_id: mergeEvent.id,
         archived_at: new Date(),
         updated_at: new Date(),
       })
@@ -213,9 +214,10 @@ export interface MergeHistoryEntry {
  * records were folded together, who decided it, or what to reverse. Showing
  * the event id is not enough - the name is what makes the decision legible.
  *
- * `reversible` mirrors what the unmerge path will actually accept: the source
- * must still point at this target. A source that was merged on again, or
- * already restored, is reported as a fact of history rather than as an action.
+ * `reversible` mirrors what the unmerge path will actually accept: this must
+ * be the merge in effect for the source. A source that was merged again, even
+ * into the same customer, or already restored, is reported as a fact of
+ * history rather than as an action.
  */
 export async function listMergeHistory(
   db: MergeDb,
@@ -234,7 +236,7 @@ export async function listMergeHistory(
       "source.push_name as push_name",
       "source.display_name as display_name",
       "source.phone_number as phone_number",
-      "source.merged_into_contact_id as merged_into_contact_id",
+      "source.active_merge_event_id as active_merge_event_id",
     ])
     .where("event.target_contact_id", "=", targetContactId)
     .orderBy("event.created_at", "desc")
@@ -251,7 +253,7 @@ export async function listMergeHistory(
     actorUserId: row.actor_user_id,
     reason: row.reason,
     mergedAt: row.created_at,
-    reversible: row.merged_into_contact_id === targetContactId,
+    reversible: row.active_merge_event_id === row.merge_event_id,
   }));
 }
 
@@ -287,16 +289,25 @@ export async function unmergeContacts(
     }
     const source = await trx
       .selectFrom("contacts")
-      .select(["id", "merged_into_contact_id"])
+      .select(["id", "merged_into_contact_id", "active_merge_event_id"])
       .where("id", "=", mergeEvent.source_contact_id)
+      // Two concurrent unmerges of the same event must not both pass the
+      // check below and replay the endpoints twice.
+      .forUpdate()
       .executeTakeFirst();
     if (!source) {
       throw new ValidationError("The merged-away contact no longer exists");
     }
     // Only the merge that is currently in effect can be corrected. If the
     // source was merged again afterwards, undoing this older event would
-    // revive it into a state that no longer describes anything.
-    if (source.merged_into_contact_id !== mergeEvent.target_contact_id) {
+    // revive it into a state that no longer describes anything. The survivor
+    // alone cannot tell: merge, unmerge, and merge again into the same
+    // customer leaves two events with one target (#378). A pointer that was
+    // never set, or cleared by a purge, fails closed.
+    if (
+      source.active_merge_event_id !== mergeEvent.id ||
+      source.merged_into_contact_id !== mergeEvent.target_contact_id
+    ) {
       throw new ValidationError(
         "This merge has already been superseded and cannot be reversed",
       );
@@ -351,6 +362,7 @@ export async function unmergeContacts(
       .updateTable("contacts")
       .set({
         merged_into_contact_id: null,
+        active_merge_event_id: null,
         archived_at: null,
         updated_at: new Date(),
       })

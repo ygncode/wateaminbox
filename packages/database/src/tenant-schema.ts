@@ -5,6 +5,7 @@ import type { TenantDatabase } from "./client";
 import { ensureConnectionAlertMessageIdSchema } from "./connection-alert-message-id-schema.js";
 import { ensureConnectionAlertSchema } from "./connection-alert-schema.js";
 import { ensureConnectionSystemNotificationSchema } from "./connection-system-notification-schema.js";
+import { ensureContactActiveMergeEventSchema } from "./contact-active-merge-event-schema.js";
 import {
   installOutboxDispatchTrigger,
   installOutboxRecipientIndex,
@@ -388,6 +389,7 @@ export const TENANT_SCHEMA_CONTRACT = {
     "avatar_url",
     "record_kind",
     "merged_into_contact_id",
+    "active_merge_event_id",
     "archived_at",
     "created_at",
     "updated_at",
@@ -2165,6 +2167,8 @@ export async function reconcileTenantSchema<Database>(
   // reads/writes remain authoritative until workspace flags enable later
   // phases.
   await ensureChannelSpineTenantSchema(db, schemaName);
+  // Migration 118 parity; needs contact_merge_events from the spine schema.
+  await ensureContactActiveMergeEventSchema(db, schemaName);
 
   // Migration 063 parity. The historical index names above overflow
   // PostgreSQL's 63-byte identifier limit once a 43-character tenant schema
