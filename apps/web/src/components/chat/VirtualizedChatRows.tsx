@@ -14,6 +14,11 @@ const CHAT_ITEM_HEIGHT = 76;
 interface Props {
   chats: Chat[];
   scrollContainerRef: RefObject<HTMLDivElement | null>;
+  /**
+   * The same element as `scrollContainerRef`, held in the parent's state so
+   * this component re-renders once it is attached (see ChatList).
+   */
+  scrollElement: HTMLDivElement | null;
   scrollPositionRef: RefObject<number>;
   selectedChatId?: string;
   onChatSelect: (id: string) => void;
@@ -48,6 +53,7 @@ const SelectableRow = memo(function SelectableRow({
 export const VirtualizedChatRows = memo(function VirtualizedChatRows({
   chats,
   scrollContainerRef,
+  scrollElement,
   scrollPositionRef,
   selectedChatId,
   onChatSelect,
@@ -81,7 +87,7 @@ export const VirtualizedChatRows = memo(function VirtualizedChatRows({
   const getItemKey = useCallback((index: number) => chats[index].id, [chats]);
   const virtualizer = useVirtualizer({
     count: chats.length,
-    getScrollElement: () => scrollContainerRef.current,
+    getScrollElement: () => scrollElement ?? scrollContainerRef.current,
     estimateSize: () => CHAT_ITEM_HEIGHT,
     overscan: 5,
     getItemKey,

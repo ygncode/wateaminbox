@@ -103,6 +103,19 @@ export const ChatList = memo(function ChatList({
     limit: 100,
   });
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // The virtualized rows read the scroll element during their own layout
+  // effect. When the list remounts with cached chats (switching back from the
+  // Groups tab), the rows mount in the same commit as this container and their
+  // effect runs before the ancestor's ref is attached, so the virtualizer saw
+  // no scroll element and rendered nothing until something else re-rendered
+  // it. Keeping the element in state re-renders the rows once it exists.
+  const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const attachScrollContainer = useCallback((node: HTMLDivElement | null) => {
+    scrollContainerRef.current = node;
+    setScrollElement(node);
+  }, []);
   const paginationFooterRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef(0);
   const {
@@ -783,7 +796,7 @@ export const ChatList = memo(function ChatList({
 
       {/* Chat List */}
       <div
-        ref={scrollContainerRef}
+        ref={attachScrollContainer}
         className="flex-1 overflow-y-auto [overflow-anchor:none]"
         onScroll={(event) => {
           const root = event.currentTarget;
@@ -1058,6 +1071,7 @@ export const ChatList = memo(function ChatList({
             key={listScope}
             chats={visibleChats}
             scrollContainerRef={scrollContainerRef}
+            scrollElement={scrollElement}
             scrollPositionRef={scrollPositionRef}
             selectedChatId={selectedChatId}
             onChatSelect={handleChatClick}
