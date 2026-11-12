@@ -67,7 +67,7 @@ export function RescheduleBroadcastDialog({
       }}
     >
       <DialogContent className="mx-3 w-[calc(100vw-1.5rem)] max-w-md rounded-2xl border-[#d7e0da] p-0 dark:border-dark-border sm:w-full">
-        <DialogHeader className="border-b border-[#e3e9e5] px-5 py-4 pr-12 text-left dark:border-dark-border">
+        <DialogHeader className="border-b border-[#e3e9e5] px-5 py-4 pe-12 text-start dark:border-dark-border">
           <div className="flex items-start gap-3">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#e2f1e9] text-[#087654] dark:bg-emerald-950/60 dark:text-emerald-300">
               <CalendarClock className="h-4 w-4" aria-hidden="true" />
@@ -116,7 +116,7 @@ export function RescheduleBroadcastDialog({
               {t("broadcasts.newStartTime", "New start time")}
             </span>
             <span className="mt-0.5 block text-[11px] text-[#718078] dark:text-dark-text-secondary">
-              Times are shown in {timezone}.
+              {t("broadcasts.timesShownIn", { timezone })}
             </span>
             <input
               id="broadcast-reschedule-at"
@@ -172,7 +172,7 @@ export function RescheduleBroadcastDialog({
             {isSubmitting && (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             )}
-            Save new time
+            {t("broadcasts.saveNewTime")}
           </Button>
         </DialogFooter>
       </DialogContent>

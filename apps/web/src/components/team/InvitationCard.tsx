@@ -29,7 +29,9 @@ export function InvitationCard({
         </div>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate font-medium">{invitation.email}</p>
+            <p dir="ltr" className="truncate font-medium">
+              {invitation.email}
+            </p>
             <Badge variant="secondary" className="capitalize">
               {invitation.role}
             </Badge>
@@ -74,7 +76,7 @@ export function InvitationCard({
           className="gap-1"
         >
           <RefreshCw className={cn("h-4 w-4", isResending && "animate-spin")} />{" "}
-          Resend
+          {t("team.resend")}
         </Button>
         <Button
           variant="ghost"
@@ -82,7 +84,9 @@ export function InvitationCard({
           onClick={onCancel}
           disabled={isCancelling}
           className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/30"
-          aria-label={`Cancel invitation for ${invitation.email}`}
+          aria-label={t("team.cancelInvitationFor", {
+            email: invitation.email,
+          })}
         >
           <X className="h-4 w-4" />
         </Button>

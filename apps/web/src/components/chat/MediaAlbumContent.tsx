@@ -110,7 +110,7 @@ export function MediaAlbumContent({
                 <span className="absolute inset-0 grid place-items-center bg-black/10">
                   <span className="grid size-10 place-items-center rounded-full bg-[#111b21]/70 shadow-md backdrop-blur-sm">
                     <Play
-                      className="ml-0.5 size-5 fill-current"
+                      className="ms-0.5 size-5 fill-current"
                       aria-hidden="true"
                     />
                   </span>

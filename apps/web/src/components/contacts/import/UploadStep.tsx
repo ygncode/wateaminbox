@@ -11,7 +11,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { downloadImportTemplate } from "../../../lib/api";
 import type { UploadStepProps } from "./types";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 
 export function UploadStep({
   loading,
@@ -78,10 +78,15 @@ export function UploadStep({
       )}
       {connections.length === 1 && (
         <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
-          Contacts will be linked to{" "}
-          <span className="font-medium text-gray-900 dark:text-dark-text-primary">
-            {connectionLabel(connections[0])}
-          </span>
+          <Trans
+            i18nKey="contacts.linkedTo"
+            values={{ name: connectionLabel(connections[0]) }}
+            components={{
+              strong: (
+                <span className="font-medium text-gray-900 dark:text-dark-text-primary" />
+              ),
+            }}
+          />
         </p>
       )}
       {connections.length > 1 && (
@@ -166,7 +171,7 @@ export function UploadStep({
           ) : (
             <Download className="h-4 w-4" />
           )}
-          Download CSV template
+          {t("contacts.downloadTemplate")}
         </button>
       </div>
 
@@ -183,17 +188,16 @@ export function UploadStep({
         </p>
         <ul className="text-sm text-gray-600 dark:text-dark-text-secondary space-y-1">
           <li>
-            <strong>phone_number</strong> (required) - Phone number with country
-            code
+            <strong>phone_number</strong> {t("contacts.csvColPhone")}
           </li>
           <li>
-            <strong>name</strong> - Contact display name
+            <strong>name</strong> {t("contacts.csvColName")}
           </li>
           <li>
-            <strong>notes</strong> - Shared notes about the contact
+            <strong>notes</strong> {t("contacts.csvColNotes")}
           </li>
           <li>
-            <strong>tags</strong> - Comma-separated tag names
+            <strong>tags</strong> {t("contacts.csvColTags")}
           </li>
         </ul>
       </div>

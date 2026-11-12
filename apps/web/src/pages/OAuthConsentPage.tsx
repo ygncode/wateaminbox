@@ -1,5 +1,6 @@
 import { Check, Eye, Loader2, Send, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import { BrandMark } from "../components/brand/BrandMark";
 import { WorkspaceAvatar } from "../components/workspace/WorkspaceAvatar";
@@ -31,6 +32,7 @@ function clientHost(clientId: string): string {
 }
 
 export function OAuthConsentPage() {
+  const { t } = useTranslation();
   const [params] = useSearchParams();
   const { user } = useAuth();
   const { memberships } = useWorkspace();
@@ -66,9 +68,7 @@ export function OAuthConsentPage() {
       .catch((err: unknown) => {
         if (!cancelled) {
           setError(
-            err instanceof Error
-              ? err.message
-              : "This application could not be verified",
+            err instanceof Error ? err.message : t("oauth.verifyFailed"),
           );
         }
       });
@@ -99,9 +99,7 @@ export function OAuthConsentPage() {
       );
       window.location.replace(redirectTo);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Could not complete authorization",
-      );
+      setError(err instanceof Error ? err.message : t("oauth.authorizeFailed"));
       setSubmitting(null);
     }
   };
@@ -113,7 +111,7 @@ export function OAuthConsentPage() {
 
   return (
     <main className="relative min-h-dvh overflow-hidden bg-[#f5f7f4] px-5 py-10 text-[#10211b] dark:bg-dark-primary dark:text-dark-text-primary">
-      <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-[#dcefe7] blur-3xl dark:bg-emerald-500/10" />
+      <div className="pointer-events-none absolute -end-32 -top-32 h-96 w-96 rounded-full bg-[#dcefe7] blur-3xl dark:bg-emerald-500/10" />
 
       <div className="relative mx-auto max-w-lg">
         <div className="mb-8 flex items-center gap-3">
@@ -125,29 +123,25 @@ export function OAuthConsentPage() {
 
         <div className="rounded-2xl border border-[#dce3de] bg-white p-6 shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:border-dark-border dark:bg-dark-elevated sm:p-8">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#0b7a55]">
-            Authorize access
+            {t("oauth.authorizeAccess")}
           </p>
 
           <h1 className="mt-3 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">
-            Connect {name}
+            {t("oauth.connectName", { name })}
           </h1>
 
           <p className="mt-3 text-[#65736d] dark:text-dark-text-secondary">
             {/* The host is the verifiable half of the identity, so it is stated
                 rather than tucked into a tooltip. */}
-            <span className="font-medium text-[#10211b] dark:text-dark-text-primary">
-              {host}
-            </span>{" "}
-            is requesting access to your WhatsApp inbox
-            {user?.email ? (
-              <>
-                {" as "}
-                <span className="font-medium text-[#10211b] dark:text-dark-text-primary">
-                  {user.email}
-                </span>
-              </>
-            ) : null}
-            .
+            <Trans
+              i18nKey={user?.email ? "oauth.requestingAs" : "oauth.requesting"}
+              values={{ host, email: user?.email }}
+              components={{
+                strong: (
+                  <span className="font-medium text-[#10211b] dark:text-dark-text-primary" />
+                ),
+              }}
+            />
           </p>
 
           <ul className="mt-6 space-y-3">
@@ -157,10 +151,10 @@ export function OAuthConsentPage() {
               </span>
               <span className="text-sm">
                 <span className="block font-medium">
-                  Read your conversations
+                  {t("oauth.readTitle")}
                 </span>
                 <span className="text-[#65736d] dark:text-dark-text-secondary">
-                  Messages, contacts and notes
+                  {t("oauth.readDesc")}
                 </span>
               </span>
             </li>
@@ -172,10 +166,10 @@ export function OAuthConsentPage() {
                 </span>
                 <span className="text-sm">
                   <span className="block font-medium">
-                    Send messages as you
+                    {t("oauth.sendTitle")}
                   </span>
                   <span className="text-[#65736d] dark:text-dark-text-secondary">
-                    Replies go out from your WhatsApp number
+                    {t("oauth.sendDesc")}
                   </span>
                 </span>
               </li>
@@ -187,10 +181,10 @@ export function OAuthConsentPage() {
               </span>
               <span className="text-sm">
                 <span className="block font-medium">
-                  Never more than you can see
+                  {t("oauth.limitTitle")}
                 </span>
                 <span className="text-[#65736d] dark:text-dark-text-secondary">
-                  Disconnect any time in Settings
+                  {t("oauth.limitDesc")}
                 </span>
               </span>
             </li>
@@ -199,8 +193,8 @@ export function OAuthConsentPage() {
           <fieldset className="mt-7">
             <legend className="text-sm font-semibold">
               {memberships.length === 1
-                ? "Workspace"
-                : "Which workspace should it use?"}
+                ? t("oauth.workspace")
+                : t("oauth.whichWorkspace")}
             </legend>
 
             <div className="mt-3 grid gap-2">
@@ -270,7 +264,9 @@ export function OAuthConsentPage() {
               disabled={busy || !client}
               className="flex-1 rounded-xl border border-[#dce3de] px-4 py-2.5 text-sm font-medium transition-colors hover:bg-[#f5f7f4] disabled:opacity-50 dark:border-dark-border dark:hover:bg-dark-tertiary"
             >
-              {submitting === "deny" ? "Cancelling…" : "Cancel"}
+              {submitting === "deny"
+                ? t("oauth.cancelling")
+                : t("common.cancel")}
             </button>
             <button
               type="button"
@@ -284,17 +280,17 @@ export function OAuthConsentPage() {
                     className="h-4 w-4 animate-spin"
                     aria-hidden="true"
                   />
-                  Connecting…
+                  {t("oauth.connecting")}
                 </>
               ) : (
-                `Connect ${name}`
+                t("oauth.connectName", { name })
               )}
             </button>
           </div>
         </div>
 
         <p className="mt-5 text-center text-xs text-[#65736d] dark:text-dark-text-secondary">
-          You will be returned to {host} after connecting.
+          {t("oauth.returnedTo", { host })}
         </p>
       </div>
     </main>

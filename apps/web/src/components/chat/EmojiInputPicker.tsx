@@ -100,7 +100,7 @@ export function EmojiInputPicker({
   return (
     <div
       ref={containerRef}
-      className="absolute bottom-full mb-2 left-0 w-80 bg-white dark:bg-dark-elevated rounded-xl shadow-lg border border-gray-200 dark:border-dark-border overflow-hidden z-20"
+      className="absolute bottom-full mb-2 start-0 w-80 bg-white dark:bg-dark-elevated rounded-xl shadow-lg border border-gray-200 dark:border-dark-border overflow-hidden z-20"
     >
       {/* Search input */}
       <div className="p-2 border-b border-gray-200 dark:border-dark-border">

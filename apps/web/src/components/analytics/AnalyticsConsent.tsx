@@ -1,11 +1,11 @@
 import { useSyncExternalStore } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router";
 import { Button } from "@/components/ui";
 import {
   type ConsentDecision,
   productAnalytics,
 } from "@/lib/product-analytics";
-import { useTranslation } from "react-i18next";
 
 /**
  * First-party analytics choice, shown only when the deployer enabled GA,
@@ -41,7 +41,7 @@ export function AnalyticsConsent() {
     <section
       aria-label={t("analytics.consent", "Analytics consent")}
       aria-live="polite"
-      className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-md rounded-2xl border border-[#dce3de] bg-white p-4 shadow-[0_12px_40px_rgba(16,33,27,.14)] dark:border-dark-border dark:bg-dark-elevated sm:right-6 sm:left-auto sm:mx-0"
+      className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-md rounded-2xl border border-[#dce3de] bg-white p-4 shadow-[0_12px_40px_rgba(16,33,27,.14)] dark:border-dark-border dark:bg-dark-elevated sm:end-6 sm:start-auto sm:mx-0"
     >
       <h2 className="text-sm font-semibold">
         {t("analytics.anonymousUsage", "Anonymous usage analytics")}
@@ -58,14 +58,14 @@ export function AnalyticsConsent() {
           variant="outline"
           onClick={() => decide("denied")}
         >
-          Decline
+          {t("analytics.decline")}
         </Button>
         <Button
           type="button"
           onClick={() => decide("granted")}
           className="bg-[#0b7a55] text-white hover:bg-[#096747]"
         >
-          Accept
+          {t("analytics.accept")}
         </Button>
       </div>
     </section>

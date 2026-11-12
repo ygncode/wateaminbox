@@ -218,7 +218,7 @@ export function NotificationSettings() {
                 <SelectContent>
                   {Object.keys(NOTIFICATION_SOUNDS).map((sound) => (
                     <SelectItem key={sound} value={sound}>
-                      {sound.charAt(0).toUpperCase() + sound.slice(1)}
+                      {t(`settings.notificationSounds.${sound}`, sound)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -253,7 +253,7 @@ export function NotificationSettings() {
           </div>
 
           {settings.quietHoursEnabled && (
-            <div className="ml-0 mt-4 grid gap-3 sm:ml-8 sm:grid-cols-2">
+            <div className="ms-0 mt-4 grid gap-3 sm:ms-8 sm:grid-cols-2">
               <div className="flex items-center justify-between gap-2 sm:justify-start">
                 <Label
                   htmlFor="quiet-hours-start"

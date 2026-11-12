@@ -32,7 +32,12 @@ export function MemberCard({
       : member.role === "admin"
         ? ShieldCheck
         : Shield;
-  const roleLabel = member.role.charAt(0).toUpperCase() + member.role.slice(1);
+  const roleLabel =
+    member.role === "owner"
+      ? t("team.roleOwner")
+      : member.role === "admin"
+        ? t("team.roleAdmin")
+        : t("team.roleMember");
   const hasCustomAccess = Boolean(
     member.permissions && Object.keys(member.permissions).length,
   );
@@ -92,7 +97,7 @@ export function MemberCard({
             <p className="truncate text-sm font-semibold">{displayName}</p>
             {isCurrentUser && (
               <Badge variant="secondary" className="text-[10px]">
-                You
+                {t("team.you")}
               </Badge>
             )}
           </div>
@@ -120,7 +125,7 @@ export function MemberCard({
       <time className="font-mono text-xs text-[#65736d] dark:text-dark-text-secondary">
         {new Date(member.joinedAt).toLocaleDateString()}
       </time>
-      <div className="absolute right-4 mt-1 md:static md:mt-0">
+      <div className="absolute end-4 mt-1 md:static md:mt-0">
         {menuItems.length > 0 && (
           <EllipsisMenu
             items={menuItems}

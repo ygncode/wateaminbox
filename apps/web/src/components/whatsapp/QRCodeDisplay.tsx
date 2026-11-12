@@ -112,7 +112,7 @@ export function QRCodeDisplay({
               {t("connections.qrGenerateFailed", "Failed to generate QR")}
             </p>
             <Button size="sm" variant="outline" onClick={onRefresh}>
-              Retry
+              {t("common.retry")}
             </Button>
           </div>
         )}
@@ -146,8 +146,8 @@ export function QRCodeDisplay({
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <RefreshCw className="h-3 w-3 mr-1" />
-                    Refresh
+                    <RefreshCw className="h-3 w-3 me-1" />
+                    {t("common.refresh")}
                   </>
                 )}
               </Button>

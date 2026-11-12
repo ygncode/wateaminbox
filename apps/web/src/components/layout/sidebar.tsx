@@ -10,11 +10,11 @@ export function Sidebar({ className, children, ...props }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "flex h-full flex-col border-r border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary",
+        "flex h-full flex-col border-e border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary",
         // Width is controlled by the responsive layout or desktop resize handle.
         "w-full",
         // Mobile: full width, no border
-        "max-md:border-r-0",
+        "max-md:border-e-0",
         className,
       )}
       {...props}

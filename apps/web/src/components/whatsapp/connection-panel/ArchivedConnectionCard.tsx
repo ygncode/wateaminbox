@@ -32,9 +32,9 @@ export function ArchivedConnectionCard({
 
   return (
     <div className="group relative overflow-hidden rounded-xl border border-stone-200/90 bg-stone-50/70 p-4 dark:border-white/[0.08] dark:bg-white/[0.025]">
-      <div className="absolute inset-y-0 left-0 w-1 bg-stone-300 transition-colors group-hover:bg-emerald-500 dark:bg-white/10" />
+      <div className="absolute inset-y-0 start-0 w-1 bg-stone-300 transition-colors group-hover:bg-emerald-500 dark:bg-white/10" />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3 pl-1">
+        <div className="flex min-w-0 items-center gap-3 ps-1">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-stone-500 shadow-sm ring-1 ring-stone-200 dark:bg-white/[0.06] dark:text-stone-300 dark:ring-white/10">
             <Smartphone className="h-5 w-5" aria-hidden="true" />
           </div>
@@ -44,12 +44,11 @@ export function ArchivedConnectionCard({
                 {connection.name}
               </p>
               <span className="rounded-full bg-stone-200/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-stone-600 dark:bg-white/10 dark:text-stone-300">
-                Archived
+                {t("connections.archived")}
               </span>
             </div>
             <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
-              {connection.phoneNumber ||
-                "Identity retained for historical inbox"}
+              {connection.phoneNumber || t("connections.identityRetained")}
             </p>
           </div>
         </div>
@@ -67,7 +66,7 @@ export function ArchivedConnectionCard({
             ) : (
               <ArchiveRestore className="h-4 w-4" />
             )}
-            Link again
+            {t("connections.linkAgain")}
           </Button>
           <Button
             variant="ghost"

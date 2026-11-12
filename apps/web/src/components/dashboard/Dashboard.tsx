@@ -1,5 +1,6 @@
 import { getDateRange, toISOString } from "@wateaminbox/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import { ExportDialog } from "@/components/export";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,7 +23,6 @@ import {
 import { DashboardStats } from "./DashboardStats";
 import { ResolutionRateSection } from "./ResolutionRateSection";
 import { ResponseTimeAnalytics } from "./ResponseTimeAnalytics";
-import { useTranslation } from "react-i18next";
 
 export interface DashboardProps {
   companyId: string;

@@ -20,11 +20,11 @@ function TransferPath({ reduceMotion }: { reduceMotion: boolean }) {
     <div className="relative grid grid-cols-[52px_1fr_52px] items-center gap-3 py-2">
       <div className="relative z-10 grid size-13 place-items-center rounded-2xl border border-gray-200 bg-white text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-dark-text-primary">
         <Smartphone className="size-5" strokeWidth={1.8} />
-        <span className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-white bg-whatsapp-green dark:border-[#172229]" />
+        <span className="absolute -end-1 -top-1 size-3 rounded-full border-2 border-white bg-whatsapp-green dark:border-[#172229]" />
       </div>
 
       <div className="relative h-px overflow-visible bg-gray-200 dark:bg-white/10">
-        <div className="absolute inset-y-0 left-0 w-full bg-gradient-to-r from-whatsapp-green/70 via-whatsapp-green/20 to-transparent" />
+        <div className="absolute inset-y-0 start-0 w-full bg-gradient-to-r from-whatsapp-green/70 via-whatsapp-green/20 to-transparent" />
         {[0, 1, 2].map((packet) => (
           <motion.span
             // Packet motion makes the transfer direction legible without
@@ -83,7 +83,10 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
   const connectionCount = syncingConnections.size;
   const hasProgress = totals.conversations > 0 || totals.messages > 0;
   const compactSummary = hasProgress
-    ? `${numberFormatter.format(totals.conversations)} chats ready`
+    ? t("chat.chatsReady", {
+        count: totals.conversations,
+        formattedCount: numberFormatter.format(totals.conversations),
+      })
     : t("chat.preparingHistory", "Preparing history");
 
   return (
@@ -97,8 +100,11 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
           transition={{ type: "spring", stiffness: 360, damping: 30 }}
           role="status"
           aria-live="polite"
-          aria-label={`WhatsApp history is syncing. ${totals.conversations} conversations and ${totals.messages} messages ready.`}
-          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-3 right-3 z-50 sm:left-auto sm:right-5 sm:w-[390px] lg:bottom-5"
+          aria-label={t("chat.syncingAria", {
+            conversations: totals.conversations,
+            messages: totals.messages,
+          })}
+          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] start-3 end-3 z-50 sm:start-auto sm:end-5 sm:w-[390px] lg:bottom-5"
         >
           <motion.div
             layout
@@ -158,7 +164,7 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                   <TransferPath reduceMotion={reduceMotion} />
 
                   <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-gray-200/80 bg-gray-50/80 dark:border-white/[0.08] dark:bg-black/10">
-                    <div className="border-r border-gray-200/80 px-3.5 py-3 dark:border-white/[0.08]">
+                    <div className="border-e border-gray-200/80 px-3.5 py-3 dark:border-white/[0.08]">
                       <motion.p
                         key={totals.conversations}
                         initial={{ opacity: 0, y: 4 }}
@@ -195,7 +201,7 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                       )}
                     </span>
                     {connectionCount > 1 && (
-                      <span className="ml-auto font-mono text-[10px] uppercase tracking-wider">
+                      <span className="ms-auto font-mono text-[10px] uppercase tracking-wider">
                         {connectionCount} lines
                       </span>
                     )}
@@ -207,12 +213,12 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="relative flex items-center gap-3 p-2.5 pl-3"
+                  className="relative flex items-center gap-3 p-2.5 ps-3"
                 >
                   <div className="relative grid size-9 place-items-center rounded-xl bg-whatsapp-green/15 text-whatsapp-green-a11y-text dark:bg-whatsapp-green/15 dark:text-whatsapp-green">
                     <Inbox className="size-4" />
                     <motion.span
-                      className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-whatsapp-green"
+                      className="absolute -end-0.5 -top-0.5 size-2 rounded-full bg-whatsapp-green"
                       animate={
                         reduceMotion ? undefined : { opacity: [0.35, 1, 0.35] }
                       }

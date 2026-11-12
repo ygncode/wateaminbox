@@ -279,7 +279,7 @@ function ChatPageSkeleton({ className }: { className?: string }) {
     >
       <div
         className={cn(
-          "h-full w-full flex-col border-r border-gray-200 bg-white dark:border-dark-border dark:bg-dark-secondary md:flex md:w-[320px] lg:w-[var(--chat-skeleton-width)]",
+          "h-full w-full flex-col border-e border-gray-200 bg-white dark:border-dark-border dark:bg-dark-secondary md:flex md:w-[320px] lg:w-[var(--chat-skeleton-width)]",
           isConversation ? "hidden" : "flex",
         )}
         style={
@@ -321,7 +321,7 @@ function ChatPageSkeleton({ className }: { className?: string }) {
                 className={cn(
                   "h-6 rounded-full",
                   index === 0 && "bg-[#0b7a55]/25 dark:bg-[#0b7a55]/40",
-                  index === widths.length - 1 && "ml-auto",
+                  index === widths.length - 1 && "ms-auto",
                 )}
                 style={{ width: `${width}px` }}
               />
@@ -369,14 +369,14 @@ function ChatPageSkeleton({ className }: { className?: string }) {
               <div className="flex justify-center pb-2">
                 <Skeleton className="h-5 w-20 rounded-full bg-black/10 dark:bg-white/10" />
               </div>
-              <Skeleton className="h-12 w-[58%] max-w-md rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
-              <Skeleton className="h-16 w-[46%] max-w-sm rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
+              <Skeleton className="h-12 w-[58%] max-w-md rounded-2xl rounded-es-sm bg-white/75 dark:bg-dark-tertiary" />
+              <Skeleton className="h-16 w-[46%] max-w-sm rounded-2xl rounded-es-sm bg-white/75 dark:bg-dark-tertiary" />
               <div className="flex justify-end">
-                <Skeleton className="h-12 w-[52%] max-w-md rounded-2xl rounded-br-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
+                <Skeleton className="h-12 w-[52%] max-w-md rounded-2xl rounded-ee-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
               </div>
-              <Skeleton className="h-10 w-[36%] max-w-xs rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
+              <Skeleton className="h-10 w-[36%] max-w-xs rounded-2xl rounded-es-sm bg-white/75 dark:bg-dark-tertiary" />
               <div className="flex justify-end">
-                <Skeleton className="h-16 w-[44%] max-w-sm rounded-2xl rounded-br-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
+                <Skeleton className="h-16 w-[44%] max-w-sm rounded-2xl rounded-ee-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
               </div>
             </div>
           </div>
@@ -415,7 +415,7 @@ function SettingsPageSkeleton({ className }: { className?: string }) {
       role="status"
       aria-label={t("layout.loadingSettings", "Loading workspace settings")}
     >
-      <aside className="hidden w-64 shrink-0 overflow-hidden border-r border-[#dce3de] bg-[#edf1ed] px-4 py-6 dark:border-dark-border dark:bg-dark-secondary md:block">
+      <aside className="hidden w-64 shrink-0 overflow-hidden border-e border-[#dce3de] bg-[#edf1ed] px-4 py-6 dark:border-dark-border dark:bg-dark-secondary md:block">
         <Skeleton className="mx-2 h-3 w-16" />
         <Skeleton className="mx-2 mt-3 h-6 w-36" />
 
@@ -636,7 +636,7 @@ function WorkspaceChooserSkeleton({ className }: { className?: string }) {
       aria-label={t("auth.loadingWorkspaces", "Loading your workspaces…")}
     >
       <div
-        className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-[#dcefe7] blur-3xl dark:bg-emerald-500/10"
+        className="pointer-events-none absolute -end-32 -top-32 h-96 w-96 rounded-full bg-[#dcefe7] blur-3xl dark:bg-emerald-500/10"
         aria-hidden="true"
       />
       <div className="relative mx-auto max-w-2xl">
@@ -762,7 +762,7 @@ function TeamPageSkeleton({ className }: { className?: string }) {
         <section className="flex h-full min-h-[24rem] flex-col overflow-hidden rounded-2xl border border-[#d7e0da] bg-white shadow-[0_12px_34px_rgba(16,33,27,0.07)] dark:border-dark-border dark:bg-dark-elevated dark:shadow-none">
           <div className="flex shrink-0 flex-col gap-2.5 border-b border-[#e3e9e5] bg-[#fbfcfb] p-3 sm:flex-row sm:items-center dark:border-dark-border dark:bg-dark-secondary/40">
             <Skeleton className="h-9 w-full sm:max-w-md" />
-            <Skeleton className="h-9 w-28 self-end rounded-lg sm:ml-auto sm:self-auto" />
+            <Skeleton className="h-9 w-28 self-end rounded-lg sm:ms-auto sm:self-auto" />
           </div>
 
           <div className="min-h-0 flex-1 overflow-hidden">
@@ -842,7 +842,7 @@ function DataPageSkeleton({ className }: { className?: string }) {
           <div className="flex shrink-0 items-center gap-2 border-b border-[#e6ebe7] p-3 dark:border-dark-border sm:px-4">
             <Skeleton className="h-8 w-28 rounded-lg" />
             <Skeleton className="h-8 w-24 rounded-lg" />
-            <Skeleton className="ml-auto h-8 w-32 rounded-lg" />
+            <Skeleton className="ms-auto h-8 w-32 rounded-lg" />
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
             <div className="grid grid-cols-[minmax(16rem,1fr)_10rem_9rem_7rem] gap-4 border-b border-[#d7e0da] bg-[#edf1ed]/95 px-4 py-3 dark:border-dark-border dark:bg-dark-tertiary/95">

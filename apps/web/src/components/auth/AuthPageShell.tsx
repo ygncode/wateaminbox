@@ -35,11 +35,11 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
   return (
     <main className="relative h-dvh overflow-hidden bg-[#edf4f0] px-3 py-3 text-slate-950 sm:px-6 sm:py-6 dark:bg-dark-primary dark:text-dark-text-primary">
       <div
-        className="pointer-events-none absolute -left-28 -top-28 h-80 w-80 rounded-full bg-[#25d366]/12 blur-3xl"
+        className="pointer-events-none absolute -start-28 -top-28 h-80 w-80 rounded-full bg-[#25d366]/12 blur-3xl"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none absolute -bottom-36 -right-24 h-96 w-96 rounded-full bg-[#075e54]/14 blur-3xl"
+        className="pointer-events-none absolute -bottom-36 -end-24 h-96 w-96 rounded-full bg-[#075e54]/14 blur-3xl"
         aria-hidden="true"
       />
 
@@ -80,7 +80,7 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
             }}
           />
           <div
-            className="pointer-events-none absolute -right-32 -top-24 h-80 w-80 rounded-full border-[72px] border-[#25d366]/20"
+            className="pointer-events-none absolute -end-32 -top-24 h-80 w-80 rounded-full border-[72px] border-[#25d366]/20"
             aria-hidden="true"
           />
 
@@ -172,15 +172,15 @@ function ConversationPreview() {
           <span className="h-2 w-2 rounded-full bg-[#25d366]" />
         </div>
 
-        <div className="mt-5 rounded-2xl rounded-tl-md bg-white px-4 py-3 text-sm leading-5 text-slate-700 shadow-sm">
+        <div className="mt-5 rounded-2xl rounded-ss-md bg-white px-4 py-3 text-sm leading-5 text-slate-700 shadow-sm">
           {t(
             "auth.preview.incoming",
             "Thanks! Could you send the updated quote before 3pm?",
           )}
-          <p className="mt-1 text-right text-[0.65rem] text-slate-400">10:42</p>
+          <p className="mt-1 text-end text-[0.65rem] text-slate-400">10:42</p>
         </div>
 
-        <div className="ml-9 mt-3 rounded-2xl rounded-br-md bg-[#d9fdd3] px-4 py-3 text-sm leading-5 text-[#16483f] shadow-sm">
+        <div className="ms-9 mt-3 rounded-2xl rounded-ee-md bg-[#d9fdd3] px-4 py-3 text-sm leading-5 text-[#16483f] shadow-sm">
           {t(
             "auth.preview.outgoing",
             "Absolutely—Maya is preparing it now. We’ll send it shortly.",
@@ -255,7 +255,7 @@ function RecoveryPreview() {
         <li key={step.number} className="relative flex gap-4 pb-6 last:pb-0">
           {index < steps.length - 1 && (
             <span
-              className="absolute left-[1.05rem] top-9 h-[calc(100%-1.75rem)] w-px bg-white/15"
+              className="absolute start-[1.05rem] top-9 h-[calc(100%-1.75rem)] w-px bg-white/15"
               aria-hidden="true"
             />
           )}

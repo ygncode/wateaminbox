@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { formatDate, formatNumber } from "@/hooks/analytics";
 import {
   chartBox,
@@ -12,7 +13,6 @@ import {
   getLinePoints,
   getSmoothPath,
 } from "./chart-utils";
-import { useTranslation } from "react-i18next";
 
 export interface EngagementTrendData {
   date: string;
@@ -120,7 +120,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
             </p>
             <p className="text-xl font-semibold tabular-nums text-[#075c41] dark:text-emerald-300">
               {averageScore}
-              <span className="ml-0.5 text-xs font-medium text-[#7c8983]">
+              <span className="ms-0.5 text-xs font-medium text-[#7c8983]">
                 /100
               </span>
             </p>
@@ -165,7 +165,9 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
           viewBox={`0 0 ${responsiveChartBox.width} ${responsiveChartBox.height}`}
           className="block h-[220px] w-full touch-none overflow-visible"
           role="img"
-          aria-label={`Engagement trend with an average score of ${averageScore} out of 100`}
+          aria-label={t("dashboard.charts.engagementAria", {
+            score: averageScore,
+          })}
           onPointerMove={handlePointerMove}
           onPointerLeave={() => setHoveredIndex(null)}
         >
@@ -354,6 +356,7 @@ function Legend({
   active: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -361,7 +364,10 @@ function Legend({
         active ? "opacity-100" : "opacity-40"
       }`}
       aria-pressed={active}
-      aria-label={`${active ? "Hide" : "Show"} ${label.toLowerCase()} series`}
+      aria-label={t(
+        active ? "dashboard.charts.hideSeries" : "dashboard.charts.showSeries",
+        { label: label.toLowerCase() },
+      )}
       onClick={onToggle}
     >
       <span className={`h-2 w-4 rounded-full ${swatch}`} />

@@ -58,14 +58,14 @@ export function ConversationMessagesSkeleton({
         <div className="flex justify-center pb-2">
           <Skeleton className="h-5 w-20 rounded-full bg-black/10 dark:bg-white/10" />
         </div>
-        <Skeleton className="h-12 w-[58%] max-w-md rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
-        <Skeleton className="h-16 w-[46%] max-w-sm rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
+        <Skeleton className="h-12 w-[58%] max-w-md rounded-2xl rounded-es-sm bg-white/75 dark:bg-dark-tertiary" />
+        <Skeleton className="h-16 w-[46%] max-w-sm rounded-2xl rounded-es-sm bg-white/75 dark:bg-dark-tertiary" />
         <div className="flex justify-end">
-          <Skeleton className="h-12 w-[52%] max-w-md rounded-2xl rounded-br-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
+          <Skeleton className="h-12 w-[52%] max-w-md rounded-2xl rounded-ee-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
         </div>
-        <Skeleton className="h-10 w-[36%] max-w-xs rounded-2xl rounded-bl-sm bg-white/75 dark:bg-dark-tertiary" />
+        <Skeleton className="h-10 w-[36%] max-w-xs rounded-2xl rounded-es-sm bg-white/75 dark:bg-dark-tertiary" />
         <div className="flex justify-end">
-          <Skeleton className="h-16 w-[44%] max-w-sm rounded-2xl rounded-br-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
+          <Skeleton className="h-16 w-[44%] max-w-sm rounded-2xl rounded-ee-sm bg-[#d9fdd3]/80 dark:bg-[#005c4b]/70" />
         </div>
       </div>
     </div>

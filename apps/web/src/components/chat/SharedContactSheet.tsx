@@ -33,7 +33,7 @@ export function SharedContactSheet({
       onClose={onClose}
       position="bottom"
       title={t("chat.contactInfo", "Contact info")}
-      className="sm:inset-x-auto sm:left-1/2 sm:-ml-[15rem] sm:w-[30rem]"
+      className="sm:inset-x-auto sm:start-1/2 sm:-ms-[15rem] sm:w-[30rem]"
     >
       {renderedContact && (
         <div className="flex min-h-full flex-col bg-[#f0f2f5] dark:bg-dark-primary">

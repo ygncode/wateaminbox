@@ -167,9 +167,7 @@ function createFirstRefreshHarness({ withPin }: { withPin: boolean }) {
     bottomPin,
     settle,
     distanceFromBottom: () =>
-      scrollElement.scrollHeight -
-      scrollElement.scrollTop -
-      VIEWPORT_HEIGHT,
+      scrollElement.scrollHeight - scrollElement.scrollTop - VIEWPORT_HEIGHT,
     // The initial-anchor effect claiming the conversation.
     anchorToNewest: () => {
       if (withPin) bottomPin.intend();

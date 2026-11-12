@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { formatDate, formatNumber } from "@/hooks/analytics";
 import {
   chartBox,
@@ -15,7 +16,6 @@ import {
   getNiceMax,
   getSmoothPath,
 } from "./chart-utils";
-import { useTranslation } from "react-i18next";
 
 export interface MessageChartProps {
   data: { date: string; sent: number; received: number }[];
@@ -150,7 +150,10 @@ export function MessageChart({ data }: MessageChartProps) {
           viewBox={`0 0 ${responsiveChartBox.width} ${responsiveChartBox.height}`}
           className="block h-[220px] w-full touch-none overflow-visible"
           role="img"
-          aria-label={`Message trend showing ${formatNumber(totalSent)} sent and ${formatNumber(totalReceived)} received messages`}
+          aria-label={t("dashboard.charts.messageTrendAria", {
+            sent: formatNumber(totalSent),
+            received: formatNumber(totalReceived),
+          })}
           onPointerMove={handlePointerMove}
           onPointerLeave={() => setHoveredIndex(null)}
         >
@@ -380,6 +383,7 @@ function LegendDot({
   active: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -387,7 +391,10 @@ function LegendDot({
         active ? "opacity-100" : "opacity-40"
       }`}
       aria-pressed={active}
-      aria-label={`${active ? "Hide" : "Show"} ${label.toLowerCase()} series`}
+      aria-label={t(
+        active ? "dashboard.charts.hideSeries" : "dashboard.charts.showSeries",
+        { label: label.toLowerCase() },
+      )}
       onClick={onToggle}
     >
       <span className={`h-2 w-2 rounded-full ${color}`} />

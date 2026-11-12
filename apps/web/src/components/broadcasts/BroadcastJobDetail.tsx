@@ -249,12 +249,12 @@ function MetaItem({
   );
 }
 
-function contactIdentity(recipient: BulkJobRecipient) {
+function contactIdentity(t: TFunction, recipient: BulkJobRecipient) {
   const phone = recipient.contactPhone
     ? formatPhoneNumber(recipient.contactPhone)
     : null;
   return {
-    name: recipient.contactName || phone || "Unknown contact",
+    name: recipient.contactName || phone || t("broadcasts.unknownContact"),
     phone: recipient.contactName ? phone : null,
     initials: recipient.contactName
       ? recipient.contactName
@@ -268,10 +268,10 @@ function contactIdentity(recipient: BulkJobRecipient) {
   };
 }
 
-function recipientDetail(recipient: BulkJobRecipient): string {
+function recipientDetail(t: TFunction, recipient: BulkJobRecipient): string {
   return recipient.skipReason
     ? humanizeSkipReason(recipient.skipReason)
-    : recipient.lastError || "No issues reported";
+    : recipient.lastError || t("broadcasts.noIssues");
 }
 
 /** Absolute timestamp cell shared by the recipient date columns. */
@@ -376,7 +376,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
       header: t("broadcasts.contact", "Contact"),
       size: 260,
       cell: ({ row }) => {
-        const identity = contactIdentity(row.original);
+        const identity = contactIdentity(t, row.original);
         return (
           <div className="flex min-w-0 items-center gap-3">
             <Avatar className="h-8 w-8 shrink-0">
@@ -409,7 +409,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
       header: t("broadcasts.detail", "Detail"),
       size: 300,
       cell: ({ row }) => {
-        const detail = recipientDetail(row.original);
+        const detail = recipientDetail(t, row.original);
         const hasIssue = Boolean(
           row.original.skipReason || row.original.lastError,
         );
@@ -438,7 +438,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
       accessorKey: "sentAt",
       // The table right-aligns the trailing cell; match it in the header.
       header: () => (
-        <span className="block text-right">
+        <span className="block text-end">
           {t("broadcasts.sentAt", "Sent at")}
         </span>
       ),
@@ -491,15 +491,17 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
         onSuccess: (updatedJob) => {
           setRescheduleOpen(false);
           toast.success(
-            `Broadcast rescheduled for ${dayjs(updatedJob.scheduledAt).format(
-              "MMM D [at] HH:mm",
-            )}`,
+            t("broadcasts.rescheduledFor", {
+              time: dayjs(updatedJob.scheduledAt).format("MMM D [at] HH:mm"),
+            }),
           );
         },
         onError: (error) => {
           toast.error(
             error instanceof Error
-              ? `Could not reschedule broadcast: ${error.message}`
+              ? t("broadcasts.rescheduleFailedWithReason", {
+                  message: error.message,
+                })
               : t(
                   "broadcasts.rescheduleFailed",
                   "Could not reschedule broadcast",
@@ -519,7 +521,9 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
       onError: (error) => {
         toast.error(
           error instanceof Error
-            ? `Failed to cancel broadcast: ${error.message}`
+            ? t("broadcasts.cancelFailedWithReason", {
+                message: error.message,
+              })
             : t("broadcasts.cancelFailed", "Failed to cancel broadcast"),
         );
       },
@@ -578,7 +582,9 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           <dl className="grid gap-3.5 p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-1">
             <MetaItem
               icon={isScheduled ? CalendarClock : Send}
-              label={isScheduled ? "Sends" : "Started"}
+              label={
+                isScheduled ? t("broadcasts.sends") : t("broadcasts.started")
+              }
             >
               <time dateTime={job.scheduledAt}>
                 {dayjs(job.scheduledAt).format("MMM D, YYYY · HH:mm")}
@@ -594,7 +600,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
               icon={UserRound}
               label={t("broadcasts.createdBy", "Created by")}
             >
-              {job.createdByName || "Unknown"}
+              {job.createdByName || t("broadcasts.unknown")}
             </MetaItem>
             <MetaItem
               icon={CalendarClock}
@@ -636,7 +642,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           </dl>
 
           <article
-            className="min-w-0 border-t border-[#e3e9e5] p-4 dark:border-dark-border sm:p-5 lg:border-l lg:border-t-0"
+            className="min-w-0 border-t border-[#e3e9e5] p-4 dark:border-dark-border sm:p-5 lg:border-s lg:border-t-0"
             aria-labelledby="message-preview-title"
           >
             <div className="flex items-center justify-between gap-3">
@@ -660,7 +666,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
             </div>
 
             <div className="mt-3 rounded-xl border border-[#e1e8e3] bg-[#f4f7f5] p-3 dark:border-dark-border dark:bg-dark-secondary/55 sm:p-4">
-              <div className="max-h-52 overflow-y-auto rounded-xl rounded-tl-sm bg-[#dff4e8] px-3.5 py-3 text-[13px] leading-5 text-[#172a23] shadow-[0_1px_1px_rgba(16,44,36,0.06)] dark:bg-emerald-950/55 dark:text-dark-text-primary">
+              <div className="max-h-52 overflow-y-auto rounded-xl rounded-ss-sm bg-[#dff4e8] px-3.5 py-3 text-[13px] leading-5 text-[#172a23] shadow-[0_1px_1px_rgba(16,44,36,0.06)] dark:bg-emerald-950/55 dark:text-dark-text-primary">
                 {media && (
                   <span className="mb-2 flex w-fit max-w-full items-center gap-1.5 rounded-md bg-white/65 px-2 py-1 text-[10px] font-semibold text-[#52675f] dark:bg-white/10 dark:text-dark-text-secondary">
                     <media.icon
@@ -686,7 +692,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           </article>
 
           <aside
-            className="border-t border-[#e3e9e5] bg-[#fbfcfb] p-4 dark:border-dark-border dark:bg-dark-secondary/35 sm:p-5 lg:border-l lg:border-t-0"
+            className="border-t border-[#e3e9e5] bg-[#fbfcfb] p-4 dark:border-dark-border dark:bg-dark-secondary/35 sm:p-5 lg:border-s lg:border-t-0"
             aria-labelledby="delivery-summary-title"
           >
             <div className="flex items-start justify-between gap-3">
@@ -699,8 +705,8 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                 </p>
                 <p className="mt-1 text-2xl font-semibold tabular-nums tracking-[-0.03em] text-[#172a23] dark:text-dark-text-primary">
                   {job.progress.sent}
-                  <span className="ml-1 text-sm font-medium tracking-normal text-[#718078] dark:text-dark-text-secondary">
-                    of {job.progress.total} sent
+                  <span className="ms-1 text-sm font-medium tracking-normal text-[#718078] dark:text-dark-text-secondary">
+                    {t("broadcasts.ofSent", { total: job.progress.total })}
                   </span>
                 </p>
               </div>

@@ -137,7 +137,7 @@ export function GroupJoinRequestsSection({
         ) : (
           <RefreshCw className="h-4 w-4" />
         )}
-        Refresh from WhatsApp
+        {t("groups.refreshFromWhatsapp")}
       </Button>
     </RightPanelSection>
   );

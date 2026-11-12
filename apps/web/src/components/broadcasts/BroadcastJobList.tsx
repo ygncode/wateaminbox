@@ -68,7 +68,9 @@ export function BroadcastJobList({
             </Link>
             <p className="truncate text-[11px] text-[#718078] dark:text-dark-text-secondary">
               {row.original.createdByName
-                ? `Created by ${row.original.createdByName}`
+                ? t("broadcasts.createdByName", {
+                    name: row.original.createdByName,
+                  })
                 : t("broadcasts.workspaceBroadcast", "Workspace broadcast")}
             </p>
           </div>
@@ -100,7 +102,7 @@ export function BroadcastJobList({
               </p>
               {waiting > 0 && (
                 <span className="shrink-0 text-[10px] font-medium tabular-nums text-[#718078] dark:text-dark-text-secondary">
-                  {waiting} waiting
+                  {t("broadcasts.waitingCount", { count: waiting })}
                 </span>
               )}
             </div>
@@ -132,7 +134,12 @@ export function BroadcastJobList({
                 {at.format("MMM D, YYYY")}
               </span>
               <span className="block truncate text-[10px]">
-                {isScheduled ? "Sends" : "Started"} {at.format("HH:mm")}
+                {t(
+                  isScheduled ? "broadcasts.sendsAt" : "broadcasts.startedAt",
+                  {
+                    time: at.format("HH:mm"),
+                  },
+                )}
               </span>
             </time>
           </div>
@@ -167,7 +174,7 @@ export function BroadcastJobList({
           aria-hidden="true"
           className="inline-grid h-8 w-8 place-items-center rounded-full text-[#9aa69f] transition-colors hover:bg-[#e8f1ec] hover:text-[#075c41] dark:text-dark-text-tertiary dark:hover:bg-dark-tertiary dark:hover:text-emerald-300"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
         </Link>
       ),
     },

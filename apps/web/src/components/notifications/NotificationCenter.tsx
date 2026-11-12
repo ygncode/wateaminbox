@@ -196,7 +196,7 @@ function NotificationPanel({
             id={titleId}
             className="text-base font-semibold text-gray-900 dark:text-dark-text-primary"
           >
-            Notifications
+            {t("notifications.title")}
           </h2>
           {unreadCount > 0 && (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium tabular-nums bg-whatsapp-green/10 dark:bg-whatsapp-green/20 text-whatsapp-dark-green">
@@ -213,7 +213,7 @@ function NotificationPanel({
               onClick={markAllAsRead}
               disabled={isMarkingAllAsRead}
             >
-              <CheckCheck className="size-3.5 mr-1.5" />
+              <CheckCheck className="size-3.5 me-1.5" />
               {t("notifications.markAll", "Mark all")}
             </Button>
           )}
@@ -377,7 +377,7 @@ export const NotificationCenter = memo(function NotificationCenter({
         {unreadCount > 0 && (
           <Badge
             variant="destructive"
-            className="absolute -top-1 -right-1 h-5 min-w-5 px-1.5 text-[10px] font-bold tabular-nums rounded-full border-2 border-white dark:border-dark-elevated shadow-sm"
+            className="absolute -top-1 -end-1 h-5 min-w-5 px-1.5 text-[10px] font-bold tabular-nums rounded-full border-2 border-white dark:border-dark-elevated shadow-sm"
             data-testid="notification-badge"
           >
             {unreadCount > 99 ? "99+" : unreadCount}

@@ -259,7 +259,7 @@ export function SettingsPage() {
 
   return (
     <div className="flex h-full min-h-0 w-full bg-[#f5f7f4] dark:bg-dark-primary">
-      <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-[#dce3de] bg-[#edf1ed] px-4 py-6 dark:border-dark-border dark:bg-dark-secondary md:block">
+      <aside className="hidden w-64 shrink-0 overflow-y-auto border-e border-[#dce3de] bg-[#edf1ed] px-4 py-6 dark:border-dark-border dark:bg-dark-secondary md:block">
         <p className="px-2 text-xs font-bold uppercase tracking-[0.18em] text-[#0b7a55] dark:text-emerald-400">
           {t("settings.title", "Settings")}
         </p>
@@ -612,7 +612,9 @@ function GeneralSettings() {
   const leaveWorkspace = async () => {
     try {
       await leaveCompany.mutateAsync(activeWorkspace.id);
-      toast.success(`You left ${activeWorkspace.name}`);
+      toast.success(
+        t("settings.leftWorkspace", { name: activeWorkspace.name }),
+      );
       await navigateAfterExit();
     } catch (error) {
       toast.error(
@@ -1028,7 +1030,7 @@ function AppearanceSettings() {
         )}
       >
         <Button variant="outline" onClick={openHelpModal} className="gap-2">
-          <Keyboard className="h-4 w-4" /> View shortcuts
+          <Keyboard className="h-4 w-4" /> {t("settings.viewShortcuts")}
         </Button>
       </Panel>
     </div>

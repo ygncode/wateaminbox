@@ -50,7 +50,7 @@ test("single-choice dropdowns use the shared Select without appearance overrides
               .split(/\s+/)
               .filter(Boolean)) {
               if (
-                !/^(?:(?:sm|md|lg|xl|2xl):)?(?:w-|min-w-|max-w-|h-|m[trblxy]?-|flex-|hidden$|text-xs$)/.test(
+                !/^(?:(?:sm|md|lg|xl|2xl):)?(?:w-|min-w-|max-w-|h-|m[trblxyse]?-|flex-|hidden$|text-xs$)/.test(
                   token,
                 )
               ) {

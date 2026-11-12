@@ -425,7 +425,7 @@ function CatalogCard({
       {isArchived && (
         <span
           aria-hidden="true"
-          className="absolute inset-y-4 left-0 w-1 rounded-r-full bg-[#c8a75f] dark:bg-amber-500/60"
+          className="absolute inset-y-4 start-0 w-1 rounded-e-full bg-[#c8a75f] dark:bg-amber-500/60"
         />
       )}
 
@@ -511,7 +511,7 @@ function CatalogCard({
             data-testid={`view-products-${catalog.catalogId}`}
           >
             {t("catalogs.viewProducts", "View products")}
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
           </Button>
 
           {!isArchived && (
@@ -575,10 +575,10 @@ function ProductsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="mx-3 flex max-h-[min(88dvh,760px)] w-[calc(100vw-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-2xl border-[#dce5df] p-0 shadow-[0_24px_80px_rgba(8,28,20,0.22)] sm:w-full [&>button]:right-4 [&>button]:top-4 [&>button]:grid [&>button]:h-8 [&>button]:w-8 [&>button]:place-items-center [&>button]:rounded-full [&>button]:border [&>button]:border-[#d7e0da] [&>button]:bg-white [&>button]:opacity-100 [&>button]:shadow-sm hover:[&>button]:bg-[#edf3ef] dark:border-white/[0.1] dark:[&>button]:border-white/[0.1] dark:[&>button]:bg-dark-elevated dark:hover:[&>button]:bg-dark-tertiary">
-        <div className="border-b border-[#e2e8e3] bg-[linear-gradient(135deg,#f7faf8_0%,#fdfcf8_100%)] px-5 py-5 pr-14 dark:border-white/[0.08] dark:bg-none dark:bg-white/[0.025] sm:px-6 sm:py-6 sm:pr-16">
+      <DialogContent className="mx-3 flex max-h-[min(88dvh,760px)] w-[calc(100vw-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-2xl border-[#dce5df] p-0 shadow-[0_24px_80px_rgba(8,28,20,0.22)] sm:w-full [&>button]:end-4 [&>button]:top-4 [&>button]:grid [&>button]:h-8 [&>button]:w-8 [&>button]:place-items-center [&>button]:rounded-full [&>button]:border [&>button]:border-[#d7e0da] [&>button]:bg-white [&>button]:opacity-100 [&>button]:shadow-sm hover:[&>button]:bg-[#edf3ef] dark:border-white/[0.1] dark:[&>button]:border-white/[0.1] dark:[&>button]:bg-dark-elevated dark:hover:[&>button]:bg-dark-tertiary">
+        <div className="border-b border-[#e2e8e3] bg-[linear-gradient(135deg,#f7faf8_0%,#fdfcf8_100%)] px-5 py-5 pe-14 dark:border-white/[0.08] dark:bg-none dark:bg-white/[0.025] sm:px-6 sm:py-6 sm:pe-16">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <DialogHeader className="min-w-0 space-y-0 text-left">
+            <DialogHeader className="min-w-0 space-y-0 text-start">
               <div className="flex min-w-0 items-center gap-3">
                 <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#f5ddbd] bg-[#fff2df] text-[#d85b08] dark:border-orange-400/15 dark:bg-orange-900/20 dark:text-orange-300">
                   <ShoppingBag className="h-5 w-5" />
@@ -596,7 +596,7 @@ function ProductsDialog({
                 </div>
               </div>
               {catalog && (
-                <div className="ml-14 mt-3 flex flex-wrap items-center gap-2 text-xs text-[#65736d] dark:text-dark-text-secondary">
+                <div className="ms-14 mt-3 flex flex-wrap items-center gap-2 text-xs text-[#65736d] dark:text-dark-text-secondary">
                   <span className="rounded-full border border-[#dce5df] bg-white/80 px-2.5 py-1 font-medium dark:border-white/[0.08] dark:bg-white/[0.04]">
                     {t("catalogs.productCount", {
                       count: isLoading ? catalog.productCount : products.length,
@@ -615,7 +615,7 @@ function ProductsDialog({
               size="sm"
               onClick={handleSyncProducts}
               disabled={syncMutation.isPending || !connectionId}
-              className="ml-14 shrink-0 gap-2 self-start border-[#b9d8cc] bg-white text-[#096447] shadow-sm hover:border-[#9cc7b6] hover:bg-[#eff8f4] hover:text-[#075239] sm:ml-0 sm:self-center dark:border-emerald-400/20 dark:bg-white/[0.04] dark:text-emerald-200 dark:hover:bg-emerald-900/25"
+              className="ms-14 shrink-0 gap-2 self-start border-[#b9d8cc] bg-white text-[#096447] shadow-sm hover:border-[#9cc7b6] hover:bg-[#eff8f4] hover:text-[#075239] sm:ms-0 sm:self-center dark:border-emerald-400/20 dark:bg-white/[0.04] dark:text-emerald-200 dark:hover:bg-emerald-900/25"
               data-testid="sync-products-button"
             >
               {syncMutation.isPending ? (

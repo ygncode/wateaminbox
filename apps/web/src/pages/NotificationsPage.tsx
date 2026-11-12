@@ -142,14 +142,14 @@ export function NotificationsPage() {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-lg font-semibold leading-none text-[#10211b] dark:text-dark-text-primary">
-                Notifications
+                {t("notifications.title")}
               </h1>
               {unreadCount > 0 && (
                 <Badge
                   variant="outline"
                   className="px-2 py-0 text-[10px] tabular-nums"
                 >
-                  {unreadCount} unread
+                  {t("notifications.unreadCount", { count: unreadCount })}
                 </Badge>
               )}
             </div>
@@ -171,7 +171,7 @@ export function NotificationsPage() {
                 onClick={controller.markAllAsRead}
                 disabled={isMarkingAllAsRead}
               >
-                <CheckCheck className="mr-1.5 size-4" />
+                <CheckCheck className="me-1.5 size-4" />
                 <span className="hidden sm:inline">
                   {isMarkingAllAsRead
                     ? t("notifications.marking", "Marking…")
@@ -226,7 +226,7 @@ export function NotificationsPage() {
                     >
                       {t(tab.labelKey, tab.label)}
                       {tab.id === "unread" && unreadCount > 0 && (
-                        <span className="ml-1.5 grid min-w-4 place-items-center rounded-full bg-[#0b7a55] px-1 py-0.5 text-[9px] font-bold leading-none tabular-nums text-white">
+                        <span className="ms-1.5 grid min-w-4 place-items-center rounded-full bg-[#0b7a55] px-1 py-0.5 text-[9px] font-bold leading-none tabular-nums text-white">
                           {unreadCount > 99 ? "99+" : unreadCount}
                         </span>
                       )}
@@ -326,11 +326,11 @@ export function NotificationsPage() {
                   disabled={page === 0}
                   onClick={() => setPage(page - 1)}
                 >
-                  <ChevronLeft className="mr-1 size-4" />
-                  Previous
+                  <ChevronLeft className="me-1 size-4 rtl:-scale-x-100" />
+                  {t("notifications.previous")}
                 </Button>
                 <span className="text-[11px] font-medium text-[#7a8881] tabular-nums dark:text-dark-text-secondary">
-                  Page {page + 1}
+                  {t("notifications.pageNumber", { page: page + 1 })}
                 </span>
                 <Button
                   variant="outline"
@@ -339,8 +339,8 @@ export function NotificationsPage() {
                   disabled={!hasMore}
                   onClick={() => setPage(page + 1)}
                 >
-                  Next
-                  <ChevronRight className="ml-1 size-4" />
+                  {t("notifications.next")}
+                  <ChevronRight className="ms-1 size-4 rtl:-scale-x-100" />
                 </Button>
               </nav>
             )}
@@ -376,7 +376,7 @@ export function NotificationsPage() {
                   onClick={controller.markAllAsRead}
                   disabled={isMarkingAllAsRead}
                 >
-                  <CheckCheck className="mr-1.5 size-4" />
+                  <CheckCheck className="me-1.5 size-4" />
                   {t("notifications.markAllAsRead", "Mark all as read")}
                 </Button>
               )}

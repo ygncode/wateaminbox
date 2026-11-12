@@ -63,7 +63,7 @@ describe("global notification architecture", () => {
     expect(center).toContain("aria-labelledby={titleId}");
     // the old floating-card geometry must not come back
     expect(center).not.toContain("top-16");
-    expect(center).not.toContain("md:right-5");
+    expect(center).not.toContain("md:end-5");
   });
 
   test("ships the sheet entrance animations the classes rely on", async () => {

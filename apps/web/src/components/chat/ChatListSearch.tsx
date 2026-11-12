@@ -33,7 +33,7 @@ export function ChatListSearch({
   return (
     <div className="relative flex items-center w-full">
       {/* Search Icon */}
-      <div className="absolute left-3 pointer-events-none">
+      <div className="absolute start-3 pointer-events-none">
         <svg
           className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary"
           fill="none"
@@ -59,7 +59,7 @@ export function ChatListSearch({
         placeholder={
           placeholder ?? t("chat.searchContactsPlaceholder", "Search contacts")
         }
-        className="w-full py-2 pl-9 pr-8 text-sm bg-gray-100 dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-dark-text-primary placeholder-gray-500 dark:placeholder-dark-text-tertiary focus:outline-none focus:border-whatsapp-green focus:ring-1 focus:ring-whatsapp-green focus:bg-white dark:focus:bg-dark-elevated transition-all"
+        className="w-full py-2 ps-9 pe-8 text-sm bg-gray-100 dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-lg text-gray-900 dark:text-dark-text-primary placeholder-gray-500 dark:placeholder-dark-text-tertiary focus:outline-none focus:border-whatsapp-green focus:ring-1 focus:ring-whatsapp-green focus:bg-white dark:focus:bg-dark-elevated transition-all"
         aria-label={t("chat.searchContactsAria", "Search contacts")}
       />
 
@@ -68,7 +68,7 @@ export function ChatListSearch({
         <button
           type="button"
           onClick={handleClear}
-          className="absolute right-2 p-1 text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary focus:outline-none transition-colors"
+          className="absolute end-2 p-1 text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary focus:outline-none transition-colors"
           aria-label={t("common.clearSearch", "Clear search")}
         >
           <svg

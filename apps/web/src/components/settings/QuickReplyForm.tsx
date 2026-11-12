@@ -63,7 +63,7 @@ export function QuickReplyForm({
 
   return (
     <>
-      <DialogHeader className="pr-8 text-left">
+      <DialogHeader className="pe-8 text-start">
         <div className="flex items-start gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e4f5ed] text-[#007a5e] ring-1 ring-[#bfe5d4] dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/15">
             <Zap className="size-5" fill="currentColor" aria-hidden="true" />
@@ -114,7 +114,7 @@ export function QuickReplyForm({
             </div>
             <div className="relative">
               <span
-                className="absolute inset-y-0 left-0 grid w-9 place-items-center border-r border-black/[0.06] font-mono text-base font-bold text-[#008069] dark:border-white/[0.07] dark:text-emerald-300"
+                className="absolute inset-y-0 start-0 grid w-9 place-items-center border-e border-black/[0.06] font-mono text-base font-bold text-[#008069] dark:border-white/[0.07] dark:text-emerald-300"
                 aria-hidden="true"
               >
                 /
@@ -130,7 +130,7 @@ export function QuickReplyForm({
                   },
                 })}
                 placeholder={t("quickReplies.shortcutPlaceholder", "greeting")}
-                className="h-11 rounded-xl pl-12 font-mono font-medium"
+                className="h-11 rounded-xl ps-12 font-mono font-medium"
                 maxLength={50}
                 autoFocus
                 autoComplete="off"
@@ -267,7 +267,7 @@ export function QuickReplyForm({
               </span>
             </div>
             <div className="p-3">
-              <div className="ml-auto max-w-[88%] rounded-lg rounded-tr-sm bg-[#d9fdd3] px-3 py-2 shadow-sm dark:bg-[#005c4b]">
+              <div className="ms-auto max-w-[88%] rounded-lg rounded-se-sm bg-[#d9fdd3] px-3 py-2 shadow-sm dark:bg-[#005c4b]">
                 <p className="whitespace-pre-wrap break-words text-sm leading-5 text-[#111b21] dark:text-dark-text-primary">
                   {content}
                 </p>
@@ -295,14 +295,14 @@ export function QuickReplyForm({
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
+                <Loader2 className="me-2 size-4 animate-spin" />
                 {isEditing
                   ? t("common.saving", "Saving…")
                   : t("common.creating", "Creating…")}
               </>
             ) : (
               <>
-                <Zap className="mr-2 size-4" />
+                <Zap className="me-2 size-4" />
                 {isEditing
                   ? t("quickReplies.saveAction", "Save changes")
                   : t("quickReplies.createAction", "Create reply")}

@@ -1,7 +1,7 @@
 import { AlertCircle, Check } from "lucide-react";
 import { formatPhoneNumber } from "@/lib/utils";
 import type { PreviewStepProps } from "./types";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 
 export function PreviewStep({
   preview,
@@ -42,13 +42,21 @@ export function PreviewStep({
 
       {/* Target connection */}
       <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
-        Contacts will be linked to{" "}
-        <span className="font-medium text-gray-900 dark:text-dark-text-primary">
-          {preview.connection.name || "WhatsApp account"}
-          {preview.connection.phoneNumber
-            ? ` (${formatPhoneNumber(preview.connection.phoneNumber)})`
-            : ""}
-        </span>
+        <Trans
+          i18nKey="contacts.linkedTo"
+          values={{
+            name: `${preview.connection.name || t("contacts.whatsappAccount")}${
+              preview.connection.phoneNumber
+                ? ` (${formatPhoneNumber(preview.connection.phoneNumber)})`
+                : ""
+            }`,
+          }}
+          components={{
+            strong: (
+              <span className="font-medium text-gray-900 dark:text-dark-text-primary" />
+            ),
+          }}
+        />
       </p>
 
       {/* Options */}
@@ -89,17 +97,17 @@ export function PreviewStep({
         <table className="w-full text-sm">
           <thead className="bg-gray-50 dark:bg-dark-tertiary">
             <tr>
-              <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-dark-text-secondary">
+              <th className="px-4 py-2 text-start font-medium text-gray-600 dark:text-dark-text-secondary">
                 #
               </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-dark-text-secondary">
-                Phone
+              <th className="px-4 py-2 text-start font-medium text-gray-600 dark:text-dark-text-secondary">
+                {t("contacts.phone")}
               </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-dark-text-secondary">
-                Name
+              <th className="px-4 py-2 text-start font-medium text-gray-600 dark:text-dark-text-secondary">
+                {t("contacts.name")}
               </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-dark-text-secondary">
-                Status
+              <th className="px-4 py-2 text-start font-medium text-gray-600 dark:text-dark-text-secondary">
+                {t("contacts.status")}
               </th>
             </tr>
           </thead>
@@ -122,12 +130,12 @@ export function PreviewStep({
                   {row.exists ? (
                     <span className="inline-flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
                       <AlertCircle className="h-3 w-3" />
-                      Exists
+                      {t("contacts.exists")}
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
                       <Check className="h-3 w-3" />
-                      New
+                      {t("contacts.newLabel")}
                     </span>
                   )}
                 </td>
@@ -137,7 +145,7 @@ export function PreviewStep({
         </table>
         {preview.total > 10 && (
           <div className="px-4 py-2 bg-gray-50 dark:bg-dark-tertiary text-sm text-gray-500 dark:text-dark-text-secondary text-center">
-            And {preview.total - 10} more contacts...
+            {t("contacts.andMore", { count: preview.total - 10 })}
           </div>
         )}
       </div>

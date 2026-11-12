@@ -198,7 +198,7 @@ export function ExportDialog({
                   className="flex-1"
                   onClick={() => setFormat("csv")}
                 >
-                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  <FileSpreadsheet className="h-4 w-4 me-2" />
                   CSV
                 </Button>
                 <Button
@@ -206,7 +206,7 @@ export function ExportDialog({
                   className="flex-1"
                   onClick={() => setFormat("json")}
                 >
-                  <FileJson className="h-4 w-4 mr-2" />
+                  <FileJson className="h-4 w-4 me-2" />
                   JSON
                 </Button>
               </div>
@@ -256,7 +256,7 @@ export function ExportDialog({
           {type === "contacts" && (
             <>
               {/* Has custom name filter */}
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 rtl:space-x-reverse">
                 <Checkbox
                   id="hasCustomName"
                   checked={hasCustomName}
@@ -337,7 +337,7 @@ export function ExportDialog({
           >
             {isLoading ? (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-4 w-4 me-2 animate-spin" />
                 {type === "full-backup"
                   ? t("export.creatingBackup", "Creating Backup…")
                   : t("export.exporting", "Exporting…")}
@@ -345,9 +345,9 @@ export function ExportDialog({
             ) : (
               <>
                 {type === "full-backup" ? (
-                  <Archive className="h-4 w-4 mr-2" />
+                  <Archive className="h-4 w-4 me-2" />
                 ) : (
-                  <Download className="h-4 w-4 mr-2" />
+                  <Download className="h-4 w-4 me-2" />
                 )}
                 {type === "full-backup"
                   ? t("export.downloadBackup", "Download Backup")

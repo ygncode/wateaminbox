@@ -157,7 +157,7 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
           </svg>
           {/* Tooltip for failed messages */}
           <div
-            className="absolute bottom-full right-0 mb-2 px-2 py-1 bg-gray-900 dark:bg-dark-tertiary text-white text-xs rounded whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10"
+            className="absolute bottom-full end-0 mb-2 px-2 py-1 bg-gray-900 dark:bg-dark-tertiary text-white text-xs rounded whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10"
             aria-hidden="true"
           >
             {errorMsg}

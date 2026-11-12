@@ -37,7 +37,7 @@ export function QuickReplyPicker({
   return (
     <div
       id="quick-reply-picker"
-      className="absolute bottom-full -left-11 z-40 mb-2 w-[calc(100vw-1rem)] max-w-xl overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-[0_18px_48px_rgba(11,20,26,0.22)] animate-in fade-in-0 slide-in-from-bottom-1 duration-150 sm:left-0 sm:w-full dark:border-white/[0.09] dark:bg-dark-elevated dark:shadow-black/50"
+      className="absolute bottom-full -start-11 z-40 mb-2 w-[calc(100vw-1rem)] max-w-xl overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-[0_18px_48px_rgba(11,20,26,0.22)] animate-in fade-in-0 slide-in-from-bottom-1 duration-150 sm:start-0 sm:w-full dark:border-white/[0.09] dark:bg-dark-elevated dark:shadow-black/50"
     >
       <div className="flex items-center justify-between gap-3 border-b border-black/[0.06] bg-[#f7faf8] px-3 py-2 dark:border-white/[0.07] dark:bg-white/[0.025]">
         <div className="flex min-w-0 items-center gap-2">
@@ -49,7 +49,9 @@ export function QuickReplyPicker({
               {t("quickReplies.pickerTitle", "Quick replies")}
             </p>
             <p className="truncate text-[11px] text-[#667781] dark:text-dark-text-tertiary">
-              {query ? `Matching “/${query}”` : "Choose a saved response"}
+              {query
+                ? t("chat.matchingShortcut", { query })
+                : t("chat.chooseSavedResponse")}
             </p>
           </div>
         </div>
@@ -58,7 +60,7 @@ export function QuickReplyPicker({
             ↑↓
           </span>
           navigate
-          <span className="ml-1 rounded border border-black/10 bg-white px-1 py-0.5 font-mono dark:border-white/10 dark:bg-white/5">
+          <span className="ms-1 rounded border border-black/10 bg-white px-1 py-0.5 font-mono dark:border-white/10 dark:bg-white/5">
             ↵
           </span>
           insert
@@ -102,7 +104,7 @@ export function QuickReplyPicker({
                 type="button"
                 role="option"
                 aria-selected={isSelected}
-                className={`group flex w-full items-start gap-3 rounded-xl px-2.5 py-2.5 text-left outline-none transition-colors ${
+                className={`group flex w-full items-start gap-3 rounded-xl px-2.5 py-2.5 text-start outline-none transition-colors ${
                   isSelected
                     ? "bg-[#e7f5ef] dark:bg-emerald-400/10"
                     : "hover:bg-[#f3f5f4] dark:hover:bg-white/[0.05]"

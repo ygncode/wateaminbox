@@ -53,7 +53,7 @@ export function NewContactsChart({ data }: NewContactsChartProps) {
             +{formatNumber(totalNew)}
           </p>
         </div>
-        <div className="text-right">
+        <div className="text-end">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
             {t("dashboard.charts.contactBase", "Contact base")}
           </p>

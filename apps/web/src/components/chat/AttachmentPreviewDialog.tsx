@@ -138,7 +138,7 @@ export function AttachmentPreviewDialog({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-[80] bg-[#0b141a]/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
-          className="fixed left-1/2 top-1/2 z-[81] flex max-h-[92vh] w-[calc(100%_-_1.5rem)] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111b21] text-white shadow-2xl shadow-black/50 outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+          className="fixed start-1/2 top-1/2 z-[81] flex max-h-[92vh] w-[calc(100%_-_1.5rem)] max-w-3xl -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111b21] text-white shadow-2xl shadow-black/50 outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
           aria-describedby="attachment-preview-description"
           // The schedule sheet layers above this dialog and handles Escape
           // itself. Without this veto one key press would dismiss both, losing
@@ -261,7 +261,7 @@ export function AttachmentPreviewDialog({
                       type="button"
                       onClick={() => onRemoveFile(index)}
                       disabled={isBusy}
-                      className="absolute -right-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-[#202c33] text-white shadow-md ring-1 ring-white/20 hover:bg-red-500"
+                      className="absolute -end-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-[#202c33] text-white shadow-md ring-1 ring-white/20 hover:bg-red-500"
                       aria-label={`Remove ${attachment.file.name}`}
                     >
                       <X className="size-3.5" aria-hidden="true" />
@@ -305,7 +305,7 @@ export function AttachmentPreviewDialog({
                   className="block max-h-28 min-h-7 w-full resize-none bg-transparent py-1 text-[15px] leading-5 text-white outline-none placeholder:text-[#8696a0] disabled:cursor-not-allowed"
                 />
                 {caption.length > MAX_CAPTION_LENGTH - 100 && (
-                  <p className="text-right text-[10px] tabular-nums text-white/45">
+                  <p className="text-end text-[10px] tabular-nums text-white/45">
                     {caption.length}/{MAX_CAPTION_LENGTH}
                   </p>
                 )}

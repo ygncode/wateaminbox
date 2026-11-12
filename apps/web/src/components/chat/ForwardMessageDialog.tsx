@@ -120,20 +120,20 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
         {/* Search Input */}
         <div className="px-4 py-3 bg-gray-50/50 dark:bg-dark-primary/30">
           <div className="relative group">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-dark-text-tertiary transition-colors group-focus-within:text-whatsapp-teal-green" />
+            <Search className="absolute start-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-dark-text-tertiary transition-colors group-focus-within:text-whatsapp-teal-green" />
             <input
               type="text"
               placeholder={t("chat.searchContactsEllipsis", "Search contacts…")}
               value={searchQuery}
               onChange={handleSearchChange}
-              className="w-full pl-10 pr-10 py-2.5 text-sm bg-white dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-xl text-gray-900 dark:text-dark-text-primary placeholder-gray-400 dark:placeholder-dark-text-tertiary focus:outline-none focus:ring-2 focus:ring-whatsapp-teal-green/30 focus:border-whatsapp-teal-green transition-all duration-200"
+              className="w-full ps-10 pe-10 py-2.5 text-sm bg-white dark:bg-dark-tertiary border border-gray-200 dark:border-dark-border rounded-xl text-gray-900 dark:text-dark-text-primary placeholder-gray-400 dark:placeholder-dark-text-tertiary focus:outline-none focus:ring-2 focus:ring-whatsapp-teal-green/30 focus:border-whatsapp-teal-green transition-all duration-200"
               autoFocus
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={handleSearchClear}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border transition-all duration-150"
+                className="absolute end-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-border transition-all duration-150"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -156,7 +156,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
                 {t("chat.contactsLoadFailed", "Failed to load contacts")}
               </p>
               <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-4">
-                {error.message || "Please try again"}
+                {error.message || t("chat.pleaseTryAgain")}
               </p>
               <button
                 type="button"
@@ -189,7 +189,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
               </p>
               <p className="text-xs text-gray-500 dark:text-dark-text-secondary max-w-[200px]">
                 {searchQuery
-                  ? `No results for "${searchQuery}"`
+                  ? t("chat.noResultsFor", { query: searchQuery })
                   : t(
                       "chat.startConversationHint",
                       "Start a conversation to see contacts here",
@@ -244,7 +244,7 @@ const ContactListItem = memo(function ContactListItem({
 
   const { contact } = chat;
   const displayName = formatPhoneLikeText(
-    contact.customName || contact.name || contact.jid || "Unknown",
+    contact.customName || contact.name || contact.jid || t("chat.unknownName"),
   );
 
   return (
@@ -252,7 +252,7 @@ const ContactListItem = memo(function ContactListItem({
       type="button"
       onClick={onClick}
       disabled={isDisabled}
-      className="group w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 hover:bg-gray-50 dark:hover:bg-dark-tertiary/50 active:bg-gray-100 dark:active:bg-dark-tertiary disabled:opacity-50 disabled:cursor-not-allowed"
+      className="group w-full flex items-center gap-3 px-4 py-3 text-start transition-all duration-150 hover:bg-gray-50 dark:hover:bg-dark-tertiary/50 active:bg-gray-100 dark:active:bg-dark-tertiary disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {/* Avatar */}
       <div className="relative flex-shrink-0">
@@ -279,7 +279,7 @@ const ContactListItem = memo(function ContactListItem({
         {/* Online Indicator */}
         {!contact.isGroup && contact.isOnline && (
           <span
-            className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-whatsapp-green border-2 border-white dark:border-dark-elevated rounded-full shadow-sm"
+            className="absolute bottom-0.5 end-0.5 w-3 h-3 bg-whatsapp-green border-2 border-white dark:border-dark-elevated rounded-full shadow-sm"
             aria-label={t("chat.online", "Online")}
           />
         )}
@@ -306,7 +306,7 @@ const ContactListItem = memo(function ContactListItem({
 
       {/* Forward arrow indicator */}
       <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-        <ArrowRight className="h-4 w-4 text-whatsapp-teal-green" />
+        <ArrowRight className="h-4 w-4 text-whatsapp-teal-green rtl:-scale-x-100" />
       </div>
     </button>
   );

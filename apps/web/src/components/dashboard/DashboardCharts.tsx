@@ -6,6 +6,7 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,7 +14,6 @@ import { formatNumber } from "@/hooks/analytics";
 import { cn } from "@/lib/utils";
 import { HourlyChart, MessageChart, NewContactsChart } from "./charts";
 import { StatRow } from "./StatRow";
-import { useTranslation } from "react-i18next";
 
 // =====================
 // Types

@@ -89,6 +89,7 @@ export const mcpAuthMiddleware = async (c: Context, next: Next) => {
     email: user.email,
     name: user.name,
     avatarKey: user.avatarKey,
+    preferredLanguage: user.preferredLanguage,
     emailVerifiedAt: user.emailVerifiedAt,
   });
   c.set("companyId", verified.companyId);

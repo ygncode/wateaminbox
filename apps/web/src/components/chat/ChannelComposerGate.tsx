@@ -1,6 +1,7 @@
 import type { ResolvedCapabilities } from "@wateaminbox/shared";
 import { Lock } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ComposerFeaturesContext,
   resolveComposerFeatures,
@@ -22,12 +23,13 @@ export function ChannelComposerGate({
   isLoading = false,
   children,
 }: ChannelComposerGateProps) {
+  const { t } = useTranslation();
   if (isLoading) {
     return (
       <div
         className="h-12 animate-pulse border-t border-gray-100 bg-gray-50 dark:border-dark-border dark:bg-dark-tertiary"
         role="status"
-        aria-label="Loading channel capabilities"
+        aria-label={t("chat.channelCapabilitiesLoading")}
       />
     );
   }
@@ -37,7 +39,7 @@ export function ChannelComposerGate({
     return (
       <div className="flex items-center gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-dark-border dark:bg-dark-tertiary/50 dark:text-dark-text-secondary">
         <Lock className="size-4 shrink-0" aria-hidden="true" />
-        <span>Messaging is not available for this channel account</span>
+        <span>{t("chat.channelMessagingUnavailable")}</span>
       </div>
     );
   }

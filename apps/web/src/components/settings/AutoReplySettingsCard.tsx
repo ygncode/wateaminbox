@@ -187,7 +187,7 @@ export function AutoReplySettingsCard() {
               {t("quickReplies.autoReply.wait", "Wait before sending")}
             </Label>
             <div className="relative max-w-xs">
-              <Clock3 className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#8696a0]" />
+              <Clock3 className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-[#8696a0]" />
               <Input
                 id="auto-reply-delay"
                 type="number"
@@ -198,9 +198,9 @@ export function AutoReplySettingsCard() {
                 onChange={(event) =>
                   setDelayMinutes(Number(event.target.value))
                 }
-                className="h-11 rounded-xl pl-9 pr-20"
+                className="h-11 rounded-xl ps-9 pe-20"
               />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-[#667781]">
+              <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-xs font-medium text-[#667781]">
                 {t("quickReplies.autoReply.minutes", "minutes")}
               </span>
             </div>
@@ -289,7 +289,7 @@ function ModeOption({
       aria-checked={active}
       onClick={onClick}
       className={cn(
-        "flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors",
+        "flex w-full items-start gap-3 rounded-xl border p-3 text-start transition-colors",
         active
           ? "border-[#7bc8af] bg-[#f0faf6] ring-1 ring-[#7bc8af]/30 dark:border-emerald-400/35 dark:bg-emerald-400/[0.07]"
           : "border-[#dce5e1] hover:bg-gray-50 dark:border-white/[0.08] dark:hover:bg-white/[0.035]",

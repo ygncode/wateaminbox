@@ -64,10 +64,10 @@ export const DeleteMessageDialog = memo(function DeleteMessageDialog({
             {isDeleting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Deleting…
+                {t("common.deleting")}
               </>
             ) : (
-              "Delete"
+              t("common.delete")
             )}
           </button>
         </DialogFooter>

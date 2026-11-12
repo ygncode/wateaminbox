@@ -1,3 +1,4 @@
+import i18n from "../lib/i18n";
 import {
   createContext,
   type ReactNode,
@@ -117,9 +118,13 @@ export function ThemeProvider({
     if (announcement) {
       const themeLabel =
         newTheme === "system"
-          ? `System (${resolved})`
-          : newTheme.charAt(0).toUpperCase() + newTheme.slice(1);
-      announcement.textContent = `Theme changed to ${themeLabel}`;
+          ? i18n.t("settings.themePanel.system", {
+              resolved: i18n.t(`settings.themePanel.${resolved}`),
+            })
+          : i18n.t(`settings.themePanel.${newTheme}`);
+      announcement.textContent = i18n.t("settings.themePanel.changed", {
+        theme: themeLabel,
+      });
     }
   }, []);
 

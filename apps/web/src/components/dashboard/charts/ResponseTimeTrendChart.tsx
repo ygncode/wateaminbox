@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 import {
   chartBox,
   formatAxisNumber,
@@ -15,7 +16,6 @@ import {
   getNiceMax,
   getSmoothPath,
 } from "./chart-utils";
-import { useTranslation } from "react-i18next";
 
 export interface ResponseTimeTrendData {
   date: string;
@@ -103,7 +103,9 @@ export function ResponseTimeTrendChart({
         viewBox={`0 0 ${responsiveChartBox.width} ${responsiveChartBox.height}`}
         className="block h-[220px] w-full touch-none overflow-visible"
         role="img"
-        aria-label={`Average response-time trend with a ${slaThreshold}-minute SLA target`}
+        aria-label={t("dashboard.charts.responseTrendAria", {
+          minutes: slaThreshold,
+        })}
         onPointerMove={handlePointerMove}
         onPointerLeave={() => setHoveredIndex(null)}
       >

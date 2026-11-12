@@ -51,7 +51,7 @@ export function GlobalErrorBanner({
                 onClick={onDismiss}
                 className="text-xs text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 transition-colors"
               >
-                Dismiss
+                {t("common.dismiss")}
               </button>
             </div>
           </div>

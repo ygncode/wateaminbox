@@ -78,6 +78,7 @@ function NotificationRow({
   onMarkAsRead,
   onDelete,
 }: NotificationRowProps) {
+  const { t } = useTranslation();
   const visual = getNotificationVisual(notification.notificationType);
   const isCompact = density === "compact";
   const isUnread = !notification.isRead;
@@ -87,10 +88,10 @@ function NotificationRow({
   return (
     <li
       className={cn(
-        "group relative border-l-2 transition-colors",
+        "group relative border-s-2 transition-colors",
         isUnread
           ? cn(visual.accent, "bg-white dark:bg-dark-elevated")
-          : "border-l-transparent bg-transparent",
+          : "border-s-transparent bg-transparent",
       )}
       data-unread={isUnread ? "true" : "false"}
     >
@@ -104,7 +105,7 @@ function NotificationRow({
           activate();
         }}
         className={cn(
-          "flex w-full cursor-pointer items-start text-left outline-none transition-colors",
+          "flex w-full cursor-pointer items-start text-start outline-none transition-colors",
           "hover:bg-gray-50 focus-visible:bg-gray-50 dark:hover:bg-dark-tertiary/70 dark:focus-visible:bg-dark-tertiary/70",
           "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-teal-green",
           isCompact ? "gap-3 px-3 py-3" : "gap-3.5 px-4 py-4 sm:px-5",
@@ -175,7 +176,9 @@ function NotificationRow({
             <Button
               variant="ghost"
               size="icon"
-              aria-label={`Mark "${notification.title}" as read`}
+              aria-label={t("notifications.markTitleRead", {
+                title: notification.title,
+              })}
               className={cn(
                 "rounded-full text-gray-400 hover:bg-whatsapp-green/10 hover:text-whatsapp-dark-green dark:text-dark-text-tertiary",
                 isCompact ? "size-7" : "size-8",
@@ -191,7 +194,9 @@ function NotificationRow({
           <Button
             variant="ghost"
             size="icon"
-            aria-label={`Delete "${notification.title}"`}
+            aria-label={t("notifications.deleteTitle", {
+              title: notification.title,
+            })}
             className={cn(
               "rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 dark:text-dark-text-tertiary dark:hover:bg-red-900/30 dark:hover:text-red-400",
               isCompact ? "size-7" : "size-8",
@@ -344,7 +349,7 @@ export function NotificationEmptyState({
           <Bell className="size-7" aria-hidden="true" />
         </div>
         {filter === "unread" && !beyondFirstPage && (
-          <span className="absolute -bottom-1 -right-1 grid size-6 place-items-center rounded-full bg-whatsapp-green text-white shadow-sm">
+          <span className="absolute -bottom-1 -end-1 grid size-6 place-items-center rounded-full bg-whatsapp-green text-white shadow-sm">
             <Check className="size-3.5" aria-hidden="true" />
           </span>
         )}
@@ -400,9 +405,11 @@ export function NotificationErrorState({
         disabled={isRetrying}
       >
         <RefreshCw
-          className={cn("mr-2 size-4", isRetrying && "animate-spin")}
+          className={cn("me-2 size-4", isRetrying && "animate-spin")}
         />
-        {isRetrying ? "Retrying…" : "Try again"}
+        {isRetrying
+          ? t("notifications.retrying")
+          : t("connections.tryAgainShort")}
       </Button>
     </div>
   );

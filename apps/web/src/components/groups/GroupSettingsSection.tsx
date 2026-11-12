@@ -153,7 +153,7 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
           {updateSettings.isPending && (
             <Loader2 className="h-4 w-4 animate-spin" />
           )}
-          Save name and description
+          {t("groups.saveNameDescription")}
         </Button>
 
         <div className="space-y-3 border-t border-gray-200 pt-4 dark:border-dark-border">

@@ -87,7 +87,7 @@ export function MessageReactions({
   return (
     <>
       <div
-        className={`absolute -bottom-3 ${isOwn ? "left-2" : "right-2"} flex gap-0.5`}
+        className={`absolute -bottom-3 ${isOwn ? "start-2" : "end-2"} flex gap-0.5`}
         role="group"
         aria-label={`${t("chat.reactions")}: ${reactionSummary}`}
       >
@@ -121,7 +121,7 @@ export function MessageReactions({
           className="w-[calc(100vw-2rem)] max-w-md gap-0 overflow-hidden rounded-xl p-0"
           onClick={(event) => event.stopPropagation()}
         >
-          <DialogHeader className="border-b border-gray-100 px-5 pb-4 pt-5 text-left dark:border-dark-border">
+          <DialogHeader className="border-b border-gray-100 px-5 pb-4 pt-5 text-start dark:border-dark-border">
             <DialogTitle>{t("chat.messageReactions")}</DialogTitle>
             <DialogDescription>
               {t("chat.reactionCount", { count: reactions.length })}
@@ -268,7 +268,7 @@ function ReactorRow({
       <button
         type="button"
         onClick={onRemove}
-        className="flex min-h-16 w-full items-center gap-3 px-5 py-2.5 text-left transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green dark:hover:bg-dark-tertiary/60"
+        className="flex min-h-16 w-full items-center gap-3 px-5 py-2.5 text-start transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green dark:hover:bg-dark-tertiary/60"
         aria-label={t("chat.removeReaction", { emoji: reaction.emoji })}
       >
         {content}

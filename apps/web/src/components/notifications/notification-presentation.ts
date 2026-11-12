@@ -42,31 +42,31 @@ const NOTIFICATION_TYPE_VISUALS: Record<
   message: {
     label: "Message",
     tile: "bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300",
-    accent: "border-l-sky-400 dark:border-l-sky-500",
+    accent: "border-s-sky-400 dark:border-s-sky-500",
     dot: "bg-sky-500",
   },
   mention: {
     label: "Mention",
     tile: "bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300",
-    accent: "border-l-violet-400 dark:border-l-violet-500",
+    accent: "border-s-violet-400 dark:border-s-violet-500",
     dot: "bg-violet-500",
   },
   assignment: {
     label: "Assignment",
     tile: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300",
-    accent: "border-l-emerald-400 dark:border-l-emerald-500",
+    accent: "border-s-emerald-400 dark:border-s-emerald-500",
     dot: "bg-emerald-500",
   },
   team: {
     label: "Team",
     tile: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
-    accent: "border-l-amber-400 dark:border-l-amber-500",
+    accent: "border-s-amber-400 dark:border-s-amber-500",
     dot: "bg-amber-500",
   },
   system: {
     label: "System",
     tile: "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300",
-    accent: "border-l-slate-400 dark:border-l-slate-500",
+    accent: "border-s-slate-400 dark:border-s-slate-500",
     dot: "bg-slate-400",
   },
 };
@@ -74,7 +74,7 @@ const NOTIFICATION_TYPE_VISUALS: Record<
 const FALLBACK_VISUAL: NotificationTypeVisual = {
   label: "Update",
   tile: "bg-gray-100 text-gray-600 dark:bg-dark-tertiary dark:text-dark-text-tertiary",
-  accent: "border-l-gray-300 dark:border-l-dark-text-tertiary",
+  accent: "border-s-gray-300 dark:border-s-dark-text-tertiary",
   dot: "bg-gray-400",
 };
 

@@ -99,7 +99,7 @@ export function MessageContent({
         );
       }
       const mediaUrl = message.metadata?.mediaUrl;
-      const imageAlt = mediaCaption || "Image message";
+      const imageAlt = mediaCaption || t("chat.imageMessage");
 
       return (
         <div className="max-w-xs">
@@ -117,7 +117,7 @@ export function MessageContent({
                   event.stopPropagation();
                   setMediaPreviewOpen(true);
                 }}
-                aria-label={`Open image: ${imageAlt}`}
+                aria-label={t("chat.openImage", { label: imageAlt })}
                 tabIndex={enableMediaPreview ? 0 : -1}
               >
                 <img
@@ -129,7 +129,7 @@ export function MessageContent({
                   loading="lazy"
                 />
                 {enableMediaPreview && (
-                  <span className="absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-[#111b21]/60 text-white opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover/media:opacity-100 group-focus-visible/media:opacity-100">
+                  <span className="absolute end-2 top-2 grid size-8 place-items-center rounded-full bg-[#111b21]/60 text-white opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover/media:opacity-100 group-focus-visible/media:opacity-100">
                     <Maximize2 className="size-4" aria-hidden="true" />
                   </span>
                 )}
@@ -174,7 +174,7 @@ export function MessageContent({
         );
       }
       const mediaUrl = message.metadata?.mediaUrl;
-      const videoLabel = mediaCaption || "Video message";
+      const videoLabel = mediaCaption || t("chat.videoMessage");
 
       return (
         <div className="max-w-xs">
@@ -192,7 +192,7 @@ export function MessageContent({
                   event.stopPropagation();
                   setMediaPreviewOpen(true);
                 }}
-                aria-label={`Play video: ${videoLabel}`}
+                aria-label={t("chat.playVideo", { label: videoLabel })}
                 tabIndex={enableMediaPreview ? 0 : -1}
               >
                 <video
@@ -208,13 +208,13 @@ export function MessageContent({
                 {enableMediaPreview && (
                   <>
                     <span className="absolute inset-0 bg-black/10 transition-colors group-hover/media:bg-black/20" />
-                    <span className="absolute left-1/2 top-1/2 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#111b21]/75 text-white shadow-lg backdrop-blur-sm transition-transform group-hover/media:scale-105 group-focus-visible/media:scale-105">
+                    <span className="absolute start-1/2 top-1/2 grid size-14 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#111b21]/75 text-white shadow-lg backdrop-blur-sm transition-transform group-hover/media:scale-105 group-focus-visible/media:scale-105">
                       <Play
-                        className="ml-0.5 size-6 fill-current"
+                        className="ms-0.5 size-6 fill-current"
                         aria-hidden="true"
                       />
                     </span>
-                    <span className="absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-[#111b21]/60 text-white opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover/media:opacity-100 group-focus-visible/media:opacity-100">
+                    <span className="absolute end-2 top-2 grid size-8 place-items-center rounded-full bg-[#111b21]/60 text-white opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover/media:opacity-100 group-focus-visible/media:opacity-100">
                       <Maximize2 className="size-4" aria-hidden="true" />
                     </span>
                   </>
@@ -293,7 +293,7 @@ export function MessageContent({
         );
       }
       const mediaUrl = message.metadata?.mediaUrl;
-      const fileName = message.metadata?.fileName || "Document";
+      const fileName = message.metadata?.fileName || t("chat.document");
       const mimeType = message.metadata?.mimeType?.toLowerCase();
       const isPdf =
         mimeType === "application/pdf" ||
@@ -306,7 +306,7 @@ export function MessageContent({
           : undefined;
       const mimeSubtype = mimeTypeParts?.[mimeTypeParts.length - 1];
       const cardClassName =
-        "flex w-full max-w-xs items-center gap-3 rounded-lg bg-gray-100 p-3 text-left transition-colors hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green dark:bg-dark-tertiary dark:hover:bg-dark-border";
+        "flex w-full max-w-xs items-center gap-3 rounded-lg bg-gray-100 p-3 text-start transition-colors hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green dark:bg-dark-tertiary dark:hover:bg-dark-border";
       const withCaption = (card: ReactNode) => (
         <div className="max-w-xs">
           {card}
@@ -344,7 +344,9 @@ export function MessageContent({
               {fileName}
             </p>
             <p className="text-xs uppercase text-gray-500 dark:text-dark-text-secondary">
-              {isPdf ? "PDF" : fileExtension || mimeSubtype || "Document"}
+              {isPdf
+                ? "PDF"
+                : fileExtension || mimeSubtype || t("chat.document")}
               {message.metadata?.fileSize
                 ? ` · ${formatFileSize(message.metadata.fileSize)}`
                 : ""}
@@ -378,7 +380,7 @@ export function MessageContent({
                 event.stopPropagation();
                 setMediaPreviewOpen(true);
               }}
-              aria-label={`Preview PDF: ${fileName}`}
+              aria-label={t("chat.previewPdf", { name: fileName })}
             >
               {documentCard}
             </button>
@@ -609,7 +611,7 @@ function ContactCardMessage({
                     onOpenSharedContact?.(card);
                   }}
                   disabled={!onOpenSharedContact}
-                  className="flex w-full items-start gap-3 px-3 py-3 text-left outline-none transition-colors enabled:hover:bg-black/[0.035] enabled:focus-visible:ring-2 enabled:focus-visible:ring-inset enabled:focus-visible:ring-[#00a884]/40 disabled:cursor-default dark:enabled:hover:bg-white/[0.04]"
+                  className="flex w-full items-start gap-3 px-3 py-3 text-start outline-none transition-colors enabled:hover:bg-black/[0.035] enabled:focus-visible:ring-2 enabled:focus-visible:ring-inset enabled:focus-visible:ring-[#00a884]/40 disabled:cursor-default dark:enabled:hover:bg-white/[0.04]"
                   aria-label={t("chat.openSharedContact", {
                     defaultValue: "Open contact info for {{name}}",
                     name: card.displayName,
@@ -637,7 +639,7 @@ function ContactCardMessage({
                               {formatPhoneNumber(phone.value)}
                             </span>
                             {phone.label && (
-                              <span className="ml-auto shrink-0 text-[10px] text-[#8696a0] dark:text-dark-text-tertiary">
+                              <span className="ms-auto shrink-0 text-[10px] text-[#8696a0] dark:text-dark-text-tertiary">
                                 {phone.label}
                               </span>
                             )}

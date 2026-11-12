@@ -28,8 +28,7 @@ export function setMessageStarredInCaches(
   queryClient.setQueryData<Message[]>(
     queryKeys.messages.list({ conversationId }),
     (old) =>
-      old?.map((msg) =>
-        msg.id === messageId ? { ...msg, isStarred } : msg,
-      ) || [],
+      old?.map((msg) => (msg.id === messageId ? { ...msg, isStarred } : msg)) ||
+      [],
   );
 }

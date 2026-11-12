@@ -1,5 +1,7 @@
 import type { WhatsAppConnectionIdentity } from "@wateaminbox/shared";
 import { Radio, Smartphone } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import i18n from "@/lib/i18n";
 import { cn, formatPhoneLikeText } from "@/lib/utils";
 
 const accountColors = [
@@ -42,7 +44,7 @@ export function getConnectionLabel(connection: {
   phoneNumber?: string | null;
 }): string {
   return formatPhoneLikeText(
-    connection.name || connection.phoneNumber || "WhatsApp account",
+    connection.name || connection.phoneNumber || i18n.t("chat.whatsappAccount"),
   );
 }
 
@@ -66,11 +68,18 @@ export function ConnectionBadge({
   compact = false,
   className,
 }: ConnectionBadgeProps) {
+  const { t } = useTranslation();
   const color = getConnectionColor(connection.id);
   const label = getConnectionLabel(connection);
   const phone = getConnectionPhone(connection);
   const isConnected = connection.status === "connected";
-  const title = `${label}${phone && phone !== label ? ` · ${phone}` : ""} · ${isConnected ? "Connected" : "Disconnected"}`;
+  const identity = `${label}${phone && phone !== label ? ` · ${phone}` : ""}`;
+  const title = t("chat.connectionBadgeTitle", {
+    identity,
+    status: isConnected
+      ? t("connections.connected")
+      : t("chat.accountDisconnected"),
+  });
 
   return (
     <span
@@ -83,7 +92,7 @@ export function ConnectionBadge({
         className,
       )}
       title={title}
-      aria-label={`WhatsApp account: ${title}`}
+      aria-label={t("chat.whatsappAccountAria", { title })}
     >
       <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
         {isConnected && !compact && (
@@ -103,7 +112,9 @@ export function ConnectionBadge({
       </span>
       <span className="truncate font-semibold">{label}</span>
       {!compact && phone && phone !== label && (
-        <span className="hidden truncate opacity-70 xl:inline">{phone}</span>
+        <span dir="ltr" className="hidden truncate opacity-70 xl:inline">
+          {phone}
+        </span>
       )}
     </span>
   );

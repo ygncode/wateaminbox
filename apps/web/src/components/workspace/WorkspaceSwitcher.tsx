@@ -23,10 +23,12 @@ import { WorkspaceAvatar } from "./WorkspaceAvatar";
 
 export { workspaceMonogram } from "./WorkspaceAvatar";
 
-function roleLabel(role: "owner" | "admin" | "member") {
-  return role === "admin"
-    ? "Administrator"
-    : `${role[0].toUpperCase()}${role.slice(1)}`;
+function roleLabel(
+  role: "owner" | "admin" | "member",
+  t: (key: string) => string,
+) {
+  if (role === "owner") return t("team.roleOwner");
+  return role === "admin" ? t("team.roleAdmin") : t("team.roleMember");
 }
 
 export function WorkspaceSwitcher({
@@ -76,11 +78,9 @@ export function WorkspaceSwitcher({
         membership.permissions,
       );
       navigate(destination.path);
-      toast.success(`Switched to ${membership.name}`);
+      toast.success(t("workspaces.switchedTo", { name: membership.name }));
       if (destination.wasRedirected) {
-        toast.info(
-          "This workspace opened in Inbox because the previous view is unavailable.",
-        );
+        toast.info(t("workspaces.redirectedToInbox"));
       }
     } catch (error) {
       toast.error(
@@ -107,7 +107,7 @@ export function WorkspaceSwitcher({
             await switchWorkspace(membership.id);
             setWorkspaceName("");
             setCreateOpen(false);
-            toast.success(`${created.name} is ready`);
+            toast.success(t("workspaces.ready", { name: created.name }));
             const billingUrl = getWorkspaceBillingUrl(membership.id, {
               onboarding: true,
             });
@@ -126,7 +126,7 @@ export function WorkspaceSwitcher({
           }
           setWorkspaceName("");
           setCreateOpen(false);
-          toast.success(`${created.name} is ready`);
+          toast.success(t("workspaces.ready", { name: created.name }));
         },
         onError: (error) => toast.error(error.message),
       },
@@ -143,15 +143,21 @@ export function WorkspaceSwitcher({
             type="button"
             disabled={isSwitching}
             className={cn(
-              "group relative flex items-center rounded-xl text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-300",
+              "group relative flex items-center rounded-xl text-start outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-300",
               collapsed
                 ? "h-11 w-full justify-center p-1 hover:bg-white/10"
                 : compact
                   ? "h-10 max-w-[210px] gap-2 px-2 hover:bg-white/10"
                   : "w-full gap-3 border border-white/10 bg-white/[0.06] p-2.5 hover:bg-white/10",
             )}
-            aria-label={`Active workspace: ${activeWorkspace.name}. Switch workspace`}
-            title={collapsed ? `Workspace: ${activeWorkspace.name}` : undefined}
+            aria-label={t("workspaces.activeAria", {
+              name: activeWorkspace.name,
+            })}
+            title={
+              collapsed
+                ? t("workspaces.workspaceTitle", { name: activeWorkspace.name })
+                : undefined
+            }
           >
             <WorkspaceAvatar
               workspace={activeWorkspace}
@@ -161,11 +167,11 @@ export function WorkspaceSwitcher({
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-white">
                   {isSwitching
-                    ? `Switching to ${switchingTo?.name}…`
+                    ? t("workspaces.switchingTo", { name: switchingTo?.name })
                     : activeWorkspace.name}
                 </span>
                 <span className="block truncate text-[11px] text-[#a7bbb3]">
-                  {roleLabel(activeWorkspace.role)}
+                  {roleLabel(activeWorkspace.role, t)}
                 </span>
               </span>
             )}
@@ -173,7 +179,7 @@ export function WorkspaceSwitcher({
               <Loader2
                 className={cn(
                   "h-4 w-4 shrink-0 animate-spin text-emerald-300",
-                  collapsed && "absolute bottom-0.5 right-0.5",
+                  collapsed && "absolute bottom-0.5 end-0.5",
                 )}
               />
             ) : (
@@ -195,12 +201,12 @@ export function WorkspaceSwitcher({
           </div>
           {memberships.length >= 4 && (
             <div className="relative mb-2">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+              <Search className="absolute start-3 top-2.5 h-4 w-4 text-gray-400" />
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t("workspaces.find", "Find a workspace")}
-                className="h-9 rounded-lg pl-9"
+                className="h-9 rounded-lg ps-9"
               />
             </div>
           )}
@@ -211,7 +217,7 @@ export function WorkspaceSwitcher({
                 type="button"
                 onClick={() => void handleSwitch(workspace.id)}
                 disabled={workspace.status !== "active"}
-                className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-[#edf1ed] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-dark-tertiary"
+                className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-start hover:bg-[#edf1ed] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-dark-tertiary"
               >
                 <WorkspaceAvatar
                   workspace={workspace}
@@ -222,7 +228,7 @@ export function WorkspaceSwitcher({
                     {workspace.name}
                   </span>
                   <span className="text-xs text-gray-500 dark:text-dark-text-secondary">
-                    {roleLabel(workspace.role)}
+                    {roleLabel(workspace.role, t)}
                     {workspace.status !== "active" && " · Suspended"}
                   </span>
                 </span>
@@ -279,14 +285,16 @@ export function WorkspaceSwitcher({
           </label>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={handleCreate}
               disabled={!workspaceName.trim() || createWorkspace.isPending}
               className="bg-[#0b7a55] text-white hover:bg-[#096747]"
             >
-              {createWorkspace.isPending ? "Creating…" : "Create workspace"}
+              {createWorkspace.isPending
+                ? t("common.creating")
+                : t("workspaces.create")}
             </Button>
           </DialogFooter>
         </DialogContent>

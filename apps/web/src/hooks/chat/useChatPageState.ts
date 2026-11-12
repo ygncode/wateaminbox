@@ -3,14 +3,13 @@ import type { Contact, Message } from "@wateaminbox/shared";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router";
-import { useCustomerChats } from "../contact/useCustomerChats";
-import { activeThread, threadSearch, withoutThread } from "./chat-thread-param";
 import { toast } from "sonner";
 import { createWhatsAppAlbumId } from "../../components/chat/media-gallery";
 import { useWorkspace } from "../../contexts/workspace-context";
 import { markConversationAsRead, uploadMedia } from "../../lib/api";
 import { workspacePath } from "../../lib/workspace-routes";
 import { useChatStore } from "../../stores/chat-store";
+import { useCustomerChats } from "../contact/useCustomerChats";
 import { getReactionMutationEmoji } from "../messages/useReactionMutations";
 import { chatKeys } from "../useChats";
 import { type ContactDetail, useContact } from "../useContact";
@@ -21,6 +20,7 @@ import {
   useSendMessage,
   useStarMessage,
 } from "../useMessages";
+import { activeThread, threadSearch, withoutThread } from "./chat-thread-param";
 import { resolveActiveReplyDraft } from "./reply-draft";
 import { isSendPendingForContact } from "./send-scope";
 
@@ -429,8 +429,8 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
       const isAlbum = type === "image" && files.length > 1;
       const sendingToastId = toast.loading(
         isAlbum
-          ? `Sending ${files.length} photos and videos...`
-          : `Sending ${files[0].name}...`,
+          ? t("chat.sendingMedia", { count: files.length })
+          : t("chat.sendingFile", { name: files[0].name }),
       );
 
       try {
@@ -489,16 +489,22 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
           });
         }
         toast.dismiss(sendingToastId);
-        toast.success(isAlbum ? "Gallery sent" : "Attachment sent");
+        toast.success(
+          isAlbum ? t("chat.gallerySent") : t("chat.attachmentSent"),
+        );
         return true;
       } catch (error) {
         toast.dismiss(sendingToastId);
         console.error("Failed to send attachment:", error);
 
         if (error instanceof Error) {
-          toast.error(`Failed to send attachment: ${error.message}`);
+          toast.error(
+            t("chat.sendAttachmentFailedWithReason", {
+              message: error.message,
+            }),
+          );
         } else {
-          toast.error("Failed to send attachment. Please try again.");
+          toast.error(t("chat.sendAttachmentFailed"));
         }
         return false;
       }
@@ -508,6 +514,7 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
       isContactBlocked,
       blockedSendMessage,
       sendMessage,
+      t,
       replyToMessage,
     ],
   );
@@ -536,11 +543,13 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
           setMessageToDelete(null);
         },
         onError: (error) => {
-          toast.error(`Failed to delete message: ${error.message}`);
+          toast.error(
+            t("chat.deleteMessageFailed", { message: error.message }),
+          );
         },
       },
     );
-  }, [selectedChatId, messageToDelete, deleteMessage]);
+  }, [selectedChatId, messageToDelete, deleteMessage, t]);
 
   const handleCloseDeleteDialog = React.useCallback(() => {
     setDeleteDialogOpen(false);
@@ -599,22 +608,22 @@ export function useChatPageState(): ChatPageState & ChatPageActions {
           onSuccess: (data) => {
             toast.success(
               data.forwardedCount > 1
-                ? "Media collection forwarded successfully"
-                : "Message forwarded successfully",
+                ? t("chat.forwardedMedia")
+                : t("chat.forwardedSuccess"),
             );
             if (data.autoAssigned) {
-              toast.info("Contact was automatically assigned to you");
+              toast.info(t("chat.autoAssigned"));
             }
             setForwardDialogOpen(false);
             setMessageToForward(null);
           },
           onError: (error) => {
-            toast.error(`Failed to forward message: ${error.message}`);
+            toast.error(t("chat.forwardFailed", { message: error.message }));
           },
         },
       );
     },
-    [selectedChatId, messageToForward, forwardMessage],
+    [selectedChatId, messageToForward, forwardMessage, t],
   );
 
   const handleCloseForwardDialog = React.useCallback(() => {

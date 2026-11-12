@@ -19,6 +19,7 @@ import {
   unsubscribeAllPush,
   updateCurrentUserProfile,
 } from "../lib/api";
+import { applyAccountLanguage } from "../lib/i18n";
 import { useChatStore } from "../stores/chat-store";
 import {
   restoreSession,
@@ -33,6 +34,8 @@ export interface AuthUser {
   avatarUrl?: string;
   gravatarUrl?: string;
   hasCustomAvatar: boolean;
+  /** Interface language saved on the account, or null if never chosen. */
+  preferredLanguage: string | null;
 }
 
 export interface AuthState {
@@ -81,9 +84,13 @@ interface ApiUser {
   avatarUrl?: string;
   gravatarUrl?: string;
   hasCustomAvatar?: boolean;
+  preferredLanguage?: string | null;
 }
 
 function mapApiUser(apiUser: ApiUser): AuthUser {
+  // The account's saved language wins over this browser's last choice, so the
+  // app opens in the same language on every device the user signs in from.
+  applyAccountLanguage(apiUser.preferredLanguage);
   return {
     id: apiUser.id,
     email: apiUser.email,
@@ -91,6 +98,7 @@ function mapApiUser(apiUser: ApiUser): AuthUser {
     avatarUrl: apiUser.avatarUrl,
     gravatarUrl: apiUser.gravatarUrl,
     hasCustomAvatar: Boolean(apiUser.hasCustomAvatar),
+    preferredLanguage: apiUser.preferredLanguage ?? null,
   };
 }
 

@@ -94,7 +94,7 @@ export function MobileBottomNav({
                 <Icon className="h-5 w-5" aria-hidden="true" />
                 {badgeCount > 0 && (
                   <span
-                    className="absolute -top-1.5 left-2.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#25d366] px-1 text-[10px] font-bold leading-none text-[#073b2a] tabular-nums shadow-sm"
+                    className="absolute -top-1.5 start-2.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#25d366] px-1 text-[10px] font-bold leading-none text-[#073b2a] tabular-nums shadow-sm"
                     aria-hidden="true"
                     data-testid="inbox-unread-badge"
                   >

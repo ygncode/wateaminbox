@@ -633,7 +633,6 @@ function ConversationLoadingState() {
 
       <ConversationMessagesSkeleton decorative />
 
-
       <div
         className="flex min-h-[64px] items-center gap-3 border-t border-gray-200 bg-gray-100 px-3 py-2.5 dark:border-dark-border dark:bg-dark-secondary"
         aria-hidden="true"
@@ -754,7 +753,7 @@ function InboxFirstRunState({
         aria-hidden="true"
       />
       <div
-        className="absolute left-1/2 top-1/2 h-[34rem] w-[46rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#cdeadd]/45 blur-3xl dark:bg-[#00a884]/[0.07]"
+        className="absolute start-1/2 top-1/2 h-[34rem] w-[46rem] -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 rounded-full bg-[#cdeadd]/45 blur-3xl dark:bg-[#00a884]/[0.07]"
         aria-hidden="true"
       />
 
@@ -791,7 +790,10 @@ function InboxFirstRunState({
             >
               {t("chat.connectChannels", "Connect channels")}
               <span className="grid size-6 place-items-center rounded-md bg-white/15 dark:bg-black/10">
-                <ArrowRight className="size-4" aria-hidden="true" />
+                <ArrowRight
+                  className="size-4 rtl:-scale-x-100"
+                  aria-hidden="true"
+                />
               </span>
             </button>
           )}
@@ -807,7 +809,7 @@ function InboxFirstRunState({
           </div>
         </div>
 
-        <div className="relative flex min-h-[27rem] flex-col border-t border-[#d7e2dc] bg-[#eaf4ef] p-7 dark:border-white/[0.08] dark:bg-[#0d2824] lg:border-l lg:border-t-0">
+        <div className="relative flex min-h-[27rem] flex-col border-t border-[#d7e2dc] bg-[#eaf4ef] p-7 dark:border-white/[0.08] dark:bg-[#0d2824] lg:border-s lg:border-t-0">
           <div>
             <p className="text-sm font-semibold text-[#27483d] dark:text-[#d5e8e1]">
               {t("chat.chooseChannelTitle", "Choose where to start")}
@@ -822,7 +824,7 @@ function InboxFirstRunState({
 
           <div className="my-7 grid gap-3">
             <div className="group relative overflow-hidden rounded-2xl border border-[#c8ddd4] bg-white/70 p-4 shadow-[0_14px_34px_-28px_rgba(18,86,64,0.8)] dark:border-white/10 dark:bg-white/[0.045]">
-              <div className="absolute -right-8 -top-8 size-24 rounded-full bg-[#25d366]/10 blur-2xl" />
+              <div className="absolute -end-8 -top-8 size-24 rounded-full bg-[#25d366]/10 blur-2xl" />
               <div className="relative flex items-center gap-4">
                 <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#e6f7ef] text-[#12845f] ring-1 ring-[#cbe8dc] dark:bg-[#25d366]/10 dark:text-[#55df9a] dark:ring-[#25d366]/15">
                   <QrCode
@@ -851,7 +853,7 @@ function InboxFirstRunState({
             </div>
 
             <div className="group relative overflow-hidden rounded-2xl border border-[#c8dce1] bg-white/70 p-4 shadow-[0_14px_34px_-28px_rgba(33,112,145,0.75)] dark:border-white/10 dark:bg-white/[0.045]">
-              <div className="absolute -right-8 -top-8 size-24 rounded-full bg-[#229ed9]/10 blur-2xl" />
+              <div className="absolute -end-8 -top-8 size-24 rounded-full bg-[#229ed9]/10 blur-2xl" />
               <div className="relative flex items-center gap-4">
                 <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#e9f5fa] text-[#1684b7] ring-1 ring-[#cee6f0] dark:bg-[#229ed9]/10 dark:text-[#62c7f5] dark:ring-[#229ed9]/15">
                   <Send
@@ -881,7 +883,10 @@ function InboxFirstRunState({
           </div>
 
           <div className="mt-auto flex items-center gap-3 rounded-2xl border border-dashed border-[#bfd7cd] bg-white/35 px-4 py-3 dark:border-white/10 dark:bg-white/[0.025]">
-            <span className="flex -space-x-1.5" aria-hidden="true">
+            <span
+              className="flex -space-x-1.5 rtl:space-x-reverse"
+              aria-hidden="true"
+            >
               {["#df8b63", "#7b9bd1", "#b58bca"].map((color) => (
                 <span
                   key={color}
@@ -929,25 +934,25 @@ function InboxEmptyState({
 
       <div className="relative -mt-8 flex max-w-lg flex-col items-center px-8 text-center">
         <div className="relative mb-7 h-36 w-52" aria-hidden="true">
-          <div className="absolute left-1 top-7 h-24 w-32 -rotate-6 rounded-2xl border border-[#dce4e7] bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/[0.07] dark:bg-[#202c33]/60">
+          <div className="absolute start-1 top-7 h-24 w-32 -rotate-6 rounded-2xl border border-[#dce4e7] bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/[0.07] dark:bg-[#202c33]/60">
             <span className="block h-2 w-14 rounded-full bg-[#dfe6e8] dark:bg-white/10" />
             <span className="mt-3 block h-2 w-20 rounded-full bg-[#edf1f2] dark:bg-white/[0.06]" />
             <span className="mt-2 block h-2 w-12 rounded-full bg-[#edf1f2] dark:bg-white/[0.06]" />
           </div>
 
-          <div className="absolute right-1 top-3 h-28 w-36 rotate-6 rounded-2xl border border-[#dce4e7] bg-white/80 p-4 shadow-sm backdrop-blur-sm dark:border-white/[0.07] dark:bg-[#202c33]/70">
-            <span className="ml-auto block h-8 w-20 rounded-xl rounded-br-sm bg-[#d9fdd3] dark:bg-[#005c4b]" />
-            <span className="mt-3 block h-8 w-24 rounded-xl rounded-bl-sm bg-[#edf1f2] dark:bg-white/[0.07]" />
+          <div className="absolute end-1 top-3 h-28 w-36 rotate-6 rounded-2xl border border-[#dce4e7] bg-white/80 p-4 shadow-sm backdrop-blur-sm dark:border-white/[0.07] dark:bg-[#202c33]/70">
+            <span className="ms-auto block h-8 w-20 rounded-xl rounded-ee-sm bg-[#d9fdd3] dark:bg-[#005c4b]" />
+            <span className="mt-3 block h-8 w-24 rounded-xl rounded-es-sm bg-[#edf1f2] dark:bg-white/[0.07]" />
           </div>
 
-          <div className="absolute left-1/2 top-1/2 grid size-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-[1.65rem] border border-white bg-[#0b6b5d] text-white shadow-[0_18px_45px_rgba(11,107,93,0.25)] dark:border-white/10 dark:bg-[#00a884] dark:shadow-black/30">
+          <div className="absolute start-1/2 top-1/2 grid size-20 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 place-items-center rounded-[1.65rem] border border-white bg-[#0b6b5d] text-white shadow-[0_18px_45px_rgba(11,107,93,0.25)] dark:border-white/10 dark:bg-[#00a884] dark:shadow-black/30">
             <MessagesSquare className="size-9" strokeWidth={1.65} />
           </div>
 
           {connectionState !== "unavailable" && (
             <span
               className={cn(
-                "absolute bottom-2 right-4 grid size-9 place-items-center rounded-full border-4 border-[#f6f8f9] shadow-sm dark:border-[#0b141a]",
+                "absolute bottom-2 end-4 grid size-9 place-items-center rounded-full border-4 border-[#f6f8f9] shadow-sm dark:border-[#0b141a]",
                 connectionState === "connected"
                   ? "bg-[#d9fdd3] text-[#008069] dark:bg-[#005c4b] dark:text-[#53bdeb]"
                   : "bg-[#fff0c7] text-[#a15c00] dark:bg-[#3b3525] dark:text-[#ffd279]",
@@ -960,7 +965,7 @@ function InboxEmptyState({
               )}
             </span>
           )}
-          <span className="absolute bottom-0 left-5 grid size-10 place-items-center rounded-full border-4 border-[#f6f8f9] bg-[#fff0c7] text-[#a15c00] shadow-sm dark:border-[#0b141a] dark:bg-[#3b3525] dark:text-[#ffd279]">
+          <span className="absolute bottom-0 start-5 grid size-10 place-items-center rounded-full border-4 border-[#f6f8f9] bg-[#fff0c7] text-[#a15c00] shadow-sm dark:border-[#0b141a] dark:bg-[#3b3525] dark:text-[#ffd279]">
             <UsersRound className="size-4.5" strokeWidth={1.9} />
           </span>
         </div>
@@ -1007,8 +1012,8 @@ function InboxEmptyState({
         </div>
       </div>
 
-      <div className="absolute bottom-8 left-1/2 hidden -translate-x-1/2 items-center gap-2 text-xs text-[#8696a0] dark:text-dark-text-tertiary sm:flex">
-        <ArrowLeft className="size-3.5" aria-hidden="true" />
+      <div className="absolute bottom-8 start-1/2 hidden -translate-x-1/2 rtl:translate-x-1/2 items-center gap-2 text-xs text-[#8696a0] dark:text-dark-text-tertiary sm:flex">
+        <ArrowLeft className="size-3.5 rtl:-scale-x-100" aria-hidden="true" />
         <span>
           {t("chat.selectChatHint", "Select a chat from the list to begin")}
         </span>

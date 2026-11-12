@@ -31,7 +31,7 @@ export function WorkspaceChooserPage() {
 
   return (
     <main className="relative min-h-dvh overflow-hidden bg-[#f5f7f4] px-5 py-10 text-[#10211b] dark:bg-dark-primary dark:text-dark-text-primary">
-      <div className="pointer-events-none absolute -right-32 -top-32 h-96 w-96 rounded-full bg-[#dcefe7] blur-3xl dark:bg-emerald-500/10" />
+      <div className="pointer-events-none absolute -end-32 -top-32 h-96 w-96 rounded-full bg-[#dcefe7] blur-3xl dark:bg-emerald-500/10" />
       <div className="relative mx-auto max-w-2xl">
         <div className="mb-10 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -45,7 +45,7 @@ export function WorkspaceChooserPage() {
             onClick={() => void logout()}
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[#65736d] hover:bg-white hover:text-[#10211b] dark:hover:bg-dark-tertiary dark:hover:text-white"
           >
-            <LogOut className="h-4 w-4" /> Sign out
+            <LogOut className="h-4 w-4" /> {t("nav.signOut")}
           </button>
         </div>
 
@@ -69,7 +69,7 @@ export function WorkspaceChooserPage() {
               type="button"
               disabled={isSwitching || workspace.status !== "active"}
               onClick={() => void choose(workspace.id)}
-              className="group flex items-center gap-4 rounded-2xl border border-[#dce3de] bg-white p-4 text-left shadow-[0_1px_2px_rgba(16,33,27,.03)] transition-all hover:-translate-y-0.5 hover:border-[#9bcab8] hover:shadow-[0_12px_30px_rgba(16,33,27,.08)] disabled:opacity-60 dark:border-dark-border dark:bg-dark-elevated"
+              className="group flex items-center gap-4 rounded-2xl border border-[#dce3de] bg-white p-4 text-start shadow-[0_1px_2px_rgba(16,33,27,.03)] transition-all hover:-translate-y-0.5 hover:border-[#9bcab8] hover:shadow-[0_12px_30px_rgba(16,33,27,.08)] disabled:opacity-60 dark:border-dark-border dark:bg-dark-elevated"
             >
               <WorkspaceAvatar
                 workspace={workspace}
@@ -78,7 +78,7 @@ export function WorkspaceChooserPage() {
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold">
                   {switchingTo?.id === workspace.id
-                    ? `Opening ${workspace.name}…`
+                    ? t("workspaces.opening", { name: workspace.name })
                     : workspace.name}
                 </span>
                 <span className="mt-0.5 block text-sm capitalize text-[#65736d] dark:text-dark-text-secondary">
@@ -86,7 +86,7 @@ export function WorkspaceChooserPage() {
                   {workspace.status !== "active" && " · suspended"}
                 </span>
               </span>
-              <ArrowRight className="h-5 w-5 text-[#9aaba4] transition-transform group-hover:translate-x-1 group-hover:text-[#0b7a55]" />
+              <ArrowRight className="h-5 w-5 text-[#9aaba4] transition-transform group-hover:translate-x-1 rtl:group-hover:-translate-x-1 group-hover:text-[#0b7a55] rtl:-scale-x-100" />
             </button>
           ))}
         </div>

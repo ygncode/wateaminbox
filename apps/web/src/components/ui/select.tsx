@@ -20,7 +20,7 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-10 w-full min-w-0 items-center justify-between gap-2 rounded-md border-0 bg-gray-100 px-3 py-2 text-left text-sm text-gray-900 shadow-none ring-offset-white transition-colors focus:outline-none focus:ring-1 focus:ring-whatsapp-green focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-gray-500 [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1 [&>span:first-child]:truncate dark:bg-dark-tertiary dark:text-dark-text-primary dark:ring-offset-dark-primary dark:data-[placeholder]:text-dark-text-secondary",
+      "flex h-10 w-full min-w-0 items-center justify-between gap-2 rounded-md border-0 bg-gray-100 px-3 py-2 text-start text-sm text-gray-900 shadow-none ring-offset-white transition-colors focus:outline-none focus:ring-1 focus:ring-whatsapp-green focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-gray-500 [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1 [&>span:first-child]:truncate dark:bg-dark-tertiary dark:text-dark-text-primary dark:ring-offset-dark-primary dark:data-[placeholder]:text-dark-text-secondary",
       className,
     )}
     {...props}
@@ -106,7 +106,7 @@ const SelectLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
-    className={cn("py-1.5 pl-8 pr-2 text-sm font-semibold", className)}
+    className={cn("py-1.5 ps-8 pe-2 text-sm font-semibold", className)}
     {...props}
   />
 ));
@@ -133,14 +133,14 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pr-2 text-sm outline-none data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 data-[state=checked]:text-whatsapp-green-a11y-text data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:data-[highlighted]:bg-dark-tertiary dark:data-[highlighted]:text-dark-text-primary dark:data-[state=checked]:text-whatsapp-green",
-      hideIndicator ? "pl-2" : "pl-8",
+      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pe-2 text-sm outline-none data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 data-[state=checked]:text-whatsapp-green-a11y-text data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:data-[highlighted]:bg-dark-tertiary dark:data-[highlighted]:text-dark-text-primary dark:data-[state=checked]:text-whatsapp-green",
+      hideIndicator ? "ps-2" : "ps-8",
       className,
     )}
     {...props}
   >
     {hideIndicator ? null : (
-      <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+      <span className="absolute start-2 flex h-3.5 w-3.5 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
           <Check className="h-4 w-4" />
         </SelectPrimitive.ItemIndicator>

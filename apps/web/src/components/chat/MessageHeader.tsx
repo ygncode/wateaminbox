@@ -128,7 +128,11 @@ export function MessageHeader({
           className={cn(actionButtonClass, "lg:hidden")}
           aria-label={t("common.goBack", "Go back")}
         >
-          <ArrowLeft className="size-6" strokeWidth={2} aria-hidden="true" />
+          <ArrowLeft
+            className="size-6 rtl:-scale-x-100"
+            strokeWidth={2}
+            aria-hidden="true"
+          />
         </button>
       )}
 
@@ -136,7 +140,7 @@ export function MessageHeader({
       <button
         type="button"
         onClick={onOpenProfile}
-        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1 py-1 text-left transition-colors hover:bg-black/[0.04] active:bg-black/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:hover:bg-white/[0.05] dark:active:bg-white/[0.08] md:gap-3 md:px-2"
+        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1 py-1 text-start transition-colors hover:bg-black/[0.04] active:bg-black/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:hover:bg-white/[0.05] dark:active:bg-white/[0.08] md:gap-3 md:px-2"
       >
         <span className="relative shrink-0">
           <span className="block size-10 overflow-hidden rounded-full bg-gray-300 dark:bg-dark-tertiary">
@@ -156,7 +160,7 @@ export function MessageHeader({
             )}
           </span>
           {contact.isOnline && (
-            <span className="absolute bottom-0 right-0 size-3 rounded-full bg-whatsapp-green ring-2 ring-[#f0f2f5] dark:ring-dark-secondary" />
+            <span className="absolute bottom-0 end-0 size-3 rounded-full bg-whatsapp-green ring-2 ring-[#f0f2f5] dark:ring-dark-secondary" />
           )}
         </span>
 

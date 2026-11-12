@@ -100,7 +100,7 @@ export function FormField({
           disabled={disabled}
           inputMode={inputMode}
           spellCheck={type === "password" ? false : undefined}
-          className={canTogglePassword ? "pr-11" : undefined}
+          className={canTogglePassword ? "pe-11" : undefined}
           aria-invalid={error ? "true" : "false"}
           aria-describedby={
             error ? `${id}-error` : hint ? `${id}-hint` : undefined
@@ -111,7 +111,7 @@ export function FormField({
           <button
             type="button"
             onClick={() => setIsPasswordVisible((visible) => !visible)}
-            className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-xl text-slate-400 transition-colors hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-inset disabled:pointer-events-none dark:text-dark-text-tertiary dark:hover:text-dark-text-primary dark:focus-visible:ring-[#52df83]"
+            className="absolute inset-y-0 end-0 grid w-11 place-items-center rounded-e-xl text-slate-400 transition-colors hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-inset disabled:pointer-events-none dark:text-dark-text-tertiary dark:hover:text-dark-text-primary dark:focus-visible:ring-[#52df83]"
             aria-label={isPasswordVisible ? "Hide password" : "Show password"}
             aria-pressed={isPasswordVisible}
             disabled={disabled}

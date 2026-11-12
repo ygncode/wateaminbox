@@ -267,10 +267,10 @@ export function MergeEditDialog({
         ) : (
           <div className="flex h-[22rem] flex-col gap-2">
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+              <Search className="absolute start-2.5 top-2.5 size-4 text-muted-foreground" />
               <Input
                 autoFocus
-                className="pl-8"
+                className="ps-8"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t("contacts.manualMergeSearch", "Search contacts")}
@@ -386,7 +386,7 @@ function PickerRow({
       type="button"
       onClick={onToggle}
       aria-pressed={checked}
-      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent"
+      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-start text-sm hover:bg-accent"
     >
       <span className="size-9 shrink-0 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-tertiary">
         {contact?.avatarUrl ? (

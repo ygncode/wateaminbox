@@ -209,7 +209,7 @@ export function RegisterPage() {
           </p>
 
           <div
-            className={`mt-7 flex w-full items-start gap-3 rounded-2xl border p-4 text-left ${
+            className={`mt-7 flex w-full items-start gap-3 rounded-2xl border p-4 text-start ${
               verificationEmailSent
                 ? "border-emerald-100 bg-emerald-50/70 dark:border-[#25d366]/20 dark:bg-[#25d366]/[0.07]"
                 : "border-amber-200 bg-amber-50 dark:border-amber-400/25 dark:bg-amber-400/[0.08]"
@@ -256,7 +256,7 @@ export function RegisterPage() {
               {verificationEmailSent
                 ? t("auth.continueToSignIn", "Continue to sign in")
                 : t("auth.goToSignInRetry", "Go to sign in and retry")}
-              <ArrowRight aria-hidden="true" />
+              <ArrowRight aria-hidden="true" className="rtl:-scale-x-100" />
             </Link>
           </Button>
         </div>
@@ -435,7 +435,7 @@ export function RegisterPage() {
             ) : (
               <>
                 {t("auth.createAccountAction", "Create account")}
-                <ArrowRight aria-hidden="true" />
+                <ArrowRight aria-hidden="true" className="rtl:-scale-x-100" />
               </>
             )}
           </Button>

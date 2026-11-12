@@ -370,7 +370,7 @@ export function MessageThread({
                 aria-hidden="true"
               />
             </div>
-            <span className="absolute -bottom-1.5 -right-1.5 grid size-8 place-items-center rounded-full border-2 border-[#e5ddd5] bg-whatsapp-dark-green text-white shadow-sm dark:border-dark-primary">
+            <span className="absolute -bottom-1.5 -end-1.5 grid size-8 place-items-center rounded-full border-2 border-[#e5ddd5] bg-whatsapp-dark-green text-white shadow-sm dark:border-dark-primary">
               <Send className="size-3.5" aria-hidden="true" />
             </span>
           </div>
@@ -438,7 +438,7 @@ export function MessageThread({
 
       {/* Status for reply-to-original navigation across local/remote history. */}
       {isLoadingHighlightedMessage && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 bg-white dark:bg-dark-elevated rounded-full px-4 py-2 shadow-lg flex items-center gap-2">
+        <div className="absolute top-4 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 z-20 bg-white dark:bg-dark-elevated rounded-full px-4 py-2 shadow-lg flex items-center gap-2">
           <svg
             className="animate-spin h-4 w-4 text-whatsapp-green"
             xmlns="http://www.w3.org/2000/svg"
@@ -468,7 +468,7 @@ export function MessageThread({
 
       {isHighlightedMessageUnavailable && (
         <div
-          className="absolute top-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 shadow-lg dark:border-amber-300/15 dark:bg-[#332f24] dark:text-amber-100"
+          className="absolute top-4 start-1/2 z-20 flex -translate-x-1/2 rtl:translate-x-1/2 items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 shadow-lg dark:border-amber-300/15 dark:bg-[#332f24] dark:text-amber-100"
           role="status"
           aria-live="polite"
         >
@@ -485,7 +485,7 @@ export function MessageThread({
         <button
           type="button"
           onClick={scrollToBottom}
-          className="absolute bottom-3 right-3 z-20 grid size-10 touch-manipulation place-items-center rounded-full bg-white text-[#54656f] shadow-[0_2px_8px_rgba(11,20,26,0.22)] transition-colors hover:bg-[#f5f6f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] dark:bg-dark-elevated dark:text-dark-text-secondary dark:hover:bg-dark-tertiary"
+          className="absolute bottom-3 end-3 z-20 grid size-10 touch-manipulation place-items-center rounded-full bg-white text-[#54656f] shadow-[0_2px_8px_rgba(11,20,26,0.22)] transition-colors hover:bg-[#f5f6f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] dark:bg-dark-elevated dark:text-dark-text-secondary dark:hover:bg-dark-tertiary"
           aria-label={t("chat.scrollToBottom", "Scroll to bottom")}
         >
           <ChevronDown

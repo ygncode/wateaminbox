@@ -942,7 +942,7 @@ export function SlaPolicySettings() {
                         variant="ghost"
                         size="sm"
                         onClick={() => removeException(exception.key)}
-                        className="ml-auto gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-300"
+                        className="ms-auto gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-300"
                       >
                         <Trash2 className="h-3.5 w-3.5" />{" "}
                         {t("sla.remove", "Remove")}
@@ -1020,7 +1020,8 @@ export function SlaPolicySettings() {
                           onClick={() => addExceptionInterval(exception.key)}
                           className="gap-1.5"
                         >
-                          <Plus className="h-3.5 w-3.5" /> Add interval
+                          <Plus className="h-3.5 w-3.5" />{" "}
+                          {t("sla.addInterval")}
                         </Button>
                       </div>
                     )}

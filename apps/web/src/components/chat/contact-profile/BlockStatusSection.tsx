@@ -72,7 +72,7 @@ export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
                 disabled={blockContact.isPending}
                 className="text-whatsapp-green hover:bg-green-50 hover:text-whatsapp-dark-green dark:text-green-400 dark:border-green-400/50 dark:hover:bg-green-400/10 dark:hover:text-green-300"
               >
-                <CheckCircle className="mr-1 h-4 w-4" />
+                <CheckCircle className="me-1 h-4 w-4" />
                 Unblock
               </Button>
             </>
@@ -99,7 +99,7 @@ export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
                 disabled={blockContact.isPending}
                 className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:border-red-400/50 dark:hover:bg-red-400/10 dark:hover:text-red-300"
               >
-                <Ban className="mr-1 h-4 w-4" />
+                <Ban className="me-1 h-4 w-4" />
                 Block
               </Button>
             </>
