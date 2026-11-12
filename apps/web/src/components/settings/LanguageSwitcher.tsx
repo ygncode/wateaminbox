@@ -10,7 +10,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
-import { type LanguageCode, languages, saveLanguage } from "@/lib/i18n";
+import {
+  type LanguageCode,
+  languages,
+  saveLanguage,
+  setLanguage,
+} from "@/lib/i18n";
 
 interface LanguageSwitcherProps {
   /** Optional class name for styling */
@@ -35,7 +40,7 @@ export function LanguageSwitcher({
   const handleLanguageChange = useCallback(
     (value: string) => {
       const languageCode = value as LanguageCode;
-      void i18n.changeLanguage(languageCode);
+      void setLanguage(languageCode);
       saveLanguage(languageCode);
       if (!user || user.preferredLanguage === languageCode) return;
       updateProfile({ preferredLanguage: languageCode }).catch(() => {
@@ -44,7 +49,7 @@ export function LanguageSwitcher({
         toast.error(t("settings.languageSaveFailed"));
       });
     },
-    [i18n, t, user, updateProfile],
+    [t, user, updateProfile],
   );
 
   return (

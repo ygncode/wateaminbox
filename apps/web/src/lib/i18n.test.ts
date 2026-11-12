@@ -5,10 +5,17 @@ import {
   formatLastSeen,
   formatStatusTime,
 } from "@wateaminbox/shared";
-import { describe, expect, it } from "bun:test";
+import { beforeAll, describe, expect, it } from "bun:test";
+import ar from "../locales/ar.json";
+import de from "../locales/de.json";
 import en from "../locales/en.json";
+import es from "../locales/es.json";
+import fr from "../locales/fr.json";
+import id from "../locales/id.json";
+import ms from "../locales/ms.json";
+import ptBR from "../locales/pt-BR.json";
 import zhCN from "../locales/zh-CN.json";
-import i18n, { languages } from "./i18n";
+import i18n, { isRtlLanguage, languages, loadLanguage } from "./i18n";
 
 type Tree = { [key: string]: string | Tree };
 
@@ -22,46 +29,108 @@ function flatten(tree: Tree, prefix = ""): Map<string, string> {
   return out;
 }
 
+beforeAll(async () => {
+  for (const language of languages) await loadLanguage(language.code);
+});
+
 const enKeys = flatten(en as Tree);
 const zhKeys = flatten(zhCN as Tree);
 
-/**
- * Chinese has a single plural category, so it only carries `_other`. Every
- * other key must exist in both bundles or the UI silently falls back to
- * English for that string.
- */
-const ENGLISH_ONLY_PLURAL_SUFFIX = "_one";
+const BUNDLES: Record<string, Tree> = {
+  "zh-CN": zhCN as Tree,
+  "pt-BR": ptBR as Tree,
+  es: es as Tree,
+  fr: fr as Tree,
+  de: de as Tree,
+  id: id as Tree,
+  ms: ms as Tree,
+  ar: ar as Tree,
+};
+
+const PLURAL = /_(zero|one|two|few|many|other)$/;
+
+/** Plural categories each language needs (CLDR, as used by Intl.PluralRules). */
+const pluralCategories = (language: string) =>
+  new Intl.PluralRules(language).resolvedOptions().pluralCategories;
+
+const placeholders = (value: string) =>
+  [...value.matchAll(/\{\{(\w+)\}\}/g)]
+    .map((m) => m[1])
+    .sort()
+    .join(",");
+const tags = (value: string) =>
+  [...value.matchAll(/<\/?([a-zA-Z0-9]+)\s*\/?>/g)]
+    .map((m) => m[0])
+    .sort()
+    .join(",");
 
 describe("locale bundles", () => {
-  it("translates every key into every supported language", () => {
-    const missing = [...enKeys.keys()]
-      .filter((key) => !key.endsWith(ENGLISH_ONLY_PLURAL_SUFFIX))
-      .filter((key) => !zhKeys.has(key));
-    expect(missing).toEqual([]);
+  for (const [language, bundle] of Object.entries(BUNDLES)) {
+    const keys = flatten(bundle);
+
+    it(`${language}: translates every non-plural key`, () => {
+      const missing = [...enKeys.keys()]
+        .filter((key) => !PLURAL.test(key))
+        .filter((key) => !keys.has(key));
+      expect(missing).toEqual([]);
+    });
+
+    it(`${language}: provides every plural category the language needs`, () => {
+      const bases = new Set(
+        [...enKeys.keys()]
+          .filter((key) => PLURAL.test(key))
+          .map((key) => key.replace(PLURAL, "")),
+      );
+      const missing: string[] = [];
+      for (const base of bases) {
+        for (const category of pluralCategories(language)) {
+          if (!keys.has(`${base}_${category}`))
+            missing.push(`${base}_${category}`);
+        }
+      }
+      expect(missing).toEqual([]);
+    });
+
+    it(`${language}: has no keys without an English source string`, () => {
+      const orphaned = [...keys.keys()].filter(
+        (key) => !enKeys.has(key) && !enKeys.has(key.replace(PLURAL, "_other")),
+      );
+      expect(orphaned).toEqual([]);
+    });
+
+    it(`${language}: keeps placeholders and inline tags identical`, () => {
+      const mismatched: string[] = [];
+      for (const [key, translated] of keys) {
+        const english =
+          enKeys.get(key) ?? enKeys.get(key.replace(PLURAL, "_other"));
+        if (english === undefined) continue;
+        const sameTags = tags(english) === tags(translated);
+        const a = placeholders(english);
+        const b = placeholders(translated);
+        // A singular form may name the number in words ("one message").
+        const countDropped =
+          PLURAL.test(key) &&
+          !key.endsWith("_other") &&
+          b ===
+            a
+              .split(",")
+              .filter((p) => p !== "count")
+              .join(",");
+        if (!sameTags || (a !== b && !countDropped)) mismatched.push(key);
+      }
+      expect(mismatched).toEqual([]);
+    });
+  }
+
+  it("marks only Arabic as right-to-left", () => {
+    expect(
+      languages.filter((l) => isRtlLanguage(l.code)).map((l) => l.code),
+    ).toEqual(["ar"]);
   });
 
-  it("has no Chinese keys without an English source string", () => {
-    const orphaned = [...zhKeys.keys()].filter((key) => !enKeys.has(key));
-    expect(orphaned).toEqual([]);
-  });
-
-  it("keeps interpolation placeholders identical across languages", () => {
-    const placeholders = (value: string) =>
-      [...value.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]).sort();
-
-    const mismatched: string[] = [];
-    for (const [key, english] of enKeys) {
-      const chinese = zhKeys.get(key);
-      if (chinese === undefined) continue;
-      const a = placeholders(english);
-      const b = placeholders(chinese);
-      if (a.join(",") !== b.join(",")) mismatched.push(key);
-    }
-    expect(mismatched).toEqual([]);
-  });
-
-  it("exposes every configured language as a bundled resource", () => {
+  it("loads every configured language on demand", async () => {
     for (const language of languages) {
+      await loadLanguage(language.code);
       expect(i18n.hasResourceBundle(language.code, "translation")).toBe(true);
     }
   });
@@ -119,9 +188,20 @@ describe("translation lookup", () => {
   it("falls back to English for an unknown language", async () => {
     const english = enKeys.get("common.cancel");
     expect(english).toBeDefined();
-    await i18n.changeLanguage("fr");
+    await i18n.changeLanguage("ja");
     expect(i18n.t("common.cancel")).toBe(english as string);
     await i18n.changeLanguage("en");
+  });
+});
+
+describe("document direction", () => {
+  it("switches <html dir> to rtl for Arabic and back", async () => {
+    if (typeof document === "undefined") return;
+    await i18n.changeLanguage("ar");
+    expect(document.documentElement.dir).toBe("rtl");
+    expect(document.documentElement.lang).toBe("ar");
+    await i18n.changeLanguage("en");
+    expect(document.documentElement.dir).toBe("ltr");
   });
 });
 

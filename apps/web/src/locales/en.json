@@ -668,7 +668,8 @@
       "description": "Connect AI agents to this workspace through the MCP endpoint with personal, revocable tokens."
     },
     "viewShortcuts": "View shortcuts",
-    "leftWorkspace": "You left {{name}}"
+    "leftWorkspace": "You left {{name}}",
+    "languageSaveFailed": "Couldn’t save your language to your account. It will apply in this browser only."
   },
   "dashboard": {
     "totalMessages": "Total Messages",
