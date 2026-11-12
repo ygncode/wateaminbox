@@ -1,6 +1,7 @@
 import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely, RawBuilder, SqlBool } from "kysely";
 import { sql } from "kysely";
+import { createLogger, formatError } from "../lib/logger.js";
 import { normalizePhoneNumber } from "../lib/schemas.js";
 import { conversationIdForContact } from "./channel-workflow.service.js";
 import { coalesceContactListRead } from "./contact-list-inflight.js";
@@ -8,6 +9,8 @@ import {
   buildContactWhereClause,
   phoneSearchDigits,
 } from "./helpers/contact-query-builder.js";
+import type { MentionPreviewParticipant } from "./contact-mention-preview.js";
+import { resolveLastMessageMentions } from "./last-message-mentions.js";
 import {
   activityMicrosSql,
   afterInboxCursorSql,
@@ -18,6 +21,8 @@ import {
 } from "./inbox-cursor.js";
 import { getSchemaName, type TenantDatabase } from "./tenant.service.js";
 import { getUserNames } from "./user.service.js";
+
+const logger = createLogger("ContactService");
 
 /**
  * Options for fetching contacts with last message
@@ -109,6 +114,8 @@ export interface ContactWithLastMessage {
     content: string | null;
     status: string;
     timestamp: Date;
+    /** Names for the `@<token>` mentions in a group's last message. */
+    mentionParticipants?: MentionPreviewParticipant[];
   } | null;
 }
 
@@ -154,11 +161,38 @@ async function loadContactsWithLastMessage(
 
   // Release our read transaction before this shared-pool lookup. Holding one
   // connection while borrowing another can exhaust the pool under concurrency.
-  const userNames = await getUserNames(
-    rawContacts
-      .map((contact) => contact.last_message_sent_by_user_id)
-      .filter((id): id is string => Boolean(id)),
-  );
+  const [userNames, mentionsByContact] = await Promise.all([
+    getUserNames(
+      rawContacts
+        .map((contact) => contact.last_message_sent_by_user_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+    // Display-only: a failed lookup leaves the raw `@<token>` text in place
+    // rather than failing the whole inbox.
+    resolveLastMessageMentions(
+      tenantDb,
+      companyId,
+      rawContacts.flatMap((contact) =>
+        contact.is_group &&
+        contact.connection_id &&
+        contact.last_message_content
+          ? [
+              {
+                contactId: contact.id,
+                connectionId: contact.connection_id,
+                content: contact.last_message_content,
+              },
+            ]
+          : [],
+      ),
+    ).catch((error) => {
+      logger.warn(
+        { err: formatError(error) },
+        "Failed to resolve last-message mention names",
+      );
+      return new Map<string, MentionPreviewParticipant[]>();
+    }),
+  ]);
 
   const contacts: ContactWithLastMessage[] = rawContacts.map((contact) => {
     const lastMessage =
@@ -175,6 +209,9 @@ async function loadContactsWithLastMessage(
             content: contact.last_message_content,
             status: contact.last_message_status!,
             timestamp: contact.last_message_timestamp!,
+            ...(mentionsByContact.has(contact.id)
+              ? { mentionParticipants: mentionsByContact.get(contact.id) }
+              : {}),
           }
         : null;
 
