@@ -41,14 +41,7 @@ export function LoginPage() {
   const suggestedEmail = searchParams.get("email") ?? "";
   const googleResult = searchParams.get("google");
   const googleError = searchParams.get("googleError");
-  const {
-    login,
-    isLoading,
-    error,
-    clearError,
-    isAuthenticated,
-    refreshSession,
-  } = useAuth();
+  const { login, isLoading, error, clearError, isAuthenticated } = useAuth();
   const {
     activeWorkspaceId,
     isLoading: isWorkspaceLoading,
@@ -76,18 +69,18 @@ export function LoginPage() {
   });
   const currentEmail = watch("email");
 
-  // Returning from Google: the API already set the refresh cookie, so load the
-  // session the same way a page reload does. The effect below then routes the
-  // user onward. Runs once per return.
-  const googleHandled = React.useRef(false);
+  // Returning from Google is a full page load: the API already set the refresh
+  // cookie, and AuthProvider restores the session from it on boot exactly as on
+  // any reload. The effect above then routes the user onward. Only record the
+  // analytics event here, once the session has actually been restored.
+  const googleTracked = React.useRef(false);
   React.useEffect(() => {
-    if (!googleResult || googleHandled.current || isAuthenticated) return;
-    googleHandled.current = true;
+    if (!googleResult || googleTracked.current || !isAuthenticated) return;
+    googleTracked.current = true;
     productAnalytics.track(googleResult === "signup" ? "sign_up" : "login", {
       method: "google",
     });
-    void refreshSession();
-  }, [googleResult, isAuthenticated, refreshSession]);
+  }, [googleResult, isAuthenticated]);
 
   const googleErrorMessage = googleError
     ? googleError === "cancelled"
