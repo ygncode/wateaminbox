@@ -1,17 +1,4 @@
-import type { Chat } from "../../types/chat";
-
-type ChatUnreadState = Pick<Chat, "unreadCount">;
-
-/** Sum the unread messages represented by the workspace conversation cache. */
-export function getInboxUnreadCount(
-  chats: readonly ChatUnreadState[] | undefined,
-): number {
-  return (
-    chats?.reduce((total, chat) => total + Math.max(0, chat.unreadCount), 0) ??
-    0
-  );
-}
-
+/** The navigation badge label for an unread total (the server counts it). */
 export function formatInboxUnreadCount(unreadCount: number): string {
   return unreadCount > 99 ? "99+" : String(unreadCount);
 }

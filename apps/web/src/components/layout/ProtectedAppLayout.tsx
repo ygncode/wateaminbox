@@ -12,10 +12,11 @@ import {
   Users,
 } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { useAuth } from "../../contexts/auth-context";
 import { useWorkspace } from "../../contexts/workspace-context";
-import { useInboxHeadChats } from "../../hooks/useChats";
+import { useInboxUnreadTotal } from "../../hooks/useInbox";
 import { getWorkspaceBillingUrl } from "../../lib/billing-url";
 import { cn } from "../../lib/utils";
 import { workspacePath } from "../../lib/workspace-routes";
@@ -25,21 +26,19 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { WorkspaceSwitcher } from "../workspace/WorkspaceSwitcher";
 import {
-  formatInboxUnreadCount,
-  getInboxNavigationLabel,
-  getInboxUnreadCount,
-} from "./inbox-unread";
-import {
   APP_SIDEBAR_COLLAPSED_KEY,
   getInitialAppSidebarCollapsed,
 } from "./app-shell-preferences";
 import { resolveAppShellChrome } from "./conversation-chrome";
+import {
+  formatInboxUnreadCount,
+  getInboxNavigationLabel,
+} from "./inbox-unread";
 import { MobileBottomNav } from "./MobileBottomNav";
 import {
   buildMobileNavLinks,
   resolveActiveMobileNavKey,
 } from "./mobile-navigation";
-import { useTranslation } from "react-i18next";
 
 const SyncingOverlay = lazy(() =>
   import("../chat/SyncingOverlay").then((module) => ({
@@ -209,8 +208,9 @@ export function ProtectedAppLayout() {
   const { user, logout } = useAuth();
   const { activeWorkspace, can, canAny, isSwitching, switchingTo } =
     useWorkspace();
-  const { data: inboxChats } = useInboxHeadChats();
-  const inboxUnreadCount = getInboxUnreadCount(inboxChats);
+  // Counted by the server across every channel and every page, not summed
+  // from the first page of WhatsApp chats as before.
+  const inboxUnreadCount = useInboxUnreadTotal();
 
   if (!activeWorkspace) return null;
 

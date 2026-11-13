@@ -112,3 +112,39 @@ export const resolutionTrendQuerySchema = z.object({
 });
 
 export type ResolutionTrendQuery = z.infer<typeof resolutionTrendQuerySchema>;
+
+/**
+ * Unified inbox query. Paging is by an opaque cursor from the previous page;
+ * every filter is applied server-side to customer rows and channel threads.
+ */
+export const listInboxQuerySchema = z.object({
+  limit: z
+    .string()
+    .optional()
+    .transform((value) => (value ? Number.parseInt(value, 10) : 100))
+    .pipe(z.number().int().min(1).max(100)),
+  /** Continue down the inbox after this cursor (a page's nextCursor). */
+  cursor: z.string().max(200).optional(),
+  /** Page back up before this cursor (a page's prevCursor). */
+  before: z.string().max(200).optional(),
+  search: z.string().max(200).optional(),
+  accountId: z.string().guid().optional(),
+  tagIds: z
+    .string()
+    .optional()
+    .transform((value) =>
+      value
+        ? value
+            .split(",")
+            .map((tagId) => tagId.trim())
+            .filter(Boolean)
+        : undefined,
+    )
+    .pipe(z.array(z.string().guid()).max(50).optional()),
+  includeGroups: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value !== "false"),
+  filter: z.enum(["all", "assignedToMe", "unassigned", "unread"]).optional(),
+  conversationStatus: z.enum(["open", "pending", "resolved", "all"]).optional(),
+});

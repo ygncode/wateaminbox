@@ -8,6 +8,14 @@ import {
   buildContactWhereClause,
   phoneSearchDigits,
 } from "./helpers/contact-query-builder.js";
+import {
+  activityMicrosSql,
+  afterInboxCursorSql,
+  beforeInboxCursorSql,
+  CONTACT_ROW,
+  type InboxCursor,
+  type InboxDirection,
+} from "./inbox-cursor.js";
 import { getSchemaName, type TenantDatabase } from "./tenant.service.js";
 import { getUserNames } from "./user.service.js";
 
@@ -41,6 +49,18 @@ export interface GetContactsWithLastMessageOptions {
   conversationStatus?: "open" | "pending" | "resolved" | "all";
   /** Filter to conversations with unread messages. */
   unreadOnly?: boolean;
+  /**
+   * Keyset position for the unified inbox: return only rows after it in
+   * inbox order (activity DESC, id DESC). When set, `offset` is ignored.
+   */
+  cursor?: InboxCursor;
+  /**
+   * "after" (default) continues down the inbox; "before" returns the rows just
+   * above the cursor, nearest first in SQL, for paging back up.
+   */
+  cursorDirection?: InboxDirection;
+  /** Skip the total count (the unified inbox pages by cursor, not by total). */
+  skipCount?: boolean;
 }
 
 /**
@@ -61,6 +81,8 @@ export interface ContactWithLastMessage {
   updated_at: Date;
   assigned_to: string | null;
   last_message_at: Date | null;
+  /** `last_message_at` as epoch microseconds (exact, for inbox cursors). */
+  activity_us: string | null;
   unread_count: number | bigint;
   /** Threads this customer is reachable on, including merged-away contacts. */
   chat_count: number;
@@ -170,6 +192,7 @@ async function loadContactsWithLastMessage(
       updated_at: contact.updated_at,
       assigned_to: contact.assigned_to,
       last_message_at: contact.last_message_at,
+      activity_us: contact.activity_us,
       unread_count: BigInt(contact.unread_count),
       chat_count: Number(contact.chat_count ?? 1),
       account_ids: contact.account_ids ?? [],
@@ -210,6 +233,9 @@ async function queryContactPage(
     restrictToAssigned = false,
     conversationStatus,
     unreadOnly = false,
+    cursor,
+    cursorDirection = "after",
+    skipCount = false,
   } = options;
 
   // `withSchema()` qualifies Kysely query-builder calls, but raw SQL has to
@@ -238,6 +264,27 @@ async function queryContactPage(
       unreadOnly,
     });
 
+  // The cursor compares the same activity expression the page sorts by, so a
+  // keyset page continues exactly where the previous one stopped.
+  const cursorClause = cursor
+    ? (cursorDirection === "before"
+        ? beforeInboxCursorSql
+        : afterInboxCursorSql)(
+        sql`GREATEST(COALESCE(lmc.timestamp, lml.timestamp), grp.last_message_at)`,
+        sql`c.id`,
+        CONTACT_ROW,
+        cursor,
+      )
+    : null;
+  const pageWhere =
+    hasWhereCondition && cursorClause
+      ? sql`WHERE ${whereClause} AND ${cursorClause}`
+      : hasWhereCondition
+        ? sql`WHERE ${whereClause}`
+        : cursorClause
+          ? sql`WHERE ${cursorClause}`
+          : sql``;
+
   const result = await sql<{
     id: string;
     jid: string | null;
@@ -252,6 +299,7 @@ async function queryContactPage(
     updated_at: Date;
     assigned_to: string | null;
     last_message_at: Date | null;
+    activity_us: string | null;
     last_message_id: string | null;
     last_message_message_id: string | null;
     last_message_from_me: boolean | null;
@@ -365,10 +413,14 @@ async function queryContactPage(
       WHERE mc.merged_into_contact_id IS NOT NULL
       GROUP BY mc.merged_into_contact_id
     ) grp ON grp.contact_id = c.id
-    ${hasWhereCondition ? sql`WHERE ${whereClause}` : sql``}
-    ORDER BY last_message_at DESC NULLS LAST, c.id DESC
+    ${pageWhere}
+    ${
+      cursor && cursorDirection === "before"
+        ? sql`ORDER BY last_message_at ASC NULLS FIRST, c.id ASC`
+        : sql`ORDER BY last_message_at DESC NULLS LAST, c.id DESC`
+    }
     LIMIT ${limit}
-    OFFSET ${offset}
+    OFFSET ${cursor ? 0 : offset}
     )
     SELECT
       c.id,
@@ -393,6 +445,7 @@ async function queryContactPage(
       wc.status::text as connection_status,
       page.assigned_to,
       page.last_message_at,
+      ${activityMicrosSql(sql`page.last_message_at`)} as activity_us,
       lm.id as last_message_id,
       lm.message_id as last_message_message_id,
       lm.from_me as last_message_from_me,
@@ -421,6 +474,8 @@ async function queryContactPage(
       ON acc.id = conv.channel_account_id
     ORDER BY page.last_message_at DESC NULLS LAST, page.id DESC
   `.execute(tenantDb);
+
+  if (skipCount) return { rawContacts: result.rows, total: -1 };
 
   // Count with the same filters and conversation-first state resolution as the
   // page query, including state rows with no legacy contact_id.
