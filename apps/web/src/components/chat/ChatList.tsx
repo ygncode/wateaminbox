@@ -64,6 +64,10 @@ import {
   shouldLoadNewerChats,
 } from "./chat-list-pagination";
 import { chatMatchesSearch } from "./chat-search";
+import {
+  PARTIAL_INBOX_GRACE_MS,
+  shouldHoldInboxList,
+} from "./chat-list-readiness";
 import { resolveInboxConnectionState } from "./inbox-connection-state";
 
 const MAX_TAG_FILTERS = 50;
@@ -387,6 +391,25 @@ export const ChatList = memo(function ChatList({
     conversationStatusFilter,
     searchQuery,
   ]);
+  // Hold the merged list until both sources have their first page, so a fast
+  // channel list is not shown alone and then reshuffled when the contacts
+  // arrive (see chat-list-readiness.ts). A slow source is waited on only for a
+  // short grace period, restarted whenever the list scope changes.
+  const [graceElapsed, setGraceElapsed] = useState(false);
+  useEffect(() => {
+    setGraceElapsed(false);
+    if (!isLoading) return;
+    const timer = window.setTimeout(
+      () => setGraceElapsed(true),
+      PARTIAL_INBOX_GRACE_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [isLoading, listScope]);
+  const holdList = shouldHoldInboxList({
+    anySourceLoading: isLoading,
+    hasRows: visibleChats.length > 0,
+    graceElapsed,
+  });
   const connectionState = resolveInboxConnectionState({
     connections,
     channelAccounts,
@@ -814,8 +837,9 @@ export const ChatList = memo(function ChatList({
       >
         {/* Loading State */}
         {!isError &&
-          visibleChats.length === 0 &&
-          (isLoading || connectionState === "loading") && (
+          (holdList ||
+            (visibleChats.length === 0 &&
+              (isLoading || connectionState === "loading"))) && (
             <div className="divide-y divide-gray-100 dark:divide-dark-border">
               {Array.from({ length: 8 }).map((_, index) => (
                 <ChatListItemSkeleton key={index} />
@@ -1066,7 +1090,7 @@ export const ChatList = memo(function ChatList({
           )}
 
         {/* Virtualized Chat List Items */}
-        {visibleChats.length > 0 && (
+        {visibleChats.length > 0 && !holdList && (
           <VirtualizedChatRows
             key={listScope}
             chats={visibleChats}
