@@ -25,15 +25,13 @@ import { useWorkspace } from "../../contexts/workspace-context";
 import { type Tag, useTags } from "../../hooks/contact/useContactTags";
 import { useDebounce } from "../../hooks/ui";
 import { useChannelAccounts } from "../../hooks/useChannelAccounts";
-import { useChannelConversations } from "../../hooks/useChannelConversations";
-import {
-  type AssignmentFilter,
-  type ConversationStatusFilter,
-  useChats,
+import type {
+  AssignmentFilter,
+  ConversationStatusFilter,
 } from "../../hooks/useChats";
+import { inboxKeys, useInbox } from "../../hooks/useInbox";
 import { usePrefetchContact } from "../../hooks/usePrefetch";
 import { useWhatsAppConnections } from "../../hooks/useWhatsAppConnections";
-import { mergeInboxChats } from "../../lib/api/transformers";
 import { workspacePath } from "../../lib/workspace-routes";
 import type { ChatListProps } from "../../types/chat";
 import { BrandMark } from "../brand/BrandMark";
@@ -48,13 +46,10 @@ import {
   SelectValue,
 } from "../ui/select";
 import { ChatListItemSkeleton } from "./ChatListItem";
-import { VirtualizedChatRows } from "./VirtualizedChatRows";
-import { queryKeys } from "../../hooks/query-keys";
 import { ChatListSearch } from "./ChatListSearch";
 import { getConnectionLabel } from "./ConnectionIdentity";
 import {
   CONVERSATION_STATUS_OPTIONS,
-  chatMatchesAccount,
   dedupeInboxAccounts,
   readChatListFilters,
   writeChatListFilters,
@@ -63,12 +58,8 @@ import {
   observeChatListEnd,
   shouldLoadNewerChats,
 } from "./chat-list-pagination";
-import { chatMatchesSearch } from "./chat-search";
-import {
-  PARTIAL_INBOX_GRACE_MS,
-  shouldHoldInboxList,
-} from "./chat-list-readiness";
 import { resolveInboxConnectionState } from "./inbox-connection-state";
+import { VirtualizedChatRows } from "./VirtualizedChatRows";
 
 const MAX_TAG_FILTERS = 50;
 
@@ -150,105 +141,52 @@ export const ChatList = memo(function ChatList({
     });
   }, [conversationStatusFilter, assignmentFilter]);
 
+  // One server-ordered list for every channel (GET /api/inbox). Filters and
+  // search are applied on the server for WhatsApp customers and channel
+  // threads alike, so the list is never merged or filtered here.
   const {
     data: chats,
-    isLoading: areChatsLoading,
+    isLoading,
     isError: chatsFailed,
     error,
-    hasNextPage: hasMoreChats,
-    hasPreviousPage: hasPreviousChats,
-    fetchPreviousPage: loadPreviousChats,
-    isFetchPreviousPageError: previousChatPageFailed,
-    isFetching: fetchingChats,
-    isFetchNextPageError: chatPageFailed,
-    fetchNextPage: loadMoreChats,
+    hasNextPage = false,
+    hasPreviousPage = false,
+    fetchPreviousPage,
+    isFetchPreviousPageError: previousPageFailed,
+    isFetching,
+    isFetchNextPageError: nextPageFailed,
+    fetchNextPage,
     refetch: refetchChats,
-  } = useChats(
-    searchQuery,
-    true,
+  } = useInbox({
+    search: searchQuery,
+    includeGroups: true,
     assignmentFilter,
-    accountFilter !== "all" &&
-      connections.some((connection) => connection.id === accountFilter)
-      ? accountFilter
-      : undefined,
-    conversationStatusFilter,
-    selectedTagIds,
-    // Non-WhatsApp accounts can own a surviving contact or a merged-away
-    // thread. Scope contacts on the server too; hiding them only below keeps
-    // the footer visible and drains every unrelated contact page.
-    accountFilter !== "all" &&
-      !connections.some((connection) => connection.id === accountFilter)
-      ? accountFilter
-      : undefined,
-  );
-  // The channel list has to narrow by the same tags as the contact list, or a
-  // selected tag filters only the WhatsApp side of the merged inbox.
-  const {
-    data: channelConversations = [],
-    isLoading: areChannelsLoading,
-    isError: channelsFailed,
-    hasNextPage: hasMoreChannels,
-    hasPreviousPage: hasPreviousChannels,
-    fetchPreviousPage: loadPreviousChannels,
-    isFetchPreviousPageError: previousChannelPageFailed,
-    isFetching: fetchingChannels,
-    isFetchNextPageError: channelPageFailed,
-    fetchNextPage: loadMoreChannels,
-    refetch: refetchChannels,
-  } = useChannelConversations(100, selectedTagIds, {
-    searchQuery,
-    assignmentFilter,
-    accountFilter,
-    conversationStatusFilter,
+    accountId: accountFilter !== "all" ? accountFilter : undefined,
+    conversationStatus: conversationStatusFilter,
+    tagIds: selectedTagIds,
   });
-  const isLoading = areChatsLoading || areChannelsLoading;
   // A later-page failure must not replace the already-loaded list with an error.
   const isError = chatsFailed && !chats;
-  const paginationError = chatsFailed || channelsFailed;
-  const hasNextPage = hasMoreChats || hasMoreChannels;
-  const hasPreviousPage = hasPreviousChats || hasPreviousChannels;
-  const isFetching = fetchingChats || fetchingChannels;
+  const paginationError = chatsFailed;
 
   const loadMore = useCallback(() => {
     // Avoid cancelling a realtime refetch or repeatedly retrying a failed page.
     if (isFetching || paginationError) return;
-    if (hasMoreChats) void loadMoreChats({ cancelRefetch: false });
-    if (hasMoreChannels) void loadMoreChannels({ cancelRefetch: false });
-  }, [
-    isFetching,
-    paginationError,
-    hasMoreChats,
-    hasMoreChannels,
-    loadMoreChats,
-    loadMoreChannels,
-  ]);
+    if (hasNextPage) void fetchNextPage({ cancelRefetch: false });
+  }, [isFetching, paginationError, hasNextPage, fetchNextPage]);
 
   const loadPrevious = useCallback(() => {
     if (isFetching || paginationError) return;
-    if (hasPreviousChats) void loadPreviousChats({ cancelRefetch: false });
-    if (hasPreviousChannels)
-      void loadPreviousChannels({ cancelRefetch: false });
-  }, [
-    isFetching,
-    paginationError,
-    hasPreviousChats,
-    hasPreviousChannels,
-    loadPreviousChats,
-    loadPreviousChannels,
-  ]);
+    if (hasPreviousPage) void fetchPreviousPage({ cancelRefetch: false });
+  }, [isFetching, paginationError, hasPreviousPage, fetchPreviousPage]);
 
   const backToLatest = useCallback(() => {
     scrollPositionRef.current = 0;
     if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-    for (const key of [
-      queryKeys.chats.lists(),
-      queryKeys.channelConversations.lists(),
-    ]) {
-      void queryClient.resetQueries({
-        queryKey: [...key, "infinite"],
-        type: "active",
-      });
-    }
+    void queryClient.resetQueries({
+      queryKey: inboxKeys.all(),
+      type: "active",
+    });
   }, [queryClient]);
 
   const listScope = JSON.stringify([
@@ -262,20 +200,22 @@ export const ChatList = memo(function ChatList({
   useEffect(() => {
     scrollPositionRef.current = 0;
     if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = 0;
-    // Returning to a cached filter should start at its latest page, not at an
-    // old window reached on a previous visit. Do not cancel a fresh page-0 load.
-    for (const key of [
-      queryKeys.chats.lists(),
-      queryKeys.channelConversations.lists(),
-    ]) {
-      void queryClient.resetQueries({
-        queryKey: [...key, "infinite"],
-        type: "active",
-        predicate: (query) =>
-          ((query.state.data as { pageParams?: number[] } | undefined)
-            ?.pageParams?.[0] ?? 0) > 0,
-      });
-    }
+    // Returning to a cached filter should start at the top of the inbox, not
+    // at an old window reached on a previous visit. A window that already
+    // starts at the top (no cursor) is left alone so a fresh load is not
+    // cancelled.
+    void queryClient.resetQueries({
+      queryKey: inboxKeys.all(),
+      type: "active",
+      predicate: (query) => {
+        const first = (
+          query.state.data as
+            | { pageParams?: Array<{ cursor?: string; before?: string }> }
+            | undefined
+        )?.pageParams?.[0];
+        return Boolean(first?.cursor || first?.before);
+      },
+    });
   }, [listScope, queryClient]);
 
   useEffect(() => {
@@ -357,59 +297,12 @@ export const ChatList = memo(function ChatList({
     ];
   }, [channelAccounts, connections]);
 
-  // Filter archived chats for main view
-  const visibleChats = useMemo(() => {
-    return mergeInboxChats(chats ?? [], channelConversations).filter((chat) => {
-      if (chat.isArchived) return false;
-      // Contacts already arrived filtered by the API; this also narrows the
-      // channel conversations merged in beside them, which the API never
-      // searched. See chat-search.ts for why the display name alone is not
-      // enough for a phone-number search.
-      if (!chatMatchesSearch(chat, searchQuery)) {
-        return false;
-      }
-      if (assignmentFilter === "unread" && chat.unreadCount <= 0) return false;
-      if (
-        accountFilter !== "all" &&
-        !chatMatchesAccount(chat, accountFilter, channelConversations)
-      ) {
-        return false;
-      }
-      if (
-        conversationStatusFilter !== "all" &&
-        chat.conversationStatus !== conversationStatusFilter
-      ) {
-        return false;
-      }
-      return true;
-    });
-  }, [
-    accountFilter,
-    assignmentFilter,
-    channelConversations,
-    chats,
-    conversationStatusFilter,
-    searchQuery,
-  ]);
-  // Hold the merged list until both sources have their first page, so a fast
-  // channel list is not shown alone and then reshuffled when the contacts
-  // arrive (see chat-list-readiness.ts). A slow source is waited on only for a
-  // short grace period, restarted whenever the list scope changes.
-  const [graceElapsed, setGraceElapsed] = useState(false);
-  useEffect(() => {
-    setGraceElapsed(false);
-    if (!isLoading) return;
-    const timer = window.setTimeout(
-      () => setGraceElapsed(true),
-      PARTIAL_INBOX_GRACE_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, [isLoading, listScope]);
-  const holdList = shouldHoldInboxList({
-    anySourceLoading: isLoading,
-    hasRows: visibleChats.length > 0,
-    graceElapsed,
-  });
+  // The server already ordered and filtered every row; only archived rows are
+  // hidden here.
+  const visibleChats = useMemo(
+    () => (chats ?? []).filter((chat) => !chat.isArchived),
+    [chats],
+  );
   const connectionState = resolveInboxConnectionState({
     connections,
     channelAccounts,
@@ -837,9 +730,8 @@ export const ChatList = memo(function ChatList({
       >
         {/* Loading State */}
         {!isError &&
-          (holdList ||
-            (visibleChats.length === 0 &&
-              (isLoading || connectionState === "loading"))) && (
+          visibleChats.length === 0 &&
+          (isLoading || connectionState === "loading") && (
             <div className="divide-y divide-gray-100 dark:divide-dark-border">
               {Array.from({ length: 8 }).map((_, index) => (
                 <ChatListItemSkeleton key={index} />
@@ -1090,7 +982,7 @@ export const ChatList = memo(function ChatList({
           )}
 
         {/* Virtualized Chat List Items */}
-        {visibleChats.length > 0 && !holdList && (
+        {visibleChats.length > 0 && (
           <VirtualizedChatRows
             key={listScope}
             chats={visibleChats}
@@ -1122,20 +1014,11 @@ export const ChatList = memo(function ChatList({
                   className="rounded px-3 py-1 font-medium text-whatsapp-teal-green hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40"
                   onClick={() => {
                     if (!paginationError) return loadMore();
-                    if (chatsFailed) {
-                      void (chatPageFailed
-                        ? loadMoreChats({ cancelRefetch: false })
-                        : previousChatPageFailed
-                          ? loadPreviousChats({ cancelRefetch: false })
-                          : refetchChats());
-                    }
-                    if (channelsFailed) {
-                      void (channelPageFailed
-                        ? loadMoreChannels({ cancelRefetch: false })
-                        : previousChannelPageFailed
-                          ? loadPreviousChannels({ cancelRefetch: false })
-                          : refetchChannels());
-                    }
+                    void (nextPageFailed
+                      ? fetchNextPage({ cancelRefetch: false })
+                      : previousPageFailed
+                        ? fetchPreviousPage({ cancelRefetch: false })
+                        : refetchChats());
                   }}
                 >
                   {paginationError

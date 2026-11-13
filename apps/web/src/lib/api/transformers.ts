@@ -6,8 +6,8 @@
  * across different hooks and components.
  */
 
-import { channelDisplayName } from "@/components/connections/channel-catalog";
 import { toDate } from "@wateaminbox/shared";
+import { channelDisplayName } from "@/components/connections/channel-catalog";
 import type {
   Chat,
   ConversationLifecycleStatus,
@@ -215,27 +215,4 @@ export function transformChannelConversationToChat(conversation: {
     conversationStatus: conversation.conversationStatus,
     activeCaseId: null,
   };
-}
-
-export function mergeInboxChats(
-  contactChats: Chat[],
-  conversations: Parameters<typeof transformChannelConversationToChat>[0][],
-): Chat[] {
-  const seenContacts = new Set(contactChats.map((chat) => chat.id));
-  const seenConversations = new Set(
-    contactChats
-      .map((chat) => chat.contact.conversationId)
-      .filter((id): id is string => Boolean(id)),
-  );
-  const extras = conversations
-    .filter(
-      (conversation) =>
-        !seenConversations.has(conversation.id) &&
-        (!conversation.legacyContactId ||
-          !seenContacts.has(conversation.legacyContactId)),
-    )
-    .map(transformChannelConversationToChat);
-  return [...contactChats, ...extras].sort(
-    (left, right) => right.updatedAt.getTime() - left.updatedAt.getTime(),
-  );
 }

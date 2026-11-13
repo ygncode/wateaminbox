@@ -11,8 +11,14 @@ import type { Message, PaginatedMessages } from "@wateaminbox/shared";
 import { customerTimelineKeys } from "../../hooks/chat/useCustomerTimeline";
 import { isOptimisticTwin } from "../../hooks/messages/optimistic-message";
 import { queryKeys } from "../../hooks/query-keys";
-import { type ChatListPage, chatKeys } from "../../hooks/useChats";
+import { chatKeys } from "../../hooks/useChats";
+import {
+  type InboxPage,
+  type InboxPageParam,
+  inboxKeys,
+} from "../../hooks/useInbox";
 import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
+import type { Chat } from "../../types/chat";
 import { scheduleInboxRefresh } from "./inbox-refresh";
 
 /** Typed infinite query data structure */
@@ -174,28 +180,22 @@ export function updateContactInChatList(
       });
     },
   );
-  queryClient.setQueriesData<InfiniteData<ChatListPage, number>>(
-    { queryKey: [...chatKeys.lists(), "infinite"] },
-    (oldData) => {
-      if (!oldData) return oldData;
-      return {
-        ...oldData,
-        pages: oldData.pages.map((page) => ({
-          ...page,
-          chats: page.chats.map((chat) =>
-            chat.contact.jid === jid
-              ? {
-                  ...chat,
-                  contact: {
-                    ...chat.contact,
-                    ...updater({ ...chat.contact }),
-                  },
-                }
-              : chat,
-          ),
-        })),
-      };
-    },
+  const patchChats = <T extends { chats: Chat[] }>(page: T): T => ({
+    ...page,
+    chats: page.chats.map((chat) =>
+      chat.contact.jid === jid
+        ? {
+            ...chat,
+            contact: { ...chat.contact, ...updater({ ...chat.contact }) },
+          }
+        : chat,
+    ),
+  });
+  // The unified inbox (every channel, cursor-paged).
+  queryClient.setQueriesData<InfiniteData<InboxPage, InboxPageParam>>(
+    { queryKey: inboxKeys.all() },
+    (oldData) =>
+      oldData ? { ...oldData, pages: oldData.pages.map(patchChats) } : oldData,
   );
 }
 

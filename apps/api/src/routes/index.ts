@@ -16,6 +16,7 @@ import { exportRoutes } from "./export.js";
 import { feedbackRoutes } from "./feedback.js";
 import { groupRoutes } from "./groups/index.js";
 import { healthRoutes } from "./health.js";
+import { inboxRoutes } from "./inbox/index.js";
 import { labelRoutes } from "./labels.js";
 import { mcpRoutes } from "./mcp/index.js";
 import { mediaRoutes } from "./media.js";
@@ -60,6 +61,9 @@ routes.route("/bulk-jobs", bulkJobRoutes);
 
 // Conversation routes (alternative to /messages for RESTful access)
 routes.route("/conversations", conversationRoutes);
+
+// Unified inbox: every channel in one server-ordered, cursor-paged list
+routes.route("/inbox", inboxRoutes);
 
 // Tag routes
 routes.route("/tags", tagRoutes);

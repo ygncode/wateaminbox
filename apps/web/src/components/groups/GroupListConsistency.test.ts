@@ -6,18 +6,14 @@ const readSource = async (relativePath: string) =>
 describe("inclusive chat list and group filtering", () => {
   test("the Chats tab includes direct and group conversations", async () => {
     const chatList = await readSource("../chat/ChatList.tsx");
-    expect(chatList).toContain("useChats(");
-    expect(chatList).toContain("true,\n    assignmentFilter,");
-    // The inbox scope spans every channel, so it is no longer a WhatsApp
-    // connection id: only a WhatsApp account narrows the server-side contact
-    // query, while a channel account is matched against its conversations.
-    expect(chatList).toContain("accountFilter");
+    // One server-ordered inbox for every channel; groups are included and the
+    // account scope is sent to the server for WhatsApp and channel accounts.
+    expect(chatList).toContain("useInbox({");
+    expect(chatList).toContain("includeGroups: true,");
     expect(chatList).toContain(
-      "connections.some((connection) => connection.id === accountFilter)",
+      'accountId: accountFilter !== "all" ? accountFilter : undefined,',
     );
-    expect(chatList).not.toContain(
-      "useChats(searchQuery, false, assignmentFilter)",
-    );
+    expect(chatList).not.toContain("includeGroups: false");
   });
 
   test("the Groups tab remains a group-only filter", async () => {

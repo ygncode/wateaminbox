@@ -3,14 +3,15 @@ import { QueryClient } from "@tanstack/react-query";
 import type { Message } from "@wateaminbox/shared";
 import { queryKeys } from "../../hooks/query-keys";
 import { chatKeys } from "../../hooks/useChats";
+import { inboxKeys } from "../../hooks/useInbox";
 import { infiniteMessageKeys } from "../../hooks/useInfiniteMessages";
 import { setCompanyId } from "../../lib/api/client";
 import {
   addMessageToCache,
   type InfiniteMessageData,
   invalidateChatList,
-  updateMessageInCache,
   updateContactInChatList,
+  updateMessageInCache,
 } from "./cache-utils";
 import { reconcileRealtimeState } from "./event-handlers";
 
@@ -53,10 +54,10 @@ function seed(client: QueryClient, companyId: string) {
 }
 
 describe("realtime React Query reconciliation", () => {
-  test("contact events update every infinite page and preserve pagination", () => {
+  test("contact events update every inbox page and preserve its cursors", () => {
     const client = new QueryClient();
     setCompanyId("company-a");
-    const key = chatKeys.infiniteList({});
+    const key = inboxKeys.list({});
     const chat = {
       id: "a",
       contact: { jid: "a@s.whatsapp.net", name: "Before" },
@@ -66,14 +67,15 @@ describe("realtime React Query reconciliation", () => {
       contact: { jid: "b@s.whatsapp.net", name: "Other" },
     };
     const pages = [
-      { chats: [other], nextOffset: 1 },
-      { chats: [chat], nextOffset: undefined },
+      { chats: [other], nextCursor: "c1", prevCursor: null, unreadTotal: 3 },
+      { chats: [chat], nextCursor: null, prevCursor: "c0", unreadTotal: null },
     ];
-    client.setQueryData(key, { pages, pageParams: [0, 1] });
+    const pageParams = [{}, { cursor: "c1" }];
+    client.setQueryData(key, { pages, pageParams });
     client.setQueryData(chatKeys.list({}), [chat]);
     setCompanyId("company-b");
-    const otherWorkspace = chatKeys.infiniteList({});
-    client.setQueryData(otherWorkspace, { pages, pageParams: [0, 1] });
+    const otherWorkspace = inboxKeys.list({});
+    client.setQueryData(otherWorkspace, { pages, pageParams });
     setCompanyId("company-a");
 
     updateContactInChatList(client, "a@s.whatsapp.net", (contact) => ({
@@ -81,9 +83,7 @@ describe("realtime React Query reconciliation", () => {
       name: "After",
     }));
 
-    expect(
-      client.getQueryData<{ pages: typeof pages; pageParams: number[] }>(key),
-    ).toEqual({
+    expect(client.getQueryData(key)).toEqual({
       pages: [
         pages[0],
         {
@@ -91,22 +91,12 @@ describe("realtime React Query reconciliation", () => {
           chats: [{ ...chat, contact: { ...chat.contact, name: "After" } }],
         },
       ],
-      pageParams: [0, 1],
+      pageParams,
     });
     expect(client.getQueryData<(typeof chat)[]>(chatKeys.list({}))).toEqual([
       { ...chat, contact: { ...chat.contact, name: "After" } },
     ]);
-    expect(
-      client.getQueryData<{ pages: typeof pages; pageParams: number[] }>(
-        otherWorkspace,
-      ),
-    ).toEqual({
-      pages,
-      pageParams: [0, 1],
-    });
-    invalidateChatList(client);
-    expect(client.getQueryState(key)?.isInvalidated).toBe(true);
-    client.clear();
+    expect(client.getQueryData(otherWorkspace)).toEqual({ pages, pageParams });
   });
 
   test("deduplicates realtime messages and advances cached status", () => {

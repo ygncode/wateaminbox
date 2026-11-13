@@ -19,6 +19,8 @@ import {
   getContactsWithLastMessage,
   getCurrentAssignment,
 } from "../../../services/contact.service.js";
+import { getInboxPage } from "../../../services/inbox.service.js";
+import { decodeInboxCursor } from "../../../services/inbox-cursor.js";
 import { globalSearch } from "../../../services/search.service.js";
 import { getUserNames } from "../../../services/user.service.js";
 import {
@@ -177,7 +179,7 @@ export const readTools: McpToolDefinition[] = [
   {
     name: "list_conversations",
     description:
-      "List conversations, newest activity first. Includes channel threads that have no contact. Members without view-all permission only see conversations assigned to them.",
+      "List conversations across every channel, newest activity first, in one server-side order. Includes channel threads that have no contact. Members without view-all permission only see conversations assigned to them. Page with nextCursor (preferred); offset is still accepted.",
     scope: "read",
     inputSchema: {
       status: z
@@ -190,6 +192,11 @@ export const readTools: McpToolDefinition[] = [
         .optional()
         .describe("Only conversations with unread messages"),
       limit: limitField,
+      cursor: z
+        .string()
+        .max(200)
+        .optional()
+        .describe("nextCursor from a previous call"),
       offset: offsetField,
     },
     handler: async (
@@ -198,98 +205,64 @@ export const readTools: McpToolDefinition[] = [
         search?: string;
         unreadOnly?: boolean;
         limit?: number;
+        cursor?: string;
         offset?: number;
       },
       c,
     ) => {
       const { tenantDb, companyId, user, permissions } = getRouteContext(c);
       const limit = clampLimit(args.limit);
-      const { contacts, total } = await getContactsWithLastMessage(
-        tenantDb,
-        companyId,
-        {
-          search: args.search,
-          limit,
-          offset: args.offset ?? 0,
-          includeGroups: true,
-          conversationStatus: args.status ?? "all",
-          unreadOnly: args.unreadOnly ?? false,
-          userId: user.id,
-          restrictToAssigned: !permissions.can_view_all_chats,
-        },
-      );
-      const conversations = contacts.map(compactConversation);
       const authority = await getChannelSpineWorkspaceAuthority(companyId);
-      if (authority.neutralReadsEnabled && (args.offset ?? 0) === 0) {
-        let extraQuery = tenantDb
-          .selectFrom("conversations as conversation")
-          .innerJoin(
-            "channel_accounts as account",
-            "account.id",
-            "conversation.channel_account_id",
-          )
-          .leftJoin(
-            "conversation_states as state",
-            "state.conversation_id",
-            "conversation.id",
-          )
-          .leftJoin("contact_assignments as assignment", (join) =>
-            join
-              .onRef("assignment.conversation_id", "=", "conversation.id")
-              .on("assignment.unassigned_at", "is", null),
-          )
-          .select([
-            "conversation.id",
-            "conversation.kind",
-            "conversation.subject",
-            "conversation.last_message_at",
-            "state.status",
-            "state.unread_count",
-            "assignment.assigned_to",
-          ])
-          .where("conversation.archived_at", "is", null)
-          .where("account.archived_at", "is", null)
-          .where("conversation.legacy_contact_id", "is", null);
-        if (!permissions.can_view_all_chats) {
-          extraQuery = extraQuery.where("assignment.assigned_to", "=", user.id);
-        }
-        if (args.status && args.status !== "all") {
-          extraQuery = extraQuery.where("state.status", "=", args.status);
-        }
-        if (args.unreadOnly) {
-          extraQuery = extraQuery.where("state.unread_count", ">", 0);
-        }
-        const extras = await extraQuery
-          .orderBy("conversation.last_message_at", "desc")
-          .limit(limit)
-          .execute();
-        const seen = new Set(
-          conversations
-            .map((row) => row.conversationId)
-            .filter((id): id is string => Boolean(id)),
-        );
-        const needle = args.search?.trim().toLowerCase();
-        for (const extra of extras) {
-          if (seen.has(extra.id)) continue;
-          if (needle && !(extra.subject ?? "").toLowerCase().includes(needle)) {
-            continue;
-          }
-          conversations.push(compactChannelConversation(extra));
-        }
-        conversations.sort((left, right) => {
-          const leftTime = left.lastMessageAt
-            ? new Date(left.lastMessageAt).getTime()
-            : 0;
-          const rightTime = right.lastMessageAt
-            ? new Date(right.lastMessageAt).getTime()
-            : 0;
-          return rightTime - leftTime;
+      const base = {
+        search: args.search?.trim() || undefined,
+        includeGroups: true,
+        conversationStatus: args.status ?? "all",
+        unreadOnly: args.unreadOnly ?? false,
+        userId: user.id,
+        restrictToAssigned: !permissions.can_view_all_chats,
+        includeThreads: authority.neutralReadsEnabled,
+      } as const;
+
+      let cursor = args.cursor ? decodeInboxCursor(args.cursor) : undefined;
+      if (args.cursor && !cursor) throw new McpToolError("Invalid cursor");
+      // Offset callers walk the same ordered list to their position, so their
+      // pages agree with cursor callers and include channel threads.
+      let skip = cursor ? 0 : Math.max(0, args.offset ?? 0);
+      while (skip > 0) {
+        const step = Math.min(skip, 100);
+        const hop = await getInboxPage(tenantDb, companyId, {
+          ...base,
+          limit: step,
+          cursor: cursor ?? undefined,
         });
+        skip -= hop.items.length;
+        if (!hop.nextCursor) {
+          return { conversations: [], nextCursor: null, hasMore: false };
+        }
+        cursor = decodeInboxCursor(hop.nextCursor) ?? undefined;
       }
+
+      const page = await getInboxPage(tenantDb, companyId, {
+        ...base,
+        limit,
+        cursor: cursor ?? undefined,
+      });
       return {
-        conversations: conversations.slice(0, limit),
-        total: total + Math.max(0, conversations.length - contacts.length),
-        hasMore: (args.offset ?? 0) + contacts.length < total,
+        conversations: page.items.map((item) =>
+          item.kind === "contact"
+            ? compactConversation(item.contact)
+            : compactChannelConversation({
+                id: item.thread.id,
+                kind: item.thread.kind,
+                subject: item.thread.subject,
+                last_message_at: item.thread.last_message_at,
+                status: item.thread.conversation_status,
+                unread_count: item.thread.unread_count,
+                assigned_to: item.thread.assigned_to,
+              }),
+        ),
+        nextCursor: page.nextCursor,
+        hasMore: page.nextCursor !== null,
       };
     },
   },

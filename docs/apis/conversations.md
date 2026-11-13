@@ -27,6 +27,10 @@ Conversation state transitions and message reads for a contact, plus resolution/
 
 ## Channel inbox list pagination
 
+> The web inbox and MCP `list_conversations` now read the unified
+> [`GET /api/inbox`](inbox.md), which orders every channel together with cursor
+> paging. This endpoint stays for integrations that list channel threads only.
+
 `GET /api/conversations?limit=100&offset=0&unreadOnly=true` returns the channel-only
 inbox list when neutral reads are enabled for the workspace (otherwise 404).
 Authentication, tenant isolation and assignment visibility apply. Linked-device
