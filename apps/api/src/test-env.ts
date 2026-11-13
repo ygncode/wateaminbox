@@ -15,6 +15,10 @@ const TEST_ENV: Record<string, string> = {
   JWT_SECRET: "test-only-jwt-signing-secret-with-enough-entropy-1",
   CENTRIFUGO_TOKEN_HMAC_SECRET:
     "test-only-centrifugo-signing-secret-with-entropy-2",
+  // A fake Google OAuth client so the sign-in flow is exercised. It never
+  // reaches Google: tests inject their own key set and token endpoint.
+  GOOGLE_CLIENT_ID: "test-client.apps.googleusercontent.com",
+  GOOGLE_CLIENT_SECRET: "test-only-google-client-secret",
 };
 
 for (const [key, value] of Object.entries(TEST_ENV)) {

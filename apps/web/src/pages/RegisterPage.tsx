@@ -19,6 +19,7 @@ import { useForm } from "react-hook-form";
 import { Trans, useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { AuthPageShell } from "../components/auth/AuthPageShell";
+import { GoogleSignInButton } from "../components/auth/GoogleSignInButton";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { useAuth } from "../contexts/auth-context";
@@ -289,9 +290,11 @@ export function RegisterPage() {
               )}
         </p>
 
+        <GoogleSignInButton redirect={redirectTo} />
+
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="mt-8 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3.5 dark:[&_input]:border-dark-border dark:[&_input]:bg-dark-tertiary"
+          className="mt-6 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3.5 dark:[&_input]:border-dark-border dark:[&_input]:bg-dark-tertiary"
           aria-busy={isLoading}
           noValidate
         >

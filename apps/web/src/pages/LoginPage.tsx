@@ -11,6 +11,7 @@ import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { AuthPageShell } from "../components/auth/AuthPageShell";
+import { GoogleSignInButton } from "../components/auth/GoogleSignInButton";
 import { Button } from "../components/ui/button";
 import { FormField } from "../components/ui/form-field";
 import { useAuth } from "../contexts/auth-context";
@@ -38,7 +39,16 @@ export function LoginPage() {
     getAuthRedirectFromState(location.state);
   const invitationToken = getInvitationTokenFromRedirect(redirectTo);
   const suggestedEmail = searchParams.get("email") ?? "";
-  const { login, isLoading, error, clearError, isAuthenticated } = useAuth();
+  const googleResult = searchParams.get("google");
+  const googleError = searchParams.get("googleError");
+  const {
+    login,
+    isLoading,
+    error,
+    clearError,
+    isAuthenticated,
+    refreshSession,
+  } = useAuth();
   const {
     activeWorkspaceId,
     isLoading: isWorkspaceLoading,
@@ -65,6 +75,38 @@ export function LoginPage() {
     },
   });
   const currentEmail = watch("email");
+
+  // Returning from Google: the API already set the refresh cookie, so load the
+  // session the same way a page reload does. The effect below then routes the
+  // user onward. Runs once per return.
+  const googleHandled = React.useRef(false);
+  React.useEffect(() => {
+    if (!googleResult || googleHandled.current || isAuthenticated) return;
+    googleHandled.current = true;
+    productAnalytics.track(googleResult === "signup" ? "sign_up" : "login", {
+      method: "google",
+    });
+    void refreshSession();
+  }, [googleResult, isAuthenticated, refreshSession]);
+
+  const googleErrorMessage = googleError
+    ? googleError === "cancelled"
+      ? t("auth.googleCancelled", "Google sign-in was cancelled.")
+      : googleError === "unverified"
+        ? t(
+            "auth.googleUnverified",
+            "Your Google account email is not verified. Verify it with Google or sign in with email.",
+          )
+        : googleError === "mismatch"
+          ? t(
+              "auth.googleMismatch",
+              "This email is already linked to a different Google account.",
+            )
+          : t(
+              "auth.googleFailed",
+              "Google sign-in did not complete. Please try again.",
+            )
+    : null;
 
   // Return users to the invitation (or other protected destination) after
   // login. An invitation can be accepted before the user has any company.
@@ -154,10 +196,25 @@ export function LoginPage() {
           )}
         </p>
 
+        {googleErrorMessage && (
+          <div
+            role="alert"
+            className="mt-6 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-5 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300"
+          >
+            <CircleAlert
+              aria-hidden="true"
+              className="mt-0.5 h-4 w-4 shrink-0"
+            />
+            <p>{googleErrorMessage}</p>
+          </div>
+        )}
+
+        <GoogleSignInButton redirect={redirectTo} />
+
         <form
           onSubmit={handleSubmit(onSubmit)}
           onChange={clearLoginFeedback}
-          className="mt-8 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3.5 dark:[&_input]:border-dark-border dark:[&_input]:bg-dark-tertiary"
+          className="mt-6 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3.5 dark:[&_input]:border-dark-border dark:[&_input]:bg-dark-tertiary"
           aria-busy={isLoading}
           noValidate
         >

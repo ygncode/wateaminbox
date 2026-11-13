@@ -263,6 +263,43 @@ describe("production environment validation", () => {
     );
   });
 
+  test("Google sign-in is optional but must be configured as a pair", () => {
+    expect(() =>
+      validateProductionEnv(
+        productionEnv({ GOOGLE_CLIENT_ID: "", GOOGLE_CLIENT_SECRET: "" }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      validateProductionEnv(
+        productionEnv({
+          GOOGLE_CLIENT_ID: "123.apps.googleusercontent.com",
+          GOOGLE_CLIENT_SECRET: "GOCSPX-live-google-secret",
+        }),
+      ),
+    ).not.toThrow();
+    expectInvalid(
+      {
+        GOOGLE_CLIENT_ID: "123.apps.googleusercontent.com",
+        GOOGLE_CLIENT_SECRET: "",
+      },
+      /must both be set/,
+    );
+    expectInvalid(
+      {
+        GOOGLE_CLIENT_ID: "",
+        GOOGLE_CLIENT_SECRET: "GOCSPX-live-google-secret",
+      },
+      /must both be set/,
+    );
+    expectInvalid(
+      {
+        GOOGLE_CLIENT_ID: "123.apps.googleusercontent.com",
+        GOOGLE_CLIENT_SECRET: "secret",
+      },
+      /GOOGLE_CLIENT_SECRET/,
+    );
+  });
+
   test("requires effective production rate limiting", () => {
     expectInvalid({ RATE_LIMIT_ENABLED: false }, /must be true/);
     expectInvalid(

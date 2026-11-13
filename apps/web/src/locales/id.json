@@ -128,7 +128,13 @@
     "discoverySource": "Dari mana Anda mengetahui kami?",
     "optional": "(opsional)",
     "discoverySourcePlaceholder": "Pilih salah satu opsi",
-    "discoveryOther": "Di mana Anda mengetahui kami? (opsional)"
+    "discoveryOther": "Di mana Anda mengetahui kami? (opsional)",
+    "continueWithGoogle": "Lanjutkan dengan Google",
+    "orUseEmail": "atau gunakan email",
+    "googleCancelled": "Masuk dengan Google dibatalkan.",
+    "googleUnverified": "Email akun Google Anda belum terverifikasi. Verifikasi di Google atau masuk dengan email.",
+    "googleMismatch": "Email ini sudah ditautkan ke akun Google lain.",
+    "googleFailed": "Masuk dengan Google tidak selesai. Silakan coba lagi."
   },
   "chat": {
     "sendMessage": "Kirim pesan",

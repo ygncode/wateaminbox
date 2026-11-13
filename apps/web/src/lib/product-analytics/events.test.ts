@@ -45,7 +45,11 @@ describe("event allowlist", () => {
   });
 
   it("rejects values outside the predefined enums and unbounded strings", () => {
-    expect(sanitizeEvent("login", { method: "google" })).toBeNull();
+    expect(sanitizeEvent("login", { method: "github" })).toBeNull();
+    expect(sanitizeEvent("login", { method: "google" })).toEqual({
+      name: "login",
+      params: { method: "google" },
+    });
     expect(sanitizeEvent("teammate_invited", { role: "owner" })).toBeNull();
     expect(
       sanitizeEvent("message_sent", { messageType: "x".repeat(500) }),

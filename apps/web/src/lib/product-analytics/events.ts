@@ -10,8 +10,8 @@ const EVENT_CONTRACT: Record<
   ProductAnalyticsEventName,
   Readonly<Record<string, readonly string[]>>
 > = {
-  login: { method: ["email"] },
-  sign_up: { method: ["email"] },
+  login: { method: ["email", "google"] },
+  sign_up: { method: ["email", "google"] },
   workspace_created: {},
   whatsapp_connection_setup_started: {},
   whatsapp_connection_connected: { connectionMode: ["new", "reconnect"] },

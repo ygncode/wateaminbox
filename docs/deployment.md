@@ -226,6 +226,30 @@ Production requires a delivering driver. If email is intentionally disabled,
 use a reviewed override rather than a fake provider key; production defaults
 assume `MAIL_DRIVER=resend`.
 
+## Google sign-in (optional)
+
+"Continue with Google" appears on the sign-in and registration pages only when
+both `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set; with neither, the
+button is hidden and nothing changes. Setting only one is a startup error.
+
+1. In Google Cloud Console, create an OAuth client of type **Web application**.
+2. Add the authorized redirect URI `${APP_URL}/api/auth/google/callback`
+   (for example `https://inbox.example.com/api/auth/google/callback`).
+   The API derives the same URI from `APP_URL`; set `GOOGLE_REDIRECT_URI` only
+   when the API is not served under `${APP_URL}/api`.
+3. Configure the OAuth consent screen with the `openid`, `email` and `profile`
+   scopes, then publish it (an unpublished app accepts only listed test users).
+4. Set `GOOGLE_CLIENT_ID` in the API environment and supply the secret through
+   `GOOGLE_CLIENT_SECRET_FILE`, like the other API secrets.
+
+The API must be able to reach `oauth2.googleapis.com` and `www.googleapis.com`
+over HTTPS. Accounts are matched by Google's stable subject. A Google email
+that matches an existing verified account links to it and keeps its password.
+A matching **unverified** account is taken over: its unproven password,
+pending tokens and sessions are discarded, because Google has now proven who
+owns the address. Google accounts whose email Google has not verified are
+refused.
+
 ## Build, validate, and first start
 
 Prefer a unique, immutable `APP_IMAGE_TAG` for every release (for example a Git

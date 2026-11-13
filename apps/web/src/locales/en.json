@@ -128,7 +128,13 @@
     "discoverySource": "How did you hear about us?",
     "optional": "(optional)",
     "discoverySourcePlaceholder": "Select an option",
-    "discoveryOther": "Where did you hear about us? (optional)"
+    "discoveryOther": "Where did you hear about us? (optional)",
+    "continueWithGoogle": "Continue with Google",
+    "orUseEmail": "or use email",
+    "googleCancelled": "Google sign-in was cancelled.",
+    "googleUnverified": "Your Google account email is not verified. Verify it with Google or sign in with email.",
+    "googleMismatch": "This email is already linked to a different Google account.",
+    "googleFailed": "Google sign-in did not complete. Please try again."
   },
   "chat": {
     "sendMessage": "Send Message",
