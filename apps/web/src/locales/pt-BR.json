@@ -128,7 +128,13 @@
     "discoverySource": "Como você conheceu a gente?",
     "optional": "(opcional)",
     "discoverySourcePlaceholder": "Selecione uma opção",
-    "discoveryOther": "Onde você conheceu a gente? (opcional)"
+    "discoveryOther": "Onde você conheceu a gente? (opcional)",
+    "continueWithGoogle": "Continuar com o Google",
+    "orUseEmail": "ou use seu e-mail",
+    "googleCancelled": "O login com o Google foi cancelado.",
+    "googleUnverified": "O e-mail da sua conta Google não está verificado. Verifique-o no Google ou entre com seu e-mail.",
+    "googleMismatch": "Este e-mail já está vinculado a outra conta Google.",
+    "googleFailed": "O login com o Google não foi concluído. Tente novamente."
   },
   "chat": {
     "sendMessage": "Enviar mensagem",

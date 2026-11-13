@@ -128,7 +128,13 @@
     "discoverySource": "كيف سمعت عنا؟",
     "optional": "(اختياري)",
     "discoverySourcePlaceholder": "اختر أحد الخيارات",
-    "discoveryOther": "أين سمعت عنا؟ (اختياري)"
+    "discoveryOther": "أين سمعت عنا؟ (اختياري)",
+    "continueWithGoogle": "المتابعة باستخدام Google",
+    "orUseEmail": "أو استخدم البريد الإلكتروني",
+    "googleCancelled": "تم إلغاء تسجيل الدخول باستخدام Google.",
+    "googleUnverified": "البريد الإلكتروني لحسابك في Google غير مُوثَّق. وثِّقه لدى Google أو سجّل الدخول بالبريد الإلكتروني.",
+    "googleMismatch": "هذا البريد الإلكتروني مرتبط بالفعل بحساب Google آخر.",
+    "googleFailed": "لم يكتمل تسجيل الدخول باستخدام Google. يُرجى المحاولة مرة أخرى."
   },
   "chat": {
     "sendMessage": "إرسال رسالة",

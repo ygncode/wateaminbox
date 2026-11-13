@@ -27,6 +27,7 @@ export interface Database {
   company_stats: CompanyStatsTable;
   user_sessions: UserSessionsTable;
   auth_tokens: AuthTokensTable;
+  user_identities: UserIdentitiesTable;
   api_tokens: ApiTokensTable;
   oauth_clients: OAuthClientsTable;
   oauth_grants: OAuthGrantsTable;
@@ -152,6 +153,16 @@ export interface UsersTable {
   email_verified_at: Date | null;
   created_at: Generated<Date>;
   updated_at: Generated<Date>;
+}
+
+export interface UserIdentitiesTable {
+  id: Generated<string>;
+  user_id: string;
+  provider: string;
+  subject: string;
+  email: string | null;
+  created_at: Generated<Date>;
+  last_used_at: Generated<Date>;
 }
 
 export interface CompanyMembersTable {

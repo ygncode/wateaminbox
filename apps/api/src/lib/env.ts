@@ -114,6 +114,16 @@ export const env = {
     3600,
   ),
 
+  // Optional "Sign in with Google". Enabled only when both are set; the
+  // OAuth client's authorized redirect URI must be
+  // `${APP_URL}/api/auth/google/callback`.
+  GOOGLE_CLIENT_ID: getEnv("GOOGLE_CLIENT_ID", "").trim(),
+  GOOGLE_CLIENT_SECRET: getEnv("GOOGLE_CLIENT_SECRET", "").trim(),
+  // Only needed when the API is not served under APP_URL/api (local
+  // development runs it on its own port), e.g.
+  // http://localhost:4445/api/auth/google/callback
+  GOOGLE_REDIRECT_URI: getEnv("GOOGLE_REDIRECT_URI", "").trim(),
+
   // Email. Only the selected provider's credentials are required, so a
   // deployment on one provider never has to invent values for the other.
   MAIL_DRIVER: getEnv("MAIL_DRIVER", isProduction ? "resend" : "log"),
@@ -630,6 +640,16 @@ export function validateProductionEnv(config: Env = env): void {
   validateTrustedProxies(config);
 
   validateMailCredentials(config);
+  if (
+    Boolean(config.GOOGLE_CLIENT_ID) !== Boolean(config.GOOGLE_CLIENT_SECRET)
+  ) {
+    throw new Error(
+      "GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET must both be set to enable Google sign-in, or both omitted",
+    );
+  }
+  if (config.GOOGLE_CLIENT_SECRET) {
+    assertCredentialIsSafe("GOOGLE_CLIENT_SECRET", config.GOOGLE_CLIENT_SECRET);
+  }
   const fromAddress = config.EMAIL_FROM.trim().match(
     /(?:^|<)([^<>\s@]+@[^<>\s@]+\.[^<>\s@]+)>?$/,
   )?.[1];

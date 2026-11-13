@@ -30,6 +30,8 @@ export {
   changeCurrentUserPassword,
   forgotPassword,
   getCurrentUser,
+  getGoogleSignInStatus,
+  googleSignInUrl,
   healthCheck,
   login,
   logout,

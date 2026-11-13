@@ -128,7 +128,13 @@
     "discoverySource": "你是从哪里了解到我们的？",
     "optional": "（选填）",
     "discoverySourcePlaceholder": "请选择",
-    "discoveryOther": "你是从哪里了解到我们的？（选填）"
+    "discoveryOther": "你是从哪里了解到我们的？（选填）",
+    "continueWithGoogle": "使用 Google 继续",
+    "orUseEmail": "或使用邮箱",
+    "googleCancelled": "已取消 Google 登录。",
+    "googleUnverified": "你的 Google 账号邮箱尚未验证。请先在 Google 完成验证，或使用邮箱登录。",
+    "googleMismatch": "此邮箱已关联到另一个 Google 账号。",
+    "googleFailed": "Google 登录未完成，请重试。"
   },
   "chat": {
     "sendMessage": "发送消息",

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { googleRoutes } from "./google.js";
 import { loginRoutes } from "./login.js";
 import { passwordRoutes } from "./password.js";
 import { registerRoutes } from "./register.js";
@@ -11,6 +12,9 @@ authRoutes.route("/", registerRoutes);
 
 // Login routes - POST /login, POST /logout, POST /refresh
 authRoutes.route("/", loginRoutes);
+
+// Google routes - GET /google/status, GET /google/start, GET /google/callback
+authRoutes.route("/", googleRoutes);
 
 // Password routes - POST /forgot-password, POST /reset-password
 authRoutes.route("/", passwordRoutes);

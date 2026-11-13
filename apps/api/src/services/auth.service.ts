@@ -425,13 +425,31 @@ export async function login(
     assertEmailVerified(user.email_verified_at);
   }
 
-  const result = await db.transaction().execute(async (trx) => {
+  const result = await issueSessionForVerifiedUser(user.id, deviceInfo);
+  if (!result) throw emailNotVerifiedError();
+  return result;
+}
+
+/**
+ * Create a session for a user whose email is verified, or return null when the
+ * row is (no longer) verified. Shared by password and external sign-in so
+ * both obey the same lock and verification rule.
+ */
+export async function issueSessionForVerifiedUser(
+  userId: string,
+  deviceInfo?: DeviceInfo,
+): Promise<{
+  user: AuthUser;
+  tokens: AuthTokens;
+  session: UserSession;
+} | null> {
+  return db.transaction().execute(async (trx) => {
     // Serialize session creation with profile email changes. Without this lock,
     // an email change could mark the user unverified and delete sessions just
     // before a racing login inserts a new one.
     const lockedUser = await trx
       .selectFrom("users")
-      .where("id", "=", user.id)
+      .where("id", "=", userId)
       .selectAll()
       .forUpdate()
       .executeTakeFirstOrThrow();
@@ -509,9 +527,6 @@ export async function login(
       },
     };
   });
-
-  if (!result) throw emailNotVerifiedError();
-  return result;
 }
 
 /**

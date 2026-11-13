@@ -128,7 +128,13 @@
     "discoverySource": "Bagaimana anda mengetahui tentang kami?",
     "optional": "(pilihan)",
     "discoverySourcePlaceholder": "Pilih satu pilihan",
-    "discoveryOther": "Di mana anda mengetahui tentang kami? (pilihan)"
+    "discoveryOther": "Di mana anda mengetahui tentang kami? (pilihan)",
+    "continueWithGoogle": "Teruskan dengan Google",
+    "orUseEmail": "atau guna e-mel",
+    "googleCancelled": "Log masuk Google telah dibatalkan.",
+    "googleUnverified": "E-mel akaun Google anda belum disahkan. Sahkan dengan Google atau log masuk menggunakan e-mel.",
+    "googleMismatch": "E-mel ini sudah dipautkan kepada akaun Google yang lain.",
+    "googleFailed": "Log masuk Google tidak selesai. Sila cuba lagi."
   },
   "chat": {
     "sendMessage": "Hantar mesej",

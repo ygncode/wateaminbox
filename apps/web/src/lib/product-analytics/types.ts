@@ -16,8 +16,8 @@ export type ConsentState = ConsentDecision | "unknown";
  * cannot invent names or parameters outside this map.
  */
 export interface ProductAnalyticsEvents {
-  login: { method: "email" };
-  sign_up: { method: "email" };
+  login: { method: "email" | "google" };
+  sign_up: { method: "email" | "google" };
   workspace_created: Record<string, never>;
   whatsapp_connection_setup_started: Record<string, never>;
   whatsapp_connection_connected: { connectionMode: "new" | "reconnect" };

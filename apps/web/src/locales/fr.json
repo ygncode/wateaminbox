@@ -128,7 +128,13 @@
     "discoverySource": "Comment avez-vous entendu parler de nous ?",
     "optional": "(facultatif)",
     "discoverySourcePlaceholder": "Sélectionnez une option",
-    "discoveryOther": "Où avez-vous entendu parler de nous ? (facultatif)"
+    "discoveryOther": "Où avez-vous entendu parler de nous ? (facultatif)",
+    "continueWithGoogle": "Continuer avec Google",
+    "orUseEmail": "ou utilisez votre e-mail",
+    "googleCancelled": "La connexion avec Google a été annulée.",
+    "googleUnverified": "L’adresse e-mail de votre compte Google n’est pas vérifiée. Vérifiez-la auprès de Google ou connectez-vous par e-mail.",
+    "googleMismatch": "Cette adresse e-mail est déjà associée à un autre compte Google.",
+    "googleFailed": "La connexion avec Google n’a pas abouti. Veuillez réessayer."
   },
   "chat": {
     "sendMessage": "Envoyer un message",

@@ -55,3 +55,15 @@ export const refreshRateLimiter = createConditionalRateLimiter(
   },
   rateLimitConfig.enabled,
 );
+
+// Google sign-in callback: the login tier, in its own bucket so a failed
+// Google round trip does not consume password-login attempts (or vice versa).
+export const googleCallbackRateLimiter = createConditionalRateLimiter(
+  {
+    store: rateLimitStore,
+    tier: rateLimitConfig.tiers.auth.login,
+    keyStrategy: "ip",
+    keyPrefix: "auth-google",
+  },
+  rateLimitConfig.enabled,
+);

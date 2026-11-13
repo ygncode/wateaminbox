@@ -128,3 +128,30 @@ export async function healthCheck(): Promise<{ status: string }> {
   const response = await fetch(`${API_BASE_URL}/health`);
   return handleResponse<{ status: string }>(response);
 }
+
+/** Whether this deployment has "Sign in with Google" configured. */
+export async function getGoogleSignInStatus(): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/google/status`, {
+      credentials: "include",
+    });
+    if (!response.ok) return false;
+    const body = (await response.json()) as { enabled?: unknown };
+    return body.enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * URL for a full-page navigation that starts the Google flow. Must be a
+ * navigation, not fetch: the API redirects the browser to Google.
+ */
+export function googleSignInUrl(redirect: string | null): string {
+  const base = API_BASE_URL.startsWith("http")
+    ? API_BASE_URL
+    : new URL(API_BASE_URL, window.location.origin).toString();
+  const url = new URL(`${base.replace(/\/$/, "")}/auth/google/start`);
+  if (redirect) url.searchParams.set("redirect", redirect);
+  return url.toString();
+}

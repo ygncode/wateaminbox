@@ -128,7 +128,13 @@
     "discoverySource": "Wie haben Sie von uns erfahren?",
     "optional": "(optional)",
     "discoverySourcePlaceholder": "Option auswählen",
-    "discoveryOther": "Wo haben Sie von uns gehört? (optional)"
+    "discoveryOther": "Wo haben Sie von uns gehört? (optional)",
+    "continueWithGoogle": "Weiter mit Google",
+    "orUseEmail": "oder per E-Mail",
+    "googleCancelled": "Die Anmeldung mit Google wurde abgebrochen.",
+    "googleUnverified": "Die E-Mail-Adresse Ihres Google-Kontos ist nicht bestätigt. Bestätigen Sie sie bei Google oder melden Sie sich per E-Mail an.",
+    "googleMismatch": "Diese E-Mail-Adresse ist bereits mit einem anderen Google-Konto verknüpft.",
+    "googleFailed": "Die Anmeldung mit Google wurde nicht abgeschlossen. Bitte versuchen Sie es erneut."
   },
   "chat": {
     "sendMessage": "Nachricht senden",
