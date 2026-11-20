@@ -20,7 +20,7 @@ import type { TenantDatabase } from "../services/tenant.service.js";
 const RECENT_MESSAGE_WINDOW = 500;
 
 interface AvatarCandidateRow {
-  contact_id: string;
+  contact_id: string | null;
   whatsapp_connection_id: string | null;
   from_me: boolean;
   sender_jid: string | null;
@@ -37,7 +37,7 @@ interface AvatarLookup {
 function avatarLookup(row: AvatarCandidateRow): AvatarLookup | null {
   if (row.from_me || row.sender_avatar_url) return null;
   if (!row.sender_jid || row.sender_jid.endsWith("@g.us")) return null;
-  if (!row.whatsapp_connection_id) return null;
+  if (!row.whatsapp_connection_id || !row.contact_id) return null;
   return {
     groupId: row.contact_id,
     connectionId: row.whatsapp_connection_id,
