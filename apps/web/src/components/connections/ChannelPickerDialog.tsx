@@ -57,7 +57,7 @@ export function ChannelPickerDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="mx-4 w-[calc(100vw-2rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl p-0 sm:w-full">
-        <div className="border-b border-[#dce3de] bg-[#f8faf8] p-5 dark:border-dark-border dark:bg-white/[0.025] sm:p-6">
+        <div className="border-b border-line bg-subtle p-5 sm:p-6">
           <DialogHeader className="text-start">
             <DialogTitle className="text-xl">
               {t("connections.picker.title")}
@@ -68,7 +68,7 @@ export function ChannelPickerDialog({
           </DialogHeader>
           <div className="relative mt-4">
             <Search
-              className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#829089]"
+              className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-fg-muted"
               aria-hidden="true"
             />
             <Input
@@ -84,7 +84,7 @@ export function ChannelPickerDialog({
 
         <div className="p-5 sm:p-6">
           {entries.length === 0 ? (
-            <p className="py-8 text-center text-sm text-[#65736d] dark:text-[#a9bab4]">
+            <p className="py-8 text-center text-sm text-fg-muted">
               {t("connections.picker.noMatch", { query: query.trim() })}
             </p>
           ) : (
@@ -106,7 +106,7 @@ export function ChannelPickerDialog({
                         "group flex w-full flex-col items-center gap-2 rounded-xl px-1 py-2 text-center transition-colors",
                         reason
                           ? "cursor-not-allowed opacity-40"
-                          : "hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:hover:bg-white/[0.06]",
+                          : "hover:bg-fg/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
                       )}
                     >
                       <span
@@ -117,11 +117,11 @@ export function ChannelPickerDialog({
                       >
                         <entry.Mark className="h-8 w-8" />
                       </span>
-                      <span className="text-xs font-medium leading-tight text-[#10211b] dark:text-[#eef8f3]">
+                      <span className="text-xs font-medium leading-tight text-fg">
                         {entry.name}
                       </span>
                       {connected > 0 && (
-                        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                        <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">
                           {t("connections.picker.connectedCount", {
                             count: connected,
                           })}
@@ -136,7 +136,7 @@ export function ChannelPickerDialog({
 
           {/* Why a provider is greyed out matters more than that it is. */}
           {entries.some((entry) => entry.implemented && reasonFor(entry)) && (
-            <ul className="mt-5 space-y-1 border-t border-[#e6ece8] pt-4 text-xs text-[#65736d] dark:border-white/[0.08] dark:text-[#a9bab4]">
+            <ul className="mt-5 space-y-1 border-t border-line pt-4 text-xs text-fg-muted">
               {entries
                 .filter((entry) => entry.implemented && reasonFor(entry))
                 .map((entry) => (

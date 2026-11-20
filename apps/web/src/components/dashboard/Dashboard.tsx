@@ -113,7 +113,7 @@ export function Dashboard({
   } = useNewContactsTrend(companyId, startDate, endDate);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-subtle">
       <DashboardHeader
         workspaceName={workspaceName}
         dateRange={dateRange}
@@ -131,25 +131,25 @@ export function Dashboard({
       )}
 
       <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
-        <ScrollArea className="h-full rounded-xl border border-[#dce3de] bg-[#f9fbf9] shadow-sm dark:border-dark-border dark:bg-dark-secondary">
+        <ScrollArea className="h-full rounded-xl border border-line bg-subtle shadow-sm">
           <div className="space-y-6 p-4 sm:p-5 lg:p-6">
             <section aria-labelledby="operational-overview-title">
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <h2
                     id="operational-overview-title"
-                    className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary"
+                    className="text-sm font-semibold text-fg"
                   >
                     {t("dashboard.operationalOverview", "Operational overview")}
                   </h2>
-                  <p className="mt-0.5 text-xs text-[#718078] dark:text-dark-text-secondary">
+                  <p className="mt-0.5 text-xs text-fg-muted">
                     {t(
                       "dashboard.operationalOverviewHint",
                       "A live pulse of messaging and workspace activity.",
                     )}
                   </p>
                 </div>
-                <span className="rounded-full border border-[#dce3de] bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#65736d] dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-secondary">
+                <span className="rounded-full border border-line bg-surface px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
                   {t("dashboard.allTime", "All time")}
                 </span>
               </div>
@@ -162,17 +162,17 @@ export function Dashboard({
 
             <div className="flex flex-wrap items-end justify-between gap-2 pt-1">
               <div>
-                <h2 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+                <h2 className="text-sm font-semibold text-fg">
                   {t("dashboard.activityTrends", "Activity trends")}
                 </h2>
-                <p className="mt-0.5 text-xs text-[#718078] dark:text-dark-text-secondary">
+                <p className="mt-0.5 text-xs text-fg-muted">
                   {t(
                     "dashboard.activityTrendsHint",
                     "Volume, acquisition, and traffic patterns.",
                   )}
                 </p>
               </div>
-              <span className="rounded-full bg-[#edf2ef] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#65736d] dark:bg-dark-tertiary dark:text-dark-text-secondary">
+              <span className="rounded-full bg-muted px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
                 Last{" "}
                 {dateRange === "7d" ? "7" : dateRange === "90d" ? "90" : "30"}{" "}
                 days
@@ -198,11 +198,11 @@ export function Dashboard({
             />
             {showSecondary ? (
               <>
-                <div className="border-t border-[#dce3de] pt-6 dark:border-dark-border">
-                  <h2 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+                <div className="border-t border-line pt-6">
+                  <h2 className="text-sm font-semibold text-fg">
                     {t("dashboard.workspaceInsights", "Workspace insights")}
                   </h2>
-                  <p className="mt-0.5 text-xs text-[#718078] dark:text-dark-text-secondary">
+                  <p className="mt-0.5 text-xs text-fg-muted">
                     {t(
                       "dashboard.workspaceInsightsHint",
                       "Deeper signals for contact quality, outcomes, and service performance.",
@@ -231,7 +231,7 @@ export function Dashboard({
                   startDate={startDate}
                   endDate={endDate}
                 />
-                <div className="rounded-xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_1px_rgba(16,44,36,0.03)] dark:border-dark-border dark:bg-dark-elevated">
+                <div className="rounded-xl border border-line bg-surface p-5 shadow-xs">
                   <ResponseTimeAnalytics
                     companyId={companyId}
                     dateRange={dateRange}
@@ -243,7 +243,7 @@ export function Dashboard({
               <button
                 type="button"
                 onClick={() => setShowSecondary(true)}
-                className="w-full rounded-xl border border-dashed border-[#cbd6cf] bg-white/70 py-6 text-sm font-medium text-[#0b7a55] transition-colors hover:border-[#8cb7a4] hover:bg-white dark:border-dark-border dark:bg-dark-elevated/50 dark:hover:bg-dark-elevated"
+                className="w-full rounded-xl border border-dashed border-line-strong bg-surface/70 py-6 text-sm font-medium text-accent transition-colors hover:border-line-strong hover:bg-surface"
               >
                 {t(
                   "dashboard.loadDetailedAnalytics",

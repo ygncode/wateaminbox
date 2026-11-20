@@ -65,7 +65,7 @@ export function QuickReplyForm({
     <>
       <DialogHeader className="pe-8 text-start">
         <div className="flex items-start gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e4f5ed] text-[#007a5e] ring-1 ring-[#bfe5d4] dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/15">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent ring-1 ring-ring">
             <Zap className="size-5" fill="currentColor" aria-hidden="true" />
           </span>
           <div className="min-w-0 pt-0.5">
@@ -92,7 +92,7 @@ export function QuickReplyForm({
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 pt-2">
         {/* Server error message */}
         {serverError && (
-          <div className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-400/15 dark:bg-red-400/[0.06] dark:text-red-300">
+          <div className="flex items-start gap-2.5 rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm text-danger">
             <AlertCircle className="mt-0.5 size-4 shrink-0" />
             <span>{serverError}</span>
           </div>
@@ -104,17 +104,17 @@ export function QuickReplyForm({
             <div className="flex items-baseline justify-between gap-2">
               <Label htmlFor="shortcut" className="font-semibold">
                 {t("quickReplies.shortcutLabel", "Shortcut")}{" "}
-                <span className="text-red-500" aria-hidden="true">
+                <span className="text-danger" aria-hidden="true">
                   *
                 </span>
               </Label>
-              <span className="text-[11px] text-[#8696a0] dark:text-dark-text-tertiary">
+              <span className="text-[11px] text-fg-muted">
                 {t("quickReplies.shortcutMicrocopy", "What teammates type")}
               </span>
             </div>
             <div className="relative">
               <span
-                className="absolute inset-y-0 start-0 grid w-9 place-items-center border-e border-black/[0.06] font-mono text-base font-bold text-[#008069] dark:border-white/[0.07] dark:text-emerald-300"
+                className="absolute inset-y-0 start-0 grid w-9 place-items-center border-e border-line/[0.06] font-mono text-base font-bold text-accent"
                 aria-hidden="true"
               >
                 /
@@ -141,17 +141,11 @@ export function QuickReplyForm({
               />
             </div>
             {errors.shortcut ? (
-              <p
-                className="text-xs text-red-500 dark:text-red-400"
-                role="alert"
-              >
+              <p className="text-xs text-danger" role="alert">
                 {errors.shortcut.message}
               </p>
             ) : (
-              <p
-                id="shortcut-hint"
-                className="text-xs text-[#667781] dark:text-dark-text-tertiary"
-              >
+              <p id="shortcut-hint" className="text-xs text-fg-muted">
                 {t(
                   "quickReplies.shortcutHelpCompact",
                   "Letters, numbers, _ and -",
@@ -165,11 +159,11 @@ export function QuickReplyForm({
             <div className="flex items-baseline justify-between gap-2">
               <Label htmlFor="title" className="font-semibold">
                 {t("quickReplies.titleLabel", "Internal title")}{" "}
-                <span className="text-red-500" aria-hidden="true">
+                <span className="text-danger" aria-hidden="true">
                   *
                 </span>
               </Label>
-              <span className="text-[11px] text-[#8696a0] dark:text-dark-text-tertiary">
+              <span className="text-[11px] text-fg-muted">
                 {t("quickReplies.titleMicrocopy", "Only your team sees this")}
               </span>
             </div>
@@ -186,14 +180,11 @@ export function QuickReplyForm({
               aria-invalid={errors.title ? "true" : "false"}
             />
             {errors.title ? (
-              <p
-                className="text-xs text-red-500 dark:text-red-400"
-                role="alert"
-              >
+              <p className="text-xs text-danger" role="alert">
                 {errors.title.message}
               </p>
             ) : (
-              <p className="text-xs text-[#667781] dark:text-dark-text-tertiary">
+              <p className="text-xs text-fg-muted">
                 {t(
                   "quickReplies.titleHelpCompact",
                   "Use a name that is easy to scan",
@@ -208,12 +199,12 @@ export function QuickReplyForm({
           <div className="flex items-baseline justify-between gap-3">
             <Label htmlFor="content" className="font-semibold">
               {t("quickReplies.contentLabel", "Response")}{" "}
-              <span className="text-red-500" aria-hidden="true">
+              <span className="text-danger" aria-hidden="true">
                 *
               </span>
             </Label>
             <span
-              className="font-mono text-[11px] tabular-nums text-[#8696a0] dark:text-dark-text-tertiary"
+              className="font-mono text-[11px] tabular-nums text-fg-muted"
               aria-live="polite"
             >
               {content.length.toLocaleString()} / 5,000
@@ -234,13 +225,13 @@ export function QuickReplyForm({
             aria-invalid={errors.content ? "true" : "false"}
           />
           {errors.content ? (
-            <p className="text-xs text-red-500 dark:text-red-400" role="alert">
+            <p className="text-xs text-danger" role="alert">
               {errors.content.message}
             </p>
           ) : (
             <p
               id="content-hint"
-              className="flex items-center gap-1.5 text-xs text-[#667781] dark:text-dark-text-tertiary"
+              className="flex items-center gap-1.5 text-xs text-fg-muted"
             >
               <MessageSquareText className="size-3.5" aria-hidden="true" />
               {t(
@@ -252,23 +243,23 @@ export function QuickReplyForm({
         </div>
 
         {hasPreview && (
-          <div className="overflow-hidden rounded-xl border border-[#d8e0dc] bg-[#efeae2] dark:border-white/[0.08] dark:bg-[#111b21]">
-            <div className="flex items-center justify-between gap-3 border-b border-black/[0.05] bg-white/70 px-3 py-2 dark:border-white/[0.06] dark:bg-white/[0.035]">
+          <div className="overflow-hidden rounded-xl border border-line bg-muted">
+            <div className="flex items-center justify-between gap-3 border-b border-line/[0.05] bg-surface/70 px-3 py-2">
               <div className="flex min-w-0 items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#667781] dark:text-dark-text-tertiary">
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-fg-muted">
                   {t("quickReplies.preview", "Composer preview")}
                 </span>
-                <span className="truncate text-xs font-medium text-[#3b4a54] dark:text-dark-text-secondary">
+                <span className="truncate text-xs font-medium text-fg">
                   {title}
                 </span>
               </div>
-              <span className="shrink-0 rounded-md bg-[#dff4eb] px-2 py-0.5 font-mono text-[10px] font-semibold text-[#008069] dark:bg-emerald-400/10 dark:text-emerald-300">
+              <span className="shrink-0 rounded-md bg-accent-soft px-2 py-0.5 font-mono text-[10px] font-semibold text-accent">
                 /{shortcut}
               </span>
             </div>
             <div className="p-3">
-              <div className="ms-auto max-w-[88%] rounded-lg rounded-se-sm bg-[#d9fdd3] px-3 py-2 shadow-sm dark:bg-[#005c4b]">
-                <p className="whitespace-pre-wrap break-words text-sm leading-5 text-[#111b21] dark:text-dark-text-primary">
+              <div className="ms-auto max-w-[88%] rounded-lg rounded-se-sm bg-accent-soft px-3 py-2 shadow-sm">
+                <p className="whitespace-pre-wrap break-words text-sm leading-5 text-fg">
                   {content}
                 </p>
               </div>
@@ -277,7 +268,7 @@ export function QuickReplyForm({
         )}
 
         {/* Action Buttons */}
-        <div className="-mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-2xl border-t border-black/[0.06] bg-[#f8faf9] px-6 py-4 sm:flex-row sm:items-center sm:justify-end dark:border-white/[0.07] dark:bg-white/[0.025]">
+        <div className="-mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-2xl border-t border-line/[0.06] bg-subtle px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
           <Button
             type="button"
             variant="ghost"
@@ -290,7 +281,7 @@ export function QuickReplyForm({
           <Button
             type="submit"
             disabled={isSubmitting || !isValid}
-            className="min-w-32 bg-[#008069] text-white shadow-sm hover:bg-[#006f5b] disabled:bg-[#dce8e3] disabled:text-[#7d9289] disabled:opacity-100 dark:bg-emerald-600 dark:hover:bg-emerald-500 dark:disabled:bg-white/[0.08] dark:disabled:text-dark-text-tertiary"
+            className="min-w-32 bg-primary text-on-primary shadow-sm hover:bg-primary-hover disabled:bg-muted-strong disabled:text-fg-muted disabled:opacity-100"
             data-testid="save-quick-reply-button"
           >
             {isSubmitting ? (

@@ -41,41 +41,41 @@ const NOTIFICATION_TYPE_VISUALS: Record<
 > = {
   message: {
     label: "Message",
-    tile: "bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300",
-    accent: "border-s-sky-400 dark:border-s-sky-500",
-    dot: "bg-sky-500",
+    tile: "bg-info-soft text-info",
+    accent: "border-s-info",
+    dot: "bg-info",
   },
   mention: {
     label: "Mention",
-    tile: "bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300",
-    accent: "border-s-violet-400 dark:border-s-violet-500",
-    dot: "bg-violet-500",
+    tile: "bg-id-3-soft text-id-3",
+    accent: "border-s-id-3",
+    dot: "bg-id-3",
   },
   assignment: {
     label: "Assignment",
-    tile: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300",
-    accent: "border-s-emerald-400 dark:border-s-emerald-500",
-    dot: "bg-emerald-500",
+    tile: "bg-accent-soft text-accent",
+    accent: "border-s-accent",
+    dot: "bg-accent",
   },
   team: {
     label: "Team",
-    tile: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
-    accent: "border-s-amber-400 dark:border-s-amber-500",
-    dot: "bg-amber-500",
+    tile: "bg-warning-soft text-warning",
+    accent: "border-s-warning",
+    dot: "bg-warning",
   },
   system: {
     label: "System",
-    tile: "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300",
-    accent: "border-s-slate-400 dark:border-s-slate-500",
-    dot: "bg-slate-400",
+    tile: "bg-muted text-fg",
+    accent: "border-s-line-strong",
+    dot: "bg-fg-subtle",
   },
 };
 
 const FALLBACK_VISUAL: NotificationTypeVisual = {
   label: "Update",
-  tile: "bg-gray-100 text-gray-600 dark:bg-dark-tertiary dark:text-dark-text-tertiary",
-  accent: "border-s-gray-300 dark:border-s-dark-text-tertiary",
-  dot: "bg-gray-400",
+  tile: "bg-muted text-fg-muted",
+  accent: "border-s-line-strong",
+  dot: "bg-fg-subtle",
 };
 
 /** Styling for a type, tolerating types added by a newer server. */

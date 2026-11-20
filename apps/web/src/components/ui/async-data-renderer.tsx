@@ -78,7 +78,7 @@ export function AsyncDataRenderer<T>({
       return <>{errorFallback}</>;
     }
     return (
-      <p className="text-red-500 dark:text-red-400 text-center py-4">
+      <p className="text-danger text-center py-4">
         {errorMessage ??
           t("dashboard.charts.dataLoadFailed", "Failed to load data")}
       </p>
@@ -95,7 +95,7 @@ export function AsyncDataRenderer<T>({
       return <>{emptyFallback}</>;
     }
     return (
-      <p className="text-gray-500 dark:text-dark-text-secondary text-center py-4">
+      <p className="text-fg-muted text-center py-4">
         {emptyMessage ?? t("common.noData", "No data available")}
       </p>
     );

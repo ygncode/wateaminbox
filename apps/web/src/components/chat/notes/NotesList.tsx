@@ -84,15 +84,13 @@ export function NotesList({
   return (
     <RightPanelSection title={title}>
       <div className="flex items-center gap-2 mb-2">
-        <Icon className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
-        <span className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-          {subtitle}
-        </span>
+        <Icon className="h-4 w-4 text-fg-subtle" />
+        <span className="text-xs text-fg-muted">{subtitle}</span>
         {notes.length > 0 && (
           <button
             type="button"
             onClick={toggleExpanded}
-            className="ms-auto text-xs text-whatsapp-teal-green hover:text-whatsapp-dark-green font-medium flex items-center gap-1"
+            className="ms-auto text-xs text-accent hover:text-accent-hover font-medium flex items-center gap-1"
           >
             {isExpanded ? (
               <>
@@ -125,12 +123,12 @@ export function NotesList({
           ))}
 
           {showAddForm ? (
-            <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-3 space-y-2">
+            <div className="rounded-lg border border-line bg-surface p-3 space-y-2">
               <textarea
                 value={newContent}
                 onChange={(e) => setNewContent(e.target.value)}
                 placeholder={placeholder}
-                className="w-full rounded-md border border-gray-300 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary p-2 text-sm focus:border-whatsapp-teal-green focus:outline-none focus:ring-1 focus:ring-whatsapp-teal-green resize-none"
+                className="w-full rounded-md border border-line-strong p-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring resize-none"
                 rows={3}
               />
               <div className="flex justify-end gap-2">
@@ -139,7 +137,6 @@ export function NotesList({
                   variant="outline"
                   onClick={handleCancel}
                   disabled={isPending}
-                  className="dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
                 >
                   Cancel
                 </Button>
@@ -147,7 +144,7 @@ export function NotesList({
                   size="sm"
                   onClick={handleCreate}
                   disabled={isPending || !newContent.trim()}
-                  className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
+                  className="bg-primary hover:bg-primary-hover"
                 >
                   {t("notes.addNote", "Add Note")}
                 </Button>
@@ -157,7 +154,7 @@ export function NotesList({
             <button
               type="button"
               onClick={() => setShowAddForm(true)}
-              className="flex items-center gap-2 w-full p-2 rounded-lg border border-dashed border-gray-300 dark:border-dark-border text-sm text-gray-500 dark:text-dark-text-secondary hover:border-gray-400 hover:text-gray-600 dark:hover:border-dark-text-tertiary dark:hover:text-dark-text-primary transition-colors"
+              className="flex items-center gap-2 w-full p-2 rounded-lg border border-dashed border-line-strong text-sm text-fg-muted hover:border-line-strong hover:text-fg-muted transition-colors"
             >
               <Plus className="h-4 w-4" />
               {addButtonText}

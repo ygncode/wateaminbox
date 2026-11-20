@@ -41,12 +41,12 @@ export function AnalyticsConsent() {
     <section
       aria-label={t("analytics.consent", "Analytics consent")}
       aria-live="polite"
-      className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-md rounded-2xl border border-[#dce3de] bg-white p-4 shadow-[0_12px_40px_rgba(16,33,27,.14)] dark:border-dark-border dark:bg-dark-elevated sm:end-6 sm:start-auto sm:mx-0"
+      className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-md rounded-2xl border border-line bg-surface p-4 shadow-lg sm:end-6 sm:start-auto sm:mx-0"
     >
       <h2 className="text-sm font-semibold">
         {t("analytics.anonymousUsage", "Anonymous usage analytics")}
       </h2>
-      <p className="mt-1.5 text-xs leading-5 text-[#65736d] dark:text-dark-text-secondary">
+      <p className="mt-1.5 text-xs leading-5 text-fg-muted">
         {t(
           "analytics.consentBody",
           "This deployment can collect anonymous page and feature usage through Google Analytics to improve the product. No messages, contacts, or account identifiers are ever sent. You can change this choice anytime in Settings under Privacy &amp; analytics.",
@@ -63,7 +63,7 @@ export function AnalyticsConsent() {
         <Button
           type="button"
           onClick={() => decide("granted")}
-          className="bg-[#0b7a55] text-white hover:bg-[#096747]"
+          className="bg-primary text-on-primary hover:bg-primary-hover"
         >
           {t("analytics.accept")}
         </Button>

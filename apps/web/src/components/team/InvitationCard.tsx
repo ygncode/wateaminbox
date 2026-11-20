@@ -22,9 +22,9 @@ export function InvitationCard({
   );
 
   return (
-    <article className="flex flex-col gap-4 rounded-xl border border-[#dce3de] bg-white p-4 dark:border-dark-border dark:bg-dark-elevated sm:flex-row sm:items-center sm:justify-between">
+    <article className="flex flex-col gap-4 rounded-xl border border-line bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 items-start gap-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#dcefe7] text-[#075c41]">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
           <Mail className="h-5 w-5" />
         </div>
         <div className="min-w-0">
@@ -40,21 +40,14 @@ export function InvitationCard({
                 {t("team.customAccess", "Custom access")}
               </Badge>
             )}
-            <Badge
-              variant="outline"
-              className="text-emerald-700 dark:text-emerald-300"
-            >
+            <Badge variant="outline" className="text-accent">
               {invitation.deliveryState || "delivered"}
             </Badge>
           </div>
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-fg-muted">
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              <span
-                className={
-                  isExpiringSoon ? "text-orange-600 dark:text-orange-400" : ""
-                }
-              >
+              <span className={isExpiringSoon ? "text-warning" : ""}>
                 Expires {expiresAt.format("MMM D, YYYY")}
               </span>
             </span>
@@ -83,7 +76,7 @@ export function InvitationCard({
           size="sm"
           onClick={onCancel}
           disabled={isCancelling}
-          className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/30"
+          className="text-danger hover:bg-danger-soft hover:text-danger"
           aria-label={t("team.cancelInvitationFor", {
             email: invitation.email,
           })}

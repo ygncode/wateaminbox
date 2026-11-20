@@ -72,7 +72,7 @@ export function FeedbackForm({
         />
         <p
           id={counterId}
-          className="text-end text-xs tabular-nums text-gray-500 dark:text-dark-text-tertiary"
+          className="text-end text-xs tabular-nums text-fg-muted"
         >
           {t("feedback.counter", "{{current}}/{{max}}", {
             current: form.draft.message.length,
@@ -99,7 +99,7 @@ export function FeedbackForm({
         {!emailInvalid && (
           <p
             id={`${idPrefix}-email-hint`}
-            className="text-xs leading-4 text-gray-500 dark:text-dark-text-tertiary"
+            className="text-xs leading-4 text-fg-muted"
           >
             {t(
               "feedback.emailHint",
@@ -115,7 +115,7 @@ export function FeedbackForm({
             <p
               id={errorId}
               role="alert"
-              className="flex items-start gap-1.5 text-xs font-medium leading-4 text-red-600 dark:text-red-400"
+              className="flex items-start gap-1.5 text-xs font-medium leading-4 text-danger"
             >
               <CircleAlert
                 aria-hidden="true"
@@ -125,7 +125,7 @@ export function FeedbackForm({
             </p>
           )}
           {showSuccess && form.submitted && !form.error && (
-            <p className="flex items-start gap-1.5 text-xs font-medium leading-4 text-[#0b7a55] dark:text-emerald-400">
+            <p className="flex items-start gap-1.5 text-xs font-medium leading-4 text-accent">
               <CircleCheck
                 aria-hidden="true"
                 className="mt-px h-3.5 w-3.5 shrink-0"

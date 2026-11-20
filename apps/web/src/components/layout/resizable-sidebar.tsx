@@ -172,15 +172,15 @@ export function ResizableSidebar({
         onKeyDown={handleKeyDown}
         className={cn(
           "group/resize absolute inset-y-0 -end-1 z-30 w-2 cursor-col-resize touch-none outline-none",
-          "focus-visible:bg-whatsapp-teal-green/15",
+          "focus-visible:bg-accent/15",
         )}
       >
         <span
           className={cn(
             "pointer-events-none absolute inset-y-0 start-1/2 w-px -translate-x-1/2 rtl:translate-x-1/2 transition-colors",
             isResizing
-              ? "bg-whatsapp-teal-green"
-              : "bg-transparent group-hover/resize:bg-whatsapp-teal-green/70 group-focus-visible/resize:bg-whatsapp-teal-green",
+              ? "bg-primary"
+              : "bg-transparent group-hover/resize:bg-accent/70 group-focus-visible/resize:bg-accent",
           )}
         />
       </div>

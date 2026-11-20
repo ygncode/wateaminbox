@@ -31,7 +31,7 @@ export function AssignmentHistorySection({
       {renderState({
         loading: () => <Skeleton className="h-12 w-full" />,
         error: () => (
-          <div className="flex items-center gap-2 text-red-400 dark:text-red-500">
+          <div className="flex items-center gap-2 text-danger">
             <History className="h-4 w-4" />
             <p className="text-sm">
               {t("contacts.assignmentHistoryError", "Failed to load history")}
@@ -39,7 +39,7 @@ export function AssignmentHistorySection({
           </div>
         ),
         empty: () => (
-          <div className="flex items-center gap-2 text-gray-400 dark:text-dark-text-tertiary">
+          <div className="flex items-center gap-2 text-fg-subtle">
             <History className="h-4 w-4" />
             <p className="text-sm italic">
               {t("contacts.assignmentHistoryEmpty", "No assignment history")}
@@ -58,38 +58,36 @@ export function AssignmentHistorySection({
                     className={cn(
                       "flex items-start gap-3 rounded-lg p-2 text-sm",
                       entry.isActive
-                        ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-                        : "bg-gray-50 dark:bg-dark-elevated",
+                        ? "bg-accent-soft border border-accent/30"
+                        : "bg-subtle",
                     )}
                   >
                     <div className="mt-0.5">
                       <History
                         className={cn(
                           "h-4 w-4",
-                          entry.isActive
-                            ? "text-green-600 dark:text-green-400"
-                            : "text-gray-400 dark:text-dark-text-tertiary",
+                          entry.isActive ? "text-accent" : "text-fg-subtle",
                         )}
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 font-medium text-gray-800 dark:text-dark-text-primary min-w-0">
+                      <div className="flex items-center gap-2 font-medium text-fg min-w-0">
                         <span className="truncate min-w-0 flex-1">
                           {entry.assignedToName}
                         </span>
                         {entry.isActive && (
                           <Badge
                             variant="secondary"
-                            className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs flex-shrink-0"
+                            className="bg-accent-soft text-accent text-xs flex-shrink-0"
                           >
                             Active
                           </Badge>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
+                      <p className="text-xs text-fg-muted">
                         Assigned by {entry.assignedByName}
                       </p>
-                      <p className="text-xs text-gray-400 dark:text-dark-text-tertiary">
+                      <p className="text-xs text-fg-subtle">
                         {dayjs(entry.assignedAt).format("MMM D")} at{" "}
                         {dayjs(entry.assignedAt).format("HH:mm")}
                         {entry.unassignedAt && (
@@ -109,7 +107,7 @@ export function AssignmentHistorySection({
                 <button
                   type="button"
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className="flex items-center gap-1 mt-2 text-xs text-whatsapp-teal-green hover:text-whatsapp-dark-green font-medium"
+                  className="flex items-center gap-1 mt-2 text-xs text-accent hover:text-accent-hover font-medium"
                 >
                   {isExpanded ? (
                     <>

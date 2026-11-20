@@ -142,10 +142,10 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
         return (
           <time
             dateTime={row.original.createdAt}
-            className="block font-mono text-[11px] leading-4 text-[#65736d] dark:text-dark-text-secondary"
+            className="block font-mono text-[11px] leading-4 text-fg-muted"
           >
             <span className="block">{occurredAt.format("MMM D, YYYY")}</span>
-            <span className="block text-[#8a9790] dark:text-dark-text-tertiary">
+            <span className="block text-fg-muted">
               {occurredAt.format("HH:mm:ss")}
             </span>
           </time>
@@ -164,10 +164,10 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
       size: 420,
       cell: ({ row }) => (
         <div>
-          <p className="max-w-xl text-[13px] font-medium leading-5 text-[#20362e] dark:text-dark-text-primary">
+          <p className="max-w-xl text-[13px] font-medium leading-5 text-fg">
             {formatAuditActivity(row.original, t)}
           </p>
-          <span className="mt-1.5 inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#718078] dark:text-dark-text-secondary">
+          <span className="mt-1.5 inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.1em] text-fg-muted">
             <span
               className={cn(
                 "h-1.5 w-1.5 rounded-full",
@@ -186,12 +186,12 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
       cell: ({ row }) =>
         row.original.entityType ? (
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-semibold text-[#31463e] dark:text-dark-text-primary">
+            <p className="truncate text-[13px] font-semibold text-fg">
               {titleCase(row.original.entityType)}
             </p>
             {row.original.entityId && (
               <p
-                className="truncate font-mono text-[10px] text-[#8a9790] dark:text-dark-text-secondary"
+                className="truncate font-mono text-[10px] text-fg-muted"
                 title={row.original.entityId}
               >
                 {shortIdentifier(row.original.entityId)}
@@ -199,7 +199,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
             )}
           </div>
         ) : (
-          <span className="text-[#718078]">—</span>
+          <span className="text-fg-muted">—</span>
         ),
     },
     {
@@ -207,7 +207,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
       header: t("audit.ipAddressLabel", "IP address"),
       size: 135,
       cell: ({ row }) => (
-        <span className="font-mono text-xs text-[#65736d] dark:text-dark-text-secondary">
+        <span className="font-mono text-xs text-fg-muted">
           {row.original.ipAddress || "—"}
         </span>
       ),
@@ -235,7 +235,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                 ? t("audit.hideDetails", "Hide audit event details")
                 : t("audit.viewDetails", "View audit event details")
             }
-            className="h-8 w-8 rounded-full text-[#65736d] hover:bg-[#e8f1ec] hover:text-[#075c41]"
+            className="h-8 w-8 rounded-full text-fg-muted hover:bg-muted hover:text-accent"
           >
             <ChevronRight
               className={cn(
@@ -282,10 +282,10 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary">
-      <header className="shrink-0 border-b border-[#dce3de] bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-subtle">
+      <header className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/60 dark:text-emerald-300">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
             <ShieldCheck className="h-4.5 w-4.5" />
           </div>
           <div className="min-w-0">
@@ -300,7 +300,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                 })}
               </Badge>
             </div>
-            <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
+            <p className="mt-1 text-xs text-fg-muted">
               {t(
                 "audit.subtitle",
                 "Security and workspace activity, newest first.",
@@ -319,14 +319,14 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
           onPaginationChange={setPagination}
           toolbarLeading={
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[#d7e0da] bg-white text-[#0b7a55] dark:border-dark-border dark:bg-dark-elevated dark:text-emerald-300">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-line bg-surface text-accent">
                 <Activity className="h-3.5 w-3.5" />
               </span>
               <div className="min-w-0">
-                <p className="truncate text-xs font-semibold text-[#31463e] dark:text-dark-text-primary">
+                <p className="truncate text-xs font-semibold text-fg">
                   {t("audit.activityStream", "Activity stream")}
                 </p>
-                <p className="hidden truncate text-[10px] text-[#7a8881] sm:block dark:text-dark-text-secondary">
+                <p className="hidden truncate text-[10px] text-fg-muted sm:block">
                   {t(
                     "audit.activityStreamHint",
                     "Select an event to inspect its metadata.",
@@ -336,29 +336,28 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
             </div>
           }
           toolbarActions={
-            <div className="flex items-center gap-0.5 rounded-lg border border-[#d7e0da] bg-white p-0.5 shadow-sm dark:border-dark-border dark:bg-dark-elevated">
+            <div className="flex items-center gap-0.5 rounded-lg border border-line bg-surface p-0.5 shadow-sm">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowFilters((current) => !current)}
                 className={cn(
                   "h-8 rounded-md px-2.5 text-xs",
-                  showFilters &&
-                    "bg-[#e8f1ec] text-[#075c41] dark:bg-dark-tertiary dark:text-emerald-300",
+                  showFilters && "bg-muted text-accent",
                 )}
                 aria-expanded={showFilters}
               >
                 <Filter className="me-1.5 h-3.5 w-3.5" />
                 {t("audit.filters")}
                 {activeFilterCount > 0 && (
-                  <span className="ms-1.5 grid min-w-4 place-items-center rounded-full bg-[#0b7a55] px-1 py-0.5 text-[9px] font-bold leading-none text-white">
+                  <span className="ms-1.5 grid min-w-4 place-items-center rounded-full bg-primary px-1 py-0.5 text-[9px] font-bold leading-none text-on-primary">
                     {activeFilterCount}
                   </span>
                 )}
               </Button>
               {canExport && (
                 <>
-                  <span className="mx-0.5 h-5 w-px bg-[#e1e7e3] dark:bg-dark-border" />
+                  <span className="mx-0.5 h-5 w-px bg-muted-strong" />
                   <Button
                     variant="ghost"
                     size="sm"
@@ -383,10 +382,10 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
               <div>
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold text-[#31463e] dark:text-dark-text-primary">
+                    <p className="text-xs font-semibold text-fg">
                       {t("audit.filterTitle", "Filter audit events")}
                     </p>
-                    <p className="text-[11px] text-[#718078] dark:text-dark-text-secondary">
+                    <p className="text-[11px] text-fg-muted">
                       {t(
                         "audit.filterHint",
                         "Filters are applied on the server.",
@@ -398,7 +397,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                       variant="ghost"
                       size="sm"
                       onClick={clearFilters}
-                      className="h-8 text-[#0b7a55]"
+                      className="h-8 text-accent"
                     >
                       {t("audit.clearAll", "Clear all")}
                     </Button>
@@ -447,7 +446,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                       </SelectItem>
                     ))}
                   </FilterSelect>
-                  <label className="text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+                  <label className="text-xs font-medium text-fg-muted">
                     {t("audit.from", "From")}
                     <Input
                       type="date"
@@ -458,7 +457,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
                       className="mt-1 h-9"
                     />
                   </label>
-                  <label className="text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+                  <label className="text-xs font-medium text-fg-muted">
                     {t("audit.to", "To")}
                     <Input
                       type="date"
@@ -518,7 +517,7 @@ function FilterSelect({
   children: React.ReactNode;
 }) {
   return (
-    <label className="text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+    <label className="text-xs font-medium text-fg-muted">
       {label}
       <Select
         value={value || EMPTY_SELECT_VALUE}
@@ -551,18 +550,16 @@ function Actor({ actor }: { actor: AuditLogType["actor"] }) {
   return (
     <div className="flex min-w-0 items-center gap-2.5">
       <Avatar className="h-8 w-8">
-        <AvatarFallback className="bg-[#e8f1ec] text-[10px] font-bold text-[#075c41] dark:bg-emerald-950/50 dark:text-emerald-300">
+        <AvatarFallback className="bg-muted text-[10px] font-bold text-accent">
           {initials || <Activity className="h-3.5 w-3.5" />}
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0">
-        <p className="truncate text-[13px] font-semibold text-[#31463e] dark:text-dark-text-primary">
+        <p className="truncate text-[13px] font-semibold text-fg">
           {displayName}
         </p>
         {actor?.name && (
-          <p className="truncate text-[10px] text-[#718078] dark:text-dark-text-secondary">
-            {actor.email}
-          </p>
+          <p className="truncate text-[10px] text-fg-muted">{actor.email}</p>
         )}
       </div>
     </div>
@@ -600,13 +597,13 @@ function AuditDetails({ log, t }: { log: AuditLogType; t: TFunction }) {
         ))}
       </dl>
       {log.details && (
-        <details className="text-xs text-[#65736d] dark:text-dark-text-secondary">
+        <details className="text-xs text-fg-muted">
           <summary className="cursor-pointer font-medium">
             {t("audit.rawEventData", "Raw event data")}
           </summary>
           <pre
             dir="ltr"
-            className="mt-2 max-h-52 overflow-auto rounded-lg bg-[#edf1ed] p-3 dark:bg-dark-primary"
+            className="mt-2 max-h-52 overflow-auto rounded-lg bg-muted p-3"
           >
             {JSON.stringify(Object.fromEntries(details), null, 2)}
           </pre>
@@ -627,9 +624,7 @@ function Detail({
 }) {
   return (
     <div>
-      <dt className="text-xs text-[#65736d] dark:text-dark-text-secondary">
-        {label}
-      </dt>
+      <dt className="text-xs text-fg-muted">{label}</dt>
       <dd
         className={cn(
           "mt-0.5 break-words font-medium",
@@ -760,19 +755,19 @@ function auditActionDot(action: AuditAction): string {
   const category = action.split(".")[0];
   switch (category) {
     case "invitation":
-      return "bg-emerald-500";
+      return "bg-primary";
     case "member":
-      return "bg-amber-500";
+      return "bg-warning";
     case "contact":
-      return "bg-cyan-500";
+      return "bg-id-1";
     case "conversation":
-      return "bg-blue-500";
+      return "bg-info";
     case "message":
-      return "bg-violet-500";
+      return "bg-id-3";
     case "company":
-      return "bg-teal-500";
+      return "bg-id-6";
     default:
-      return "bg-slate-400";
+      return "bg-fg-subtle";
   }
 }
 

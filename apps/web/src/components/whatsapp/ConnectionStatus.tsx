@@ -10,12 +10,12 @@ import { useTranslation } from "react-i18next";
  */
 export function StatusIndicator({ state }: { state: WhatsAppConnectionState }) {
   const colors: Record<WhatsAppConnectionState, string> = {
-    disconnected: "bg-gray-400",
-    connecting: "bg-yellow-400 animate-pulse",
-    waiting_qr: "bg-yellow-400 animate-pulse",
-    scanning: "bg-blue-400 animate-pulse",
-    connected: "bg-green-500",
-    error: "bg-red-500",
+    disconnected: "bg-fg-subtle",
+    connecting: "bg-warning animate-pulse",
+    waiting_qr: "bg-warning animate-pulse",
+    scanning: "bg-info animate-pulse",
+    connected: "bg-primary",
+    error: "bg-danger",
   };
 
   return <div className={cn("w-2 h-2 rounded-full", colors[state])} />;

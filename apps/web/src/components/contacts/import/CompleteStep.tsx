@@ -10,44 +10,42 @@ export function CompleteStep({ result }: CompleteStepProps) {
     <div className="space-y-6">
       {/* Result summary */}
       <div className="text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full mb-4">
-          <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-accent-soft rounded-full mb-4">
+          <Check className="h-8 w-8 text-accent" />
         </div>
-        <h3 className="text-xl font-semibold text-gray-900 dark:text-dark-text-primary">
+        <h3 className="text-xl font-semibold text-fg">
           {t("contacts.importComplete", "Import Complete")}
         </h3>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-green-50 dark:bg-green-900/30 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+        <div className="bg-accent-soft rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-accent">
             {result.summary.created}
           </div>
-          <div className="text-sm text-green-600 dark:text-green-400">
+          <div className="text-sm text-accent">
             {t("contacts.createdCount")}
           </div>
         </div>
-        <div className="bg-blue-50 dark:bg-blue-900/30 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+        <div className="bg-info-soft rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-info">
             {result.summary.updated}
           </div>
-          <div className="text-sm text-blue-600 dark:text-blue-400">
-            {t("contacts.updatedCount")}
-          </div>
+          <div className="text-sm text-info">{t("contacts.updatedCount")}</div>
         </div>
-        <div className="bg-gray-50 dark:bg-dark-tertiary rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-gray-600 dark:text-dark-text-secondary">
+        <div className="bg-subtle rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-fg-muted">
             {result.summary.skipped}
           </div>
-          <div className="text-sm text-gray-600 dark:text-dark-text-secondary">
+          <div className="text-sm text-fg-muted">
             {t("contacts.skippedCount")}
           </div>
         </div>
-        <div className="bg-red-50 dark:bg-red-900/30 rounded-lg p-4 text-center">
-          <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+        <div className="bg-danger-soft rounded-lg p-4 text-center">
+          <div className="text-2xl font-bold text-danger">
             {result.summary.errors}
           </div>
-          <div className="text-sm text-red-600 dark:text-red-400">
+          <div className="text-sm text-danger">
             {t("contacts.errorsLabel", "Errors")}
           </div>
         </div>
@@ -55,8 +53,8 @@ export function CompleteStep({ result }: CompleteStepProps) {
 
       {/* Error details */}
       {result.summary.errors > 0 && (
-        <div className="border border-red-200 dark:border-red-800 rounded-lg overflow-hidden">
-          <div className="bg-red-50 dark:bg-red-900/30 px-4 py-2 font-medium text-red-700 dark:text-red-400">
+        <div className="border border-danger/30 rounded-lg overflow-hidden">
+          <div className="bg-danger-soft px-4 py-2 font-medium text-danger">
             {t("contacts.errorsCount", { count: result.summary.errors })}
           </div>
           <div className="max-h-40 overflow-y-auto">
@@ -65,7 +63,7 @@ export function CompleteStep({ result }: CompleteStepProps) {
               .map((r) => (
                 <div
                   key={r.row}
-                  className="px-4 py-2 border-t border-red-100 dark:border-red-900 text-sm flex justify-between text-gray-700 dark:text-dark-text-primary"
+                  className="px-4 py-2 border-t border-danger/30 text-sm flex justify-between text-fg"
                 >
                   <span>
                     {t("contacts.rowPhone", {
@@ -73,9 +71,7 @@ export function CompleteStep({ result }: CompleteStepProps) {
                       phone: formatPhoneNumber(r.phoneNumber),
                     })}
                   </span>
-                  <span className="text-red-600 dark:text-red-400">
-                    {r.error}
-                  </span>
+                  <span className="text-danger">{r.error}</span>
                 </div>
               ))}
           </div>

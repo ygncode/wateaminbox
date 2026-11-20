@@ -133,7 +133,7 @@ function BroadcastStepProgress({ currentStep }: { currentStep: WizardStep }) {
 
   return (
     <nav
-      className="border-b border-[#e3e9e5] bg-[#fbfcfb] px-4 py-2.5 dark:border-dark-border dark:bg-dark-secondary/45 sm:px-6"
+      className="border-b border-line bg-subtle px-4 py-2.5 sm:px-6"
       aria-label={t(
         "broadcasts.creationProgress",
         "Broadcast creation progress",
@@ -150,9 +150,7 @@ function BroadcastStepProgress({ currentStep }: { currentStep: WizardStep }) {
                 <span
                   className={cn(
                     "absolute end-1/2 top-3.5 h-px w-full -translate-y-1/2",
-                    index <= currentIndex
-                      ? "bg-[#7db69f] dark:bg-emerald-700"
-                      : "bg-[#d7e0da] dark:bg-dark-border",
+                    index <= currentIndex ? "bg-fg-subtle" : "bg-muted-strong",
                   )}
                   aria-hidden="true"
                 />
@@ -162,12 +160,12 @@ function BroadcastStepProgress({ currentStep }: { currentStep: WizardStep }) {
                   className={cn(
                     "grid h-7 w-7 place-items-center rounded-lg border text-[10px] font-bold transition-colors",
                     isComplete &&
-                      "border-[#8fc1aa] bg-[#e2f1e9] text-[#087654] dark:border-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300",
+                      "border-line-strong bg-accent-soft text-accent",
                     isCurrent &&
-                      "border-[#0b7a55] bg-[#0b7a55] text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-600",
+                      "border-accent bg-primary text-on-primary shadow-sm",
                     !isComplete &&
                       !isCurrent &&
-                      "border-[#d7e0da] bg-white text-[#8a9790] dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-tertiary",
+                      "border-line bg-surface text-fg-muted",
                   )}
                 >
                   {isComplete ? (
@@ -179,9 +177,7 @@ function BroadcastStepProgress({ currentStep }: { currentStep: WizardStep }) {
                 <span
                   className={cn(
                     "mt-1.5 max-w-full truncate text-[10px] font-semibold",
-                    isCurrent || isComplete
-                      ? "text-[#31463e] dark:text-dark-text-primary"
-                      : "text-[#8a9790] dark:text-dark-text-tertiary",
+                    isCurrent || isComplete ? "text-fg" : "text-fg-muted",
                   )}
                 >
                   {t(item.labelKey ?? item.label, item.label)}
@@ -513,10 +509,10 @@ export function CreateBroadcastWizard({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="mx-3 flex max-h-[94dvh] w-[calc(100vw-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden rounded-2xl border-[#d7e0da] p-0 shadow-2xl dark:border-dark-border sm:w-full">
-        <DialogHeader className="border-b border-[#e3e9e5] bg-white px-5 py-4 pe-12 text-start dark:border-dark-border dark:bg-dark-elevated sm:px-6">
+      <DialogContent className="mx-3 flex max-h-[94dvh] w-[calc(100vw-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden rounded-2xl border-line p-0 shadow-2xl sm:w-full">
+        <DialogHeader className="border-b border-line bg-surface px-5 py-4 pe-12 text-start sm:px-6">
           <div className="flex items-center gap-3">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/60 dark:text-emerald-300">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
               <Megaphone className="h-4.5 w-4.5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
@@ -524,7 +520,7 @@ export function CreateBroadcastWizard({
                 <DialogTitle className="text-base">
                   {t("broadcasts.newBroadcast", "New broadcast")}
                 </DialogTitle>
-                <span className="rounded-full bg-[#edf2ef] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#65736d] dark:bg-dark-tertiary dark:text-dark-text-secondary">
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-fg-muted">
                   {t("broadcasts.stepOf", {
                     defaultValue: "Step {{current}} of {{total}}",
                     current:
@@ -545,7 +541,7 @@ export function CreateBroadcastWizard({
 
         <BroadcastStepProgress currentStep={step} />
 
-        <div className="flex-1 overflow-y-auto bg-[#f8faf8] px-4 py-5 dark:bg-dark-primary/45 sm:px-6 sm:py-6">
+        <div className="flex-1 overflow-y-auto bg-subtle px-4 py-5 sm:px-6 sm:py-6">
           <div className="mx-auto max-w-3xl">
             <StepWizard
               steps={WIZARD_STEPS}
@@ -555,14 +551,14 @@ export function CreateBroadcastWizard({
               {/* Step 1 — Audience */}
               <StepContent stepId="audience" currentStep={step}>
                 <div className="space-y-5">
-                  <div className="border-b border-[#e3e9e5] pb-4 dark:border-dark-border">
-                    <h3 className="text-sm font-semibold text-[#20362e] dark:text-dark-text-primary">
+                  <div className="border-b border-line pb-4">
+                    <h3 className="text-sm font-semibold text-fg">
                       {t(
                         "broadcasts.audienceTitle",
                         "Choose who should receive this",
                       )}
                     </h3>
-                    <p className="mt-1 text-xs leading-5 text-[#718078] dark:text-dark-text-secondary">
+                    <p className="mt-1 text-xs leading-5 text-fg-muted">
                       {t(
                         "broadcasts.audienceHint",
                         "Combine tags and individual contacts. Duplicates are removed before scheduling.",
@@ -570,10 +566,10 @@ export function CreateBroadcastWizard({
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary">
+                    <p className="text-sm font-medium text-fg">
                       {t("tags.title", "Tags")}
                     </p>
-                    <p className="mt-0.5 text-xs text-[#667781] dark:text-dark-text-tertiary">
+                    <p className="mt-0.5 text-xs text-fg-muted">
                       {t(
                         "broadcasts.tagsHint",
                         "Every contact carrying a selected tag is included.",
@@ -586,11 +582,11 @@ export function CreateBroadcastWizard({
                     />
                     <div className="mt-2 flex max-h-36 flex-wrap gap-1.5 overflow-y-auto">
                       {tagsLoading ? (
-                        <span className="text-sm text-[#667781] dark:text-dark-text-secondary">
+                        <span className="text-sm text-fg-muted">
                           {t("broadcasts.loadingTags", "Loading tags…")}
                         </span>
                       ) : !tags || tags.length === 0 ? (
-                        <span className="text-sm text-[#667781] dark:text-dark-text-secondary">
+                        <span className="text-sm text-fg-muted">
                           {debouncedTagSearch
                             ? t("broadcasts.noTagsMatch", {
                                 query: debouncedTagSearch,
@@ -621,10 +617,10 @@ export function CreateBroadcastWizard({
                                   : undefined
                               }
                               className={cn(
-                                "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 disabled:cursor-not-allowed disabled:opacity-45",
+                                "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-45",
                                 isSelected
-                                  ? "border-[#00a884] bg-[#00a884]/10 text-[#008069] dark:border-emerald-500 dark:bg-emerald-900/30 dark:text-emerald-300"
-                                  : "border-black/[0.08] text-[#54656f] hover:bg-[#f0f2f5] dark:border-white/[0.1] dark:text-dark-text-secondary dark:hover:bg-white/[0.06]",
+                                  ? "border-accent bg-accent/10 text-accent"
+                                  : "border-line/[0.08] text-fg-muted hover:bg-muted",
                               )}
                             >
                               {isSelected && (
@@ -639,10 +635,10 @@ export function CreateBroadcastWizard({
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary">
+                    <p className="text-sm font-medium text-fg">
                       {t("chat.contacts", "Contacts")}
                     </p>
-                    <p className="mt-0.5 mb-2 text-xs text-[#667781] dark:text-dark-text-tertiary">
+                    <p className="mt-0.5 mb-2 text-xs text-fg-muted">
                       {t(
                         "broadcasts.contactsHint",
                         "Add individual contacts on top of any tags.",
@@ -658,7 +654,7 @@ export function CreateBroadcastWizard({
                     <div>
                       <Label
                         htmlFor="broadcast-connection"
-                        className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary"
+                        className="text-sm font-medium text-fg"
                       >
                         {t("connections.whatsappAccount", "WhatsApp account")}
                       </Label>
@@ -692,12 +688,12 @@ export function CreateBroadcastWizard({
                   )}
 
                   <div
-                    className="flex items-center justify-between gap-3 rounded-xl border border-[#cfe1d7] bg-[#edf6f1] px-3.5 py-2.5 dark:border-emerald-900 dark:bg-emerald-950/30"
+                    className="flex items-center justify-between gap-3 rounded-xl border border-line bg-subtle px-3.5 py-2.5"
                     aria-live="polite"
                   >
-                    <span className="flex items-center gap-2 text-xs font-semibold text-[#52675f] dark:text-dark-text-secondary">
+                    <span className="flex items-center gap-2 text-xs font-semibold text-fg-muted">
                       <UsersRound
-                        className="h-4 w-4 text-[#0b7a55] dark:text-emerald-300"
+                        className="h-4 w-4 text-accent"
                         aria-hidden="true"
                       />
                       {t(
@@ -705,7 +701,7 @@ export function CreateBroadcastWizard({
                         "Audience definition",
                       )}
                     </span>
-                    <span className="text-xs font-bold tabular-nums text-[#087654] dark:text-emerald-300">
+                    <span className="text-xs font-bold tabular-nums text-accent">
                       {t("broadcasts.audienceCounts", {
                         defaultValue:
                           "{{tags}} tag(s) · {{contacts}} contact(s)",
@@ -720,11 +716,11 @@ export function CreateBroadcastWizard({
               {/* Step 2 — Message */}
               <StepContent stepId="message" currentStep={step}>
                 <div className="space-y-5">
-                  <div className="border-b border-[#e3e9e5] pb-4 dark:border-dark-border">
-                    <h3 className="text-sm font-semibold text-[#20362e] dark:text-dark-text-primary">
+                  <div className="border-b border-line pb-4">
+                    <h3 className="text-sm font-semibold text-fg">
                       {t("broadcasts.composeTitle", "Compose the campaign")}
                     </h3>
-                    <p className="mt-1 text-xs leading-5 text-[#718078] dark:text-dark-text-secondary">
+                    <p className="mt-1 text-xs leading-5 text-fg-muted">
                       {t(
                         "broadcasts.composeHint",
                         "Give it an internal name, then write the message recipients will see.",
@@ -734,7 +730,7 @@ export function CreateBroadcastWizard({
                   <div>
                     <Label
                       htmlFor="broadcast-name"
-                      className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary"
+                      className="text-sm font-medium text-fg"
                     >
                       {t("broadcasts.name", "Broadcast name")}
                     </Label>
@@ -755,11 +751,11 @@ export function CreateBroadcastWizard({
                     <div className="flex items-center justify-between">
                       <Label
                         htmlFor="broadcast-content"
-                        className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary"
+                        className="text-sm font-medium text-fg"
                       >
                         {t("broadcasts.steps.message")}
                       </Label>
-                      <span className="text-xs tabular-nums text-[#667781] dark:text-dark-text-tertiary">
+                      <span className="text-xs tabular-nums text-fg-muted">
                         {t("broadcasts.characterCount", {
                           count: content.length,
                         })}
@@ -781,7 +777,7 @@ export function CreateBroadcastWizard({
                       className="mt-1.5"
                     />
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs text-[#667781] dark:text-dark-text-tertiary">
+                      <span className="text-xs text-fg-muted">
                         {t("broadcasts.insert")}
                       </span>
                       <Button
@@ -801,17 +797,14 @@ export function CreateBroadcastWizard({
                         {"{{firstName}}"}
                       </Button>
                     </div>
-                    <p className="mt-1.5 text-xs text-[#667781] dark:text-dark-text-tertiary">
+                    <p className="mt-1.5 text-xs text-fg-muted">
                       {t("broadcasts.tokensExplain", {
                         nameToken: "{{name}}",
                         firstNameToken: "{{firstName}}",
                       })}
                     </p>
                     {unknownTokens.length > 0 && (
-                      <p
-                        className="mt-1.5 text-xs text-red-600 dark:text-red-400"
-                        role="alert"
-                      >
+                      <p className="mt-1.5 text-xs text-danger" role="alert">
                         {t("broadcasts.unsupportedTokens", {
                           count: unknownTokens.length,
                           tokens: unknownTokens
@@ -825,9 +818,9 @@ export function CreateBroadcastWizard({
                   </div>
 
                   <div>
-                    <p className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary">
+                    <p className="text-sm font-medium text-fg">
                       {t("broadcasts.attachment", "Attachment")}{" "}
-                      <span className="font-normal text-[#667781] dark:text-dark-text-tertiary">
+                      <span className="font-normal text-fg-muted">
                         {t("broadcasts.attachmentHint", "(optional, max 50MB)")}
                       </span>
                     </p>
@@ -841,7 +834,7 @@ export function CreateBroadcastWizard({
                       tabIndex={-1}
                     />
                     {attachment ? (
-                      <div className="mt-2 flex items-center gap-3 rounded-xl border border-black/[0.06] p-3 dark:border-white/[0.07]">
+                      <div className="mt-2 flex items-center gap-3 rounded-xl border border-line/[0.06] p-3">
                         {attachment.previewUrl ? (
                           <img
                             src={attachment.previewUrl}
@@ -853,7 +846,7 @@ export function CreateBroadcastWizard({
                           />
                         ) : (
                           AttachmentIcon && (
-                            <span className="grid size-12 shrink-0 place-items-center rounded-lg bg-[#00a884]/10 text-[#008069] dark:bg-emerald-900/30 dark:text-emerald-300">
+                            <span className="grid size-12 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent">
                               <AttachmentIcon
                                 className="size-6"
                                 aria-hidden="true"
@@ -862,10 +855,10 @@ export function CreateBroadcastWizard({
                           )
                         )}
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-[#111b21] dark:text-dark-text-primary">
+                          <p className="truncate text-sm font-medium text-fg">
                             {attachment.file.name}
                           </p>
-                          <p className="text-xs text-[#667781] dark:text-dark-text-tertiary">
+                          <p className="text-xs text-fg-muted">
                             {t("broadcasts.sentWithEveryMessage", {
                               size: formatBytes(attachment.file.size),
                             })}
@@ -908,10 +901,10 @@ export function CreateBroadcastWizard({
                 {previewMutation.isPending ? (
                   <div className="flex flex-col items-center py-12">
                     <Loader2
-                      className="size-6 animate-spin text-[#00a884]"
+                      className="size-6 animate-spin text-accent"
                       aria-hidden="true"
                     />
-                    <p className="mt-3 text-sm text-[#667781] dark:text-dark-text-secondary">
+                    <p className="mt-3 text-sm text-fg-muted">
                       {t(
                         "broadcasts.calculatingAudience",
                         "Calculating audience…",
@@ -919,14 +912,12 @@ export function CreateBroadcastWizard({
                     </p>
                   </div>
                 ) : previewError ? (
-                  <div className="flex flex-col items-center rounded-xl border border-red-200 bg-red-50 px-6 py-8 text-center dark:border-red-800 dark:bg-red-900/20">
+                  <div className="flex flex-col items-center rounded-xl border border-danger/30 bg-danger-soft px-6 py-8 text-center">
                     <AlertTriangle
-                      className="size-6 text-red-500 dark:text-red-400"
+                      className="size-6 text-danger"
                       aria-hidden="true"
                     />
-                    <p className="mt-2 text-sm text-red-700 dark:text-red-300">
-                      {previewError}
-                    </p>
+                    <p className="mt-2 text-sm text-danger">{previewError}</p>
                     <Button
                       variant="outline"
                       size="sm"
@@ -941,12 +932,12 @@ export function CreateBroadcastWizard({
                   <div className="space-y-4">
                     <div className="flex flex-wrap items-end justify-between gap-3">
                       <div>
-                        <p className="text-2xl font-semibold text-[#111b21] dark:text-dark-text-primary">
+                        <p className="text-2xl font-semibold text-fg">
                           {t("broadcasts.recipientCount", {
                             count: preview.recipientCount,
                           })}
                         </p>
-                        <p className="mt-0.5 text-sm text-[#667781] dark:text-dark-text-secondary">
+                        <p className="mt-0.5 text-sm text-fg-muted">
                           {t("broadcasts.estimatedSendTime", {
                             duration: humanizeDuration(
                               preview.estimatedDurationSeconds,
@@ -967,7 +958,7 @@ export function CreateBroadcastWizard({
                     </div>
 
                     {preview.recipientCount === 0 && (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                      <div className="rounded-xl border border-warning/30 bg-warning-soft p-3 text-sm text-warning">
                         {t(
                           "broadcasts.noEligibleRecipients",
                           "No eligible recipients. Adjust the audience and try again.",
@@ -977,7 +968,7 @@ export function CreateBroadcastWizard({
 
                     {overMaxRecipients && (
                       <div
-                        className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-300"
+                        className="rounded-xl border border-danger/30 bg-danger-soft p-3 text-sm text-danger"
                         role="alert"
                       >
                         {t("broadcasts.overMaxRecipients", {
@@ -987,7 +978,7 @@ export function CreateBroadcastWizard({
                     )}
 
                     {overDailyCap && (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                      <div className="rounded-xl border border-warning/30 bg-warning-soft p-3 text-sm text-warning">
                         {t("broadcasts.overDailyCap", {
                           cap: preview.limits.dailyCapPerConnection,
                         })}
@@ -995,24 +986,24 @@ export function CreateBroadcastWizard({
                     )}
 
                     {preview.perConnection.length > 0 && (
-                      <div className="rounded-xl border border-black/[0.06] dark:border-white/[0.07]">
-                        <p className="border-b border-black/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#667781] dark:border-white/[0.07] dark:text-dark-text-tertiary">
+                      <div className="rounded-xl border border-line/[0.06]">
+                        <p className="border-b border-line/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-muted">
                           {t("broadcasts.byAccount", "By account")}
                         </p>
-                        <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+                        <ul className="divide-y divide-line/[0.04]">
                           {preview.perConnection.map((connection) => (
                             <li
                               key={connection.connectionId}
                               className="flex items-center justify-between px-4 py-2.5 text-sm"
                             >
-                              <span className="text-[#111b21] dark:text-dark-text-primary">
+                              <span className="text-fg">
                                 {connection.connectionName ||
                                   t(
                                     "broadcasts.unknownAccount",
                                     "Unknown account",
                                   )}
                               </span>
-                              <span className="tabular-nums text-[#667781] dark:text-dark-text-secondary">
+                              <span className="tabular-nums text-fg-muted">
                                 {connection.recipientCount}
                               </span>
                             </li>
@@ -1022,23 +1013,23 @@ export function CreateBroadcastWizard({
                     )}
 
                     {preview.skippedCount > 0 && (
-                      <div className="rounded-xl border border-black/[0.06] dark:border-white/[0.07]">
-                        <p className="border-b border-black/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-[#667781] dark:border-white/[0.07] dark:text-dark-text-tertiary">
+                      <div className="rounded-xl border border-line/[0.06]">
+                        <p className="border-b border-line/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-muted">
                           {t("broadcasts.skippedCount", {
                             count: preview.skippedCount,
                           })}
                         </p>
-                        <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+                        <ul className="divide-y divide-line/[0.04]">
                           {Object.entries(preview.skippedByReason).map(
                             ([reason, count]) => (
                               <li
                                 key={reason}
                                 className="flex items-center justify-between px-4 py-2.5 text-sm"
                               >
-                                <span className="text-[#111b21] dark:text-dark-text-primary">
+                                <span className="text-fg">
                                   {humanizeSkipReason(reason)}
                                 </span>
-                                <span className="tabular-nums text-[#667781] dark:text-dark-text-secondary">
+                                <span className="tabular-nums text-fg-muted">
                                   {count}
                                 </span>
                               </li>
@@ -1050,10 +1041,10 @@ export function CreateBroadcastWizard({
 
                     {content.trim() && (
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-[#667781] dark:text-dark-text-tertiary">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
                           {t("broadcasts.sampleMessage", "Sample message")}
                         </p>
-                        <div className="mt-2 max-w-md rounded-xl rounded-ss-sm bg-[#d9fdd3] p-3 text-sm text-[#111b21] shadow-sm dark:bg-emerald-900/40 dark:text-dark-text-primary">
+                        <div className="mt-2 max-w-md rounded-xl rounded-ss-sm bg-accent-soft p-3 text-sm text-fg shadow-sm">
                           <p className="whitespace-pre-wrap">
                             {personalizeSample(content, sampleName)}
                           </p>
@@ -1068,7 +1059,7 @@ export function CreateBroadcastWizard({
               <StepContent stepId="schedule" currentStep={step}>
                 <div className="space-y-5">
                   <div>
-                    <p className="text-sm font-medium text-[#111b21] dark:text-dark-text-primary">
+                    <p className="text-sm font-medium text-fg">
                       {t(
                         "broadcasts.whenToStart",
                         "When should sending start?",
@@ -1085,14 +1076,14 @@ export function CreateBroadcastWizard({
                             );
                             setScheduleError(null);
                           }}
-                          className="rounded-full border border-black/[0.08] px-2.5 py-1 text-xs font-medium text-[#54656f] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:border-white/[0.1] dark:text-dark-text-secondary dark:hover:bg-white/[0.06]"
+                          className="rounded-full border border-line/[0.08] px-2.5 py-1 text-xs font-medium text-fg-muted transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
                         >
                           {t(preset.labelKey, preset.label)}
                         </button>
                       ))}
                     </div>
                     <label className="mt-3 block max-w-xs">
-                      <span className="text-xs font-medium text-[#667781] dark:text-dark-text-tertiary">
+                      <span className="text-xs font-medium text-fg-muted">
                         {t("broadcasts.sendAt", {
                           defaultValue: "Send at ({{timezone}})",
                           timezone:
@@ -1107,7 +1098,7 @@ export function CreateBroadcastWizard({
                           setScheduleValue(event.target.value);
                           setScheduleError(null);
                         }}
-                        className="mt-1 block w-full rounded-lg border border-black/[0.1] bg-white px-2.5 py-1.5 text-sm text-[#111b21] outline-none focus:border-[#00a884] focus:ring-1 focus:ring-[#00a884]/40 dark:border-white/[0.1] dark:bg-dark-tertiary dark:text-dark-text-primary"
+                        className="mt-1 block w-full rounded-lg border border-line/[0.1] bg-surface px-2.5 py-1.5 text-sm text-fg outline-none focus:border-accent focus:ring-1 focus:ring-ring/40"
                         aria-label={t(
                           "broadcasts.startTime",
                           "Broadcast start time",
@@ -1115,17 +1106,14 @@ export function CreateBroadcastWizard({
                       />
                     </label>
                     {scheduleError && (
-                      <p
-                        className="mt-1.5 text-xs text-red-600 dark:text-red-400"
-                        role="alert"
-                      >
+                      <p className="mt-1.5 text-xs text-danger" role="alert">
                         {scheduleError}
                       </p>
                     )}
                   </div>
 
                   {preview && (
-                    <p className="text-sm text-[#111b21] dark:text-dark-text-primary">
+                    <p className="text-sm text-fg">
                       <Trans
                         i18nKey="broadcasts.sendSummary"
                         count={preview.recipientCount}
@@ -1145,20 +1133,20 @@ export function CreateBroadcastWizard({
                     </p>
                   )}
 
-                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-900/20">
+                  <div className="rounded-xl border border-warning/30 bg-warning-soft p-4">
                     <div className="flex gap-3">
                       <AlertTriangle
-                        className="size-5 shrink-0 text-amber-600 dark:text-amber-400"
+                        className="size-5 shrink-0 text-warning"
                         aria-hidden="true"
                       />
                       <div>
-                        <p className="text-sm font-semibold text-amber-900 dark:text-amber-300">
+                        <p className="text-sm font-semibold text-warning">
                           {t(
                             "broadcasts.riskTitle",
                             "Bulk messaging can get your number banned",
                           )}
                         </p>
-                        <p className="mt-1 text-sm text-amber-800 dark:text-amber-300/90">
+                        <p className="mt-1 text-sm text-warning">
                           {t(
                             "broadcasts.riskBody",
                             "WhatsApp actively enforces against bulk and automated messaging. Sends are paced and capped daily to reduce the risk, but it is never zero. Only message people who expect to hear from you.",
@@ -1168,7 +1156,7 @@ export function CreateBroadcastWizard({
                     </div>
                     <label
                       htmlFor="broadcast-risk"
-                      className="mt-3 flex cursor-pointer items-center gap-2.5 text-sm font-medium text-amber-900 dark:text-amber-300"
+                      className="mt-3 flex cursor-pointer items-center gap-2.5 text-sm font-medium text-warning"
                     >
                       <Checkbox
                         id="broadcast-risk"
@@ -1186,7 +1174,7 @@ export function CreateBroadcastWizard({
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t border-[#d7e0da] bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-elevated sm:px-6">
+        <div className="flex items-center justify-between border-t border-line bg-surface px-4 py-3 sm:px-6">
           <div>
             {step !== "audience" && (
               <Button
@@ -1204,7 +1192,7 @@ export function CreateBroadcastWizard({
               size="sm"
               onClick={handleSubmit}
               disabled={!riskAccepted || submitting || !preview}
-              className="gap-2 bg-[#0b7a55] text-white shadow-sm hover:bg-[#096747]"
+              className="gap-2 bg-primary text-on-primary shadow-sm hover:bg-primary-hover"
             >
               {submitting && (
                 <Loader2 className="animate-spin" aria-hidden="true" />
@@ -1215,7 +1203,7 @@ export function CreateBroadcastWizard({
             <Button
               size="sm"
               onClick={handleNext}
-              className="bg-[#0b7a55] text-white shadow-sm hover:bg-[#096747]"
+              className="bg-primary text-on-primary shadow-sm hover:bg-primary-hover"
               disabled={
                 (step === "audience" && audienceCount === 0) ||
                 (step === "message" && !canLeaveMessageStep) ||

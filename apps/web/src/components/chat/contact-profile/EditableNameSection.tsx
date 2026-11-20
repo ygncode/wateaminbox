@@ -49,7 +49,7 @@ export function EditableNameSection({ contact }: EditableNameSectionProps) {
               "contacts.customNamePlaceholder",
               "Enter custom name",
             )}
-            className="flex-1 dark:bg-dark-tertiary dark:border-dark-border dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary"
+            className="flex-1"
             autoFocus
           />
           <Button
@@ -57,32 +57,26 @@ export function EditableNameSection({ contact }: EditableNameSectionProps) {
             variant="ghost"
             onClick={handleSave}
             disabled={updateContact.isPending}
-            className="h-8 w-8 dark:hover:bg-dark-tertiary"
+            className="h-8 w-8"
             aria-label={t("contacts.saveCustomName", "Save custom name")}
           >
-            <Check
-              className="h-4 w-4 text-green-600 dark:text-green-400"
-              aria-hidden="true"
-            />
+            <Check className="h-4 w-4 text-accent" aria-hidden="true" />
           </Button>
           <Button
             size="icon"
             variant="ghost"
             onClick={handleCancel}
-            className="h-8 w-8 dark:hover:bg-dark-tertiary"
+            className="h-8 w-8"
             aria-label={t("contacts.cancelEditing", "Cancel editing")}
           >
-            <X
-              className="h-4 w-4 text-red-600 dark:text-red-400"
-              aria-hidden="true"
-            />
+            <X className="h-4 w-4 text-danger" aria-hidden="true" />
           </Button>
         </div>
       ) : (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-gray-700 dark:text-dark-text-primary">
+          <p className="text-sm text-fg">
             {contact.customName || (
-              <span className="text-gray-400 dark:text-dark-text-tertiary italic">
+              <span className="text-fg-subtle italic">
                 {t("contacts.noCustomName", "No custom name set")}
               </span>
             )}
@@ -91,17 +85,14 @@ export function EditableNameSection({ contact }: EditableNameSectionProps) {
             size="icon"
             variant="ghost"
             onClick={() => setIsEditing(true)}
-            className="h-8 w-8 dark:hover:bg-dark-tertiary"
+            className="h-8 w-8"
             aria-label={t("contacts.editCustomName", "Edit custom name")}
           >
-            <Edit2
-              className="h-4 w-4 text-gray-500 dark:text-dark-text-secondary"
-              aria-hidden="true"
-            />
+            <Edit2 className="h-4 w-4 text-fg-muted" aria-hidden="true" />
           </Button>
         </div>
       )}
-      <p className="mt-1 text-xs text-gray-500 dark:text-dark-text-tertiary">
+      <p className="mt-1 text-xs text-fg-muted">
         {t(
           "contacts.customNameVisible",
           "Custom name is visible to all team members",

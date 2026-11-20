@@ -46,8 +46,8 @@ export function AssignmentGateBar({
 
   if (access.kind === "assigned-other-takeover") {
     return (
-      <div className="flex shrink-0 items-center justify-between gap-3 border-t border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/20">
-        <div className="flex items-center gap-2 text-sm text-amber-900 dark:text-amber-200">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-t border-warning/30 bg-warning-soft px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-warning">
           <UserCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span>Assigned to {access.assignedToName}</span>
         </div>
@@ -55,7 +55,7 @@ export function AssignmentGateBar({
           type="button"
           onClick={handleTakeOver}
           disabled={takeOverMutation.isPending}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50"
+          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-warning px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-warning disabled:opacity-50"
         >
           {takeOverMutation.isPending && (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -67,7 +67,7 @@ export function AssignmentGateBar({
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-dark-border dark:bg-dark-tertiary/50 dark:text-dark-text-secondary">
+    <div className="flex shrink-0 items-center gap-2 border-t border-line bg-subtle px-4 py-3 text-sm text-fg-muted">
       <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
       <span>
         Assigned to {access.assignedToName} - you can't send messages here

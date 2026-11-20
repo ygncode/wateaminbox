@@ -36,10 +36,10 @@ export function StepProgress({
               <div
                 className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors ${
                   isCompleted
-                    ? "bg-green-500 border-green-500 dark:bg-green-600 dark:border-green-600"
+                    ? "bg-primary border-accent"
                     : isCurrent
-                      ? "border-blue-500 bg-blue-500 dark:border-blue-400 dark:bg-blue-400"
-                      : "border-gray-300 dark:border-dark-border bg-white dark:bg-dark-tertiary"
+                      ? "border-info bg-info"
+                      : "border-line-strong bg-surface"
                 }`}
               >
                 {isCompleted ? (
@@ -47,9 +47,7 @@ export function StepProgress({
                 ) : (
                   <span
                     className={`text-sm font-medium ${
-                      isCurrent
-                        ? "text-white"
-                        : "text-gray-500 dark:text-dark-text-secondary"
+                      isCurrent ? "text-white" : "text-fg-muted"
                     }`}
                   >
                     {index + 1}
@@ -59,8 +57,8 @@ export function StepProgress({
               <span
                 className={`mt-1 text-xs whitespace-nowrap ${
                   isCompleted || isCurrent
-                    ? "text-gray-900 dark:text-dark-text-primary font-medium"
-                    : "text-gray-500 dark:text-dark-text-secondary"
+                    ? "text-fg font-medium"
+                    : "text-fg-muted"
                 }`}
               >
                 {step.labelKey ? t(step.labelKey, step.label) : step.label}
@@ -71,9 +69,7 @@ export function StepProgress({
             {!isLast && (
               <div
                 className={`w-12 h-0.5 mx-2 ${
-                  isCompleted
-                    ? "bg-green-500 dark:bg-green-600"
-                    : "bg-gray-300 dark:bg-dark-border"
+                  isCompleted ? "bg-primary" : "bg-fg-subtle"
                 }`}
               />
             )}

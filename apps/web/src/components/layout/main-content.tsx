@@ -34,7 +34,7 @@ export function MainContentHeader({
   return (
     <header
       className={cn(
-        "flex items-center justify-between border-b border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-secondary px-4",
+        "flex items-center justify-between border-b border-line bg-muted px-4",
         // Responsive height with safe area support
         "h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]",
         // Safe area inset for notch
@@ -59,10 +59,7 @@ export function MessageArea({
 }: MessageAreaProps) {
   return (
     <div
-      className={cn("flex-1 overflow-y-auto bg-[#e5ddd5] p-4", className)}
-      style={{
-        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c5c5c5' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-      }}
+      className={cn("relative flex-1 overflow-y-auto bg-chat p-4", className)}
       {...props}
     >
       {children}
@@ -83,7 +80,7 @@ export function MessageInputArea({
   return (
     <footer
       className={cn(
-        "flex items-center gap-2 border-t border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-secondary",
+        "flex items-center gap-2 border-t border-line bg-muted",
         // Responsive padding
         "px-2 py-2 md:px-4 md:py-3",
         // Safe area inset for home indicator
@@ -113,15 +110,15 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-1 flex-col items-center justify-center bg-gray-100 dark:bg-dark-primary text-center",
+        "flex flex-1 flex-col items-center justify-center bg-muted text-center",
         className,
       )}
       {...props}
     >
       <div className="max-w-md space-y-4 px-4">
-        <div className="mx-auto h-24 w-24 rounded-full bg-whatsapp-green/10 flex items-center justify-center">
+        <div className="mx-auto h-24 w-24 rounded-full bg-accent/10 flex items-center justify-center">
           <svg
-            className="h-12 w-12 text-whatsapp-green"
+            className="h-12 w-12 text-accent"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -134,10 +131,10 @@ export function EmptyState({
             />
           </svg>
         </div>
-        <h2 className="text-2xl font-light text-gray-800 dark:text-dark-text-primary">
+        <h2 className="text-2xl font-light text-fg">
           {title ?? t("chat.selectChat", "Select a chat")}
         </h2>
-        <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+        <p className="text-sm text-fg-muted">
           {description ??
             t(
               "chat.selectChatDescription",

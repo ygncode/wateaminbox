@@ -36,16 +36,16 @@ export function SharedContactSheet({
       className="sm:inset-x-auto sm:start-1/2 sm:-ms-[15rem] sm:w-[30rem]"
     >
       {renderedContact && (
-        <div className="flex min-h-full flex-col bg-[#f0f2f5] dark:bg-dark-primary">
-          <div className="flex flex-col items-center bg-white px-6 pb-6 pt-7 dark:bg-dark-secondary">
-            <div className="size-24 overflow-hidden rounded-full shadow-md ring-1 ring-black/[0.06] dark:ring-white/10">
+        <div className="flex min-h-full flex-col bg-muted">
+          <div className="flex flex-col items-center bg-surface px-6 pb-6 pt-7">
+            <div className="size-24 overflow-hidden rounded-full shadow-md ring-1 ring-fg/[0.06]">
               <IdentityAvatarFallback
                 displayName={renderedContact.displayName}
                 identity={primaryPhone || renderedContact.displayName}
                 className="text-2xl"
               />
             </div>
-            <h3 className="mt-4 max-w-full truncate text-xl font-semibold text-[#111b21] dark:text-dark-text-primary">
+            <h3 className="mt-4 max-w-full truncate text-xl font-semibold text-fg">
               {renderedContact.displayName}
             </h3>
 
@@ -53,7 +53,7 @@ export function SharedContactSheet({
               type="button"
               onClick={() => onMessage(renderedContact)}
               disabled={!primaryPhone || isMessaging}
-              className="mt-5 min-w-32 rounded-full bg-[#00a884] px-6 text-white hover:bg-[#008f72]"
+              className="mt-5 min-w-32 rounded-full bg-primary px-6 text-on-primary hover:bg-primary-hover"
             >
               {isMessaging ? (
                 <Loader2 className="animate-spin" aria-hidden="true" />
@@ -64,30 +64,30 @@ export function SharedContactSheet({
             </Button>
           </div>
 
-          <div className="mt-2 bg-white px-4 py-2 dark:bg-dark-secondary">
+          <div className="mt-2 bg-surface px-4 py-2">
             {renderedContact.phoneNumbers.length > 0 ? (
               renderedContact.phoneNumbers.map((phone, index) => (
                 <a
                   key={`${phone.value}-${index}`}
                   href={`tel:${phone.value}`}
-                  className="flex min-h-14 items-center gap-3 border-b border-black/[0.06] px-1 text-[#111b21] outline-none last:border-b-0 hover:text-[#008069] focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:border-white/[0.07] dark:text-dark-text-primary dark:hover:text-[#53bdeb]"
+                  className="flex min-h-14 items-center gap-3 border-b border-line/[0.06] px-1 text-fg outline-none last:border-b-0 hover:text-accent focus-visible:ring-2 focus-visible:ring-ring/40"
                 >
                   <Phone
-                    className="size-5 shrink-0 text-[#00a884]"
+                    className="size-5 shrink-0 text-accent"
                     aria-hidden="true"
                   />
                   <span className="min-w-0 flex-1 truncate font-medium tabular-nums">
                     {formatPhoneNumber(phone.value)}
                   </span>
                   {phone.label && (
-                    <span className="shrink-0 text-xs text-[#667781] dark:text-dark-text-tertiary">
+                    <span className="shrink-0 text-xs text-fg-muted">
                       {phone.label}
                     </span>
                   )}
                 </a>
               ))
             ) : (
-              <p className="py-5 text-center text-sm text-[#667781] dark:text-dark-text-secondary">
+              <p className="py-5 text-center text-sm text-fg-muted">
                 {t(
                   "chat.contactDetailsUnavailable",
                   "Phone number unavailable",

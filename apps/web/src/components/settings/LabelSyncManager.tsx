@@ -183,7 +183,7 @@ export function LabelSyncManager() {
       {(error || accountScope.isError) && (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300"
+          className="flex items-start gap-2 rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger"
         >
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{t("labels.errors.loadFailed", "Failed to load labels")}</span>
@@ -214,19 +214,17 @@ export function LabelSyncManager() {
           ].map((item) => (
             <div
               key={item.label}
-              className="rounded-xl border border-[#e2e8e3] bg-[#f8faf8] p-3.5 dark:border-white/[0.07] dark:bg-white/[0.025]"
+              className="rounded-xl border border-line bg-subtle p-3.5"
             >
               <dd
                 className={cn(
-                  "text-xl font-semibold tabular-nums text-[#10211b] dark:text-dark-text-primary",
-                  item.active && "text-[#087a5c] dark:text-emerald-300",
+                  "text-xl font-semibold tabular-nums text-fg",
+                  item.active && "text-accent",
                 )}
               >
                 {item.value}
               </dd>
-              <dt className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
-                {item.label}
-              </dt>
+              <dt className="mt-1 text-xs text-fg-muted">{item.label}</dt>
             </div>
           ))}
         </dl>
@@ -271,7 +269,7 @@ export function LabelSyncManager() {
         )}
 
         {status?.lastSyncAt && (
-          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-dark-text-secondary ms-auto">
+          <div className="flex items-center gap-1 text-xs text-fg-muted ms-auto">
             <Clock className="h-3 w-3" />
             {formatLastSync(status.lastSyncAt)}
           </div>
@@ -280,12 +278,12 @@ export function LabelSyncManager() {
 
       {/* Labels List */}
       {isLoading ? (
-        <div className="flex items-center justify-center rounded-xl border border-[#e2e8e3] bg-[#f8faf8] py-10 dark:border-white/[0.07] dark:bg-white/[0.025]">
-          <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-dark-text-tertiary" />
+        <div className="flex items-center justify-center rounded-xl border border-line bg-subtle py-10">
+          <Loader2 className="h-6 w-6 animate-spin text-fg-subtle" />
         </div>
       ) : labels.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#d6dfd9] bg-[#f8faf8] px-5 py-10 text-center text-gray-500 dark:border-white/[0.1] dark:bg-white/[0.025] dark:text-dark-text-secondary">
-          <Tag className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-dark-text-tertiary" />
+        <div className="rounded-xl border border-dashed border-line bg-subtle px-5 py-10 text-center text-fg-muted">
+          <Tag className="h-12 w-12 mx-auto mb-3 text-fg-subtle" />
           <p className="font-medium">
             {t("labels.empty", "No WhatsApp labels found")}
           </p>
@@ -306,7 +304,7 @@ export function LabelSyncManager() {
             return (
               <div
                 key={label.id}
-                className="group flex items-center gap-3 rounded-xl border border-[#e2e8e3] bg-[#fbfcfb] p-3.5 transition-colors hover:border-[#c8d3cc] hover:bg-[#f8faf8] dark:border-white/[0.07] dark:bg-white/[0.02] dark:hover:border-white/[0.14] dark:hover:bg-white/[0.04]"
+                className="group flex items-center gap-3 rounded-xl border border-line bg-subtle p-3.5 transition-colors hover:border-line-strong hover:bg-muted"
                 data-testid={`label-item-${label.labelId}`}
               >
                 {/* Color indicator */}
@@ -319,18 +317,16 @@ export function LabelSyncManager() {
 
                 {/* Label name */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 dark:text-dark-text-primary truncate">
-                    {label.name}
-                  </p>
+                  <p className="font-medium text-fg truncate">{label.name}</p>
                   {linkedTag ? (
-                    <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 mt-0.5">
+                    <div className="flex items-center gap-1 text-xs text-accent mt-0.5">
                       <Check className="h-3 w-3" />
                       <span>
                         {t("labels.linkedTo", "Linked to")} "{linkedTag.name}"
                       </span>
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-500 dark:text-dark-text-secondary mt-0.5">
+                    <p className="text-xs text-fg-muted mt-0.5">
                       {t("labels.notLinked", "Not linked to any tag")}
                     </p>
                   )}
@@ -344,7 +340,7 @@ export function LabelSyncManager() {
                       size="sm"
                       onClick={() => handleUnlink(label.labelId)}
                       disabled={isUnlinking}
-                      className="gap-1 text-gray-600 dark:text-dark-text-secondary hover:text-red-600 dark:hover:text-red-400"
+                      className="gap-1 text-fg-muted hover:text-danger"
                       data-testid={`unlink-label-${label.labelId}`}
                     >
                       {unlinkingLabelId === label.labelId ? (
@@ -361,7 +357,7 @@ export function LabelSyncManager() {
                       variant="ghost"
                       size="sm"
                       onClick={() => openLinkDialog(label)}
-                      className="gap-1 text-gray-600 dark:text-dark-text-secondary hover:text-green-600 dark:hover:text-green-400"
+                      className="gap-1 text-fg-muted hover:text-accent"
                       data-testid={`link-label-${label.labelId}`}
                     >
                       <Link2 className="h-4 w-4" />
@@ -410,16 +406,14 @@ export function LabelSyncManager() {
 
           <div className="py-4">
             {selectedLabel && (
-              <div className="flex items-center gap-2 mb-4 p-2 bg-gray-50 dark:bg-dark-tertiary rounded-lg">
+              <div className="flex items-center gap-2 mb-4 p-2 bg-subtle rounded-lg">
                 <div
                   className="w-4 h-4 rounded-full"
                   style={{
                     backgroundColor: selectedLabel.color || "#6b7280",
                   }}
                 />
-                <span className="font-medium dark:text-dark-text-primary">
-                  {selectedLabel.name}
-                </span>
+                <span className="font-medium">{selectedLabel.name}</span>
               </div>
             )}
 
@@ -436,7 +430,7 @@ export function LabelSyncManager() {
               </SelectTrigger>
               <SelectContent>
                 {unlinkedTags.length === 0 ? (
-                  <div className="p-2 text-sm text-gray-500 dark:text-dark-text-secondary text-center">
+                  <div className="p-2 text-sm text-fg-muted text-center">
                     {t(
                       "labels.linkDialog.noTags",
                       "No unlinked tags available",
@@ -460,7 +454,7 @@ export function LabelSyncManager() {
               </SelectContent>
             </Select>
 
-            <p className="text-xs text-gray-500 dark:text-dark-text-secondary mt-2">
+            <p className="text-xs text-fg-muted mt-2">
               {t(
                 "labels.linkDialog.hint",
                 "When linked, applying this label in WhatsApp will also apply the tag in this app.",
@@ -475,7 +469,7 @@ export function LabelSyncManager() {
             <Button
               onClick={handleLink}
               disabled={isLinking || !selectedTagId}
-              className="gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white"
+              className="gap-2 bg-primary hover:bg-primary-hover text-on-primary"
               data-testid="confirm-link-button"
             >
               {isLinking && <Loader2 className="h-4 w-4 animate-spin" />}

@@ -15,38 +15,33 @@ const STATUS_CONFIG: Record<
   scheduled: {
     labelKey: "broadcasts.status.scheduled",
     label: "Scheduled",
-    className:
-      "border-sky-200/70 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/35 dark:text-sky-300",
-    dotClassName: "bg-sky-500 dark:bg-sky-300",
+    className: "border-info/30 bg-info-soft text-info",
+    dotClassName: "bg-info",
   },
   running: {
     labelKey: "broadcasts.status.running",
     label: "Sending",
-    className:
-      "border-emerald-200 bg-emerald-50 text-[#087654] dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300",
-    dotClassName: "bg-[#16a06f] dark:bg-emerald-300",
+    className: "border-accent/30 bg-accent-soft text-accent",
+    dotClassName: "bg-primary",
     pulse: true,
   },
   completed: {
     labelKey: "broadcasts.status.completed",
     label: "Completed",
-    className:
-      "border-emerald-200/80 bg-[#edf7f2] text-[#087654] dark:border-emerald-900 dark:bg-emerald-950/35 dark:text-emerald-300",
-    dotClassName: "bg-[#24a778] dark:bg-emerald-300",
+    className: "border-accent/30 bg-subtle text-accent",
+    dotClassName: "bg-primary",
   },
   completed_with_errors: {
     labelKey: "broadcasts.status.partiallySent",
     label: "Partially sent",
-    className:
-      "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/35 dark:text-amber-300",
-    dotClassName: "bg-amber-500 dark:bg-amber-300",
+    className: "border-warning/30 bg-warning-soft text-warning",
+    dotClassName: "bg-warning",
   },
   canceled: {
     labelKey: "broadcasts.status.canceled",
     label: "Canceled",
-    className:
-      "border-[#dfe5e1] bg-[#f1f3f2] text-[#65736d] dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary",
-    dotClassName: "bg-[#8b9891] dark:bg-dark-text-tertiary",
+    className: "border-line bg-subtle text-fg-muted",
+    dotClassName: "bg-fg-subtle",
   },
 };
 

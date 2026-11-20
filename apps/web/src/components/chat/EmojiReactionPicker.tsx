@@ -350,7 +350,7 @@ export function EmojiReactionPicker({
       {!showExtended ? (
         /* Quick reactions bar */
         <div
-          className="bg-white dark:bg-dark-elevated rounded-full shadow-2xl px-2 py-2 flex items-center gap-1 border border-gray-200 dark:border-dark-border"
+          className="bg-surface rounded-full shadow-2xl px-2 py-2 flex items-center gap-1 border border-line"
           role="toolbar"
           aria-label={t("chat.quickReactions", "Quick reactions")}
         >
@@ -358,7 +358,7 @@ export function EmojiReactionPicker({
             <button
               key={emoji}
               onClick={() => handleReactionClick(emoji)}
-              className="w-10 h-10 flex items-center justify-center text-2xl hover:scale-125 transition-transform duration-150 hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-full"
+              className="w-10 h-10 flex items-center justify-center text-2xl hover:scale-125 transition-transform duration-150 hover:bg-muted rounded-full"
               title={emoji}
               aria-label={`React with ${emoji}`}
             >
@@ -367,7 +367,7 @@ export function EmojiReactionPicker({
           ))}
           <button
             onClick={() => setShowExtended(true)}
-            className="w-10 h-10 flex items-center justify-center text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-full transition-colors ms-1"
+            className="w-10 h-10 flex items-center justify-center text-fg-muted hover:bg-muted rounded-full transition-colors ms-1"
             title={t("chat.moreReactions", "More reactions")}
             aria-label={t("chat.showMoreReactions", "Show more reactions")}
           >
@@ -388,19 +388,19 @@ export function EmojiReactionPicker({
         </div>
       ) : (
         /* Extended emoji picker */
-        <div className="bg-white dark:bg-dark-elevated rounded-2xl shadow-2xl border border-gray-200 dark:border-dark-border overflow-hidden w-80">
+        <div className="bg-surface rounded-2xl shadow-2xl border border-line overflow-hidden w-80">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-border">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-line">
             <button
               onClick={() => setShowExtended(false)}
-              className="p-1 hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-full transition-colors"
+              className="p-1 hover:bg-muted rounded-full transition-colors"
               aria-label={t(
                 "chat.backToQuickReactions",
                 "Back to quick reactions",
               )}
             >
               <svg
-                className="w-5 h-5 text-gray-600 dark:text-dark-text-secondary"
+                className="w-5 h-5 text-fg-muted"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -413,16 +413,16 @@ export function EmojiReactionPicker({
                 />
               </svg>
             </button>
-            <h3 className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
+            <h3 className="text-sm font-medium text-fg">
               {t("chat.pickAReaction", "Pick a reaction")}
             </h3>
             <button
               onClick={onClose}
-              className="p-1 hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-full transition-colors"
+              className="p-1 hover:bg-muted rounded-full transition-colors"
               aria-label={t("common.close", "Close")}
             >
               <svg
-                className="w-5 h-5 text-gray-600 dark:text-dark-text-secondary"
+                className="w-5 h-5 text-fg-muted"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -438,15 +438,15 @@ export function EmojiReactionPicker({
           </div>
 
           {/* Category tabs */}
-          <div className="flex gap-1 px-2 py-2 border-b border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-secondary overflow-x-auto">
+          <div className="flex gap-1 px-2 py-2 border-b border-line bg-subtle overflow-x-auto">
             {Object.keys(extendedCategories).map((category) => (
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
                   selectedCategory === category
-                    ? "bg-whatsapp-green text-white"
-                    : "text-gray-600 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-tertiary"
+                    ? "bg-primary text-on-primary"
+                    : "text-fg-muted hover:bg-muted"
                 }`}
               >
                 {category}
@@ -465,7 +465,7 @@ export function EmojiReactionPicker({
                 <button
                   key={emoji}
                   onClick={() => handleReactionClick(emoji)}
-                  className="w-9 h-9 flex items-center justify-center text-2xl hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-lg transition-colors"
+                  className="w-9 h-9 flex items-center justify-center text-2xl hover:bg-muted rounded-lg transition-colors"
                   title={emoji}
                   aria-label={`React with ${emoji}`}
                 >

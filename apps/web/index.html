@@ -17,7 +17,7 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <!-- PWA theme color - updated dynamically by ThemeProvider -->
-    <meta name="theme-color" content="#075E54" />
+    <meta name="theme-color" content="#f7f7f5" />
     <!-- iOS specific -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -25,36 +25,30 @@
     <!-- Android specific -->
     <meta name="mobile-web-app-capable" content="yes" />
     <title>WATeamInbox</title>
-    <!-- FOUC Prevention: Apply dark mode before React renders -->
+    <!-- Pre-paint theme. Keep THEMES in sync with src/lib/theme/themes.ts
+         (theme-tokens.test.ts enforces it). -->
     <script>
       (function() {
-        var STORAGE_KEY = 'wateaminbox-theme';
-        var VALID_THEMES = ['light', 'dark', 'system'];
-        var theme = 'system';
-
+        var THEMES = {
+          light: ['light', '#f7f7f5'],
+          dark: ['dark', '#0b0b0c'],
+          whatsapp: ['dark', '#111b21']
+        };
+        var pref = 'system';
         try {
-          var stored = localStorage.getItem(STORAGE_KEY);
-          if (stored && VALID_THEMES.indexOf(stored) !== -1) {
-            theme = stored;
-          }
-        } catch (_e) {
-          // localStorage not available (privacy mode, incognito)
+          var stored = localStorage.getItem('wateaminbox-theme');
+          if (stored === 'system' || THEMES.hasOwnProperty(stored)) pref = stored;
+        } catch (_e) {}
+        var id = pref;
+        if (pref === 'system') {
+          id = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
-
-        var isDark = false;
-        if (theme === 'dark') {
-          isDark = true;
-        } else if (theme === 'system') {
-          isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        }
-
-        if (isDark) {
-          document.documentElement.classList.add('dark');
-          document.documentElement.style.colorScheme = 'dark';
-          // Update theme-color meta for dark mode
-          var meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) meta.setAttribute('content', '#111B21');
-        }
+        var root = document.documentElement;
+        root.setAttribute('data-theme', id);
+        root.style.colorScheme = THEMES[id][0];
+        if (THEMES[id][0] === 'dark') root.classList.add('dark');
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', THEMES[id][1]);
       })();
     </script>
     <!-- Pre-React splash. The entry bundle is large enough that, on a cold
@@ -65,8 +59,9 @@
          The --splash-bg follows the theme the FOUC script resolved above, so
          there is no white flash in dark mode. -->
     <style>
-      :root { --splash-bg: #ffffff; --splash-fg: #00a884; }
-      html.dark { --splash-bg: #111b21; }
+      :root { --splash-bg: #f7f7f5; --splash-fg: #0b0b0c; }
+      html[data-theme="dark"] { --splash-bg: #0b0b0c; --splash-fg: #ededee; }
+      html[data-theme="whatsapp"] { --splash-bg: #111b21; --splash-fg: #00a884; }
       html, body { margin: 0; height: 100%; background: var(--splash-bg); }
       #app-splash {
         position: fixed;

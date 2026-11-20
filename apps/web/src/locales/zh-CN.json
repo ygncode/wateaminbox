@@ -631,11 +631,16 @@
     "workspaceLeaveFailed": "无法退出工作区",
     "themePanel": {
       "title": "主题",
-      "description": "在浅色、深色与跟随系统之间切换。",
+      "description": "选择 WATeamInbox 的外观。跟随系统会在浅色与深色之间自动切换。",
       "changed": "主题已切换为{{theme}}",
       "system": "跟随系统（{{resolved}}）",
       "light": "浅色",
-      "dark": "深色"
+      "dark": "深色",
+      "whatsapp": "WhatsApp",
+      "systemLabel": "跟随系统",
+      "lightLabel": "浅色",
+      "darkLabel": "深色",
+      "whatsappLabel": "WhatsApp"
     },
     "languagePanel": {
       "title": "语言",
@@ -656,11 +661,6 @@
       "description": "工作区导出功能可在相应的仪表盘与审计视图中使用。"
     },
     "exportsScope": "导出内容仅包含 {{name}} 的数据。",
-    "themeLight": "浅色",
-    "themeDark": "深色",
-    "themeSystem": "跟随系统",
-    "themeChanged": "主题已切换为{{theme}}",
-    "themeToggleAria": "当前主题：{{current}}。点击切换为{{next}}",
     "apiTokensPanel": {
       "title": "AI 智能体（MCP）",
       "description": "通过 MCP 端点，使用个人可撤销令牌将 AI 智能体连接到此工作区。"
@@ -674,7 +674,8 @@
       "bell": "铃声",
       "pop": "轻响",
       "none": "无"
-    }
+    },
+    "themeMenuAria": "主题：{{current}}"
   },
   "dashboard": {
     "totalMessages": "消息总数",

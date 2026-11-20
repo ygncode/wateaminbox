@@ -101,7 +101,7 @@ export function TagsSection({ contact, conversationId }: TagsSectionProps) {
   return (
     <RightPanelSection title={t("tags.title", "Tags")}>
       <div className="flex items-start gap-2">
-        <Tag className="mt-0.5 h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
+        <Tag className="mt-0.5 h-4 w-4 text-fg-subtle" />
         <div className="flex-1">
           <div className="flex flex-wrap gap-2">
             {selectedTags.map((tag) => (
@@ -121,7 +121,7 @@ export function TagsSection({ contact, conversationId }: TagsSectionProps) {
                 {tag.name}
                 <button
                   onClick={() => handleRemoveTag(tag.id)}
-                  className="ms-1 rounded-full p-0.5 opacity-0 transition-opacity hover:bg-black/10 dark:hover:bg-white/10 group-hover:opacity-100"
+                  className="ms-1 rounded-full p-0.5 opacity-0 transition-opacity hover:bg-fg/10 group-hover:opacity-100"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -132,7 +132,7 @@ export function TagsSection({ contact, conversationId }: TagsSectionProps) {
                 setShowTagPicker(!showTagPicker);
                 if (showTagPicker) setTagSearch("");
               }}
-              className="flex h-6 items-center gap-1 rounded-full border border-dashed border-gray-300 dark:border-dark-border px-2 text-xs text-gray-500 dark:text-dark-text-secondary hover:border-gray-400 hover:text-gray-600 dark:hover:border-dark-text-tertiary dark:hover:text-dark-text-primary"
+              className="flex h-6 items-center gap-1 rounded-full border border-dashed border-line-strong px-2 text-xs text-fg-muted hover:border-line-strong hover:text-fg-muted"
             >
               <Plus className="h-3 w-3" />
               {t("tags.addTag", "Add Tag")}
@@ -140,7 +140,7 @@ export function TagsSection({ contact, conversationId }: TagsSectionProps) {
           </div>
 
           {showTagPicker && (
-            <div className="mt-2 rounded-md border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-2 shadow-sm">
+            <div className="mt-2 rounded-md border border-line bg-surface p-2 shadow-sm">
               <TagSearchInput
                 value={tagSearch}
                 onChange={setTagSearch}
@@ -157,7 +157,7 @@ export function TagsSection({ contact, conversationId }: TagsSectionProps) {
                         <Badge
                           key={tag.id}
                           variant="outline"
-                          className="cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-tertiary"
+                          className="cursor-pointer hover:bg-muted"
                           style={
                             tag.color
                               ? { borderColor: tag.color, color: tag.color }
@@ -170,7 +170,7 @@ export function TagsSection({ contact, conversationId }: TagsSectionProps) {
                       ))}
                     </div>
                   ) : (
-                    <p className="mb-2 px-1 py-2 text-center text-xs text-gray-500 dark:text-dark-text-secondary">
+                    <p className="mb-2 px-1 py-2 text-center text-xs text-fg-muted">
                       {debouncedTagSearch
                         ? t("tags.noTagsMatch", { query: debouncedTagSearch })
                         : t("tags.noneAvailable", "No other tags available")}
@@ -221,7 +221,7 @@ export function TagsSection({ contact, conversationId }: TagsSectionProps) {
                   ) : (
                     <button
                       onClick={() => setShowCreateTag(true)}
-                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-xs text-gray-600 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-tertiary transition-colors"
+                      className="flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-xs text-fg-muted hover:bg-muted transition-colors"
                     >
                       <Plus className="h-3 w-3" />
                       {t("tags.createNew", "Create new tag")}

@@ -56,17 +56,17 @@ export function BroadcastJobList({
       size: 320,
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-[#d8e5dd] bg-[#edf6f1] text-[#0b7a55] dark:border-dark-border dark:bg-emerald-950/35 dark:text-emerald-300">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-line bg-subtle text-accent">
             <Megaphone className="h-4 w-4" aria-hidden="true" />
           </span>
           <div className="min-w-0">
             <Link
               to={getJobHref(row.original.id)}
-              className="block truncate rounded text-[13px] font-semibold text-[#20362e] hover:text-[#0b7a55] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b7a55]/40 dark:text-dark-text-primary dark:hover:text-emerald-300"
+              className="block truncate rounded text-[13px] font-semibold text-fg hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
             >
               {row.original.name}
             </Link>
-            <p className="truncate text-[11px] text-[#718078] dark:text-dark-text-secondary">
+            <p className="truncate text-[11px] text-fg-muted">
               {row.original.createdByName
                 ? t("broadcasts.createdByName", {
                     name: row.original.createdByName,
@@ -95,13 +95,13 @@ export function BroadcastJobList({
           <div className="min-w-0">
             <div className="flex items-baseline justify-between gap-2">
               <p
-                className="truncate text-[11px] font-medium text-[#31463e] dark:text-dark-text-primary"
+                className="truncate text-[11px] font-medium text-fg"
                 title={summary}
               >
                 {summary}
               </p>
               {waiting > 0 && (
-                <span className="shrink-0 text-[10px] font-medium tabular-nums text-[#718078] dark:text-dark-text-secondary">
+                <span className="shrink-0 text-[10px] font-medium tabular-nums text-fg-muted">
                   {t("broadcasts.waitingCount", { count: waiting })}
                 </span>
               )}
@@ -127,10 +127,10 @@ export function BroadcastJobList({
         const at = dayjs(row.original.scheduledAt);
         const Icon = isScheduled ? CalendarClock : Send;
         return (
-          <div className="flex items-center gap-2 text-[#65736d] dark:text-dark-text-secondary">
+          <div className="flex items-center gap-2 text-fg-muted">
             <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <time dateTime={row.original.scheduledAt} className="min-w-0">
-              <span className="block truncate text-[12px] font-medium text-[#40554c] dark:text-dark-text-primary">
+              <span className="block truncate text-[12px] font-medium text-fg">
                 {at.format("MMM D, YYYY")}
               </span>
               <span className="block truncate text-[10px]">
@@ -153,7 +153,7 @@ export function BroadcastJobList({
       cell: ({ row }) => (
         <time
           dateTime={row.original.createdAt}
-          className="font-mono text-[11px] text-[#718078] dark:text-dark-text-secondary"
+          className="font-mono text-[11px] text-fg-muted"
         >
           {dayjs(row.original.createdAt).format("MMM D, YYYY")}
         </time>
@@ -172,7 +172,7 @@ export function BroadcastJobList({
           to={getJobHref(row.original.id)}
           tabIndex={-1}
           aria-hidden="true"
-          className="inline-grid h-8 w-8 place-items-center rounded-full text-[#9aa69f] transition-colors hover:bg-[#e8f1ec] hover:text-[#075c41] dark:text-dark-text-tertiary dark:hover:bg-dark-tertiary dark:hover:text-emerald-300"
+          className="inline-grid h-8 w-8 place-items-center rounded-full text-fg-subtle transition-colors hover:bg-muted hover:text-accent"
         >
           <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
         </Link>
@@ -195,14 +195,14 @@ export function BroadcastJobList({
       tableLabel={t("broadcasts.campaignsTableLabel", "Broadcast campaigns")}
       toolbarLeading={
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[#d7e0da] bg-white text-[#0b7a55] dark:border-dark-border dark:bg-dark-elevated dark:text-emerald-300">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-line bg-surface text-accent">
             <History className="h-3.5 w-3.5" aria-hidden="true" />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-xs font-semibold text-[#31463e] dark:text-dark-text-primary">
+            <p className="truncate text-xs font-semibold text-fg">
               {t("broadcasts.campaignHistory", "Campaign history")}
             </p>
-            <p className="hidden truncate text-[10px] text-[#7a8881] sm:block dark:text-dark-text-secondary">
+            <p className="hidden truncate text-[10px] text-fg-muted sm:block">
               {t(
                 "broadcasts.campaignHistoryHint",
                 "Newest first — open a campaign for recipient outcomes.",

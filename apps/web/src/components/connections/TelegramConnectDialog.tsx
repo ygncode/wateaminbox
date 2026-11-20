@@ -44,9 +44,9 @@ export function TelegramConnectDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && onCancel()}>
       <DialogContent className="mx-4 w-[calc(100vw-2rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl p-0 sm:w-full">
-        <div className="border-b border-[#dce3de] bg-[#f8faf8] p-5 dark:border-dark-border dark:bg-white/[0.025] sm:p-6">
+        <div className="border-b border-line bg-subtle p-5 sm:p-6">
           <DialogHeader className="text-start">
-            <div className="mb-2 grid h-11 w-11 place-items-center rounded-xl bg-[#2AABEE] text-white">
+            <div className="mb-2 grid h-11 w-11 place-items-center rounded-xl bg-brand-telegram text-white">
               {connectedName ? (
                 <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
               ) : (
@@ -70,7 +70,7 @@ export function TelegramConnectDialog({
 
         {connectedName ? (
           <DialogFooter className="gap-2 p-5 sm:p-6">
-            <Button onClick={onCancel} className="bg-[#087a5c]">
+            <Button onClick={onCancel} className="bg-primary">
               {t("connections.telegram.done")}
             </Button>
           </DialogFooter>
@@ -90,7 +90,7 @@ export function TelegramConnectDialog({
               {error && (
                 <p
                   role="alert"
-                  className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-400/20 dark:bg-red-400/[0.06] dark:text-red-300"
+                  className="rounded-xl border border-danger/30 bg-danger-soft p-4 text-sm text-danger"
                 >
                   {error}
                 </p>
@@ -121,8 +121,8 @@ export function TelegramConnectDialog({
                   id="telegram-bot-token-hint"
                   className={
                     showTokenError
-                      ? "mt-1.5 text-xs text-red-600 dark:text-red-400"
-                      : "mt-1.5 text-xs text-[#65736d] dark:text-[#a9bab4]"
+                      ? "mt-1.5 text-xs text-danger"
+                      : "mt-1.5 text-xs text-fg-muted"
                   }
                 >
                   {showTokenError
@@ -137,7 +137,7 @@ export function TelegramConnectDialog({
                   className="block text-sm font-medium"
                 >
                   {t("connections.telegram.name")}{" "}
-                  <span className="font-normal text-[#829089]">
+                  <span className="font-normal text-fg-muted">
                     {t("connections.telegram.optional")}
                   </span>
                 </label>
@@ -154,7 +154,7 @@ export function TelegramConnectDialog({
               {/* Stated before connecting, not after: a bot added to a group
                   with privacy mode on receives nothing, and the resulting
                   empty inbox looks like a product fault rather than a setting. */}
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/[0.06] dark:text-amber-200">
+              <div className="rounded-xl border border-warning/30 bg-warning-soft p-4 text-sm leading-6 text-warning">
                 <p className="font-semibold">
                   {t("connections.telegram.groupsTitle")}
                 </p>
@@ -163,7 +163,7 @@ export function TelegramConnectDialog({
                     i18nKey="connections.telegram.groupsBody"
                     components={{
                       code: (
-                        <code className="rounded bg-amber-900/10 px-1 py-0.5 font-mono text-xs dark:bg-amber-100/10" />
+                        <code className="rounded bg-warning/10 px-1 py-0.5 font-mono text-xs" />
                       ),
                       strong: <strong className="font-semibold" />,
                     }}
@@ -176,21 +176,21 @@ export function TelegramConnectDialog({
                 href="https://t.me/BotFather"
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-[#087a5c] hover:underline dark:text-emerald-300"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-accent hover:underline"
               >
                 {t("connections.telegram.openBotFather")}
                 <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
               </a>
             </div>
 
-            <DialogFooter className="gap-2 border-t border-[#e6ece8] p-5 dark:border-white/[0.08] sm:p-6">
+            <DialogFooter className="gap-2 border-t border-line p-5 sm:p-6">
               <Button type="button" variant="outline" onClick={onCancel}>
                 {t("common.cancel")}
               </Button>
               <Button
                 type="submit"
                 disabled={isConnecting || !tokenLooksValid}
-                className="bg-[#087a5c] hover:bg-[#06674e]"
+                className="bg-primary hover:bg-primary-hover"
               >
                 {isConnecting ? (
                   <>

@@ -158,9 +158,9 @@ export const ChatListItem = memo(function ChatListItem({
       onClick={onClick}
       onMouseEnter={handlePrefetch}
       className={`w-full flex items-center gap-3 px-3 text-start
-                  transition-colors duration-150 border-b border-gray-100 dark:border-dark-border
-                  touch-manipulation active:bg-gray-200 dark:active:bg-dark-border
-                  ${isSelected ? "bg-gray-200 dark:bg-dark-tertiary" : "hover:bg-gray-50 dark:hover:bg-dark-elevated"}
+                  transition-colors duration-150 border-b border-line
+                  touch-manipulation active:bg-muted
+                  ${isSelected ? "bg-selected" : "hover:bg-subtle"}
                   py-3 md:py-3 min-h-[72px] md:min-h-0`}
       aria-selected={isSelected}
       aria-current={isSelected ? "true" : undefined}
@@ -169,7 +169,7 @@ export const ChatListItem = memo(function ChatListItem({
     >
       {/* Avatar with Online Indicator */}
       <div className="relative flex-shrink-0">
-        <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-200 dark:bg-dark-tertiary">
+        <div className="w-12 h-12 rounded-full overflow-hidden bg-muted-strong">
           {contact.avatarUrl ? (
             <img
               src={contact.avatarUrl}
@@ -181,7 +181,7 @@ export const ChatListItem = memo(function ChatListItem({
             />
           ) : contact.isGroup ? (
             // Group avatar - show group icon
-            <div className="w-full h-full flex items-center justify-center bg-gray-400 dark:bg-dark-text-tertiary text-white">
+            <div className="w-full h-full flex items-center justify-center bg-fg-subtle text-white">
               <svg
                 className="w-6 h-6"
                 fill="currentColor"
@@ -225,8 +225,8 @@ export const ChatListItem = memo(function ChatListItem({
         {/* Online Indicator - only for individual contacts */}
         {!contact.isGroup && contact.isOnline && (
           <span
-            className="absolute top-0 end-0 w-3 h-3 bg-whatsapp-green
-                       border-2 border-white dark:border-dark-secondary rounded-full"
+            className="absolute top-0 end-0 w-3 h-3 bg-primary
+                       border-2 border-surface rounded-full"
             aria-label={t("chat.online", "Online")}
           />
         )}
@@ -238,18 +238,14 @@ export const ChatListItem = memo(function ChatListItem({
         <div className="flex items-center justify-between gap-2">
           <span
             className={`text-base truncate ${
-              unreadCount > 0
-                ? "font-semibold text-gray-900 dark:text-dark-text-primary"
-                : "text-gray-900 dark:text-dark-text-primary"
+              unreadCount > 0 ? "font-semibold text-fg" : "text-fg"
             }`}
           >
             {displayName}
           </span>
           <span
             className={`text-xs flex-shrink-0 ${
-              unreadCount > 0
-                ? "text-whatsapp-green font-medium"
-                : "text-gray-500 dark:text-dark-text-secondary"
+              unreadCount > 0 ? "text-accent font-medium" : "text-fg-muted"
             }`}
           >
             {formattedTime}
@@ -272,7 +268,7 @@ export const ChatListItem = memo(function ChatListItem({
             {/* A merged customer is one row here. This says how many threads
                 sit behind it, so the collapse never looks like a lost chat. */}
             {(chat.chatCount ?? 1) > 1 && (
-              <span className="flex shrink-0 items-center gap-0.5 text-xs text-gray-500 dark:text-dark-text-secondary">
+              <span className="flex shrink-0 items-center gap-0.5 text-xs text-fg-muted">
                 <MessagesSquare className="size-3" aria-hidden="true" />
                 {t("chat.chatCount", {
                   count: chat.chatCount,
@@ -285,7 +281,7 @@ export const ChatListItem = memo(function ChatListItem({
               <span className="flex-shrink-0" aria-hidden="true">
                 {lastMessage.status === "read" && (
                   <svg
-                    className="w-4 h-4 text-blue-500"
+                    className="w-4 h-4 text-info"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                   >
@@ -294,7 +290,7 @@ export const ChatListItem = memo(function ChatListItem({
                 )}
                 {lastMessage.status === "delivered" && (
                   <svg
-                    className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary"
+                    className="w-4 h-4 text-fg-subtle"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                   >
@@ -303,7 +299,7 @@ export const ChatListItem = memo(function ChatListItem({
                 )}
                 {lastMessage.status === "sent" && (
                   <svg
-                    className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary"
+                    className="w-4 h-4 text-fg-subtle"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                   >
@@ -312,7 +308,7 @@ export const ChatListItem = memo(function ChatListItem({
                 )}
                 {lastMessage.status === "sending" && (
                   <svg
-                    className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary animate-pulse"
+                    className="w-4 h-4 text-fg-subtle animate-pulse"
                     fill="currentColor"
                     viewBox="0 0 24 24"
                   >
@@ -323,9 +319,7 @@ export const ChatListItem = memo(function ChatListItem({
             )}
             <span
               className={`text-sm truncate ${
-                unreadCount > 0
-                  ? "text-gray-700 dark:text-dark-text-primary"
-                  : "text-gray-500 dark:text-dark-text-secondary"
+                unreadCount > 0 ? "text-fg" : "text-fg-muted"
               }`}
             >
               {messagePreview}
@@ -337,7 +331,7 @@ export const ChatListItem = memo(function ChatListItem({
             {/* Muted Icon */}
             {chat.isMuted && (
               <svg
-                className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary"
+                className="w-4 h-4 text-fg-subtle"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -361,7 +355,7 @@ export const ChatListItem = memo(function ChatListItem({
             {/* Pinned Icon */}
             {chat.isPinned && (
               <svg
-                className="w-4 h-4 text-gray-400 dark:text-dark-text-tertiary"
+                className="w-4 h-4 text-fg-subtle"
                 fill="currentColor"
                 viewBox="0 0 24 24"
                 aria-hidden="true"
@@ -374,7 +368,7 @@ export const ChatListItem = memo(function ChatListItem({
             {unreadCount > 0 && (
               <span
                 className="flex items-center justify-center min-w-[20px] h-5 px-1.5
-                           text-xs font-medium text-white bg-whatsapp-green rounded-full tabular-nums"
+                           text-xs font-medium text-on-primary bg-primary rounded-full tabular-nums"
               >
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
@@ -391,17 +385,17 @@ export const ChatListItem = memo(function ChatListItem({
  */
 export function ChatListItemSkeleton() {
   return (
-    <div className="flex items-center gap-3 px-3 py-3 border-b border-gray-100 dark:border-dark-border animate-pulse">
+    <div className="flex items-center gap-3 px-3 py-3 border-b border-line animate-pulse">
       {/* Avatar Skeleton */}
-      <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-dark-tertiary flex-shrink-0" />
+      <div className="w-12 h-12 rounded-full bg-muted-strong flex-shrink-0" />
 
       {/* Content Skeleton */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <div className="h-4 bg-gray-200 dark:bg-dark-tertiary rounded w-32" />
-          <div className="h-3 bg-gray-200 dark:bg-dark-tertiary rounded w-12" />
+          <div className="h-4 bg-muted-strong rounded w-32" />
+          <div className="h-3 bg-muted-strong rounded w-12" />
         </div>
-        <div className="mt-2 h-3 bg-gray-200 dark:bg-dark-tertiary rounded w-48" />
+        <div className="mt-2 h-3 bg-muted-strong rounded w-48" />
       </div>
     </div>
   );

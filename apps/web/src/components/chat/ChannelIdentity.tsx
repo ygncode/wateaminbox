@@ -19,44 +19,37 @@ const channelPresentation: Record<
   whatsapp: {
     label: "WhatsApp",
     mark: "WA",
-    className:
-      "bg-emerald-50 text-emerald-800 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800",
+    className: "bg-muted text-fg-muted ring-line",
   },
   messenger: {
     label: "Messenger",
     mark: "M",
-    className:
-      "bg-blue-50 text-blue-800 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-800",
+    className: "bg-muted text-fg-muted ring-line",
   },
   instagram: {
     label: "Instagram",
     mark: "IG",
-    className:
-      "bg-pink-50 text-pink-800 ring-pink-200 dark:bg-pink-950/40 dark:text-pink-300 dark:ring-pink-800",
+    className: "bg-muted text-fg-muted ring-line",
   },
   telegram: {
     label: "Telegram",
     mark: "TG",
-    className:
-      "bg-sky-50 text-sky-800 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-800",
+    className: "bg-muted text-fg-muted ring-line",
   },
   line: {
     label: "LINE",
     mark: "LI",
-    className:
-      "bg-lime-50 text-lime-800 ring-lime-200 dark:bg-lime-950/40 dark:text-lime-300 dark:ring-lime-800",
+    className: "bg-muted text-fg-muted ring-line",
   },
   viber: {
     label: "Viber",
     mark: "VI",
-    className:
-      "bg-violet-50 text-violet-800 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-800",
+    className: "bg-muted text-fg-muted ring-line",
   },
   email: {
     label: "Email",
     mark: "@",
-    className:
-      "bg-slate-100 text-slate-700 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700",
+    className: "bg-muted text-fg ring-line-strong",
   },
 };
 
@@ -88,16 +81,25 @@ const channelBrand: Partial<
     { Mark: ComponentType<{ className?: string }>; tileClassName: string }
   >
 > = {
-  whatsapp: { Mark: WhatsAppMark, tileClassName: "bg-[#25D366] text-white" },
-  telegram: { Mark: TelegramMark, tileClassName: "bg-[#2AABEE] text-white" },
-  messenger: { Mark: MessengerMark, tileClassName: "bg-[#0084FF] text-white" },
+  whatsapp: {
+    Mark: WhatsAppMark,
+    tileClassName: "bg-brand-whatsapp text-white",
+  },
+  telegram: {
+    Mark: TelegramMark,
+    tileClassName: "bg-brand-telegram text-white",
+  },
+  messenger: {
+    Mark: MessengerMark,
+    tileClassName: "bg-brand-messenger text-white",
+  },
   instagram: {
     Mark: InstagramMark,
     tileClassName:
-      "bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF] text-white",
+      "bg-gradient-to-br from-brand-instagram-1 via-brand-instagram-2 to-brand-instagram-3 text-white",
   },
-  line: { Mark: LineMark, tileClassName: "bg-[#06C755] text-white" },
-  email: { Mark: EmailMark, tileClassName: "bg-[#5B6B79] text-white" },
+  line: { Mark: LineMark, tileClassName: "bg-brand-line text-white" },
+  email: { Mark: EmailMark, tileClassName: "bg-fg-muted text-white" },
 };
 
 interface ChannelAvatarBadgeProps {
@@ -129,7 +131,7 @@ export function ChannelAvatarBadge({
   return (
     <span
       className={cn(
-        "grid size-[18px] shrink-0 place-items-center rounded-full ring-2 ring-white dark:ring-dark-secondary",
+        "grid size-[18px] shrink-0 place-items-center rounded-full ring-2 ring-white",
         tileClassName,
         className,
       )}
@@ -159,7 +161,7 @@ export function MergedCustomerAvatarBadge({
   return (
     <span
       className={cn(
-        "grid size-[18px] shrink-0 place-items-center rounded-full bg-whatsapp-green text-white ring-2 ring-white dark:ring-dark-secondary",
+        "grid size-[18px] shrink-0 place-items-center rounded-full bg-primary text-on-primary ring-2 ring-white",
         className,
       )}
       title={`Reachable on ${channelCount} channels`}
@@ -226,7 +228,7 @@ export function ChannelAccountBadge({
   return (
     <span
       className={cn(
-        "inline-flex min-w-0 items-center rounded-full bg-gray-50 text-gray-700 ring-1 ring-inset ring-gray-200 dark:bg-dark-tertiary dark:text-dark-text-primary dark:ring-dark-border",
+        "inline-flex min-w-0 items-center rounded-full bg-subtle text-fg ring-1 ring-inset ring-line-strong",
         compact
           ? "gap-1 px-1.5 py-0.5 text-[10px]"
           : "gap-1.5 px-2 py-1 text-xs",
@@ -240,7 +242,7 @@ export function ChannelAccountBadge({
       <span
         className={cn(
           "size-1.5 shrink-0 rounded-full",
-          connected ? "bg-emerald-500" : "bg-gray-400",
+          connected ? "bg-primary" : "bg-fg-subtle",
         )}
         aria-hidden="true"
       />

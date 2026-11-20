@@ -88,36 +88,28 @@ export function VerifyEmailPage() {
         : AlertCircle;
 
   return (
-    <main className="min-h-dvh grid place-items-center bg-gray-100 dark:bg-dark-primary px-4">
-      <section className="relative w-full max-w-md overflow-hidden rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-8 text-center shadow-xl">
-        <div className="absolute inset-x-0 top-0 h-1 bg-whatsapp-green" />
-        <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-full bg-whatsapp-green/10 text-whatsapp-green">
+    <main className="min-h-dvh grid place-items-center bg-muted px-4">
+      <section className="relative w-full max-w-md overflow-hidden rounded-xl border border-line bg-surface p-8 text-center shadow-xl">
+        <div className="absolute inset-x-0 top-0 h-1 bg-primary" />
+        <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-full bg-accent/10 text-accent">
           {state === "loading" ? (
             <Icon className="animate-spin" size={32} />
           ) : (
             <Icon size={34} />
           )}
         </div>
-        <MailCheck
-          className="mx-auto mb-2 text-gray-300 dark:text-dark-text-tertiary"
-          size={20}
-        />
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
+        <MailCheck className="mx-auto mb-2 text-fg-subtle" size={20} />
+        <h1 className="text-2xl font-bold text-fg">
           {state === "loading"
             ? t("verify.oneMoment", "One moment")
             : state === "success"
               ? t("verify.emailVerified", "Email verified")
               : t("verify.linkUnavailable", "Link unavailable")}
         </h1>
-        <p className="mt-3 text-gray-600 dark:text-dark-text-secondary">
-          {message}
-        </p>
+        <p className="mt-3 text-fg-muted">{message}</p>
 
         {state !== "loading" && (
-          <Button
-            asChild
-            className="mt-7 w-full bg-whatsapp-green-a11y-button text-white"
-          >
+          <Button asChild className="mt-7 w-full bg-primary text-on-primary">
             <Link to={state === "success" ? loginUrl : "/register"}>
               {state === "success"
                 ? t("auth.continueToSignIn", "Continue to sign in")

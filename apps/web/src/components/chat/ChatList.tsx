@@ -319,16 +319,14 @@ export const ChatList = memo(function ChatList({
 
   return (
     <div
-      className={`flex flex-col h-full bg-white dark:bg-dark-secondary border-e border-gray-200 dark:border-dark-border ${className}`}
+      className={`flex flex-col h-full bg-surface border-e border-line  ${className}`}
       role="navigation"
       aria-label={t("chat.chatListAria", "Chat list")}
     >
       {/* Search */}
       <div
         className={
-          isFirstRun
-            ? "hidden"
-            : "border-b border-gray-200 bg-white px-3 py-2 dark:border-dark-border dark:bg-dark-secondary"
+          isFirstRun ? "hidden" : "border-b border-line bg-surface px-3 py-2"
         }
       >
         <ChatListSearch
@@ -340,12 +338,12 @@ export const ChatList = memo(function ChatList({
 
       {/* Account scope makes the destination number explicit in multi-account inboxes. */}
       {inboxAccounts.length > 1 && (
-        <div className="flex items-center gap-2 border-b border-gray-200 bg-white px-3 py-2 dark:border-dark-border dark:bg-dark-secondary">
+        <div className="flex items-center gap-2 border-b border-line bg-surface px-3 py-2">
           <Inbox
-            className="h-4 w-4 shrink-0 text-gray-400 dark:text-dark-text-tertiary"
+            className="h-4 w-4 shrink-0 text-fg-subtle"
             aria-hidden="true"
           />
-          <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-dark-text-secondary">
+          <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
             {t("chat.inbox", "Inbox")}
           </span>
           <Select value={accountFilter} onValueChange={setAccountFilter}>
@@ -398,7 +396,7 @@ export const ChatList = memo(function ChatList({
         className={
           isFirstRun
             ? "hidden"
-            : "flex items-center border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary"
+            : "flex items-center border-b border-line bg-subtle"
         }
       >
         <div
@@ -414,8 +412,8 @@ export const ChatList = memo(function ChatList({
               aria-pressed={conversationStatusFilter === option.value}
               className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                 conversationStatusFilter === option.value
-                  ? "bg-whatsapp-teal-green text-white"
-                  : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
+                  ? "bg-primary text-on-primary"
+                  : "border border-line bg-surface text-fg-muted hover:bg-muted"
               }`}
             >
               {t(option.labelKey, option.label)}
@@ -427,10 +425,10 @@ export const ChatList = memo(function ChatList({
           <PopoverTrigger asChild>
             <button
               type="button"
-              className={`me-1 inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 ${
+              className={`me-1 inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 ${
                 selectedTags.length > 0
-                  ? "border-whatsapp-teal-green/40 bg-whatsapp-teal-green/10 text-whatsapp-teal-green hover:bg-whatsapp-teal-green/15 dark:bg-whatsapp-teal-green/15"
-                  : "border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary"
+                  ? "border-accent/40 bg-accent/10 text-accent hover:bg-accent/15"
+                  : "border-line bg-surface text-fg-muted hover:bg-muted"
               }`}
               aria-label={
                 selectedTags.length > 0
@@ -445,7 +443,7 @@ export const ChatList = memo(function ChatList({
               <Tags className="h-3.5 w-3.5" aria-hidden="true" />
               <span>{t("chat.filter", "Filter")}</span>
               {selectedTags.length > 0 && (
-                <span className="grid min-w-4 place-items-center rounded-full bg-whatsapp-teal-green px-1 text-[10px] leading-4 text-white tabular-nums">
+                <span className="grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] leading-4 text-on-primary tabular-nums">
                   {selectedTags.length}
                 </span>
               )}
@@ -454,17 +452,17 @@ export const ChatList = memo(function ChatList({
           <PopoverContent
             align="end"
             sideOffset={8}
-            className="w-[min(21rem,calc(100vw-1rem))] overflow-hidden rounded-xl border-gray-200 p-0 shadow-[0_18px_50px_-12px_rgba(15,23,42,0.28)] dark:border-dark-border"
+            className="w-[min(21rem,calc(100vw-1rem))] overflow-hidden rounded-xl border-line p-0 shadow-lg"
           >
             <div className="flex items-center gap-2.5 px-3 pt-3 pb-2.5">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-whatsapp-teal-green/10 text-whatsapp-teal-green dark:bg-whatsapp-teal-green/15">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent">
                 <Tags className="h-4 w-4" aria-hidden="true" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-gray-900 dark:text-dark-text-primary">
+                <p className="text-sm font-semibold text-fg">
                   {t("chat.filterByTagsTitle", "Filter by tags")}
                 </p>
-                <p className="text-[11px] text-gray-500 dark:text-dark-text-secondary">
+                <p className="text-[11px] text-fg-muted">
                   {t(
                     "chat.filterByTagsHint",
                     "Show chats matching any selected tag",
@@ -482,9 +480,9 @@ export const ChatList = memo(function ChatList({
             </div>
 
             {selectedTags.length > 0 && (
-              <div className="border-y border-whatsapp-teal-green/15 bg-whatsapp-teal-green/[0.06] px-3 py-2.5 dark:bg-whatsapp-teal-green/10">
+              <div className="border-y border-accent/15 bg-accent/[0.06] px-3 py-2.5">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 dark:text-dark-text-secondary">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
                     {t("chat.selectedCount", {
                       defaultValue: "Selected · {{count}}",
                       count: selectedTags.length,
@@ -493,7 +491,7 @@ export const ChatList = memo(function ChatList({
                   <button
                     type="button"
                     onClick={clearTagFilters}
-                    className="rounded px-1 py-0.5 text-[11px] font-medium text-whatsapp-teal-green hover:bg-whatsapp-teal-green/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40"
+                    className="rounded px-1 py-0.5 text-[11px] font-medium text-accent hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                   >
                     {t("chat.clearAll", "Clear all")}
                   </button>
@@ -504,11 +502,11 @@ export const ChatList = memo(function ChatList({
                       key={tag.id}
                       type="button"
                       onClick={() => toggleTagFilter(tag)}
-                      className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-gray-200 bg-white py-1 ps-2 pe-1.5 text-xs text-gray-700 shadow-sm transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-primary dark:hover:border-red-900/60 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+                      className="group inline-flex max-w-full items-center gap-1.5 rounded-full border border-line bg-surface py-1 ps-2 pe-1.5 text-xs text-fg shadow-sm transition-colors hover:border-danger/30 hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                       aria-label={`Remove ${tag.name} tag filter`}
                     >
                       <span
-                        className="h-2 w-2 shrink-0 rounded-full bg-gray-300"
+                        className="h-2 w-2 shrink-0 rounded-full bg-fg-subtle"
                         style={
                           tag.color ? { backgroundColor: tag.color } : undefined
                         }
@@ -516,7 +514,7 @@ export const ChatList = memo(function ChatList({
                       />
                       <span className="max-w-44 truncate">{tag.name}</span>
                       <X
-                        className="h-3 w-3 shrink-0 text-gray-400 group-hover:text-current"
+                        className="h-3 w-3 shrink-0 text-fg-subtle group-hover:text-current"
                         aria-hidden="true"
                       />
                     </button>
@@ -531,19 +529,19 @@ export const ChatList = memo(function ChatList({
               aria-label={t("chat.availableTags", "Available tags")}
             >
               {isFetchingTags && tagResults.length === 0 ? (
-                <div className="flex items-center justify-center gap-2 px-3 py-8 text-xs text-gray-500 dark:text-dark-text-secondary">
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-200 border-t-whatsapp-teal-green dark:border-dark-border dark:border-t-whatsapp-teal-green" />
+                <div className="flex items-center justify-center gap-2 px-3 py-8 text-xs text-fg-muted">
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-line border-t-primary" />
                   {t("chat.searchingTags", "Searching tags…")}
                 </div>
               ) : tagResults.length === 0 ? (
                 <div className="px-4 py-8 text-center">
-                  <Tags className="mx-auto mb-2 h-5 w-5 text-gray-300 dark:text-dark-text-tertiary" />
-                  <p className="text-xs font-medium text-gray-600 dark:text-dark-text-primary">
+                  <Tags className="mx-auto mb-2 h-5 w-5 text-fg-subtle" />
+                  <p className="text-xs font-medium text-fg-muted">
                     {debouncedTagSearch
                       ? t("chat.noMatchingTags", "No matching tags")
                       : t("chat.noTagsYet", "No tags yet")}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-gray-400 dark:text-dark-text-secondary">
+                  <p className="mt-0.5 text-[11px] text-fg-subtle">
                     {debouncedTagSearch
                       ? t("chat.tryAnotherTagSearch", {
                           defaultValue: "Try another search for “{{query}}”",
@@ -575,14 +573,14 @@ export const ChatList = memo(function ChatList({
                           ? `You can select up to ${MAX_TAG_FILTERS} tags`
                           : undefined
                       }
-                      className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-start text-sm transition-colors last:mb-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green/40 disabled:cursor-not-allowed disabled:opacity-45 ${
+                      className={`mb-0.5 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-start text-sm transition-colors last:mb-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-45 ${
                         selected
-                          ? "bg-whatsapp-teal-green/[0.08] text-gray-900 dark:bg-whatsapp-teal-green/10 dark:text-dark-text-primary"
-                          : "text-gray-700 hover:bg-gray-50 dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
+                          ? "bg-accent/[0.08] text-fg"
+                          : "text-fg hover:bg-muted"
                       }`}
                     >
                       <span
-                        className="h-3 w-3 shrink-0 rounded-full bg-gray-300 ring-2 ring-white dark:ring-dark-elevated"
+                        className="h-3 w-3 shrink-0 rounded-full bg-fg-subtle ring-2 ring-white"
                         style={
                           tag.color ? { backgroundColor: tag.color } : undefined
                         }
@@ -594,8 +592,8 @@ export const ChatList = memo(function ChatList({
                       <span
                         className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors ${
                           selected
-                            ? "border-whatsapp-teal-green bg-whatsapp-teal-green text-white"
-                            : "border-gray-200 bg-white text-transparent dark:border-dark-border dark:bg-dark-tertiary"
+                            ? "border-primary bg-primary text-on-primary"
+                            : "border-line bg-surface text-transparent"
                         }`}
                         aria-hidden="true"
                       >
@@ -615,7 +613,7 @@ export const ChatList = memo(function ChatList({
         className={
           isFirstRun
             ? "hidden"
-            : "flex items-center border-b border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-dark-secondary"
+            : "flex items-center border-b border-line bg-subtle"
         }
       >
         <div
@@ -628,8 +626,8 @@ export const ChatList = memo(function ChatList({
             onClick={() => setAssignmentFilter("all")}
             className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               assignmentFilter === "all"
-                ? "bg-whatsapp-teal-green text-white"
-                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
+                ? "bg-primary text-on-primary"
+                : "border border-line bg-surface text-fg-muted hover:bg-muted"
             }`}
           >
             {t("chat.all", "All")}
@@ -639,8 +637,8 @@ export const ChatList = memo(function ChatList({
             onClick={() => setAssignmentFilter("unread")}
             className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               assignmentFilter === "unread"
-                ? "bg-whatsapp-teal-green text-white"
-                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
+                ? "bg-primary text-on-primary"
+                : "border border-line bg-surface text-fg-muted hover:bg-muted"
             }`}
           >
             {t("chat.unread", "Unread")}
@@ -650,8 +648,8 @@ export const ChatList = memo(function ChatList({
             onClick={() => setAssignmentFilter("assignedToMe")}
             className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               assignmentFilter === "assignedToMe"
-                ? "bg-whatsapp-teal-green text-white"
-                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
+                ? "bg-primary text-on-primary"
+                : "border border-line bg-surface text-fg-muted hover:bg-muted"
             }`}
           >
             {t("chat.assignedToMe", "Assigned to Me")}
@@ -661,8 +659,8 @@ export const ChatList = memo(function ChatList({
             onClick={() => setAssignmentFilter("unassigned")}
             className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
               assignmentFilter === "unassigned"
-                ? "bg-whatsapp-teal-green text-white"
-                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary dark:hover:bg-dark-border"
+                ? "bg-primary text-on-primary"
+                : "border border-line bg-surface text-fg-muted hover:bg-muted"
             }`}
           >
             {t("chat.unassigned", "Unassigned")}
@@ -674,7 +672,7 @@ export const ChatList = memo(function ChatList({
           <button
             type="button"
             onClick={() => setIsAddContactOpen(true)}
-            className="me-1 flex-shrink-0 rounded-full p-1.5 text-whatsapp-teal-green transition-colors hover:bg-whatsapp-teal-green/10 dark:hover:bg-whatsapp-teal-green/20"
+            className="me-1 flex-shrink-0 rounded-full p-1.5 text-accent transition-colors hover:bg-accent/10"
             aria-label={t("contacts.addNew", "Add new contact")}
             data-testid="add-contact-button"
           >
@@ -690,12 +688,12 @@ export const ChatList = memo(function ChatList({
       />
 
       {hasPreviousPage && (
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-3 py-1 text-xs dark:border-dark-border">
+        <div className="flex shrink-0 items-center justify-between border-b border-line px-3 py-1 text-xs">
           <button
             type="button"
             disabled={isFetching || paginationError}
             onClick={loadPrevious}
-            className="rounded px-2 py-1 text-whatsapp-teal-green hover:underline disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-whatsapp-green/40"
+            className="rounded px-2 py-1 text-accent hover:underline disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring/40"
           >
             {t("chat.loadNewer", "Load newer chats")}
           </button>
@@ -703,7 +701,7 @@ export const ChatList = memo(function ChatList({
             type="button"
             disabled={isFetching}
             onClick={backToLatest}
-            className="rounded px-2 py-1 text-whatsapp-teal-green hover:underline disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-whatsapp-green/40"
+            className="rounded px-2 py-1 text-accent hover:underline disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-ring/40"
           >
             {t("chat.backToLatest", "Back to latest")}
           </button>
@@ -732,7 +730,7 @@ export const ChatList = memo(function ChatList({
         {!isError &&
           visibleChats.length === 0 &&
           (isLoading || connectionState === "loading") && (
-            <div className="divide-y divide-gray-100 dark:divide-dark-border">
+            <div className="divide-y divide-line">
               {Array.from({ length: 8 }).map((_, index) => (
                 <ChatListItemSkeleton key={index} />
               ))}
@@ -743,7 +741,7 @@ export const ChatList = memo(function ChatList({
         {isError && (
           <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
             <svg
-              className="w-12 h-12 text-red-400 mb-4"
+              className="w-12 h-12 text-danger mb-4"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -755,10 +753,10 @@ export const ChatList = memo(function ChatList({
                 d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
               />
             </svg>
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+            <p className="text-fg-muted font-medium">
               {t("chat.loadFailed", "Failed to load chats")}
             </p>
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
+            <p className="text-sm text-fg-muted mt-1">
               {error?.message ||
                 t("errors.tryAgainLater", "Please try again later")}
             </p>
@@ -769,7 +767,7 @@ export const ChatList = memo(function ChatList({
         {isEmpty && searchQuery && (
           <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
             <svg
-              className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4"
+              className="w-12 h-12 text-fg-subtle mb-4"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -781,10 +779,10 @@ export const ChatList = memo(function ChatList({
                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
               />
             </svg>
-            <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+            <p className="text-fg-muted font-medium">
               {t("chat.noChats", "No chats found")}
             </p>
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
+            <p className="text-sm text-fg-muted mt-1">
               {t("chat.noResultsFor", {
                 defaultValue: 'No results for "{{query}}"',
                 query: searchQuery,
@@ -796,11 +794,11 @@ export const ChatList = memo(function ChatList({
         {/* Empty State - No conversations match the selected tags */}
         {isEmpty && !searchQuery && selectedTags.length > 0 && (
           <div className="flex h-full flex-col items-center justify-center px-4 py-8 text-center">
-            <Tags className="mb-4 h-11 w-11 text-gray-300 dark:text-dark-text-tertiary" />
-            <p className="font-medium text-gray-600 dark:text-dark-text-primary">
+            <Tags className="mb-4 h-11 w-11 text-fg-subtle" />
+            <p className="font-medium text-fg-muted">
               {t("chat.noTaggedConversations", "No tagged conversations found")}
             </p>
-            <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary">
+            <p className="mt-1 text-sm text-fg-muted">
               {t(
                 "chat.noTaggedConversationsHint",
                 "Try removing a tag filter or changing the inbox filters",
@@ -809,7 +807,7 @@ export const ChatList = memo(function ChatList({
             <button
               type="button"
               onClick={clearTagFilters}
-              className="mt-3 text-sm font-medium text-whatsapp-teal-green hover:underline"
+              className="mt-3 text-sm font-medium text-accent hover:underline"
             >
               {t("chat.clearTagFilters", "Clear tag filters")}
             </button>
@@ -826,7 +824,7 @@ export const ChatList = memo(function ChatList({
           selectedTags.length === 0 && (
             <div className="flex h-full flex-col px-5 py-7 text-start sm:px-6">
               <div className="flex items-center gap-3">
-                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#e5f2ec] text-[#14795e] ring-1 ring-[#d2e5dc] dark:bg-[#00a884]/10 dark:text-[#4dd1af] dark:ring-white/[0.07]">
+                <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent ring-1 ring-line-strong">
                   <Smartphone
                     className="size-5"
                     strokeWidth={1.6}
@@ -834,19 +832,19 @@ export const ChatList = memo(function ChatList({
                   />
                 </span>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#168264] dark:text-[#4dd1af]">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent">
                     {t("chat.sidebarSetupLabel", "Inbox setup")}
                   </p>
-                  <p className="mt-0.5 text-xs font-medium text-[#73847d] dark:text-dark-text-tertiary">
+                  <p className="mt-0.5 text-xs font-medium text-fg-muted">
                     {t("chat.oneStepRemaining", "One step remaining")}
                   </p>
                 </div>
               </div>
 
-              <h2 className="mt-7 text-xl font-semibold leading-tight tracking-[-0.025em] text-[#243e35] dark:text-dark-text-primary">
+              <h2 className="mt-7 text-xl font-semibold leading-tight tracking-[-0.025em] text-fg">
                 {t("chat.sidebarSetupTitle", "Your inbox is almost ready")}
               </h2>
-              <p className="mt-2 text-sm leading-6 text-[#6b7b75] dark:text-dark-text-secondary">
+              <p className="mt-2 text-sm leading-6 text-fg-muted">
                 {can("can_manage_connections")
                   ? t(
                       "chat.connectChannelsSidebarHint",
@@ -858,19 +856,19 @@ export const ChatList = memo(function ChatList({
                     )}
               </p>
 
-              <div className="mt-7 rounded-2xl border border-[#dbe6e1] bg-[#f8fbf9] p-4 dark:border-white/[0.08] dark:bg-white/[0.025]">
+              <div className="mt-7 rounded-2xl border border-line bg-subtle p-4">
                 <div className="flex items-start gap-3">
-                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#14795e] text-xs font-bold text-white shadow-sm dark:bg-[#20b68e] dark:text-[#071b16]">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-xs font-bold text-on-primary shadow-sm">
                     1
                   </span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[#304d43] dark:text-[#d0e1db]">
+                    <p className="text-sm font-semibold text-fg">
                       {t(
                         "chat.sidebarConnectChannelStep",
                         "Connect your first channel",
                       )}
                     </p>
-                    <p className="mt-1 text-xs leading-5 text-[#7a8983] dark:text-dark-text-tertiary">
+                    <p className="mt-1 text-xs leading-5 text-fg-muted">
                       {t(
                         "chat.sidebarConnectChannelStepHint",
                         "Choose WhatsApp or Telegram to start",
@@ -878,12 +876,12 @@ export const ChatList = memo(function ChatList({
                     </p>
                   </div>
                 </div>
-                <div className="ms-3.5 h-5 border-s border-dashed border-[#bfd2c9] dark:border-white/15" />
+                <div className="ms-3.5 h-5 border-s border-dashed border-line-strong" />
                 <div className="flex items-center gap-3 opacity-55">
-                  <span className="grid size-7 shrink-0 place-items-center rounded-full border border-[#cfdcd6] bg-white text-xs font-semibold text-[#7c8d86] dark:border-white/10 dark:bg-white/[0.04] dark:text-[#91a79f]">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-full border border-line bg-surface text-xs font-semibold text-fg-muted">
                     2
                   </span>
-                  <p className="text-xs font-medium text-[#60736b] dark:text-[#9db2aa]">
+                  <p className="text-xs font-medium text-fg-muted">
                     {t(
                       "chat.sidebarReadyStep",
                       "Chats and groups sync automatically",
@@ -899,7 +897,7 @@ export const ChatList = memo(function ChatList({
                     "settings",
                     "connections",
                   )}
-                  className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#14795e] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#0f684f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 dark:bg-[#20b68e] dark:text-[#071b16] dark:hover:bg-[#35c59e] dark:focus-visible:ring-offset-dark-secondary md:hidden"
+                  className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-on-primary shadow-sm transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:hidden"
                 >
                   {t("chat.connectChannels", "Connect channels")}
                   <ArrowRight
@@ -909,7 +907,7 @@ export const ChatList = memo(function ChatList({
                 </Link>
               )}
 
-              <p className="mt-auto hidden border-t border-[#e3eae6] pt-5 text-xs leading-5 text-[#86948f] dark:border-white/[0.07] dark:text-dark-text-tertiary md:block">
+              <p className="mt-auto hidden border-t border-line pt-5 text-xs leading-5 text-fg-muted md:block">
                 {t(
                   "chat.sidebarContinueHint",
                   "Continue setup in the main panel. It usually takes about a minute.",
@@ -927,7 +925,7 @@ export const ChatList = memo(function ChatList({
           assignmentFilter === "unread" && (
             <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
               <svg
-                className="w-12 h-12 text-whatsapp-green mb-4"
+                className="w-12 h-12 text-accent mb-4"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -939,10 +937,10 @@ export const ChatList = memo(function ChatList({
                   d="M5 13l4 4L19 7"
                 />
               </svg>
-              <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+              <p className="text-fg-muted font-medium">
                 {t("chat.allCaughtUp", "All caught up!")}
               </p>
-              <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
+              <p className="text-sm text-fg-muted mt-1">
                 {t("chat.noUnreadMessages", "You have no unread messages")}
               </p>
             </div>
@@ -957,7 +955,7 @@ export const ChatList = memo(function ChatList({
           assignmentFilter !== "unread" && (
             <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
               <svg
-                className="w-12 h-12 text-gray-400 dark:text-dark-text-tertiary mb-4"
+                className="w-12 h-12 text-fg-subtle mb-4"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -969,10 +967,10 @@ export const ChatList = memo(function ChatList({
                   d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
                 />
               </svg>
-              <p className="text-gray-600 dark:text-dark-text-primary font-medium">
+              <p className="text-fg-muted font-medium">
                 {t("chat.noConversationsYet", "No conversations yet")}
               </p>
-              <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
+              <p className="text-sm text-fg-muted mt-1">
                 {t(
                   "chat.startNewChatHint",
                   "Start a new chat to begin messaging",
@@ -998,7 +996,7 @@ export const ChatList = memo(function ChatList({
 
         <div ref={paginationFooterRef}>
           {(hasNextPage || paginationError) && (
-            <div className="flex min-h-12 flex-col items-center justify-center gap-1 px-4 py-3 text-xs text-gray-500 dark:text-dark-text-secondary">
+            <div className="flex min-h-12 flex-col items-center justify-center gap-1 px-4 py-3 text-xs text-fg-muted">
               {paginationError && (
                 <p role="status">
                   {t("chat.loadMoreFailed", "Could not load more chats")}
@@ -1011,7 +1009,7 @@ export const ChatList = memo(function ChatList({
               ) : (
                 <button
                   type="button"
-                  className="rounded px-3 py-1 font-medium text-whatsapp-teal-green hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40"
+                  className="rounded px-3 py-1 font-medium text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                   onClick={() => {
                     if (!paginationError) return loadMore();
                     void (nextPageFailed

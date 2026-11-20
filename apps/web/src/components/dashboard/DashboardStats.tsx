@@ -39,7 +39,7 @@ export function DashboardStats({
     return (
       <div
         role="alert"
-        className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-center text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
+        className="rounded-xl border border-danger/30 bg-danger-soft px-4 py-5 text-center text-sm text-danger"
       >
         {t(
           "dashboard.statsLoadFailed",

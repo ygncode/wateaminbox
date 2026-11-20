@@ -24,7 +24,7 @@ export function BroadcastsPage() {
   const basePath = `/w/${workspaceId}/broadcasts`;
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary">
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-subtle">
       <BroadcastsHeader
         workspaceName={activeWorkspace.name}
         showingDetail={Boolean(jobId)}

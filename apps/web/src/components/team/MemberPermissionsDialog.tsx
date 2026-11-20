@@ -68,7 +68,7 @@ export function MemberPermissionsDialog({
           </DialogHeader>
 
           <div
-            className="grid grid-cols-2 gap-2 rounded-xl bg-[#edf1ed] p-1 dark:bg-dark-tertiary"
+            className="grid grid-cols-2 gap-2 rounded-xl bg-muted p-1"
             role="radiogroup"
             aria-label={t("team.permissionMode", "Permission mode")}
           >
@@ -92,21 +92,21 @@ export function MemberPermissionsDialog({
           {error && (
             <div
               role="alert"
-              className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300"
+              className="rounded-lg bg-danger-soft p-3 text-sm text-danger"
             >
               {error.message}
             </div>
           )}
 
           {mode === "defaults" ? (
-            <div className="rounded-xl border border-[#dce3de] p-5 text-sm dark:border-dark-border">
+            <div className="rounded-xl border border-line p-5 text-sm">
               <p className="font-medium">
                 {t(
                   "team.roleDefaultsRestored",
                   "Role defaults will be restored.",
                 )}
               </p>
-              <p className="mt-1 text-[#65736d] dark:text-dark-text-secondary">
+              <p className="mt-1 text-fg-muted">
                 {t(
                   "team.customOverridesRemoved",
                   "Any custom overrides for this member will be removed.",
@@ -118,16 +118,16 @@ export function MemberPermissionsDialog({
               {permissionGroups.map((group) => (
                 <fieldset
                   key={group.label}
-                  className="overflow-hidden rounded-xl border border-[#dce3de] dark:border-dark-border"
+                  className="overflow-hidden rounded-xl border border-line"
                 >
-                  <legend className="ms-3 px-1 text-xs font-bold uppercase tracking-[0.12em] text-[#65736d] dark:text-dark-text-secondary">
+                  <legend className="ms-3 px-1 text-xs font-bold uppercase tracking-[0.12em] text-fg-muted">
                     {group.label}
                   </legend>
-                  <div className="divide-y divide-[#e6ebe7] dark:divide-dark-border">
+                  <div className="divide-y divide-line">
                     {group.options.map((option) => (
                       <label
                         key={option.key}
-                        className="flex cursor-pointer items-start gap-3 p-3.5 hover:bg-[#f8faf8] dark:hover:bg-dark-tertiary/50"
+                        className="flex cursor-pointer items-start gap-3 p-3.5 hover:bg-muted"
                       >
                         <input
                           type="checkbox"
@@ -142,13 +142,13 @@ export function MemberPermissionsDialog({
                                 : current,
                             )
                           }
-                          className="mt-1 h-4 w-4 rounded border-gray-300 accent-[#0b7a55]"
+                          className="mt-1 h-4 w-4 rounded border-line-strong accent-primary"
                         />
                         <span>
                           <span className="block text-sm font-medium">
                             {option.label}
                           </span>
-                          <span className="block text-xs leading-5 text-[#65736d] dark:text-dark-text-secondary">
+                          <span className="block text-xs leading-5 text-fg-muted">
                             {option.description}
                           </span>
                         </span>
@@ -175,7 +175,7 @@ export function MemberPermissionsDialog({
                 void (mode === "defaults" ? onReset() : onSave(permissions))
               }
               disabled={isSaving}
-              className="bg-[#0b7a55] text-white hover:bg-[#096747]"
+              className="bg-primary text-on-primary hover:bg-primary-hover"
             >
               {isSaving
                 ? "Saving…"
@@ -209,9 +209,7 @@ function ModeButton({
       onClick={onClick}
       className={cn(
         "rounded-lg px-3 py-2 text-start transition-colors",
-        active
-          ? "bg-white shadow-sm dark:bg-dark-elevated"
-          : "text-[#65736d] dark:text-dark-text-secondary",
+        active ? "bg-surface shadow-sm" : "text-fg-muted",
       )}
     >
       <span className="block text-sm font-semibold">{title}</span>

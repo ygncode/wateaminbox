@@ -25,7 +25,7 @@ export function AnalyticsPreferences() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#dce3de] bg-[#f8faf8] p-4 dark:border-dark-border dark:bg-dark-tertiary/35">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-subtle p-4">
         <div>
           <p className="text-sm font-semibold">
             {collecting
@@ -38,7 +38,7 @@ export function AnalyticsPreferences() {
                   "Anonymous analytics is off for this browser",
                 )}
           </p>
-          <p className="mt-1 text-xs leading-5 text-[#65736d] dark:text-dark-text-secondary">
+          <p className="mt-1 text-xs leading-5 text-fg-muted">
             {consentRequired
               ? t(
                   "analytics.storedLocally",
@@ -63,7 +63,7 @@ export function AnalyticsPreferences() {
           <Button
             type="button"
             onClick={() => productAnalytics.setConsent("granted")}
-            className="bg-[#0b7a55] text-white hover:bg-[#096747]"
+            className="bg-primary text-on-primary hover:bg-primary-hover"
           >
             {t("analytics.optIn", "Opt in")}
           </Button>
@@ -71,7 +71,7 @@ export function AnalyticsPreferences() {
       </div>
 
       {consent === "granted" && productAnalytics.isReloadRequired() && (
-        <p className="text-xs leading-5 text-amber-700 dark:text-amber-300">
+        <p className="text-xs leading-5 text-warning">
           {t(
             "analytics.sessionOffHint",
             "Analytics stays fully off for the rest of this session; it resumes after your next page reload.",
@@ -79,7 +79,7 @@ export function AnalyticsPreferences() {
         </p>
       )}
 
-      <p className="text-xs leading-5 text-[#65736d] dark:text-dark-text-secondary">
+      <p className="text-xs leading-5 text-fg-muted">
         {t(
           "analytics.onHint",
           "When on, this deployment reports anonymous page views and product events (for example “message sent” or “workspace created”) to its own Google Analytics property. Messages, contacts, names, email addresses, and workspace identifiers are never sent. Opting out takes effect immediately and also removes Google Analytics cookies where possible.",

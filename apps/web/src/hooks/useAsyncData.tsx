@@ -74,9 +74,7 @@ const defaultLoadingRenderer = () => null;
 function DefaultErrorMessage({ error }: { error: Error | null }) {
   const { t } = useTranslation();
   const message = error?.message ?? t("common.error", "An error occurred");
-  return (
-    <p className="text-red-500 dark:text-red-400 text-center py-4">{message}</p>
-  );
+  return <p className="text-danger text-center py-4">{message}</p>;
 }
 
 const defaultErrorRenderer = (error: Error | null) => (
@@ -89,7 +87,7 @@ const defaultErrorRenderer = (error: Error | null) => (
 function DefaultEmptyMessage() {
   const { t } = useTranslation();
   return (
-    <p className="text-gray-500 dark:text-dark-text-secondary text-center py-4">
+    <p className="text-fg-muted text-center py-4">
       {t("common.noData", "No data available")}
     </p>
   );

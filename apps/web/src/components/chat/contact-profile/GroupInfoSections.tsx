@@ -102,7 +102,7 @@ export function GroupInfoSections({
   if (error) {
     return (
       <RightPanelSection title={t("groups.participants", "Participants")}>
-        <p className="text-sm text-red-600 dark:text-red-400">
+        <p className="text-sm text-danger">
           {t("groups.participantsError", "Failed to load group participants.")}
         </p>
       </RightPanelSection>
@@ -130,7 +130,7 @@ export function GroupInfoSections({
     <>
       {group?.description && (
         <RightPanelSection title={t("groups.description", "Description")}>
-          <p className="whitespace-pre-wrap text-sm leading-6 text-gray-700 dark:text-dark-text-primary">
+          <p className="whitespace-pre-wrap text-sm leading-6 text-fg">
             {group.description}
           </p>
         </RightPanelSection>
@@ -191,7 +191,7 @@ export function GroupInfoSections({
               <button
                 type="button"
                 onClick={() => setShowAll((current) => !current)}
-                className="mt-2 w-full rounded-lg px-3 py-2 text-start text-sm font-medium text-whatsapp-teal-green transition-colors hover:bg-gray-50 dark:hover:bg-dark-tertiary"
+                className="mt-2 w-full rounded-lg px-3 py-2 text-start text-sm font-medium text-accent transition-colors hover:bg-muted"
               >
                 {showAll
                   ? t("groups.showFewerParticipants", "Show fewer participants")
@@ -203,9 +203,9 @@ export function GroupInfoSections({
             )}
           </div>
         ) : (
-          <div className="flex gap-3 rounded-lg bg-gray-50 p-3 dark:bg-dark-elevated">
-            <Users className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
-            <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
+          <div className="flex gap-3 rounded-lg bg-subtle p-3">
+            <Users className="mt-0.5 h-5 w-5 shrink-0 text-fg-subtle" />
+            <p className="text-sm leading-5 text-fg-muted">
               {t(
                 "groups.participantsSyncing",
                 "Participant details are syncing from WhatsApp. They refresh when the connected account comes online.",
@@ -351,16 +351,12 @@ function ParticipantRow({
       </Avatar>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <p className="truncate text-sm font-medium text-gray-900 dark:text-dark-text-primary">
-            {displayName}
-          </p>
+          <p className="truncate text-sm font-medium text-fg">{displayName}</p>
           {participant.isSelf && (
-            <span className="shrink-0 text-xs text-whatsapp-teal-green">
-              You
-            </span>
+            <span className="shrink-0 text-xs text-accent">You</span>
           )}
         </div>
-        <p className="truncate text-xs text-gray-500 dark:text-dark-text-tertiary">
+        <p className="truncate text-xs text-fg-muted">
           {phone || formatPhoneLikeText(participant.jid)}
         </p>
       </div>
@@ -368,7 +364,7 @@ function ParticipantRow({
   );
 
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-lg px-2 py-2 hover:bg-gray-50 dark:hover:bg-dark-elevated">
+    <div className="flex min-w-0 items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted">
       {canOpenProfile && profileContactId ? (
         // The admin controls to the right are buttons of their own, so the
         // identity is its own control rather than the whole row - nesting them
@@ -380,7 +376,7 @@ function ParticipantRow({
             defaultValue: "Open {{name}}'s contact info",
             name: displayName,
           })}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/50"
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           {identity}
         </button>
@@ -388,7 +384,7 @@ function ParticipantRow({
         <div className="flex min-w-0 flex-1 items-center gap-3">{identity}</div>
       )}
       {participant.isAdmin && (
-        <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+        <span className="flex shrink-0 items-center gap-1 rounded-full bg-warning-soft px-2 py-1 text-[11px] font-medium text-warning">
           <Crown className="h-3 w-3" />
           Admin
         </span>
@@ -446,8 +442,8 @@ function IconAction({
       onClick={onClick}
       className={
         destructive
-          ? "grid size-8 place-items-center rounded-lg text-red-600 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/40"
-          : "grid size-8 place-items-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 disabled:cursor-not-allowed disabled:opacity-50 dark:text-dark-text-tertiary dark:hover:bg-dark-tertiary"
+          ? "grid size-8 place-items-center rounded-lg text-danger transition-colors hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40 disabled:cursor-not-allowed disabled:opacity-50"
+          : "grid size-8 place-items-center rounded-lg text-fg-muted transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
       }
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : children}

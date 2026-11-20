@@ -19,7 +19,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-50 bg-scrim backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className,
     )}
     {...props}
@@ -42,13 +42,13 @@ const DialogContent = React.forwardRef<
             ref={ref}
             className={cn(
               // Added overscroll-contain to prevent background scroll when dialog content is scrollable
-              "relative grid w-full max-w-lg gap-4 border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg overscroll-contain",
+              "relative grid w-full max-w-lg gap-4 border border-line bg-overlay p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg overscroll-contain",
               className,
             )}
             {...props}
           >
             {children}
-            <DialogPrimitive.Close className="absolute end-4 top-4 rounded-sm opacity-70 ring-offset-white dark:ring-offset-dark-elevated transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-gray-950 dark:focus:ring-dark-text-secondary focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-gray-100 dark:data-[state=open]:bg-dark-tertiary data-[state=open]:text-gray-500 dark:data-[state=open]:text-dark-text-secondary dark:text-dark-text-secondary">
+            <DialogPrimitive.Close className="absolute end-4 top-4 rounded-sm opacity-70 ring-offset-white transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring/40 focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-muted data-[state=open]:text-fg-muted">
               <X className="h-4 w-4" />
               <span className="sr-only">{t("common.close", "Close")}</span>
             </DialogPrimitive.Close>
@@ -96,7 +96,7 @@ const DialogTitle = React.forwardRef<
     ref={ref}
     className={cn(
       // text-balance for better line wrapping on headings
-      "text-lg font-semibold leading-none text-gray-900 dark:text-dark-text-primary text-balance",
+      "text-base font-semibold leading-tight tracking-[-0.01em] text-fg text-balance",
       className,
     )}
     {...props}
@@ -110,10 +110,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn(
-      "text-sm text-gray-500 dark:text-dark-text-secondary",
-      className,
-    )}
+    className={cn("text-sm text-fg-muted", className)}
     {...props}
   />
 ));

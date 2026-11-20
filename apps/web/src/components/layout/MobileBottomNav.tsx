@@ -27,10 +27,9 @@ const ICONS: Record<MobileNavLinkKey, typeof MessageSquare> = {
 };
 
 const itemClass =
-  "group relative flex h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-dark-secondary";
-const activeClass = "bg-[#dcefe7] text-[#075c41]";
-const inactiveClass =
-  "text-[#65736d] hover:bg-black/[0.04] dark:text-dark-text-secondary dark:hover:bg-white/[0.06]";
+  "group relative flex h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-white";
+const activeClass = "bg-accent-soft text-accent";
+const inactiveClass = "text-fg-muted hover:bg-fg/[0.04]";
 
 export interface MobileBottomNavProps {
   links: MobileNavLink[];
@@ -71,7 +70,7 @@ export function MobileBottomNav({
       )}
     >
       <nav
-        className="pointer-events-auto flex w-full max-w-md items-stretch gap-1 rounded-[1.75rem] border border-[#d7e0da] bg-white p-1.5 shadow-[0_10px_30px_-8px_rgba(16,44,36,0.45),0_2px_8px_-4px_rgba(16,44,36,0.25)] dark:border-white/10 dark:bg-dark-secondary dark:shadow-[0_12px_32px_-10px_rgba(0,0,0,0.85)]"
+        className="pointer-events-auto flex w-full max-w-md items-stretch gap-1 rounded-[1.75rem] border border-line bg-surface p-1.5 shadow-lg"
         aria-label={t("nav.mobile", "Mobile navigation")}
       >
         {links.map((link) => {
@@ -94,7 +93,7 @@ export function MobileBottomNav({
                 <Icon className="h-5 w-5" aria-hidden="true" />
                 {badgeCount > 0 && (
                   <span
-                    className="absolute -top-1.5 start-2.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#25d366] px-1 text-[10px] font-bold leading-none text-[#073b2a] tabular-nums shadow-sm"
+                    className="absolute -top-1.5 start-2.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-accent tabular-nums shadow-sm"
                     aria-hidden="true"
                     data-testid="inbox-unread-badge"
                   >

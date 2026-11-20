@@ -255,8 +255,7 @@ export function MultiConnectionPanel({
     return (
       <div
         className={cn(
-          !hideHeader &&
-            "rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/[0.08] dark:bg-[#132126]",
+          !hideHeader && "rounded-2xl border border-line bg-surface p-6",
           className,
         )}
       >
@@ -264,7 +263,7 @@ export function MultiConnectionPanel({
           className={cn(
             "flex items-center justify-between",
             hideHeader
-              ? "mb-4 rounded-xl border border-[#dce3de] bg-[#f8faf8] p-3.5 dark:border-white/[0.08] dark:bg-white/[0.025]"
+              ? "mb-4 rounded-xl border border-line bg-subtle p-3.5"
               : "mb-6",
           )}
         >
@@ -284,7 +283,7 @@ export function MultiConnectionPanel({
           {Array.from({ length: 2 }).map((_, index) => (
             <div
               key={index}
-              className="flex min-h-24 items-center gap-3 rounded-xl border border-[#dce3de] bg-white p-4 dark:border-white/[0.08] dark:bg-white/[0.025]"
+              className="flex min-h-24 items-center gap-3 rounded-xl border border-line bg-surface p-4"
             >
               <Skeleton className="size-10 shrink-0 rounded-xl" />
               <div className="min-w-0 flex-1">
@@ -306,12 +305,10 @@ export function MultiConnectionPanel({
           <div
             className={cn(
               "w-2 h-2 rounded-full",
-              connectedCount > 0
-                ? "bg-green-500"
-                : "bg-gray-400 dark:bg-gray-500",
+              connectedCount > 0 ? "bg-primary" : "bg-fg-subtle",
             )}
           />
-          <span className="text-sm text-gray-600 dark:text-dark-text-secondary">
+          <span className="text-sm text-fg-muted">
             {connectedCount}/{totalCount} connected
           </span>
         </div>
@@ -322,9 +319,7 @@ export function MultiConnectionPanel({
   return (
     <div
       className={cn(
-        hideHeader
-          ? ""
-          : "rounded-2xl border border-gray-200 bg-white p-6 dark:border-white/[0.08] dark:bg-[#132126]",
+        hideHeader ? "" : "rounded-2xl border border-line bg-surface p-6",
         className,
       )}
     >
@@ -332,14 +327,14 @@ export function MultiConnectionPanel({
       {!hideHeader && (
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-whatsapp-teal-green/10 flex items-center justify-center">
-              <Smartphone className="h-5 w-5 text-whatsapp-teal-green" />
+            <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
+              <Smartphone className="h-5 w-5 text-accent" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary">
+              <h2 className="text-lg font-semibold text-fg">
                 {t("connections.panelTitle", "Connections")}
               </h2>
-              <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+              <p className="text-sm text-fg-muted">
                 {totalConnected} of {totalAccounts} connections active
               </p>
             </div>
@@ -352,7 +347,7 @@ export function MultiConnectionPanel({
               size="sm"
               onClick={openChannelPicker}
               disabled={isCreating}
-              className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
+              className="bg-primary hover:bg-primary-hover"
             >
               {isCreating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -369,23 +364,23 @@ export function MultiConnectionPanel({
 
       {/* Workspace connection summary and actions. */}
       {hideHeader && totalAccounts > 0 && (
-        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[#dce3de] bg-[#f8faf8] p-3.5 dark:border-white/[0.08] dark:bg-white/[0.025] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-col gap-3 rounded-xl border border-line bg-subtle p-3.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-[#315348] shadow-sm ring-1 ring-[#e2e8e3] dark:bg-white/[0.06] dark:text-[#c9d8d2] dark:ring-white/[0.08]">
+            <div className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface text-accent shadow-sm ring-1 ring-line-strong">
               <Smartphone className="h-5 w-5" aria-hidden="true" />
               <span
                 className={cn(
-                  "absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-[#f8faf8] dark:border-[#172622]",
-                  connectedCount > 0 ? "bg-emerald-500" : "bg-slate-400",
+                  "absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-line",
+                  connectedCount > 0 ? "bg-primary" : "bg-fg-subtle",
                 )}
               />
             </div>
             <div>
-              <p className="text-sm font-semibold text-[#10211b] dark:text-[#eef8f3]">
+              <p className="text-sm font-semibold text-fg">
                 {totalConnected} active connection
                 {totalConnected === 1 ? "" : "s"}
               </p>
-              <p className="text-xs text-[#65736d] dark:text-[#a9bab4]">
+              <p className="text-xs text-fg-muted">
                 {totalAccounts} account{totalAccounts === 1 ? "" : "s"} across{" "}
                 {channelsInUse} channel{channelsInUse === 1 ? "" : "s"}
               </p>
@@ -396,7 +391,7 @@ export function MultiConnectionPanel({
               variant="outline"
               size="sm"
               onClick={() => refresh()}
-              className="h-9 w-9 border-[#dce3de] p-0 hover:border-emerald-500 hover:text-emerald-700 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-emerald-400/50 dark:hover:text-emerald-300"
+              className="h-9 w-9 border-line p-0 hover:border-accent hover:text-accent"
               aria-label={t("connections.refresh", "Refresh connections")}
               title={t("connections.refresh", "Refresh connections")}
             >
@@ -406,7 +401,7 @@ export function MultiConnectionPanel({
               size="sm"
               onClick={openChannelPicker}
               disabled={isCreating}
-              className="h-9 gap-2 bg-[#087a5c] px-3.5 font-semibold text-white hover:bg-[#06674e] dark:bg-[#159b73] dark:hover:bg-[#20ad83]"
+              className="h-9 gap-2 bg-primary px-3.5 font-semibold text-on-primary hover:bg-primary-hover"
             >
               {isCreating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -482,7 +477,7 @@ export function MultiConnectionPanel({
             ) : pendingConnection?.error ? (
               <p
                 role="alert"
-                className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-400/20 dark:bg-red-400/[0.06] dark:text-red-300"
+                className="rounded-xl border border-danger/30 bg-danger-soft p-4 text-sm text-danger"
               >
                 {pendingConnection.error}
               </p>
@@ -585,12 +580,12 @@ export function MultiConnectionPanel({
       )}
 
       {archivedConnections.length > 0 && (
-        <section className="mt-7 border-t border-stone-200/80 pt-5 dark:border-white/[0.08]">
+        <section className="mt-7 border-t border-line/80 pt-5">
           <div className="mb-3">
-            <h3 className="text-sm font-semibold text-stone-800 dark:text-stone-200">
+            <h3 className="text-sm font-semibold text-fg">
               {t("connections.archivedAccounts", "Archived accounts")}
             </h3>
-            <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
+            <p className="mt-0.5 text-xs text-fg-muted">
               {t(
                 "connections.archivedAccountsHint",
                 "Link a number again to restore its original inbox, or permanently erase its retained data.",

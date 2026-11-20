@@ -1,0 +1,285 @@
+/*
+ * Theme values.
+ *
+ * Every theme defines the same set of semantic variables. Components never
+ * reference these variables or raw colours directly; they use the semantic
+ * Tailwind utilities declared in tokens.css (`bg-surface`, `text-fg-muted`,
+ * `border-line`, ...). See apps/web/DESIGN.md.
+ *
+ * Adding a theme:
+ *   1. Add a `[data-theme="<id>"]` block below that defines every variable.
+ *   2. Register it in src/lib/theme/themes.ts (appearance, meta colour, label).
+ *   3. Add the label to the locale files (settings.themePanel.<id>).
+ * The theme-tokens test fails if a block is missing a variable.
+ *
+ * `appearance` (light | dark) is separate from the theme id: the `.dark` class
+ * and `color-scheme` follow appearance, so native controls, scrollbars and any
+ * remaining `dark:` variants keep working for every dark theme.
+ */
+
+/* ---------------------------------------------------------------- Light -- */
+:root,
+[data-theme="light"] {
+  /* Surfaces, from back to front */
+  --canvas: #f7f7f5;
+  --surface: #ffffff;
+  --subtle: #fafaf9;
+  --muted: #f2f2f0;
+  --muted-strong: #e6e6e3;
+  --selected: #ececea;
+  --field: #ffffff;
+  --overlay: #ffffff;
+  --scrim: rgb(9 9 11 / 0.4);
+
+  /* Lines */
+  --line: #e8e8e5;
+  --line-strong: #d4d4d0;
+
+  /* Text */
+  --fg: #0b0b0c;
+  --fg-muted: #5d5d64;
+  --fg-subtle: #8c8c93;
+
+  /* Actions */
+  --primary: #0b0b0c;
+  --primary-hover: #2a2a2e;
+  --on-primary: #ffffff;
+  --ring: #0b0b0c;
+
+  /* Brand accent - live, connected, success, brand links */
+  --accent: #17734d;
+  --accent-hover: #115c3d;
+  --accent-soft: #e8f2ec;
+  --on-accent: #ffffff;
+
+  /* Status */
+  --success: #17734d;
+  --success-soft: #e8f2ec;
+  --warning: #9a5b00;
+  --warning-soft: #fbf1e1;
+  --danger: #c0352b;
+  --danger-hover: #a12a21;
+  --danger-soft: #fbecea;
+  --on-danger: #ffffff;
+  --info: #2c62a8;
+  --info-soft: #ebf1f9;
+
+  /* Navigation rail (always dark: anchors the layout) */
+  --nav: #111113;
+  --nav-fg: #f4f4f5;
+  --nav-fg-muted: #9a9aa2;
+  --nav-hover: rgb(255 255 255 / 0.07);
+  --nav-active: rgb(255 255 255 / 0.12);
+  --nav-active-fg: #ffffff;
+  --nav-badge: #3ddc84;
+  --on-nav-badge: #06210f;
+
+  /* Conversation */
+  --chat: #f3f3f1;
+  --chat-pattern: #000000;
+  --chat-pattern-opacity: 0;
+  --bubble-in: #ffffff;
+  --bubble-out: #e3eee7;
+  --bubble-fg: #0b0b0c;
+  --bubble-shadow: 0 1px 1px rgb(9 9 11 / 0.06);
+  --note: #f6f0e1;
+  --note-fg: #6e5718;
+  --note-line: #e7dbbd;
+  --highlight: #fff2bf;
+
+  /* Charts - ordered series colours */
+  --chart-1: #17734d;
+  --chart-2: #2c62a8;
+  --chart-3: #b8771c;
+  --chart-4: #c0352b;
+  --chart-grid: #ececea;
+
+  /* Identity - distinguishes people/accounts. Never carries status meaning. */
+  --id-1: #1f6f8b;
+  --id-1-soft: #e6f1f5;
+  --id-2: #8a5a00;
+  --id-2-soft: #f8efdc;
+  --id-3: #6b3fa0;
+  --id-3-soft: #f0e9f7;
+  --id-4: #a63a5e;
+  --id-4-soft: #f8e8ee;
+  --id-5: #9a5215;
+  --id-5-soft: #f8ebdf;
+  --id-6: #17734d;
+  --id-6-soft: #e6f2eb;
+  --id-7: #3f56b0;
+  --id-7-soft: #e9ecf8;
+
+  --shadow-color: 9 9 11;
+}
+
+/* ----------------------------------------------------------------- Dark -- */
+[data-theme="dark"] {
+  --canvas: #0b0b0c;
+  --surface: #141416;
+  --subtle: #18181a;
+  --muted: #1f1f22;
+  --muted-strong: #2a2a2e;
+  --selected: #252529;
+  --field: #18181a;
+  --overlay: #1a1a1d;
+  --scrim: rgb(0 0 0 / 0.6);
+
+  --line: #252528;
+  --line-strong: #34343a;
+
+  --fg: #ededee;
+  --fg-muted: #a1a1a9;
+  --fg-subtle: #6f6f78;
+
+  --primary: #ededee;
+  --primary-hover: #d4d4d8;
+  --on-primary: #0b0b0c;
+  --ring: #ededee;
+
+  --accent: #4cc38a;
+  --accent-hover: #6fd3a3;
+  --accent-soft: #15291f;
+  --on-accent: #06210f;
+
+  --success: #4cc38a;
+  --success-soft: #15291f;
+  --warning: #e0a23b;
+  --warning-soft: #2b2112;
+  --danger: #ff6b5a;
+  --danger-hover: #ff8576;
+  --danger-soft: #2d1513;
+  --on-danger: #1f0705;
+  --info: #6aa5ef;
+  --info-soft: #14202f;
+
+  --nav: #0b0b0c;
+  --nav-fg: #ededee;
+  --nav-fg-muted: #8a8a93;
+  --nav-hover: rgb(255 255 255 / 0.06);
+  --nav-active: rgb(255 255 255 / 0.1);
+  --nav-active-fg: #ffffff;
+  --nav-badge: #4cc38a;
+  --on-nav-badge: #06210f;
+
+  --chat: #0f0f10;
+  --chat-pattern: #ffffff;
+  --chat-pattern-opacity: 0;
+  --bubble-in: #1c1c1f;
+  --bubble-out: #1d2b24;
+  --bubble-fg: #ededee;
+  --bubble-shadow: none;
+  --note: #2a2417;
+  --note-fg: #e3cf91;
+  --note-line: #403520;
+  --highlight: #3b3416;
+
+  --chart-1: #4cc38a;
+  --chart-2: #6aa5ef;
+  --chart-3: #e0a23b;
+  --chart-4: #ff6b5a;
+  --chart-grid: #232326;
+
+  --id-1: #8fd4ea;
+  --id-1-soft: #142a32;
+  --id-2: #f1cf7a;
+  --id-2-soft: #2d2410;
+  --id-3: #cdb3f2;
+  --id-3-soft: #241a33;
+  --id-4: #f5a9c3;
+  --id-4-soft: #331a24;
+  --id-5: #f2bb8a;
+  --id-5-soft: #31200f;
+  --id-6: #8edcb4;
+  --id-6-soft: #12291d;
+  --id-7: #aebdf5;
+  --id-7-soft: #1a2038;
+
+  --shadow-color: 0 0 0;
+}
+
+/* ------------------------------------------------------------- WhatsApp -- */
+/* The original WATeamInbox dark palette, modelled on WhatsApp Web (dark). */
+[data-theme="whatsapp"] {
+  --canvas: #111b21;
+  --surface: #202c33;
+  --subtle: #1f2c33;
+  --muted: #2a3942;
+  --muted-strong: #2f3b43;
+  --selected: #2a3942;
+  --field: #2a3942;
+  --overlay: #233138;
+  --scrim: rgb(11 20 26 / 0.7);
+
+  --line: #2f3b43;
+  --line-strong: #3b4a54;
+
+  --fg: #e9edef;
+  --fg-muted: #8696a0;
+  --fg-subtle: #667781;
+
+  --primary: #00a884;
+  --primary-hover: #06cf9c;
+  --on-primary: #111b21;
+  --ring: #00a884;
+
+  --accent: #00a884;
+  --accent-hover: #06cf9c;
+  --accent-soft: #0b2e27;
+  --on-accent: #111b21;
+
+  --success: #00a884;
+  --success-soft: #0b2e27;
+  --warning: #ffd279;
+  --warning-soft: #3b3525;
+  --danger: #f15c6d;
+  --danger-hover: #f47c8a;
+  --danger-soft: #3d1f24;
+  --on-danger: #111b21;
+  --info: #53bdeb;
+  --info-soft: #11303f;
+
+  --nav: #202c33;
+  --nav-fg: #e9edef;
+  --nav-fg-muted: #aebac1;
+  --nav-hover: rgb(255 255 255 / 0.06);
+  --nav-active: rgb(255 255 255 / 0.1);
+  --nav-active-fg: #e9edef;
+  --nav-badge: #00a884;
+  --on-nav-badge: #111b21;
+
+  --chat: #111b21;
+  --chat-pattern: #1a2730;
+  --chat-pattern-opacity: 0.36;
+  --bubble-in: #202c33;
+  --bubble-out: #005c4b;
+  --bubble-fg: #e9edef;
+  --bubble-shadow: 0 1px 0.5px rgb(11 20 26 / 0.13);
+  --note: #3b3525;
+  --note-fg: #ffd279;
+  --note-line: #4d4530;
+  --highlight: #4d4530;
+
+  --chart-1: #00a884;
+  --chart-2: #53bdeb;
+  --chart-3: #ffd279;
+  --chart-4: #f15c6d;
+  --chart-grid: #2a3942;
+
+  --id-1: #53bdeb;
+  --id-1-soft: #11303f;
+  --id-2: #ffd279;
+  --id-2-soft: #3b3525;
+  --id-3: #d0a4ff;
+  --id-3-soft: #2d2140;
+  --id-4: #ff8fa8;
+  --id-4-soft: #3d1f2a;
+  --id-5: #ffb27a;
+  --id-5-soft: #3c2a1a;
+  --id-6: #4dd1af;
+  --id-6-soft: #0b2e27;
+  --id-7: #a5b4ff;
+  --id-7-soft: #232a45;
+
+  --shadow-color: 11 20 26;
+}

@@ -135,7 +135,7 @@ export function QuickRepliesManager() {
 
   if (error) {
     return (
-      <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
+      <div className="flex items-center gap-2 text-danger text-sm">
         <AlertCircle className="h-4 w-4" />
         <span>
           {t("quickReplies.errors.loadFailed", "Failed to load quick replies")}
@@ -148,27 +148,27 @@ export function QuickRepliesManager() {
     <div className="space-y-4">
       <AutoReplySettingsCard />
 
-      <div className="relative overflow-hidden rounded-2xl border border-[#cfe4da] bg-[#f3faf7] p-4 dark:border-emerald-400/15 dark:bg-emerald-400/[0.045]">
+      <div className="relative overflow-hidden rounded-2xl border border-line bg-subtle p-4">
         <div
-          className="absolute -end-6 -top-8 size-24 rounded-full bg-[#25d366]/10 blur-2xl"
+          className="absolute -end-6 -top-8 size-24 rounded-full bg-accent/10 blur-2xl"
           aria-hidden="true"
         />
         <div className="relative flex items-start gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-[#008069] shadow-sm ring-1 ring-black/[0.045] dark:bg-white/[0.07] dark:text-emerald-300 dark:ring-white/[0.06]">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-surface text-accent shadow-sm ring-1 ring-fg/[0.045]">
             <Zap className="size-5" fill="currentColor" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-semibold text-[#263a43] dark:text-dark-text-primary">
+            <p className="font-semibold text-fg">
               {t("quickReplies.calloutTitle", "Reply without breaking flow")}
             </p>
-            <p className="mt-0.5 text-sm leading-5 text-[#667781] dark:text-dark-text-secondary">
+            <p className="mt-0.5 text-sm leading-5 text-fg-muted">
               {t(
                 "quickReplies.calloutDescription",
                 "In any conversation, type / and keep typing to find a saved response. Use the arrow keys and Enter to insert it.",
               )}
             </p>
           </div>
-          <span className="hidden shrink-0 items-center gap-1.5 rounded-lg bg-white/80 px-2.5 py-1.5 font-mono text-xs font-semibold text-[#008069] ring-1 ring-black/[0.05] sm:flex dark:bg-white/[0.06] dark:text-emerald-300 dark:ring-white/[0.07]">
+          <span className="hidden shrink-0 items-center gap-1.5 rounded-lg bg-surface/80 px-2.5 py-1.5 font-mono text-xs font-semibold text-accent ring-1 ring-fg/[0.05] sm:flex">
             <Keyboard className="size-3.5" aria-hidden="true" />
             /shortcut
           </span>
@@ -179,7 +179,7 @@ export function QuickRepliesManager() {
       <div className="flex gap-2">
         <div className="relative flex-1">
           <div className="absolute start-3 top-0 bottom-0 flex items-center pointer-events-none">
-            <Search className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
+            <Search className="h-4 w-4 text-fg-subtle" />
           </div>
           <Input
             type="text"
@@ -202,7 +202,7 @@ export function QuickRepliesManager() {
             <button
               type="button"
               onClick={() => setSearchQuery("")}
-              className="absolute end-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-gray-400 transition-colors hover:bg-black/[0.05] hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06]"
+              className="absolute end-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-fg-subtle transition-colors hover:bg-fg/[0.05] hover:text-fg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
               aria-label={t("quickReplies.clearSearch", "Clear search")}
             >
               <X className="size-4" aria-hidden="true" />
@@ -211,7 +211,7 @@ export function QuickRepliesManager() {
         </div>
         <Button
           onClick={openCreateDialog}
-          className="gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white"
+          className="gap-2 bg-primary hover:bg-primary-hover text-on-primary"
           data-testid="add-quick-reply-button"
         >
           <Plus className="h-4 w-4" />
@@ -221,7 +221,7 @@ export function QuickRepliesManager() {
         </Button>
       </div>
 
-      <div className="flex items-center justify-between gap-3 text-xs text-[#667781] dark:text-dark-text-secondary">
+      <div className="flex items-center justify-between gap-3 text-xs text-fg-muted">
         <span aria-live="polite">
           {debouncedSearchQuery
             ? t("quickReplies.resultCount", "{{count}} matching replies", {

@@ -15,7 +15,7 @@ export function MessageSelectionToolbar({
   if (!selectionMode) return null;
 
   return (
-    <div className="sticky top-0 z-30 bg-whatsapp-teal-green text-white px-4 py-3 flex items-center justify-between shadow-md">
+    <div className="sticky top-0 z-30 bg-primary text-on-primary px-4 py-3 flex items-center justify-between shadow-md">
       <div className="flex items-center gap-4">
         <button
           onClick={onExit}

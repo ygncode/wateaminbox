@@ -88,8 +88,8 @@ export function ComposerLifecycleArea({
   if (access.kind === "loading") {
     return (
       <ComposerFooter>
-        <div className="border-t border-gray-100 bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-elevated">
-          <div className="h-9 animate-pulse rounded-lg bg-gray-100 dark:bg-dark-tertiary" />
+        <div className="border-t border-line bg-surface px-4 py-3">
+          <div className="h-9 animate-pulse rounded-lg bg-muted" />
         </div>
       </ComposerFooter>
     );
@@ -98,7 +98,7 @@ export function ComposerLifecycleArea({
   if (access.kind === "no-permission") {
     return (
       <ComposerFooter>
-        <div className="flex items-center gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-dark-border dark:bg-dark-tertiary/50 dark:text-dark-text-secondary">
+        <div className="flex items-center gap-2 border-t border-line bg-subtle px-4 py-3 text-sm text-fg-muted">
           <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span>
             {t(
@@ -153,15 +153,15 @@ export function ComposerLifecycleArea({
 
     return (
       <ComposerFooter>
-        <div className="flex items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 dark:border-dark-border dark:bg-dark-tertiary/50">
-          <span className="text-sm text-gray-600 dark:text-dark-text-secondary">
+        <div className="flex items-center justify-between gap-3 border-t border-line bg-subtle px-4 py-3">
+          <span className="text-sm text-fg-muted">
             {t("chat.conversationResolved", "This conversation is resolved")}
           </span>
           <button
             type="button"
             onClick={() => setDialogOpen(true)}
             disabled={isPending}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-whatsapp-teal-green px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-whatsapp-teal-green/90 disabled:opacity-50"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-on-primary transition-colors hover:bg-accent/90 disabled:opacity-50"
           >
             {isReopen ? (
               <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />

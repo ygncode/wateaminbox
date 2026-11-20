@@ -109,13 +109,7 @@ export interface TabsListProps {
  */
 export function TabsList({ children, className }: TabsListProps) {
   return (
-    <div
-      role="tablist"
-      className={cn(
-        "flex border-b border-gray-200 dark:border-dark-border",
-        className,
-      )}
-    >
+    <div role="tablist" className={cn("flex border-b border-line", className)}>
       {children}
     </div>
   );
@@ -211,10 +205,10 @@ export function TabsTrigger({
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        "flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal-green focus-visible:ring-offset-2 dark:focus-visible:ring-offset-dark-secondary",
+        "flex items-center gap-2 px-6 py-3 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         isSelected
-          ? "border-b-2 border-whatsapp-teal-green text-whatsapp-teal-green"
-          : "text-gray-500 dark:text-dark-text-secondary hover:text-gray-700 dark:hover:text-dark-text-primary",
+          ? "border-fg text-fg"
+          : "border-transparent text-fg-muted hover:text-fg",
         disabled && "opacity-50 cursor-not-allowed",
         className,
       )}

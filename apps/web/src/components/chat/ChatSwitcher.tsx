@@ -54,7 +54,7 @@ export function ChatSwitcher({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex min-w-0 shrink-0 items-center gap-1.5 rounded-full py-0.5 ps-0.5 pe-1.5 text-[11px] text-[#667781] transition-colors hover:bg-black/[0.04] dark:text-dark-text-secondary dark:hover:bg-white/[0.06]"
+          className="inline-flex min-w-0 shrink-0 items-center gap-1.5 rounded-full py-0.5 ps-0.5 pe-1.5 text-[11px] text-fg-muted transition-colors hover:bg-fg/[0.04]"
           aria-haspopup="dialog"
           aria-expanded={open}
         >
@@ -62,7 +62,7 @@ export function ChatSwitcher({
               said how many threads exist but not which one is armed, which is
               the only thing the operator needs before typing. */}
           <ChatIdentityAvatar chat={current} />
-          <span className="max-w-40 truncate font-medium text-[#3b4a54] dark:text-dark-text-primary">
+          <span className="max-w-40 truncate font-medium text-fg">
             {current
               ? current.displayName || current.address || currentChatId
               : t("chat.switcher.trigger", {
@@ -77,7 +77,7 @@ export function ChatSwitcher({
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 p-1.5">
-        <p className="px-2 py-1.5 text-xs font-semibold text-[#3b4a54] dark:text-dark-text-primary">
+        <p className="px-2 py-1.5 text-xs font-semibold text-fg">
           {t("chat.switcher.title", { defaultValue: "Switch chats" })}
         </p>
         <ul className="max-h-72 overflow-y-auto">
@@ -93,9 +93,7 @@ export function ChatSwitcher({
                   }}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-start transition-colors",
-                    isCurrent
-                      ? "bg-black/[0.04] dark:bg-white/[0.06]"
-                      : "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
+                    isCurrent ? "bg-fg/[0.04]" : "hover:bg-fg/[0.03]",
                   )}
                   aria-current={isCurrent ? "true" : undefined}
                 >
@@ -108,7 +106,7 @@ export function ChatSwitcher({
                   />
                   <ChatIdentityAvatar chat={chat} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm text-[#111b21] dark:text-dark-text-primary">
+                    <span className="block truncate text-sm text-fg">
                       {chat.displayName ||
                         chat.address ||
                         t("chat.switcher.unknownChat", {
@@ -116,13 +114,13 @@ export function ChatSwitcher({
                         })}
                     </span>
                     {chat.address && chat.displayName && (
-                      <span className="block truncate text-[11px] text-[#667781] dark:text-dark-text-secondary">
+                      <span className="block truncate text-[11px] text-fg-muted">
                         {chat.address}
                       </span>
                     )}
                   </span>
                   {chat.unreadCount > 0 && !isCurrent && (
-                    <span className="shrink-0 rounded-full bg-[#25d366] px-1.5 text-[10px] font-semibold text-white">
+                    <span className="shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-semibold text-on-primary">
                       {chat.unreadCount}
                     </span>
                   )}
@@ -132,7 +130,7 @@ export function ChatSwitcher({
           })}
         </ul>
         {current?.accountName && (
-          <p className="truncate px-2 pt-1.5 text-[11px] text-[#667781] dark:text-dark-text-secondary">
+          <p className="truncate px-2 pt-1.5 text-[11px] text-fg-muted">
             {t("chat.switcher.sendingVia", {
               account: current.accountName,
               defaultValue: "Replying on {{account}}",

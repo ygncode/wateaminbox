@@ -68,37 +68,35 @@ export function ForgotPasswordPage() {
         >
           <div className="relative mb-7">
             <div
-              className="absolute inset-0 scale-150 rounded-full bg-[#25d366]/10"
+              className="absolute inset-0 scale-150 rounded-full bg-accent/10"
               aria-hidden="true"
             />
-            <span className="relative grid h-16 w-16 place-items-center rounded-2xl bg-[#e2f8e9] text-[#075e54] dark:bg-[#25d366]/15 dark:text-[#52df83]">
+            <span className="relative grid h-16 w-16 place-items-center rounded-2xl bg-accent-soft text-accent">
               <MailCheck aria-hidden="true" className="h-8 w-8" />
             </span>
           </div>
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-accent">
             {t("auth.requestReceived", "Request received")}
           </p>
-          <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
+          <h1 className="text-3xl font-semibold tracking-[-0.035em] text-fg text-balance sm:text-4xl">
             {t("auth.checkInbox", "Check your inbox")}
           </h1>
-          <p className="mt-4 max-w-md text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
+          <p className="mt-4 max-w-md text-sm leading-6 text-fg-muted">
             <Trans
               i18nKey="auth.resetLinkSent"
               values={{ email: submittedEmail }}
               defaults="If an account exists for <strong>{{email}}</strong>, we've sent a secure password reset link."
               components={{
-                strong: (
-                  <strong className="break-all font-semibold text-slate-900 dark:text-dark-text-primary" />
-                ),
+                strong: <strong className="break-all font-semibold text-fg" />,
               }}
             />
           </p>
 
-          <div className="mt-7 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-start dark:border-dark-border dark:bg-dark-tertiary/60">
-            <p className="text-sm font-semibold text-slate-800 dark:text-dark-text-primary">
+          <div className="mt-7 w-full rounded-2xl border border-line bg-subtle p-4 text-start">
+            <p className="text-sm font-semibold text-fg">
               {t("auth.nothingYet", "Nothing yet?")}
             </p>
-            <p className="mt-1 text-sm leading-5 text-slate-500 dark:text-dark-text-secondary">
+            <p className="mt-1 text-sm leading-5 text-fg-muted">
               <Trans
                 i18nKey="auth.nothingYetHint"
                 defaults="Allow a few minutes, then check your spam folder or <retry>try another email</retry>."
@@ -107,7 +105,7 @@ export function ForgotPasswordPage() {
                     <button
                       type="button"
                       onClick={() => setIsSubmitted(false)}
-                      className="rounded-sm font-semibold text-[#0a7c43] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] dark:text-[#52df83]"
+                      className="rounded-sm font-semibold text-accent underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     />
                   ),
                 }}
@@ -118,7 +116,7 @@ export function ForgotPasswordPage() {
           <Button
             asChild
             size="lg"
-            className="mt-7 h-12 w-full rounded-xl bg-[#075e54] text-white shadow-lg shadow-[#075e54]/15 hover:bg-[#064b43]"
+            className="mt-7 h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-primary-hover"
           >
             <Link to={buildAuthUrl("/login", redirectTo, submittedEmail)}>
               {t("auth.returnToSignIn", "Return to sign in")}
@@ -135,19 +133,19 @@ export function ForgotPasswordPage() {
       <div>
         <Link
           to={buildAuthUrl("/login", redirectTo, suggestedEmail)}
-          className="mb-8 inline-flex items-center gap-2 rounded-sm text-sm font-semibold text-slate-500 transition-colors hover:text-[#075e54] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-dark-text-secondary dark:hover:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
+          className="mb-8 inline-flex items-center gap-2 rounded-sm text-sm font-semibold text-fg-muted transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <ArrowLeft aria-hidden="true" className="h-4 w-4 rtl:-scale-x-100" />
           {t("auth.backToSignIn", "Back to sign in")}
         </Link>
 
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">
           {t("auth.accountRecovery", "Account recovery")}
         </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
+        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-fg text-balance sm:text-4xl">
           {t("auth.forgotPasswordTitle", "Forgot your password?")}
         </h1>
-        <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
+        <p className="mt-3 max-w-lg text-sm leading-6 text-fg-muted">
           {t(
             "auth.forgotPasswordSubtitle",
             "Enter the email you use for WATeamInbox. We'll send instructions to help you choose a new password.",
@@ -156,7 +154,7 @@ export function ForgotPasswordPage() {
 
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="mt-8 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3.5 dark:[&_input]:border-dark-border dark:[&_input]:bg-dark-tertiary"
+          className="mt-8 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-line-strong [&_input]:bg-surface [&_input]:px-3.5"
           aria-busy={forgotPasswordMutation.isPending}
           noValidate
         >
@@ -174,7 +172,7 @@ export function ForgotPasswordPage() {
           <Button
             type="submit"
             size="lg"
-            className="h-12 w-full rounded-xl bg-[#075e54] text-white shadow-lg shadow-[#075e54]/15 hover:bg-[#064b43] dark:bg-whatsapp-green-a11y-button dark:hover:bg-whatsapp-green-a11y-button/90"
+            className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-primary-hover"
             disabled={forgotPasswordMutation.isPending}
           >
             {forgotPasswordMutation.isPending ? (
@@ -191,12 +189,12 @@ export function ForgotPasswordPage() {
           </Button>
         </form>
 
-        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
+        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-line bg-subtle/80 p-4">
           <ShieldCheck
             aria-hidden="true"
-            className="mt-0.5 h-5 w-5 shrink-0 text-[#0a7c43] dark:text-[#52df83]"
+            className="mt-0.5 h-5 w-5 shrink-0 text-accent"
           />
-          <p className="text-xs leading-5 text-slate-500 dark:text-dark-text-secondary">
+          <p className="text-xs leading-5 text-fg-muted">
             {t(
               "auth.forgotPasswordPrivacyNote",
               "For your privacy, we'll show the same confirmation whether or not an account is registered with that email.",

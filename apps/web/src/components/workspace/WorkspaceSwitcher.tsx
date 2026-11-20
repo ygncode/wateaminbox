@@ -143,12 +143,12 @@ export function WorkspaceSwitcher({
             type="button"
             disabled={isSwitching}
             className={cn(
-              "group relative flex items-center rounded-xl text-start outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-300",
+              "group relative flex items-center rounded-xl text-start outline-none transition-colors focus-visible:ring-2 focus-visible:ring-nav-fg/40",
               collapsed
-                ? "h-11 w-full justify-center p-1 hover:bg-white/10"
+                ? "h-11 w-full justify-center p-1 hover:bg-nav-hover"
                 : compact
-                  ? "h-10 max-w-[210px] gap-2 px-2 hover:bg-white/10"
-                  : "w-full gap-3 border border-white/10 bg-white/[0.06] p-2.5 hover:bg-white/10",
+                  ? "h-10 max-w-[210px] gap-2 px-2 hover:bg-nav-hover"
+                  : "w-full gap-3 border border-nav-fg/10 bg-nav-hover p-2.5 hover:bg-nav-active",
             )}
             aria-label={t("workspaces.activeAria", {
               name: activeWorkspace.name,
@@ -165,12 +165,12 @@ export function WorkspaceSwitcher({
             />
             {!collapsed && (
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-white">
+                <span className="block truncate text-sm font-semibold text-nav-fg">
                   {isSwitching
                     ? t("workspaces.switchingTo", { name: switchingTo?.name })
                     : activeWorkspace.name}
                 </span>
-                <span className="block truncate text-[11px] text-[#a7bbb3]">
+                <span className="block truncate text-[11px] text-nav-fg-muted">
                   {roleLabel(activeWorkspace.role, t)}
                 </span>
               </span>
@@ -178,13 +178,13 @@ export function WorkspaceSwitcher({
             {isSwitching ? (
               <Loader2
                 className={cn(
-                  "h-4 w-4 shrink-0 animate-spin text-emerald-300",
+                  "h-4 w-4 shrink-0 animate-spin text-nav-fg-muted",
                   collapsed && "absolute bottom-0.5 end-0.5",
                 )}
               />
             ) : (
               !collapsed && (
-                <ChevronsUpDown className="h-4 w-4 shrink-0 text-[#8ba29a]" />
+                <ChevronsUpDown className="h-4 w-4 shrink-0 text-nav-fg-muted" />
               )
             )}
           </button>
@@ -192,16 +192,16 @@ export function WorkspaceSwitcher({
         <PopoverContent
           align="start"
           sideOffset={8}
-          className="w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl border-[#dce3de] p-2 shadow-2xl dark:border-dark-border"
+          className="w-[min(22rem,calc(100vw-1.5rem))] rounded-2xl border-line p-2 shadow-2xl"
         >
           <div className="px-2 pb-2 pt-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#65736d]">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-fg-muted">
               {t("workspaces.switch", "Switch workspace")}
             </p>
           </div>
           {memberships.length >= 4 && (
             <div className="relative mb-2">
-              <Search className="absolute start-3 top-2.5 h-4 w-4 text-gray-400" />
+              <Search className="absolute start-3 top-2.5 h-4 w-4 text-fg-subtle" />
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -217,38 +217,38 @@ export function WorkspaceSwitcher({
                 type="button"
                 onClick={() => void handleSwitch(workspace.id)}
                 disabled={workspace.status !== "active"}
-                className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-start hover:bg-[#edf1ed] disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-dark-tertiary"
+                className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-start hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <WorkspaceAvatar
                   workspace={workspace}
-                  className="h-9 w-9 rounded-lg bg-[#edf1ed] text-xs text-[#315348] dark:bg-dark-tertiary dark:text-emerald-200"
+                  className="h-9 w-9 rounded-lg bg-muted text-xs text-accent"
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">
                     {workspace.name}
                   </span>
-                  <span className="text-xs text-gray-500 dark:text-dark-text-secondary">
+                  <span className="text-xs text-fg-muted">
                     {roleLabel(workspace.role, t)}
                     {workspace.status !== "active" && " · Suspended"}
                   </span>
                 </span>
                 {workspace.id === activeWorkspace.id && (
                   <Check
-                    className="h-4 w-4 text-[#0b7a55]"
+                    className="h-4 w-4 text-accent"
                     aria-label={t("workspaces.active", "Active")}
                   />
                 )}
               </button>
             ))}
           </div>
-          <div className="mt-2 border-t border-[#dce3de] pt-2 dark:border-dark-border">
+          <div className="mt-2 border-t border-line pt-2">
             <button
               type="button"
               onClick={() => {
                 setOpen(false);
                 setCreateOpen(true);
               }}
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-[#0b7a55] hover:bg-[#dcefe7] dark:text-emerald-300 dark:hover:bg-emerald-400/10"
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-accent hover:bg-accent-soft"
             >
               <Plus className="h-4 w-4" />
               {t("workspaces.create", "Create workspace")}
@@ -290,7 +290,7 @@ export function WorkspaceSwitcher({
             <Button
               onClick={handleCreate}
               disabled={!workspaceName.trim() || createWorkspace.isPending}
-              className="bg-[#0b7a55] text-white hover:bg-[#096747]"
+              className="bg-primary text-on-primary hover:bg-primary-hover"
             >
               {createWorkspace.isPending
                 ? t("common.creating")

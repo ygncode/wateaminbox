@@ -51,7 +51,7 @@ export function MediaLightbox({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={updateOpen}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-[#0b141a]/95 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-black/95 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
           className="fixed inset-0 z-[71] flex flex-col text-white outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
           aria-describedby={caption ? descriptionId : undefined}
@@ -60,11 +60,11 @@ export function MediaLightbox({
             {alt}
           </DialogPrimitive.Title>
 
-          <header className="flex min-h-16 items-center gap-3 border-b border-white/10 bg-[#111b21]/88 px-3 backdrop-blur-md sm:px-5">
+          <header className="flex min-h-16 items-center gap-3 border-b border-white/10 bg-black/88 px-3 backdrop-blur-md sm:px-5">
             <DialogPrimitive.Close asChild>
               <button
                 type="button"
-                className="grid size-10 shrink-0 place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]"
+                className="grid size-10 shrink-0 place-items-center rounded-full text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label={`Close ${mediaType}`}
               >
                 <X className="size-5" aria-hidden="true" />
@@ -110,7 +110,7 @@ export function MediaLightbox({
               <a
                 href={src}
                 download
-                className="grid size-10 place-items-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]"
+                className="grid size-10 place-items-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label={`Download ${mediaType}`}
               >
                 <Download className="size-5" aria-hidden="true" />
@@ -119,7 +119,7 @@ export function MediaLightbox({
                 href={src}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="grid size-10 place-items-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]"
+                className="grid size-10 place-items-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label={`Open original ${mediaType}`}
               >
                 <ExternalLink className="size-5" aria-hidden="true" />
@@ -129,7 +129,7 @@ export function MediaLightbox({
 
           <div
             className={`flex min-h-0 flex-1 items-center justify-center overflow-auto ${
-              isDocument ? "bg-[#202c33] p-2 sm:p-4" : "p-4 sm:p-8"
+              isDocument ? "bg-black p-2 sm:p-4" : "p-4 sm:p-8"
             }`}
             onClick={(event) => {
               if (event.target === event.currentTarget) updateOpen(false);
@@ -140,7 +140,7 @@ export function MediaLightbox({
                 src={src}
                 alt={alt}
                 draggable={false}
-                className="max-h-full max-w-full select-none object-contain shadow-2xl shadow-black/30 transition-transform duration-200 ease-out"
+                className="max-h-full max-w-full select-none object-contain shadow-2xl transition-transform duration-200 ease-out"
                 style={{ transform: `scale(${zoom})` }}
                 onDoubleClick={() =>
                   setZoom((current) =>
@@ -152,7 +152,7 @@ export function MediaLightbox({
               <iframe
                 src={src}
                 title={alt}
-                className="h-full w-full max-w-6xl rounded-md border-0 bg-white shadow-2xl shadow-black/40"
+                className="h-full w-full max-w-6xl rounded-md border-0 bg-surface shadow-2xl"
               />
             ) : (
               <video
@@ -160,7 +160,7 @@ export function MediaLightbox({
                 controls
                 autoPlay
                 playsInline
-                className="max-h-full max-w-full rounded-md bg-black object-contain shadow-2xl shadow-black/40"
+                className="max-h-full max-w-full rounded-md bg-black object-contain shadow-2xl"
                 aria-label={alt}
               />
             )}
@@ -169,7 +169,7 @@ export function MediaLightbox({
           {caption && (
             <p
               id={descriptionId}
-              className="border-t border-white/10 bg-[#111b21]/88 px-5 py-3 text-center text-sm leading-5 text-white/80 backdrop-blur-md"
+              className="border-t border-white/10 bg-black/88 px-5 py-3 text-center text-sm leading-5 text-white/80 backdrop-blur-md"
             >
               {caption}
             </p>

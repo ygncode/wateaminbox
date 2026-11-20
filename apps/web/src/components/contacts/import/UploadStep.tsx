@@ -66,7 +66,7 @@ export function UploadStep({
     <div className="space-y-6">
       {/* Target WhatsApp account */}
       {connections.length === 0 && (
-        <div className="p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
+        <div className="p-3 bg-warning-soft border border-warning/30 rounded-lg flex items-center gap-2 text-warning">
           <AlertTriangle className="h-5 w-5 flex-shrink-0" />
           <span className="text-sm">
             {t(
@@ -77,21 +77,19 @@ export function UploadStep({
         </div>
       )}
       {connections.length === 1 && (
-        <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
+        <p className="text-sm text-fg-muted">
           <Trans
             i18nKey="contacts.linkedTo"
             values={{ name: connectionLabel(connections[0]) }}
             components={{
-              strong: (
-                <span className="font-medium text-gray-900 dark:text-dark-text-primary" />
-              ),
+              strong: <span className="font-medium text-fg" />,
             }}
           />
         </p>
       )}
       {connections.length > 1 && (
         <label className="block">
-          <span className="text-sm font-medium text-gray-700 dark:text-dark-text-primary">
+          <span className="text-sm font-medium text-fg">
             {t(
               "contacts.accountForImported",
               "WhatsApp account for imported contacts",
@@ -126,10 +124,10 @@ export function UploadStep({
       <div
         onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
-        className={`border-2 border-dashed border-gray-300 dark:border-dark-border rounded-lg p-8 text-center dark:bg-dark-tertiary transition-colors ${
+        className={`border-2 border-dashed border-line-strong rounded-lg p-8 text-center transition-colors ${
           uploadDisabled
             ? "opacity-60 cursor-not-allowed"
-            : "hover:border-blue-400 dark:hover:border-blue-500 cursor-pointer"
+            : "hover:border-info cursor-pointer"
         }`}
         onClick={() => {
           if (!uploadDisabled) fileInputRef.current?.click();
@@ -146,14 +144,14 @@ export function UploadStep({
           }}
         />
         {loading ? (
-          <Loader2 className="h-12 w-12 mx-auto text-blue-500 dark:text-blue-400 animate-spin" />
+          <Loader2 className="h-12 w-12 mx-auto text-info animate-spin" />
         ) : (
-          <Upload className="h-12 w-12 mx-auto text-gray-400 dark:text-dark-text-tertiary" />
+          <Upload className="h-12 w-12 mx-auto text-fg-subtle" />
         )}
-        <p className="mt-4 text-lg font-medium text-gray-700 dark:text-dark-text-primary">
+        <p className="mt-4 text-lg font-medium text-fg">
           {t("contacts.dropCsvHere", "Drop your CSV file here")}
         </p>
-        <p className="mt-1 text-sm text-gray-500 dark:text-dark-text-secondary">
+        <p className="mt-1 text-sm text-fg-muted">
           {t("contacts.orClickToBrowse", "or click to browse")}
         </p>
       </div>
@@ -164,7 +162,7 @@ export function UploadStep({
           type="button"
           onClick={handleDownloadTemplate}
           disabled={downloadingTemplate}
-          className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 disabled:opacity-60"
+          className="flex items-center gap-2 text-info hover:text-info disabled:opacity-60"
         >
           {downloadingTemplate ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -176,17 +174,17 @@ export function UploadStep({
       </div>
 
       {/* Instructions */}
-      <div className="bg-gray-50 dark:bg-dark-tertiary rounded-lg p-4">
-        <h3 className="font-medium text-gray-900 dark:text-dark-text-primary mb-2">
+      <div className="bg-subtle rounded-lg p-4">
+        <h3 className="font-medium text-fg mb-2">
           {t("contacts.csvFormat", "CSV Format")}
         </h3>
-        <p className="text-sm text-gray-600 dark:text-dark-text-secondary mb-3">
+        <p className="text-sm text-fg-muted mb-3">
           {t(
             "contacts.csvFormatHint",
             "Your CSV file should include a header row with these columns:",
           )}
         </p>
-        <ul className="text-sm text-gray-600 dark:text-dark-text-secondary space-y-1">
+        <ul className="text-sm text-fg-muted space-y-1">
           <li>
             <strong>phone_number</strong> {t("contacts.csvColPhone")}
           </li>

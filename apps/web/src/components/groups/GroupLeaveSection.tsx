@@ -28,13 +28,13 @@ export function GroupLeaveSection({ group }: GroupLeaveSectionProps) {
     <RightPanelSection title={t("groups.membership", "Membership")}>
       {group.isMember ? (
         <>
-          <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
+          <p className="text-sm leading-5 text-fg-muted">
             {group.leaveSemantics}
           </p>
           <Button
             size="sm"
             variant="outline"
-            className="mt-3 gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40"
+            className="mt-3 gap-1.5 text-danger hover:bg-danger-soft hover:text-danger"
             disabled={
               leaveGroup.isPending || group.connection?.status !== "connected"
             }
@@ -44,7 +44,7 @@ export function GroupLeaveSection({ group }: GroupLeaveSectionProps) {
             {t("groups.leaveGroup", "Leave group")}
           </Button>
           {group.connection?.status !== "connected" && (
-            <p className="mt-2 text-xs text-gray-500 dark:text-dark-text-tertiary">
+            <p className="mt-2 text-xs text-fg-muted">
               {t(
                 "groups.leaveOfflineHint",
                 "The WhatsApp account for this group is offline. Reconnect it to leave.",
@@ -53,7 +53,7 @@ export function GroupLeaveSection({ group }: GroupLeaveSectionProps) {
           )}
         </>
       ) : (
-        <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
+        <p className="text-sm leading-5 text-fg-muted">
           {t(
             "groups.alreadyLeftHint",
             "This WhatsApp account has left the group. The conversation stays here as a record, and the group continues for its other members.",

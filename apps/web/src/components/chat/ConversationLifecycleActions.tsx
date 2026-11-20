@@ -109,7 +109,7 @@ export function ConversationLifecycleActions({
             "chat.openFromPending",
             "Open conversation (resume from pending)",
           )}
-          className="flex h-9 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
+          className="flex h-9 items-center gap-1.5 rounded-full border border-line px-3 text-xs font-medium text-fg transition-colors hover:bg-muted disabled:opacity-50"
         >
           <PlayCircle className="h-3.5 w-3.5" aria-hidden="true" />
           <span>{t("chat.open", "Open")}</span>
@@ -130,7 +130,7 @@ export function ConversationLifecycleActions({
                   )
                 : t("chat.resolveConversation", "Resolve conversation")
             }
-            className="flex h-9 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
+            className="flex h-9 items-center gap-1.5 rounded-full border border-line px-3 text-xs font-medium text-fg transition-colors hover:bg-muted disabled:opacity-50"
           >
             <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
             <span>{t("chat.resolve", "Resolve")}</span>
@@ -141,7 +141,7 @@ export function ConversationLifecycleActions({
               onClick={() => pendingMutation.mutate()}
               disabled={pendingMutation.isPending}
               aria-label={t("chat.markPending", "Mark conversation pending")}
-              className="flex h-9 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
+              className="flex h-9 items-center gap-1.5 rounded-full border border-line px-3 text-xs font-medium text-fg transition-colors hover:bg-muted disabled:opacity-50"
             >
               <Clock className="h-3.5 w-3.5" aria-hidden="true" />
               <span>{t("chat.pending", "Pending")}</span>
@@ -160,7 +160,7 @@ export function ConversationLifecycleActions({
               ? t("chat.reopenConversation", "Reopen conversation")
               : t("chat.openConversation", "Open conversation")
           }
-          className="flex h-9 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50 dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
+          className="flex h-9 items-center gap-1.5 rounded-full border border-line px-3 text-xs font-medium text-fg transition-colors hover:bg-muted disabled:opacity-50"
         >
           {isReopen ? (
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />

@@ -78,12 +78,12 @@ export function AutoReplySettingsCard() {
 
   if (isLoading) {
     return (
-      <div className="h-52 animate-pulse rounded-2xl border border-gray-200 bg-gray-50 dark:border-dark-border dark:bg-white/[0.025]" />
+      <div className="h-52 animate-pulse rounded-2xl border border-line bg-subtle" />
     );
   }
   if (error) {
     return (
-      <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-400/20 dark:bg-red-400/[0.06] dark:text-red-300">
+      <div className="rounded-xl border border-danger/30 bg-danger-soft p-4 text-sm text-danger">
         {t(
           "quickReplies.autoReply.loadFailed",
           "The automatic reply rule could not be loaded.",
@@ -93,23 +93,23 @@ export function AutoReplySettingsCard() {
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-[#cddbd5] bg-white shadow-[0_1px_2px_rgba(17,27,33,0.04)] dark:border-white/[0.09] dark:bg-white/[0.025]">
-      <div className="flex flex-col gap-4 border-b border-[#dce5e1] bg-[linear-gradient(115deg,#f5fbf8_0%,#ffffff_62%)] p-5 sm:flex-row sm:items-start sm:justify-between dark:border-white/[0.07] dark:bg-[linear-gradient(115deg,rgba(16,185,129,0.07),rgba(255,255,255,0.015))]">
+    <section className="overflow-hidden rounded-2xl border border-line-strong bg-surface shadow-xs">
+      <div className="flex flex-col gap-4 border-b border-line bg-subtle p-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3.5">
-          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-[#dff4eb] text-[#007a5e] ring-1 ring-[#bfe5d4] dark:bg-emerald-400/10 dark:text-emerald-300 dark:ring-emerald-400/15">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent ring-1 ring-ring">
             <MessageCircleReply className="size-5" aria-hidden="true" />
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="font-semibold tracking-[-0.01em] text-[#1f343d] dark:text-dark-text-primary">
+              <h3 className="font-semibold tracking-[-0.01em] text-fg">
                 {t("quickReplies.autoReply.title", "First-contact reply")}
               </h3>
               <span
                 className={cn(
                   "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em]",
                   enabled
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300"
-                    : "bg-gray-100 text-gray-500 dark:bg-white/[0.06] dark:text-dark-text-tertiary",
+                    ? "bg-accent-soft text-accent"
+                    : "bg-muted text-fg-muted",
                 )}
               >
                 {enabled
@@ -117,7 +117,7 @@ export function AutoReplySettingsCard() {
                   : t("quickReplies.autoReply.off", "Off")}
               </span>
             </div>
-            <p className="mt-1 max-w-2xl text-sm leading-5 text-[#667781] dark:text-dark-text-secondary">
+            <p className="mt-1 max-w-2xl text-sm leading-5 text-fg-muted">
               {t(
                 "quickReplies.autoReply.description",
                 "Welcome a new contact automatically if nobody on your team replies during the wait time.",
@@ -125,7 +125,7 @@ export function AutoReplySettingsCard() {
             </p>
           </div>
         </div>
-        <label className="flex cursor-pointer items-center gap-3 self-start rounded-full bg-white px-3 py-2 text-sm font-semibold text-[#344b54] shadow-sm ring-1 ring-black/[0.07] dark:bg-white/[0.06] dark:text-dark-text-primary dark:ring-white/[0.08]">
+        <label className="flex cursor-pointer items-center gap-3 self-start rounded-full bg-surface px-3 py-2 text-sm font-semibold text-info shadow-sm ring-1 ring-fg/[0.07]">
           <span>{t("quickReplies.autoReply.enable", "Enable")}</span>
           <input
             type="checkbox"
@@ -133,7 +133,7 @@ export function AutoReplySettingsCard() {
             checked={enabled}
             disabled={quickReplies.length === 0}
             onChange={(event) => setEnabled(event.target.checked)}
-            className="size-4 cursor-pointer accent-[#008069] disabled:cursor-not-allowed"
+            className="size-4 cursor-pointer accent-primary disabled:cursor-not-allowed"
           />
         </label>
       </div>
@@ -173,7 +173,7 @@ export function AutoReplySettingsCard() {
               </SelectContent>
             </Select>
             {quickReplies.length === 0 && !repliesLoading && (
-              <p className="text-xs text-amber-700 dark:text-amber-300">
+              <p className="text-xs text-warning">
                 {t(
                   "quickReplies.autoReply.createTemplateFirst",
                   "Create a quick reply below before enabling this rule.",
@@ -187,7 +187,7 @@ export function AutoReplySettingsCard() {
               {t("quickReplies.autoReply.wait", "Wait before sending")}
             </Label>
             <div className="relative max-w-xs">
-              <Clock3 className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-[#8696a0]" />
+              <Clock3 className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-fg-muted" />
               <Input
                 id="auto-reply-delay"
                 type="number"
@@ -200,11 +200,11 @@ export function AutoReplySettingsCard() {
                 }
                 className="h-11 rounded-xl ps-9 pe-20"
               />
-              <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-xs font-medium text-[#667781]">
+              <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-xs font-medium text-fg-muted">
                 {t("quickReplies.autoReply.minutes", "minutes")}
               </span>
             </div>
-            <p className="text-xs text-[#667781] dark:text-dark-text-tertiary">
+            <p className="text-xs text-fg-muted">
               {t(
                 "quickReplies.autoReply.waitHint",
                 "The reply is canceled if a teammate sends a message first.",
@@ -243,9 +243,9 @@ export function AutoReplySettingsCard() {
         </fieldset>
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-[#e1e8e5] bg-[#f8faf9] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between dark:border-white/[0.07] dark:bg-white/[0.02]">
-        <p className="flex items-center gap-2 text-xs text-[#667781] dark:text-dark-text-secondary">
-          <ShieldCheck className="size-4 text-[#008069] dark:text-emerald-300" />
+      <div className="flex flex-col gap-3 border-t border-line bg-subtle px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+        <p className="flex items-center gap-2 text-xs text-fg-muted">
+          <ShieldCheck className="size-4 text-accent" />
           {t(
             "quickReplies.autoReply.safety",
             "Direct chats only · once per contact · never during history sync",
@@ -255,7 +255,7 @@ export function AutoReplySettingsCard() {
           type="button"
           onClick={() => void handleSave()}
           disabled={!canSave || isSaving}
-          className="gap-2 bg-[#008069] text-white hover:bg-[#006f5b]"
+          className="gap-2 bg-primary text-on-primary hover:bg-primary-hover"
         >
           {isSaving ? (
             <Loader2 className="size-4 animate-spin" />
@@ -291,25 +291,23 @@ function ModeOption({
       className={cn(
         "flex w-full items-start gap-3 rounded-xl border p-3 text-start transition-colors",
         active
-          ? "border-[#7bc8af] bg-[#f0faf6] ring-1 ring-[#7bc8af]/30 dark:border-emerald-400/35 dark:bg-emerald-400/[0.07]"
-          : "border-[#dce5e1] hover:bg-gray-50 dark:border-white/[0.08] dark:hover:bg-white/[0.035]",
+          ? "border-accent bg-subtle ring-1 ring-ring/30"
+          : "border-line hover:bg-muted",
       )}
     >
       <span
         className={cn(
           "mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg",
           active
-            ? "bg-white text-[#008069] shadow-sm dark:bg-white/[0.07] dark:text-emerald-300"
-            : "bg-gray-100 text-gray-500 dark:bg-white/[0.05]",
+            ? "bg-surface text-accent shadow-sm"
+            : "bg-muted text-fg-muted",
         )}
       >
         <Icon className="size-4" />
       </span>
       <span>
-        <span className="block text-sm font-semibold text-[#263a43] dark:text-dark-text-primary">
-          {title}
-        </span>
-        <span className="mt-0.5 block text-xs leading-4 text-[#667781] dark:text-dark-text-secondary">
+        <span className="block text-sm font-semibold text-fg">{title}</span>
+        <span className="mt-0.5 block text-xs leading-4 text-fg-muted">
           {description}
         </span>
       </span>

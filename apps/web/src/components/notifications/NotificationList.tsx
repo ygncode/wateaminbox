@@ -90,7 +90,7 @@ function NotificationRow({
       className={cn(
         "group relative border-s-2 transition-colors",
         isUnread
-          ? cn(visual.accent, "bg-white dark:bg-dark-elevated")
+          ? cn(visual.accent, "bg-surface")
           : "border-s-transparent bg-transparent",
       )}
       data-unread={isUnread ? "true" : "false"}
@@ -106,8 +106,8 @@ function NotificationRow({
         }}
         className={cn(
           "flex w-full cursor-pointer items-start text-start outline-none transition-colors",
-          "hover:bg-gray-50 focus-visible:bg-gray-50 dark:hover:bg-dark-tertiary/70 dark:focus-visible:bg-dark-tertiary/70",
-          "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-teal-green",
+          "hover:bg-muted focus-visible:bg-muted",
+          "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
           isCompact ? "gap-3 px-3 py-3" : "gap-3.5 px-4 py-4 sm:px-5",
         )}
         data-testid="notification-item"
@@ -131,8 +131,8 @@ function NotificationRow({
               className={cn(
                 "min-w-0 flex-1 text-sm leading-snug",
                 isUnread
-                  ? "font-semibold text-gray-900 dark:text-dark-text-primary"
-                  : "font-medium text-gray-600 dark:text-dark-text-secondary",
+                  ? "font-semibold text-fg"
+                  : "font-medium text-fg-muted",
               )}
             >
               {notification.title}
@@ -143,7 +143,7 @@ function NotificationRow({
           {notification.message && (
             <span
               className={cn(
-                "mt-1 block text-sm leading-snug text-gray-500 dark:text-dark-text-secondary",
+                "mt-1 block text-sm leading-snug text-fg-muted",
                 isCompact ? "truncate" : "line-clamp-2",
               )}
             >
@@ -151,7 +151,7 @@ function NotificationRow({
             </span>
           )}
 
-          <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium text-gray-400 dark:text-dark-text-tertiary">
+          <span className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-medium text-fg-subtle">
             <span className="uppercase tracking-[0.08em]">{visual.label}</span>
             <span aria-hidden="true">·</span>
             <time
@@ -180,7 +180,7 @@ function NotificationRow({
                 title: notification.title,
               })}
               className={cn(
-                "rounded-full text-gray-400 hover:bg-whatsapp-green/10 hover:text-whatsapp-dark-green dark:text-dark-text-tertiary",
+                "rounded-full text-fg-subtle hover:bg-accent/10 hover:text-accent-hover",
                 isCompact ? "size-7" : "size-8",
               )}
               onClick={(event) => {
@@ -198,7 +198,7 @@ function NotificationRow({
               title: notification.title,
             })}
             className={cn(
-              "rounded-full text-gray-400 hover:bg-red-50 hover:text-red-600 dark:text-dark-text-tertiary dark:hover:bg-red-900/30 dark:hover:text-red-400",
+              "rounded-full text-fg-subtle hover:bg-danger-soft hover:text-danger",
               isCompact ? "size-7" : "size-8",
             )}
             onClick={(event) => {
@@ -215,7 +215,7 @@ function NotificationRow({
           aria-hidden="true"
           className={cn(
             "mt-2 size-2 shrink-0 self-start rounded-full",
-            isUnread ? "bg-whatsapp-green" : "invisible",
+            isUnread ? "bg-primary" : "invisible",
           )}
         />
       </div>
@@ -253,14 +253,14 @@ export function NotificationGroups({
           <h3
             id={`notification-day-${group.key}`}
             className={cn(
-              "sticky top-0 z-10 border-b border-gray-100 bg-gray-50/95 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-gray-500 backdrop-blur",
-              "dark:border-dark-border dark:bg-dark-tertiary/95 dark:text-dark-text-secondary",
+              "sticky top-0 z-10 border-b border-line bg-subtle/95 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-fg-muted backdrop-blur",
+
               density === "comfortable" && "sm:px-5",
             )}
           >
             {group.label}
           </h3>
-          <ul className="divide-y divide-gray-100 dark:divide-dark-border/70">
+          <ul className="divide-y divide-line">
             {group.items.map((notification) => (
               <NotificationRow
                 key={notification.id}
@@ -289,7 +289,7 @@ export function NotificationListSkeleton({
   const isCompact = density === "compact";
   return (
     <div
-      className="divide-y divide-gray-100 dark:divide-dark-border/70"
+      className="divide-y divide-line"
       aria-hidden="true"
       data-testid="notification-skeleton"
     >
@@ -345,19 +345,17 @@ export function NotificationEmptyState({
       data-testid="notification-empty"
     >
       <div className="relative mb-5">
-        <div className="grid size-16 place-items-center rounded-2xl bg-gray-100 text-gray-400 dark:bg-dark-tertiary dark:text-dark-text-tertiary">
+        <div className="grid size-16 place-items-center rounded-2xl bg-muted text-fg-subtle">
           <Bell className="size-7" aria-hidden="true" />
         </div>
         {filter === "unread" && !beyondFirstPage && (
-          <span className="absolute -bottom-1 -end-1 grid size-6 place-items-center rounded-full bg-whatsapp-green text-white shadow-sm">
+          <span className="absolute -bottom-1 -end-1 grid size-6 place-items-center rounded-full bg-primary text-on-primary shadow-sm">
             <Check className="size-3.5" aria-hidden="true" />
           </span>
         )}
       </div>
-      <p className="text-balance text-base font-semibold text-gray-900 dark:text-dark-text-primary">
-        {title}
-      </p>
-      <p className="mt-1.5 max-w-xs text-pretty text-sm text-gray-500 dark:text-dark-text-secondary">
+      <p className="text-balance text-base font-semibold text-fg">{title}</p>
+      <p className="mt-1.5 max-w-xs text-pretty text-sm text-fg-muted">
         {description}
       </p>
       {action && <div className="mt-5">{action}</div>}
@@ -386,13 +384,13 @@ export function NotificationErrorState({
       )}
       data-testid="notification-error"
     >
-      <div className="mb-5 grid size-16 place-items-center rounded-2xl bg-red-50 text-red-500 dark:bg-red-900/30 dark:text-red-400">
+      <div className="mb-5 grid size-16 place-items-center rounded-2xl bg-danger-soft text-danger">
         <TriangleAlert className="size-7" aria-hidden="true" />
       </div>
-      <p className="text-base font-semibold text-gray-900 dark:text-dark-text-primary">
+      <p className="text-base font-semibold text-fg">
         {t("notifications.loadFailed", "Notifications could not be loaded")}
       </p>
-      <p className="mt-1.5 max-w-xs text-pretty text-sm text-gray-500 dark:text-dark-text-secondary">
+      <p className="mt-1.5 max-w-xs text-pretty text-sm text-fg-muted">
         {t(
           "notifications.loadFailedHint",
           "The connection to your workspace failed. Your notifications are safe.",
