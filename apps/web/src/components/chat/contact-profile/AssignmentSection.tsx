@@ -138,7 +138,7 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
                 ? contact.assignment.assignedToName
                 : t("contacts.unassigned", "Unassigned")}
             </p>
-            <p className="text-xs text-fg-muted">
+            <p className="text-xs text-fg-subtle">
               {contact.assignment
                 ? t("contacts.assignedSince", "Assigned since {{date}}", {
                     date: formatShortDate(contact.assignment.assignedAt),
@@ -304,7 +304,7 @@ export function ConversationAssignmentSection({
                 ? assignedToName
                 : t("contacts.unassigned", "Unassigned")}
             </p>
-            <p className="text-xs text-fg-muted">
+            <p className="text-xs text-fg-subtle">
               {assignment
                 ? t("contacts.assignedSince", "Assigned since {{date}}", {
                     date: formatShortDate(assignment.assigned_at),

@@ -145,7 +145,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
             className="block font-mono text-[11px] leading-4 text-fg-muted"
           >
             <span className="block">{occurredAt.format("MMM D, YYYY")}</span>
-            <span className="block text-fg-muted">
+            <span className="block text-fg-subtle">
               {occurredAt.format("HH:mm:ss")}
             </span>
           </time>
@@ -282,7 +282,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-subtle">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-page">
       <header className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6">
         <div className="flex items-center gap-3">
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
@@ -550,7 +550,7 @@ function Actor({ actor }: { actor: AuditLogType["actor"] }) {
   return (
     <div className="flex min-w-0 items-center gap-2.5">
       <Avatar className="h-8 w-8">
-        <AvatarFallback className="bg-muted text-[10px] font-bold text-accent">
+        <AvatarFallback className="bg-accent-soft text-[10px] font-bold text-accent">
           {initials || <Activity className="h-3.5 w-3.5" />}
         </AvatarFallback>
       </Avatar>
@@ -603,7 +603,7 @@ function AuditDetails({ log, t }: { log: AuditLogType; t: TFunction }) {
           </summary>
           <pre
             dir="ltr"
-            className="mt-2 max-h-52 overflow-auto rounded-lg bg-muted p-3"
+            className="mt-2 max-h-52 overflow-auto rounded-lg bg-page p-3"
           >
             {JSON.stringify(Object.fromEntries(details), null, 2)}
           </pre>

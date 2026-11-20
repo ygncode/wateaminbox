@@ -114,7 +114,7 @@ export function MessageHeader({
     // of the screen and owns the notch inset (height included, not eaten).
     <header
       className={cn(
-        "flex shrink-0 items-center gap-0.5 border-b border-line/[0.06] bg-muted px-1 md:gap-2 md:px-3",
+        "flex shrink-0 items-center gap-0.5 border-b border-line/[0.06] bg-surface px-1 md:gap-2 md:px-3",
         CONVERSATION_HEADER_INSET_CLASS,
       )}
     >
@@ -143,7 +143,7 @@ export function MessageHeader({
         className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1 py-1 text-start transition-colors hover:bg-fg/[0.04] active:bg-fg/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 md:gap-3 md:px-2"
       >
         <span className="relative shrink-0">
-          <span className="block size-10 overflow-hidden rounded-full bg-fg-subtle">
+          <span className="block size-10 overflow-hidden rounded-full bg-muted">
             {contact.avatarUrl ? (
               <img
                 src={contact.avatarUrl}
@@ -160,7 +160,7 @@ export function MessageHeader({
             )}
           </span>
           {contact.isOnline && (
-            <span className="absolute bottom-0 end-0 size-3 rounded-full bg-primary ring-2 ring-line-strong" />
+            <span className="absolute bottom-0 end-0 size-3 rounded-full bg-signal ring-2 ring-surface" />
           )}
         </span>
 
@@ -224,7 +224,7 @@ export function MessageHeader({
               <>
                 {(isTyping || statusText) && (
                   <span
-                    className="size-0.5 shrink-0 rounded-full bg-fg-subtle"
+                    className="size-0.5 shrink-0 rounded-full bg-muted-strong"
                     aria-hidden="true"
                   />
                 )}

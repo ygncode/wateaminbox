@@ -88,7 +88,7 @@ export function VerifyEmailPage() {
         : AlertCircle;
 
   return (
-    <main className="min-h-dvh grid place-items-center bg-muted px-4">
+    <main className="min-h-dvh grid place-items-center bg-canvas px-4">
       <section className="relative w-full max-w-md overflow-hidden rounded-xl border border-line bg-surface p-8 text-center shadow-xl">
         <div className="absolute inset-x-0 top-0 h-1 bg-primary" />
         <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-full bg-accent/10 text-accent">

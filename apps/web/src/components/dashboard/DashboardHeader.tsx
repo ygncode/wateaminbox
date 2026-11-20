@@ -68,7 +68,7 @@ export function DashboardHeader({
 
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <div
-            className="hidden rounded-lg border border-line bg-subtle p-0.5 sm:flex"
+            className="hidden rounded-lg border border-line bg-surface p-0.5 sm:flex"
             role="group"
             aria-label={t("dashboard.dateRangeAria", "Dashboard date range")}
           >
@@ -81,7 +81,7 @@ export function DashboardHeader({
                 className={cn(
                   "rounded-md px-3 py-1.5 text-xs font-medium transition-[background-color,color,box-shadow]",
                   dateRange === range.id
-                    ? "bg-surface text-accent shadow-sm"
+                    ? "bg-raised text-accent shadow-sm"
                     : "text-fg-muted hover:text-fg",
                 )}
               >

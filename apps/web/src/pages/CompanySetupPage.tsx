@@ -138,8 +138,8 @@ export function CompanySetupPage() {
   const isBusy = createCompany.isPending || isProcessingLogo;
 
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-muted px-3 py-3 text-fg sm:px-6 sm:py-6">
-      <section className="relative mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-lg sm:min-h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(0,1.06fr)_minmax(22rem,0.94fr)]">
+    <main className="relative min-h-dvh overflow-hidden bg-canvas px-3 py-3 text-fg sm:px-6 sm:py-6">
+      <section className="relative mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-line/80 bg-surface shadow-lg sm:min-h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(0,1.06fr)_minmax(22rem,0.94fr)]">
         <div className="flex min-w-0 flex-col p-6 sm:p-9 lg:p-12">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -148,7 +148,7 @@ export function CompanySetupPage() {
                 <p className="text-[1.05rem] font-bold tracking-[-0.03em] text-fg">
                   WATeamInbox
                 </p>
-                <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-fg-muted">
+                <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-fg-subtle">
                   {t("setup.whatsappForTeams", "WhatsApp for teams")}
                 </p>
               </div>
@@ -199,12 +199,12 @@ export function CompanySetupPage() {
 
             <form
               onSubmit={handleSubmit(onSubmit)}
-              className="mt-8 space-y-6 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-line-strong [&_input]:bg-surface [&_input]:px-3.5"
+              className="mt-8 space-y-6 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-line-strong [&_input]:bg-raised [&_input]:px-3.5"
               aria-busy={isBusy}
               noValidate
             >
               <fieldset disabled={isBusy}>
-                <legend className="mb-2 text-sm font-semibold text-fg">
+                <legend className="mb-2 text-sm font-semibold text-fg-muted">
                   {t("settings.workspaceLogo")}{" "}
                   <span className="font-normal text-fg-subtle">
                     {t("setup.optional")}
@@ -285,7 +285,7 @@ export function CompanySetupPage() {
                             )
                           : t("setup.uploadLogo", "Upload logo")}
                       </span>
-                      <span className="mt-1 block text-xs leading-5 text-fg-muted">
+                      <span className="mt-1 block text-xs leading-5 text-fg-subtle">
                         {t("setup.logoHint", {
                           defaultValue:
                             "PNG, JPEG, WebP, GIF, or AVIF · max {{mb}} MB · automatically cropped to {{size}} × {{size}}",
@@ -346,7 +346,7 @@ export function CompanySetupPage() {
                   <label
                     htmlFor="companyDescription"
                     className={`text-sm font-semibold transition-colors group-focus-within:text-accent  ${
-                      errors.description ? "text-danger" : "text-fg"
+                      errors.description ? "text-danger" : "text-fg-muted"
                     }`}
                   >
                     {t("settings.description", "Description")}{" "}
@@ -371,7 +371,7 @@ export function CompanySetupPage() {
                   aria-describedby={
                     errors.description ? "companyDescription-error" : undefined
                   }
-                  className="w-full resize-none rounded-xl border border-line-strong bg-surface px-3.5 py-3 text-sm leading-5 text-fg shadow-sm transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-fg-subtle hover:border-line-strong focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-ring/20 aria-invalid:border-danger aria-invalid:bg-danger-soft/35 aria-invalid:focus:border-danger aria-invalid:focus:ring-danger/15 disabled:cursor-not-allowed disabled:bg-subtle disabled:opacity-60"
+                  className="w-full resize-none rounded-xl border border-line-strong bg-raised px-3.5 py-3 text-sm leading-5 text-fg shadow-sm transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-fg-subtle hover:border-line-strong focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-ring/20 aria-invalid:border-danger aria-invalid:bg-danger-soft/35 aria-invalid:focus:border-danger aria-invalid:focus:ring-danger/15 disabled:cursor-not-allowed disabled:bg-subtle disabled:opacity-60"
                   {...register("description")}
                 />
                 {errors.description && (
@@ -392,7 +392,7 @@ export function CompanySetupPage() {
               <Button
                 type="submit"
                 size="lg"
-                className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-primary-hover"
+                className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-accent-soft"
                 disabled={isBusy}
               >
                 {createCompany.isPending ? (
@@ -437,12 +437,12 @@ export function CompanySetupPage() {
             }}
           />
           <div
-            className="pointer-events-none absolute -end-32 -top-24 h-80 w-80 rounded-full border-[72px] border-nav-fg/10"
+            className="pointer-events-none absolute -end-32 -top-24 h-80 w-80 rounded-full border-[72px] border-nav-line"
             aria-hidden="true"
           />
 
           <div className="relative">
-            <div className="inline-flex items-center gap-2 rounded-full border border-nav-fg/15 bg-nav-hover px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-nav-fg">
+            <div className="inline-flex items-center gap-2 rounded-full border border-nav-line bg-nav-hover px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-nav-fg">
               <span
                 aria-hidden="true"
                 className="h-1.5 w-1.5 rounded-full bg-accent-soft"
@@ -487,7 +487,7 @@ export function CompanySetupPage() {
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-nav-fg/10 bg-nav-hover p-3">
+              <div className="rounded-xl border border-nav-line bg-nav-hover p-3">
                 <UsersRound
                   aria-hidden="true"
                   className="h-4 w-4 text-nav-badge"
@@ -499,7 +499,7 @@ export function CompanySetupPage() {
                   {t("setup.addMembersAfter", "Add members after setup")}
                 </p>
               </div>
-              <div className="rounded-xl border border-nav-fg/10 bg-nav-hover p-3">
+              <div className="rounded-xl border border-nav-line bg-nav-hover p-3">
                 <Building2
                   aria-hidden="true"
                   className="h-4 w-4 text-nav-badge"
@@ -522,7 +522,7 @@ export function CompanySetupPage() {
             </div>
           </div>
 
-          <div className="relative flex items-center gap-3 border-t border-nav-fg/10 pt-6 text-xs text-nav-fg-muted">
+          <div className="relative flex items-center gap-3 border-t border-nav-line pt-6 text-xs text-nav-fg-muted">
             <LockKeyhole aria-hidden="true" className="h-4 w-4" />
             {t("setup.ownerNote", "You’ll be the owner of this workspace.")}
           </div>

@@ -112,7 +112,7 @@ export function MergedChatsSection({
           </li>
         ))}
         {chats.length === 0 && (
-          <li className="px-2.5 py-2 text-xs text-fg-muted">
+          <li className="px-2.5 py-2 text-xs text-fg-subtle">
             {t("contacts.noChatsYet", "No conversations yet")}
           </li>
         )}
@@ -168,13 +168,13 @@ function ThreadRow({
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm text-fg">{name}</span>
         {secondary && (
-          <span className="block truncate text-[11px] text-fg-muted">
+          <span className="block truncate text-[11px] text-fg-subtle">
             {secondary}
           </span>
         )}
       </span>
       {chat.unreadCount > 0 && (
-        <span className="shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-semibold text-on-primary">
+        <span className="shrink-0 rounded-full bg-signal px-1.5 text-[10px] font-semibold text-on-signal">
           {chat.unreadCount}
         </span>
       )}

@@ -83,7 +83,7 @@ export function ConnectionCard({
   return (
     <div
       className={cn(
-        "overflow-visible rounded-2xl border border-line bg-surface p-4 shadow-xs transition-[border-color,box-shadow] duration-200 hover:border-line-strong hover:shadow-lg dark:hover:shadow-none sm:p-5",
+        "overflow-visible rounded-2xl border border-line bg-subtle p-4 shadow-xs transition-[border-color,box-shadow] duration-200 hover:border-line-strong hover:shadow-lg dark:hover:shadow-none sm:p-5",
         localState.error && "border-danger/30 bg-danger-soft/40",
       )}
     >
@@ -124,7 +124,7 @@ export function ConnectionCard({
                   type="text"
                   value={editName}
                   onChange={(e) => onEditNameChange(e.target.value)}
-                  className="min-w-0 flex-1 rounded-lg border border-line bg-muted px-2 py-1 text-sm text-fg transition-all placeholder-fg-muted focus:border-primary focus:bg-surface focus:outline-none focus:ring-1 focus:ring-ring"
+                  className="min-w-0 flex-1 rounded-lg border border-line bg-muted px-2 py-1 text-sm text-fg transition-all placeholder-fg-subtle focus:border-primary focus:bg-surface focus:outline-none focus:ring-1 focus:ring-ring"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") onSaveEdit();
                     if (e.key === "Escape") onCancelEdit();

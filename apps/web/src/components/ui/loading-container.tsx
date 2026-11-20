@@ -136,7 +136,7 @@ export function LoadingOverlay({
         <div
           className={cn(
             "absolute inset-0 flex items-center justify-center",
-            "bg-surface",
+            "bg-page",
             "transition-opacity duration-200",
           )}
           style={{ opacity: overlayOpacity / 100 }}

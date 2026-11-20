@@ -108,7 +108,7 @@ export function ResolutionRateSection({
             )}
           </p>
         </div>
-        <span className="ms-auto rounded-full border border-line bg-subtle px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
+        <span className="ms-auto rounded-full border border-line bg-surface px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
           {dayjs(startDate).format("MMM D")} – {dayjs(endDate).format("MMM D")}
         </span>
       </div>
@@ -232,7 +232,7 @@ export function ResolutionRateSection({
                 )}
               </p>
             ) : trendLoading ? (
-              <div className="grid h-[220px] place-items-center rounded-xl border border-dashed border-line bg-subtle text-sm text-fg-muted">
+              <div className="grid h-[220px] place-items-center rounded-xl border border-dashed border-line bg-surface/40 text-sm text-fg-muted">
                 {t("dashboard.resolution.loadingTrend", "Loading trend…")}
               </div>
             ) : (
@@ -304,7 +304,7 @@ export function ResolutionRateSection({
                 {team.slice(0, 5).map((member) => (
                   <div
                     key={member.userId}
-                    className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-surface"
+                    className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-raised"
                   >
                     <div>
                       <div className="text-xs font-medium text-fg">

@@ -817,7 +817,7 @@ function AcknowledgedMessageComposer({
     <>
       {/* No top border: the lifecycle bar directly above already draws one
           and shares this surface, so a second rule read as a seam. */}
-      <footer className="bg-muted">
+      <footer className="bg-surface">
         {/* Disconnected banner */}
         {isDisconnected && (
           <div className="border-b border-warning/30 bg-warning-soft px-4 py-2 text-center text-sm text-warning">
@@ -831,7 +831,7 @@ function AcknowledgedMessageComposer({
             which account, and what can be done with the conversation. The
             operator's own name used to lead this row, which is the one thing
             they already know. */}
-        <div className="flex min-h-8 min-w-0 items-center gap-2 border-b border-line/[0.055] bg-surface/55 px-3 py-1">
+        <div className="flex min-h-8 min-w-0 items-center gap-2 border-b border-line/[0.055] bg-subtle/55 px-3 py-1">
           {/* Only rendered for a merged customer, who has a second thread to
               switch to. It moves between conversations; it never redirects
               this one's messages onto another. */}
@@ -896,7 +896,7 @@ function AcknowledgedMessageComposer({
               <button
                 type="button"
                 onClick={onClearReply}
-                className="me-2 grid size-8 shrink-0 place-items-center rounded-full text-fg-muted transition-colors hover:bg-fg/[0.055] hover:text-fg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                className="me-2 grid size-8 shrink-0 place-items-center rounded-full text-fg-subtle transition-colors hover:bg-fg/[0.055] hover:text-fg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                 aria-label={t("chat.cancelReply", "Cancel reply")}
               >
                 <X className="size-4.5" aria-hidden="true" />
@@ -915,8 +915,8 @@ function AcknowledgedMessageComposer({
               isInputDisabled
                 ? "bg-fg/[0.035] opacity-60 ring-fg/[0.05]"
                 : shouldShowQuickReplyPicker || shouldShowMentionPicker
-                  ? "bg-surface shadow-xs ring-ring/50"
-                  : "bg-surface shadow-xs ring-fg/[0.055] focus-within:ring-ring/35"
+                  ? "bg-raised shadow-xs ring-ring/50"
+                  : "bg-raised shadow-xs ring-fg/[0.055] focus-within:ring-ring/35"
             }`}
           >
             {shouldShowMentionPicker && activeMentionToken && (
@@ -1104,7 +1104,7 @@ function AcknowledgedMessageComposer({
                         ? `group-mention-option-${selectedMentionIndex}`
                         : undefined
                   }
-                  className={`block max-h-[150px] w-full resize-none bg-transparent px-2 py-2 text-[15px] leading-5 text-fg outline-none placeholder:text-fg-muted   ${
+                  className={`block max-h-[150px] w-full resize-none bg-transparent px-2 py-2 text-[15px] leading-5 text-fg outline-none placeholder:text-fg-subtle   ${
                     isInputDisabled ? "cursor-not-allowed" : ""
                   }`}
                   style={{ minHeight: "36px" }}

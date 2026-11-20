@@ -26,11 +26,11 @@ const ContactSkeleton = memo(function ContactSkeleton() {
   return (
     <div className="flex items-center gap-3 px-4 py-3 animate-pulse">
       {/* Avatar skeleton */}
-      <div className="w-12 h-12 rounded-full bg-muted-strong" />
+      <div className="w-12 h-12 rounded-full bg-muted" />
       {/* Text skeleton */}
       <div className="flex-1 space-y-2">
-        <div className="h-4 w-32 rounded bg-muted-strong" />
-        <div className="h-3 w-24 rounded bg-muted-strong" />
+        <div className="h-4 w-32 rounded bg-muted" />
+        <div className="h-3 w-24 rounded bg-muted" />
       </div>
     </div>
   );
@@ -118,7 +118,7 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
         </DialogHeader>
 
         {/* Search Input */}
-        <div className="px-4 py-3 bg-subtle/50">
+        <div className="px-4 py-3 bg-page/30">
           <div className="relative group">
             <Search className="absolute start-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-fg-subtle transition-colors group-focus-within:text-accent" />
             <input
@@ -126,14 +126,14 @@ export const ForwardMessageDialog = memo(function ForwardMessageDialog({
               placeholder={t("chat.searchContactsEllipsis", "Search contacts…")}
               value={searchQuery}
               onChange={handleSearchChange}
-              className="w-full ps-10 pe-10 py-2.5 text-sm bg-surface border border-line rounded-xl text-fg placeholder-fg-subtle focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary transition-all duration-200"
+              className="w-full ps-10 pe-10 py-2.5 text-sm bg-raised border border-line rounded-xl text-fg placeholder-fg-subtle focus:outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary transition-all duration-200"
               autoFocus
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={handleSearchClear}
-                className="absolute end-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-fg-subtle hover:text-fg-muted hover:bg-muted transition-all duration-150"
+                className="absolute end-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-fg-subtle hover:text-fg-muted hover:bg-muted-strong transition-all duration-150"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -252,7 +252,7 @@ const ContactListItem = memo(function ContactListItem({
       type="button"
       onClick={onClick}
       disabled={isDisabled}
-      className="group w-full flex items-center gap-3 px-4 py-3 text-start transition-all duration-150 hover:bg-muted active:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+      className="group w-full flex items-center gap-3 px-4 py-3 text-start transition-all duration-150 hover:bg-subtle active:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {/* Avatar */}
       <div className="relative flex-shrink-0">
@@ -279,7 +279,7 @@ const ContactListItem = memo(function ContactListItem({
         {/* Online Indicator */}
         {!contact.isGroup && contact.isOnline && (
           <span
-            className="absolute bottom-0.5 end-0.5 w-3 h-3 bg-primary border-2 border-surface rounded-full shadow-sm"
+            className="absolute bottom-0.5 end-0.5 w-3 h-3 bg-signal border-2 border-surface rounded-full shadow-sm"
             aria-label={t("chat.online", "Online")}
           />
         )}
@@ -292,7 +292,7 @@ const ContactListItem = memo(function ContactListItem({
             {displayName}
           </span>
           {contact.isGroup && (
-            <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] font-medium uppercase text-fg-muted bg-muted rounded">
+            <span className="flex-shrink-0 px-1.5 py-0.5 text-[10px] font-medium uppercase text-fg-subtle bg-muted rounded">
               Group
             </span>
           )}

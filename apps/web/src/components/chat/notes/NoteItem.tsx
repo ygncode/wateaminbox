@@ -121,7 +121,7 @@ export function NoteItem({
           </div>
         )}
       </div>
-      <div className="mt-2 flex items-center gap-2 text-xs text-fg-muted">
+      <div className="mt-2 flex items-center gap-2 text-xs text-fg-subtle">
         {showAuthor && note.authorName && (
           <>
             <span className={cn("font-medium", isSystem && "text-info")}>

@@ -206,7 +206,7 @@ export function ResponseTimeAnalytics({
             </p>
           </div>
         </div>
-        <span className="rounded-full border border-line bg-subtle px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
+        <span className="rounded-full border border-line bg-surface px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
           Last {dateRange === "7d" ? "7" : dateRange === "30d" ? "30" : "90"}{" "}
           days
         </span>
@@ -380,7 +380,7 @@ export function ResponseTimeAnalytics({
             {team.slice(0, 5).map((member) => (
               <div
                 key={member.userId}
-                className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-surface"
+                className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-raised"
               >
                 <div>
                   <div className="text-xs font-medium text-fg">

@@ -258,8 +258,8 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full bg-subtle">
-      <aside className="hidden w-64 shrink-0 overflow-y-auto border-e border-line bg-muted px-4 py-6 md:block">
+    <div className="flex h-full min-h-0 w-full bg-page">
+      <aside className="hidden w-64 shrink-0 overflow-y-auto border-e border-line bg-surface px-4 py-6 md:block">
         <p className="px-2 text-xs font-bold uppercase tracking-[0.18em] text-accent">
           {t("settings.title", "Settings")}
         </p>
@@ -355,7 +355,7 @@ function SettingsLink({
         cn(
           "flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm font-medium transition-colors",
           isActive
-            ? "bg-surface text-accent shadow-sm ring-1 ring-inset ring-transparent"
+            ? "bg-accent-soft text-accent shadow-sm ring-1 ring-inset ring-transparent"
             : "text-fg-muted hover:bg-surface/70 hover:text-fg ",
         )
       }
@@ -773,7 +773,7 @@ function GeneralSettings() {
                 "settings.descriptionPlaceholder",
                 "What does this team handle?",
               )}
-              className="mt-2 w-full resize-none rounded-xl border border-line bg-surface px-3.5 py-3 text-sm leading-5 outline-none transition-[border-color,box-shadow] placeholder:text-fg-subtle focus:border-accent focus:ring-[3px] focus:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-2 w-full resize-none rounded-xl border border-line bg-raised px-3.5 py-3 text-sm leading-5 outline-none transition-[border-color,box-shadow] placeholder:text-fg-subtle focus:border-accent focus:ring-[3px] focus:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </label>
 

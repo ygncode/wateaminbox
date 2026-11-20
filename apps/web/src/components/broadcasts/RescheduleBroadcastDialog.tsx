@@ -133,7 +133,7 @@ export function RescheduleBroadcastDialog({
               aria-describedby={
                 error ? "broadcast-reschedule-error" : undefined
               }
-              className="mt-2 block w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-fg outline-none transition focus:border-accent focus:ring-2 focus:ring-ring/20"
+              className="mt-2 block w-full rounded-lg border border-line-strong bg-raised px-3 py-2 text-sm text-fg outline-none transition focus:border-accent focus:ring-2 focus:ring-ring/20"
             />
             {error && (
               <span

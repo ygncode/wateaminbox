@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export function ContactProfileSkeleton() {
   return (
     <div>
-      <div className="flex flex-col items-center gap-2 bg-subtle py-5">
+      <div className="flex flex-col items-center gap-2 bg-surface py-5">
         <Skeleton className="size-20 rounded-full" />
         <Skeleton className="h-5 w-40" />
         <Skeleton className="h-3 w-28" />

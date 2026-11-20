@@ -36,7 +36,7 @@ export function SharedContactSheet({
       className="sm:inset-x-auto sm:start-1/2 sm:-ms-[15rem] sm:w-[30rem]"
     >
       {renderedContact && (
-        <div className="flex min-h-full flex-col bg-muted">
+        <div className="flex min-h-full flex-col bg-page">
           <div className="flex flex-col items-center bg-surface px-6 pb-6 pt-7">
             <div className="size-24 overflow-hidden rounded-full shadow-md ring-1 ring-fg/[0.06]">
               <IdentityAvatarFallback
@@ -80,7 +80,7 @@ export function SharedContactSheet({
                     {formatPhoneNumber(phone.value)}
                   </span>
                   {phone.label && (
-                    <span className="shrink-0 text-xs text-fg-muted">
+                    <span className="shrink-0 text-xs text-fg-subtle">
                       {phone.label}
                     </span>
                   )}

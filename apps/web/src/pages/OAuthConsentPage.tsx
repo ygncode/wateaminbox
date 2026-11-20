@@ -110,7 +110,7 @@ export function OAuthConsentPage() {
   const busy = submitting !== null;
 
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-subtle px-5 py-10 text-fg">
+    <main className="relative min-h-dvh overflow-hidden bg-canvas px-5 py-10 text-fg">
       <div className="relative mx-auto max-w-lg">
         <div className="mb-8 flex items-center gap-3">
           <BrandMark className="h-10 w-10 shrink-0 rounded-xl object-contain" />
@@ -195,7 +195,7 @@ export function OAuthConsentPage() {
                     key={workspace.id}
                     className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all ${
                       active
-                        ? "border-accent bg-subtle"
+                        ? "border-accent bg-accent-soft"
                         : "border-line hover:border-accent"
                     }`}
                   >

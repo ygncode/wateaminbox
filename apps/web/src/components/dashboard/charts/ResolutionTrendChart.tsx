@@ -61,7 +61,7 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
 
   if (data.length === 0) {
     return (
-      <div className="grid h-[220px] place-items-center rounded-xl border border-dashed border-line bg-subtle text-sm text-fg-muted">
+      <div className="grid h-[220px] place-items-center rounded-xl border border-dashed border-line bg-surface/40 text-sm text-fg-muted">
         {t(
           "dashboard.charts.noResolutionTrend",
           "No resolution trend in this period",

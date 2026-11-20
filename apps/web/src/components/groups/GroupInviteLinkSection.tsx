@@ -46,10 +46,10 @@ export function GroupInviteLinkSection({ group }: GroupInviteLinkSectionProps) {
     <RightPanelSection title={t("groups.inviteLink", "Invite link")}>
       {group.inviteLink ? (
         <div className="space-y-2">
-          <p className="break-all rounded-lg bg-subtle p-2.5 font-mono text-xs text-fg">
+          <p className="break-all rounded-lg bg-surface p-2.5 font-mono text-xs text-fg">
             {group.inviteLink}
           </p>
-          <p className="text-xs text-fg-muted">
+          <p className="text-xs text-fg-subtle">
             {t(
               "groups.inviteLinkHint",
               "Anyone with this link can request to join. Treat it like a password.",
@@ -57,7 +57,7 @@ export function GroupInviteLinkSection({ group }: GroupInviteLinkSectionProps) {
           </p>
         </div>
       ) : (
-        <div className="flex gap-3 rounded-lg bg-subtle p-3">
+        <div className="flex gap-3 rounded-lg bg-surface p-3">
           <Link2 className="mt-0.5 h-5 w-5 shrink-0 text-fg-subtle" />
           <p className="text-sm leading-5 text-fg-muted">
             {t(

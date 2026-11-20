@@ -18,9 +18,9 @@ const numberFormatter = new Intl.NumberFormat(undefined, {
 function TransferPath({ reduceMotion }: { reduceMotion: boolean }) {
   return (
     <div className="relative grid grid-cols-[52px_1fr_52px] items-center gap-3 py-2">
-      <div className="relative z-10 grid size-13 place-items-center rounded-2xl border border-line bg-surface text-fg shadow-sm">
+      <div className="relative z-10 grid size-13 place-items-center rounded-2xl border border-line bg-raised text-fg shadow-sm">
         <Smartphone className="size-5" strokeWidth={1.8} />
-        <span className="absolute -end-1 -top-1 size-3 rounded-full border-2 border-surface bg-primary" />
+        <span className="absolute -end-1 -top-1 size-3 rounded-full border-2 border-surface bg-signal" />
       </div>
 
       <div className="relative h-px overflow-visible bg-muted-strong">
@@ -30,7 +30,7 @@ function TransferPath({ reduceMotion }: { reduceMotion: boolean }) {
             // Packet motion makes the transfer direction legible without
             // pretending that an unknown total is a percentage.
             key={packet}
-            className="absolute -top-1 size-2 rounded-full bg-primary shadow-md"
+            className="absolute -top-1 size-2 rounded-full bg-signal shadow-md"
             initial={{ left: "0%", opacity: 0 }}
             animate={
               reduceMotion
@@ -55,7 +55,7 @@ function TransferPath({ reduceMotion }: { reduceMotion: boolean }) {
       </div>
 
       <motion.div
-        className="relative z-10 grid size-13 place-items-center rounded-2xl bg-primary text-accent shadow-lg"
+        className="relative z-10 grid size-13 place-items-center rounded-2xl bg-signal text-accent shadow-lg"
         animate={reduceMotion ? undefined : { scale: [1, 1.04, 1] }}
         transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
       >
@@ -110,7 +110,7 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
             layout
             className="relative overflow-hidden rounded-[22px] border border-line/10 bg-overlay/95 shadow-lg backdrop-blur-xl"
           >
-            <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent" />
+            <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-signal to-transparent" />
             <div
               className="pointer-events-none absolute inset-0 opacity-[0.035] dark:opacity-[0.055]"
               style={{
@@ -133,8 +133,8 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                     <div>
                       <div className="mb-1.5 flex items-center gap-2">
                         <span className="relative flex size-2.5">
-                          <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-50 motion-reduce:animate-none" />
-                          <span className="relative inline-flex size-2.5 rounded-full bg-primary" />
+                          <span className="absolute inline-flex size-full animate-ping rounded-full bg-signal opacity-50 motion-reduce:animate-none" />
+                          <span className="relative inline-flex size-2.5 rounded-full bg-signal" />
                         </span>
                         <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">
                           {t("chat.historyImportLive", "History import live")}
@@ -218,7 +218,7 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                   <div className="relative grid size-9 place-items-center rounded-xl bg-accent/15 text-accent">
                     <Inbox className="size-4" />
                     <motion.span
-                      className="absolute -end-0.5 -top-0.5 size-2 rounded-full bg-primary"
+                      className="absolute -end-0.5 -top-0.5 size-2 rounded-full bg-signal"
                       animate={
                         reduceMotion ? undefined : { opacity: [0.35, 1, 0.35] }
                       }

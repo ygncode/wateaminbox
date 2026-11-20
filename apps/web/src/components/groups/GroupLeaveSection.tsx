@@ -44,7 +44,7 @@ export function GroupLeaveSection({ group }: GroupLeaveSectionProps) {
             {t("groups.leaveGroup", "Leave group")}
           </Button>
           {group.connection?.status !== "connected" && (
-            <p className="mt-2 text-xs text-fg-muted">
+            <p className="mt-2 text-xs text-fg-subtle">
               {t(
                 "groups.leaveOfflineHint",
                 "The WhatsApp account for this group is offline. Reconnect it to leave.",

@@ -216,7 +216,7 @@ export function ScheduleMessagePopover({
         </div>
 
         <label className="mt-3 block">
-          <span className="text-xs font-medium text-fg-muted">
+          <span className="text-xs font-medium text-fg-subtle">
             {t("broadcasts.sendAt", {
               defaultValue: "Send at ({{timezone}})",
               timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -232,7 +232,7 @@ export function ScheduleMessagePopover({
               setValue(event.target.value);
               setError(null);
             }}
-            className="mt-1 block h-11 w-full rounded-lg border border-line/[0.1] bg-surface px-2.5 text-base text-fg outline-none focus:border-accent focus:ring-1 focus:ring-ring/40 sm:h-auto sm:py-1.5 sm:text-sm"
+            className="mt-1 block h-11 w-full rounded-lg border border-line/[0.1] bg-raised px-2.5 text-base text-fg outline-none focus:border-accent focus:ring-1 focus:ring-ring/40 sm:h-auto sm:py-1.5 sm:text-sm"
             aria-label={t("chat.scheduledSendTime", "Scheduled send time")}
           />
         </label>

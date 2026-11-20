@@ -73,7 +73,7 @@ export function BlockedContactBar({
           <p className="text-sm font-medium text-fg">
             {t("chat.contactBlocked", "This contact is blocked")}
           </p>
-          <p id={descriptionId} className="text-xs leading-5 text-fg-muted">
+          <p id={descriptionId} className="text-xs leading-5 text-fg-subtle">
             {t(
               "chat.contactBlockedHint",
               "You can't send messages until you unblock them.",

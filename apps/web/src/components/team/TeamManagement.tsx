@@ -31,7 +31,7 @@ export function TeamManagement({
   const invitations = usePendingInvitations(canInvite ? companyId : null);
 
   return (
-    <div className="flex h-full flex-col bg-subtle">
+    <div className="flex h-full flex-col bg-page">
       <header className="border-b border-line bg-surface px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

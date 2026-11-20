@@ -57,7 +57,7 @@ export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
                   <p className="text-sm font-medium text-danger">
                     {t("contacts.contactBlocked", "Contact Blocked")}
                   </p>
-                  <p className="text-xs text-fg-muted">
+                  <p className="text-xs text-fg-subtle">
                     {t(
                       "contacts.blockedHint",
                       "Messages from this contact are blocked",
@@ -70,7 +70,7 @@ export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
                 variant="outline"
                 onClick={handleUnblock}
                 disabled={blockContact.isPending}
-                className="text-accent hover:bg-accent-soft hover:text-accent-hover border-accent/40"
+                className="text-accent hover:bg-accent-soft hover:text-accent border-accent/40"
               >
                 <CheckCircle className="me-1 h-4 w-4" />
                 Unblock
@@ -84,7 +84,7 @@ export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
                   <p className="text-sm text-fg">
                     {t("contacts.notBlocked", "Not Blocked")}
                   </p>
-                  <p className="text-xs text-fg-muted">
+                  <p className="text-xs text-fg-subtle">
                     {t(
                       "contacts.notBlockedHint",
                       "You can receive messages from this contact",

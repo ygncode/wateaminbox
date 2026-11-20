@@ -104,9 +104,9 @@ export function ConversationSearch({
   }, []);
 
   return (
-    <div className="flex shrink-0 items-center gap-2 px-3 py-2 bg-muted border-b border-line">
+    <div className="flex shrink-0 items-center gap-2 px-3 py-2 bg-surface border-b border-line">
       {/* Search input */}
-      <div className="flex-1 flex items-center gap-2 bg-surface rounded-lg px-3 py-1.5 border border-line focus-within:border-primary focus-within:ring-1 focus-within:ring-ring">
+      <div className="flex-1 flex items-center gap-2 bg-raised rounded-lg px-3 py-1.5 border border-line focus-within:border-primary focus-within:ring-1 focus-within:ring-ring">
         <Search className="h-4 w-4 text-fg-subtle flex-shrink-0" />
         <input
           ref={inputRef}

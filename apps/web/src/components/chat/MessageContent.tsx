@@ -304,7 +304,7 @@ export function MessageContent({
           : undefined;
       const mimeSubtype = mimeTypeParts?.[mimeTypeParts.length - 1];
       const cardClassName =
-        "flex w-full max-w-xs items-center gap-3 rounded-lg bg-muted p-3 text-start transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+        "flex w-full max-w-xs items-center gap-3 rounded-lg bg-muted p-3 text-start transition-colors hover:bg-muted-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
       const withCaption = (card: ReactNode) => (
         <div className="max-w-xs">
           {card}
@@ -496,7 +496,7 @@ export function MessageContent({
     },
     location: () => (
       <div className="max-w-xs">
-        <div className="bg-muted-strong rounded-lg h-32 flex items-center justify-center">
+        <div className="bg-muted rounded-lg h-32 flex items-center justify-center">
           <svg
             className="h-8 w-8 text-fg-muted"
             fill="none"
@@ -524,7 +524,7 @@ export function MessageContent({
       </div>
     ),
     template: () => (
-      <div className="p-3 bg-subtle rounded-lg border border-line">
+      <div className="p-3 bg-muted rounded-lg border border-line">
         <p className="text-xs text-fg-muted mb-1">
           {t("chat.templateMessage", "Template Message")}
         </p>
@@ -585,7 +585,7 @@ function ContactCardMessage({
       )}
       aria-label={heading}
     >
-      <div className="flex items-center gap-1.5 border-b border-line/[0.06] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
+      <div className="flex items-center gap-1.5 border-b border-line/[0.06] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">
         <UserRound className="size-3.5" aria-hidden="true" />
         <span>{heading}</span>
       </div>
@@ -631,7 +631,7 @@ function ContactCardMessage({
                               {formatPhoneNumber(phone.value)}
                             </span>
                             {phone.label && (
-                              <span className="ms-auto shrink-0 text-[10px] text-fg-muted">
+                              <span className="ms-auto shrink-0 text-[10px] text-fg-subtle">
                                 {phone.label}
                               </span>
                             )}
@@ -639,7 +639,7 @@ function ContactCardMessage({
                         ))}
                       </div>
                     ) : (
-                      <p className="mt-1 text-xs text-fg-muted">
+                      <p className="mt-1 text-xs text-fg-subtle">
                         {t(
                           "chat.contactDetailsUnavailable",
                           "Phone number unavailable",

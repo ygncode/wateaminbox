@@ -679,7 +679,7 @@ function ReplyPreview({
             mentionParticipants={mentionParticipants}
             enableInteractions={false}
             className={`line-clamp-2 text-xs ${
-              isOwn ? "text-current opacity-70" : "text-fg"
+              isOwn ? "text-current opacity-70" : "text-fg-muted"
             }`}
             groupMentions={replyToMessage?.metadata?.groupMentions}
           />
@@ -708,7 +708,7 @@ function FailedMessageBanner({
   return (
     <div
       className={`mt-2 flex items-center justify-between gap-2 text-xs px-2 py-1 rounded ${
-        isOwn ? "bg-danger/15 text-danger" : "bg-danger-soft text-danger"
+        isOwn ? "bg-danger-soft/15 text-danger" : "bg-danger-soft text-danger"
       }`}
     >
       <div className="flex items-center gap-2">

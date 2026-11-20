@@ -94,7 +94,7 @@ export function GroupList({
   return (
     <div
       className={cn(
-        "flex flex-col h-full bg-surface border-e border-line",
+        "flex flex-col h-full bg-panel border-e border-line",
         className,
       )}
       role="navigation"
@@ -112,7 +112,7 @@ export function GroupList({
             onChange={handleSearchChange}
             onKeyDown={handleKeyDown}
             placeholder={t("groups.searchGroups", "Search groups")}
-            className="w-full py-2 ps-9 pe-8 text-sm bg-muted border border-line rounded-lg placeholder-fg-muted text-fg focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring focus:bg-surface transition-all"
+            className="w-full py-2 ps-9 pe-8 text-sm bg-muted border border-line rounded-lg placeholder-fg-subtle text-fg focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring focus:bg-surface transition-all"
             aria-label={t("groups.searchGroups", "Search groups")}
           />
           {searchQuery && (
@@ -134,7 +134,7 @@ export function GroupList({
           onClick={() => setShowCreateGroup(true)}
           aria-label={t("groups.createNewGroup", "Create a new WhatsApp group")}
           title={t("groups.newGroup", "New group")}
-          className="grid size-8 shrink-0 place-items-center rounded-lg text-fg-muted transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          className="grid size-8 shrink-0 place-items-center rounded-lg text-fg-subtle transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
         >
           <Plus className="h-4 w-4" />
         </button>
@@ -202,7 +202,7 @@ export function GroupList({
           error: () => (
             <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
               <MessageSquare className="w-12 h-12 text-danger mb-4" />
-              <p className="text-fg-muted font-medium">
+              <p className="text-fg font-medium">
                 {t("groups.loadFailed", "Failed to load groups")}
               </p>
               <p className="text-sm text-fg-muted mt-1">
@@ -214,7 +214,7 @@ export function GroupList({
             searchQuery ? (
               <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
                 <Search className="w-12 h-12 text-fg-subtle mb-4" />
-                <p className="text-fg-muted font-medium">
+                <p className="text-fg font-medium">
                   {t("groups.noGroupsFound", "No groups found")}
                 </p>
                 <p className="text-sm text-fg-muted mt-1">
@@ -224,7 +224,7 @@ export function GroupList({
             ) : (
               <div className="flex flex-col items-center justify-center h-full px-4 py-8 text-center">
                 <Users className="w-12 h-12 text-fg-subtle mb-4" />
-                <p className="text-fg-muted font-medium">
+                <p className="text-fg font-medium">
                   {t("groups.noGroupsYet", "No groups yet")}
                 </p>
                 <p className="text-sm text-fg-muted mt-1">
@@ -286,8 +286,8 @@ function GroupListItemComponent({
       onClick={onClick}
       className={cn(
         "w-full flex items-center gap-3 px-3 py-3 text-start",
-        "transition-colors duration-150 border-b border-line",
-        isSelected ? "bg-selected" : "hover:bg-subtle",
+        "list-row transition-colors duration-150 border-b border-row-line",
+        isSelected ? "bg-selected list-row-selected" : "hover:bg-row-hover",
       )}
       aria-selected={isSelected}
       role="option"
@@ -299,7 +299,7 @@ function GroupListItemComponent({
             src={group.profilePictureUrl || undefined}
             alt={group.displayName}
           />
-          <AvatarFallback className="bg-fg-subtle text-surface">
+          <AvatarFallback className="bg-muted text-fg">
             {group.profilePictureUrl ? initials : <Users className="h-6 w-6" />}
           </AvatarFallback>
         </Avatar>
@@ -351,7 +351,7 @@ function GroupListItemComponent({
           {group.unreadCount > 0 && (
             <span
               className="flex items-center justify-center min-w-[20px] h-5 px-1.5
-                         text-xs font-medium text-on-primary bg-primary rounded-full flex-shrink-0"
+                         text-xs font-medium text-on-unread bg-unread rounded-full flex-shrink-0"
             >
               {group.unreadCount > 99 ? "99+" : group.unreadCount}
             </span>

@@ -106,7 +106,7 @@ function NotificationRow({
         }}
         className={cn(
           "flex w-full cursor-pointer items-start text-start outline-none transition-colors",
-          "hover:bg-muted focus-visible:bg-muted",
+          "hover:bg-muted/70 focus-visible:bg-muted/70",
           "focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
           isCompact ? "gap-3 px-3 py-3" : "gap-3.5 px-4 py-4 sm:px-5",
         )}
@@ -215,7 +215,7 @@ function NotificationRow({
           aria-hidden="true"
           className={cn(
             "mt-2 size-2 shrink-0 self-start rounded-full",
-            isUnread ? "bg-primary" : "invisible",
+            isUnread ? "bg-signal" : "invisible",
           )}
         />
       </div>
@@ -349,7 +349,7 @@ export function NotificationEmptyState({
           <Bell className="size-7" aria-hidden="true" />
         </div>
         {filter === "unread" && !beyondFirstPage && (
-          <span className="absolute -bottom-1 -end-1 grid size-6 place-items-center rounded-full bg-primary text-on-primary shadow-sm">
+          <span className="absolute -bottom-1 -end-1 grid size-6 place-items-center rounded-full bg-signal text-on-signal shadow-sm">
             <Check className="size-3.5" aria-hidden="true" />
           </span>
         )}

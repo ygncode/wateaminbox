@@ -237,7 +237,7 @@ export function AddConnectionDialog({
                           <span className="block text-xs font-semibold text-accent">
                             {t(step.titleKey, step.title)}
                           </span>
-                          <span className="mt-0.5 block text-[10px] leading-4 text-fg-muted">
+                          <span className="mt-0.5 block text-[10px] leading-4 text-fg-subtle">
                             {t(step.detailKey, step.detail)}
                           </span>
                         </span>

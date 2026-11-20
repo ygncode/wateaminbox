@@ -54,7 +54,7 @@ export function ContactMultiSelect({
 
       <div className="relative">
         <Search
-          className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-fg-muted"
+          className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-fg-subtle"
           aria-hidden="true"
         />
         <input
@@ -63,14 +63,14 @@ export function ContactMultiSelect({
           onChange={(event) => setSearchQuery(event.target.value)}
           placeholder={t("chat.searchContactsEllipsis", "Search contacts…")}
           aria-label={t("chat.searchContactsAria", "Search contacts")}
-          className="w-full rounded-lg border border-line/[0.1] bg-surface py-2 ps-9 pe-9 text-sm text-fg outline-none placeholder:text-fg-muted focus:border-accent focus:ring-1 focus:ring-ring/40"
+          className="w-full rounded-lg border border-line/[0.1] bg-raised py-2 ps-9 pe-9 text-sm text-fg outline-none placeholder:text-fg-subtle focus:border-accent focus:ring-1 focus:ring-ring/40"
         />
         {searchQuery && (
           <button
             type="button"
             onClick={() => setSearchQuery("")}
             aria-label={t("common.clearSearch", "Clear search")}
-            className="absolute end-2.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full text-fg-muted hover:bg-fg/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="absolute end-2.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full text-fg-subtle hover:bg-fg/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
             <X className="size-3.5" aria-hidden="true" />
           </button>
@@ -84,7 +84,7 @@ export function ContactMultiSelect({
           </p>
         ) : availableContacts.length === 0 ? (
           <div className="flex flex-col items-center px-4 py-6 text-center">
-            <Users className="size-6 text-fg-muted" aria-hidden="true" />
+            <Users className="size-6 text-fg-subtle" aria-hidden="true" />
             <p className="mt-2 text-sm text-fg-muted">
               {searchQuery
                 ? `No contacts match "${searchQuery}"`
@@ -106,14 +106,14 @@ export function ContactMultiSelect({
                     role="checkbox"
                     aria-checked={isSelected}
                     onClick={() => onToggle(chat.id, displayName)}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-start transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40"
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-start transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40"
                   >
                     <span
                       className={cn(
                         "grid size-5 shrink-0 place-items-center rounded-md border transition-colors",
                         isSelected
                           ? "border-accent bg-primary text-on-primary"
-                          : "border-line-strong",
+                          : "border-line/[0.15]",
                       )}
                       aria-hidden="true"
                     >
@@ -124,7 +124,7 @@ export function ContactMultiSelect({
                         {displayName}
                       </span>
                       {contact.phoneNumber && (
-                        <span className="block truncate text-xs text-fg-muted">
+                        <span className="block truncate text-xs text-fg-subtle">
                           {formatPhoneNumber(contact.phoneNumber)}
                         </span>
                       )}

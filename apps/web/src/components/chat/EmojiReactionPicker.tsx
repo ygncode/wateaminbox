@@ -438,7 +438,7 @@ export function EmojiReactionPicker({
           </div>
 
           {/* Category tabs */}
-          <div className="flex gap-1 px-2 py-2 border-b border-line bg-subtle overflow-x-auto">
+          <div className="flex gap-1 px-2 py-2 border-b border-line bg-surface overflow-x-auto">
             {Object.keys(extendedCategories).map((category) => (
               <button
                 key={category}

@@ -11,11 +11,11 @@ export const THEMES = {
   light: {
     appearance: "light",
     /** Browser chrome colour (meta theme-color); matches --canvas. */
-    metaColor: "#f7f7f5",
+    metaColor: "#efefea",
   },
   dark: {
     appearance: "dark",
-    metaColor: "#0b0b0c",
+    metaColor: "#08090b",
   },
   whatsapp: {
     appearance: "dark",

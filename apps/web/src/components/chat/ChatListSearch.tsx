@@ -59,7 +59,7 @@ export function ChatListSearch({
         placeholder={
           placeholder ?? t("chat.searchContactsPlaceholder", "Search contacts")
         }
-        className="w-full py-2 ps-9 pe-8 text-sm bg-muted border border-line rounded-lg text-fg placeholder-fg-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring focus:bg-surface transition-all"
+        className="w-full py-2 ps-9 pe-8 text-sm bg-muted border border-line rounded-lg text-fg placeholder-fg-subtle focus:outline-none focus:border-primary focus:ring-1 focus:ring-ring focus:bg-surface transition-all"
         aria-label={t("chat.searchContactsAria", "Search contacts")}
       />
 

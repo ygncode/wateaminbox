@@ -203,7 +203,7 @@ export function GroupInfoSections({
             )}
           </div>
         ) : (
-          <div className="flex gap-3 rounded-lg bg-subtle p-3">
+          <div className="flex gap-3 rounded-lg bg-surface p-3">
             <Users className="mt-0.5 h-5 w-5 shrink-0 text-fg-subtle" />
             <p className="text-sm leading-5 text-fg-muted">
               {t(
@@ -356,7 +356,7 @@ function ParticipantRow({
             <span className="shrink-0 text-xs text-accent">You</span>
           )}
         </div>
-        <p className="truncate text-xs text-fg-muted">
+        <p className="truncate text-xs text-fg-subtle">
           {phone || formatPhoneLikeText(participant.jid)}
         </p>
       </div>
@@ -364,7 +364,7 @@ function ParticipantRow({
   );
 
   return (
-    <div className="flex min-w-0 items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted">
+    <div className="flex min-w-0 items-center gap-3 rounded-lg px-2 py-2 hover:bg-surface">
       {canOpenProfile && profileContactId ? (
         // The admin controls to the right are buttons of their own, so the
         // identity is its own control rather than the whole row - nesting them
@@ -443,7 +443,7 @@ function IconAction({
       className={
         destructive
           ? "grid size-8 place-items-center rounded-lg text-danger transition-colors hover:bg-danger-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40 disabled:cursor-not-allowed disabled:opacity-50"
-          : "grid size-8 place-items-center rounded-lg text-fg-muted transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
+          : "grid size-8 place-items-center rounded-lg text-fg-subtle transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
       }
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : children}

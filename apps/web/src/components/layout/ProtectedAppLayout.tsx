@@ -305,7 +305,7 @@ export function ProtectedAppLayout() {
   };
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-subtle text-fg">
+    <div className="flex h-dvh w-full overflow-hidden bg-canvas text-fg">
       <a href="#main-content" className="skip-link">
         {t("nav.skipToMain", "Skip to main content")}
       </a>
@@ -333,7 +333,7 @@ export function ProtectedAppLayout() {
             type="button"
             onClick={toggleSidebar}
             className={cn(
-              "mb-2 flex h-10 w-full items-center rounded-xl text-sm font-medium text-nav-fg-muted transition-colors hover:bg-nav-hover hover:text-nav-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nav-fg/40",
+              "mb-2 flex h-10 w-full items-center rounded-xl text-sm font-medium text-nav-fg-subtle transition-colors hover:bg-nav-hover hover:text-nav-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nav-fg/40",
               sidebarCollapsed ? "justify-center px-0" : "gap-3 px-3",
             )}
             aria-label={
@@ -358,7 +358,7 @@ export function ProtectedAppLayout() {
                 : t("nav.collapseSidebar", "Collapse sidebar")}
             </span>
           </button>
-          <div className="space-y-1 border-t border-nav-fg/10 pt-3">
+          <div className="space-y-1 border-t border-nav-line pt-3">
             <NavigationLink item={settingsItem} collapsed={sidebarCollapsed} />
             <div
               className={cn(
@@ -372,7 +372,7 @@ export function ProtectedAppLayout() {
             {sidebarCollapsed ? (
               <div className="mt-2 flex flex-col items-center gap-1.5">
                 <Avatar
-                  className="h-10 w-10 rounded-xl border border-nav-fg/10 bg-nav-hover"
+                  className="h-10 w-10 rounded-xl border border-nav-line bg-nav-hover"
                   title={t("nav.signedInAs", {
                     name: user?.name || user?.email,
                   })}
@@ -399,7 +399,7 @@ export function ProtectedAppLayout() {
                 </button>
               </div>
             ) : (
-              <div className="mt-2 overflow-hidden rounded-xl border border-nav-fg/10 bg-nav-hover">
+              <div className="mt-2 overflow-hidden rounded-xl border border-nav-line bg-nav-card">
                 <div className="flex items-center gap-3 p-2.5">
                   <Avatar className="h-10 w-10 rounded-xl bg-nav-hover">
                     <AvatarImage
@@ -417,7 +417,7 @@ export function ProtectedAppLayout() {
                     <p className="truncate text-sm font-semibold leading-5 text-nav-fg">
                       {user?.name || t("nav.account")}
                     </p>
-                    <p className="truncate text-[11px] leading-4 text-nav-fg-muted">
+                    <p className="truncate text-[11px] leading-4 text-nav-fg-subtle">
                       {user?.email}
                     </p>
                   </div>
@@ -425,7 +425,7 @@ export function ProtectedAppLayout() {
                 <button
                   type="button"
                   onClick={() => void logout()}
-                  className="flex h-9 w-full items-center gap-2 border-t border-nav-fg/10 px-3 text-xs font-medium text-nav-fg-muted transition-colors hover:bg-nav-hover hover:text-nav-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-nav-fg/40"
+                  className="flex h-9 w-full items-center gap-2 border-t border-nav-line px-3 text-xs font-medium text-nav-fg-muted transition-colors hover:bg-nav-hover hover:text-nav-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-nav-fg/40"
                 >
                   <LogOut className="h-3.5 w-3.5" />
                   {t("nav.signOut", "Sign out")}
@@ -436,7 +436,7 @@ export function ProtectedAppLayout() {
         </div>
       </aside>
 
-      <div className="relative flex min-w-0 flex-1 flex-col">
+      <div className="app-frame relative flex min-w-0 flex-1 flex-col">
         {/* The notch inset is added on top of the 3.5rem row, not eaten out
             of it: `box-sizing: border-box` is global and the viewport opts
             into `viewport-fit=cover`, so a plain `h-14` would leave roughly
@@ -447,7 +447,7 @@ export function ProtectedAppLayout() {
             inherits the notch inset - see conversation-chrome.ts. */}
         <header
           className={cn(
-            "safe-area-top h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center justify-between border-b border-nav-fg/10 bg-nav px-2",
+            "safe-area-top h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center justify-between border-b border-nav-line bg-nav px-2",
             shellChrome.workspaceHeaderClass,
           )}
         >
@@ -471,7 +471,7 @@ export function ProtectedAppLayout() {
           <Outlet />
           {isSwitching && (
             <div
-              className="absolute inset-0 z-50 grid place-items-center bg-subtle/95 backdrop-blur-sm"
+              className="absolute inset-0 z-50 grid place-items-center bg-canvas/95 backdrop-blur-sm"
               role="status"
               aria-live="polite"
             >
@@ -505,7 +505,7 @@ export function ProtectedAppLayout() {
             <DialogHeader>
               <DialogTitle>{t("nav.profile", "Profile")}</DialogTitle>
             </DialogHeader>
-            <div className="flex items-center gap-3 rounded-xl bg-subtle p-3">
+            <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
               <Avatar className="h-11 w-11 rounded-xl">
                 <AvatarImage
                   src={user?.avatarUrl}

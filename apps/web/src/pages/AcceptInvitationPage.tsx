@@ -95,7 +95,7 @@ export function AcceptInvitationPage() {
   // Show loading state
   if (isLoading) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-muted">
+      <div className="min-h-dvh flex items-center justify-center bg-canvas">
         <div className="w-full max-w-md rounded-lg bg-surface p-8 shadow-lg">
           <div className="space-y-4">
             <Skeleton className="h-8 w-48 mx-auto" />
@@ -111,7 +111,7 @@ export function AcceptInvitationPage() {
   // Show error state for invalid/not found invitation
   if (fetchError || !invitation) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-muted">
+      <div className="min-h-dvh flex items-center justify-center bg-canvas">
         <div className="w-full max-w-md rounded-lg bg-surface p-8 shadow-lg text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-danger-soft">
             <XCircle className="h-8 w-8 text-danger" />
@@ -138,7 +138,7 @@ export function AcceptInvitationPage() {
   // Show success state after accepting
   if (acceptedWorkspaceId) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-muted">
+      <div className="min-h-dvh flex items-center justify-center bg-canvas">
         <div className="w-full max-w-md rounded-lg bg-surface p-8 shadow-lg text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft">
             <CheckCircle className="h-8 w-8 text-accent" />
@@ -152,7 +152,7 @@ export function AcceptInvitationPage() {
               "You have successfully joined the team. Redirecting you to the chat...",
             )}
           </p>
-          <div className="animate-pulse text-sm text-fg-muted">
+          <div className="animate-pulse text-sm text-fg-subtle">
             {t("invitation.redirecting", "Redirecting in a moment...")}
           </div>
         </div>
@@ -162,7 +162,7 @@ export function AcceptInvitationPage() {
 
   // Main invitation view
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-muted">
+    <div className="min-h-dvh flex items-center justify-center bg-canvas">
       <div className="w-full max-w-md rounded-lg bg-surface p-8 shadow-lg">
         {/* Header */}
         <div className="text-center mb-6">
@@ -179,40 +179,40 @@ export function AcceptInvitationPage() {
 
         {/* Invitation details */}
         <div className="space-y-4 mb-6">
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-subtle">
-            <Building2 className="h-5 w-5 text-fg-muted flex-shrink-0" />
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
+            <Building2 className="h-5 w-5 text-fg-subtle flex-shrink-0" />
             <div>
-              <p className="text-xs text-fg-muted">
+              <p className="text-xs text-fg-subtle">
                 {t("invitation.workspace")}
               </p>
               <p className="font-medium text-fg">{invitation.companyName}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-subtle">
-            <Mail className="h-5 w-5 text-fg-muted flex-shrink-0" />
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
+            <Mail className="h-5 w-5 text-fg-subtle flex-shrink-0" />
             <div>
-              <p className="text-xs text-fg-muted">
+              <p className="text-xs text-fg-subtle">
                 {t("invitation.invitedEmail", "Invited Email")}
               </p>
               <p className="font-medium text-fg">{invitation.email}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-subtle">
-            <User className="h-5 w-5 text-fg-muted flex-shrink-0" />
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
+            <User className="h-5 w-5 text-fg-subtle flex-shrink-0" />
             <div>
-              <p className="text-xs text-fg-muted">
+              <p className="text-xs text-fg-subtle">
                 {t("invitation.invitedBy", "Invited By")}
               </p>
               <p className="font-medium text-fg">{invitation.invitedBy}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-subtle">
-            <ShieldCheck className="h-5 w-5 text-fg-muted flex-shrink-0" />
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
+            <ShieldCheck className="h-5 w-5 text-fg-subtle flex-shrink-0" />
             <div>
-              <p className="text-xs text-fg-muted">
+              <p className="text-xs text-fg-subtle">
                 {t("invitation.role", "Role")}
               </p>
               <p className="font-medium capitalize text-fg">
@@ -221,10 +221,10 @@ export function AcceptInvitationPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-subtle">
-            <Settings2 className="h-5 w-5 text-fg-muted flex-shrink-0" />
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
+            <Settings2 className="h-5 w-5 text-fg-subtle flex-shrink-0" />
             <div>
-              <p className="text-xs text-fg-muted">
+              <p className="text-xs text-fg-subtle">
                 {t("invitation.startingAccess", "Starting access")}
               </p>
               <p className="font-medium text-fg">
@@ -239,10 +239,10 @@ export function AcceptInvitationPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-subtle">
-            <Clock className="h-5 w-5 text-fg-muted flex-shrink-0" />
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
+            <Clock className="h-5 w-5 text-fg-subtle flex-shrink-0" />
             <div>
-              <p className="text-xs text-fg-muted">
+              <p className="text-xs text-fg-subtle">
                 {t("invitation.expires", "Expires")}
               </p>
               <p

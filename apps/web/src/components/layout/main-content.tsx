@@ -34,7 +34,7 @@ export function MainContentHeader({
   return (
     <header
       className={cn(
-        "flex items-center justify-between border-b border-line bg-muted px-4",
+        "flex items-center justify-between border-b border-line bg-surface px-4",
         // Responsive height with safe area support
         "h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]",
         // Safe area inset for notch
@@ -80,7 +80,7 @@ export function MessageInputArea({
   return (
     <footer
       className={cn(
-        "flex items-center gap-2 border-t border-line bg-muted",
+        "flex items-center gap-2 border-t border-line bg-surface",
         // Responsive padding
         "px-2 py-2 md:px-4 md:py-3",
         // Safe area inset for home indicator
@@ -110,7 +110,7 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-1 flex-col items-center justify-center bg-muted text-center",
+        "flex flex-1 flex-col items-center justify-center bg-page text-center",
         className,
       )}
       {...props}

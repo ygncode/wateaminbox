@@ -33,8 +33,8 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
   const isRecovery = variant === "recovery";
 
   return (
-    <main className="relative h-dvh overflow-hidden bg-muted px-3 py-3 text-fg sm:px-6 sm:py-6">
-      <section className="relative mx-auto grid h-full min-h-0 w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-lg lg:grid-cols-[minmax(0,1.08fr)_minmax(23rem,0.92fr)]">
+    <main className="relative h-dvh overflow-hidden bg-canvas px-3 py-3 text-fg sm:px-6 sm:py-6">
+      <section className="relative mx-auto grid h-full min-h-0 w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-line/80 bg-surface shadow-lg lg:grid-cols-[minmax(0,1.08fr)_minmax(23rem,0.92fr)]">
         <div className="scrollbar-hide flex min-h-0 min-w-0 flex-col overflow-y-auto p-6 sm:p-9 lg:p-12">
           <div className="mb-10 flex items-center gap-3 sm:mb-12">
             <BrandMark className="h-10 w-10 shrink-0 rounded-[0.9rem] object-contain shadow-sm" />
@@ -42,7 +42,7 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
               <p className="text-[1.05rem] font-bold tracking-[-0.03em] text-fg">
                 WATeamInbox
               </p>
-              <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-fg-muted">
+              <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-fg-subtle">
                 {t("setup.whatsappForTeams", "WhatsApp for teams")}
               </p>
             </div>
@@ -71,12 +71,12 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
             }}
           />
           <div
-            className="pointer-events-none absolute -end-32 -top-24 h-80 w-80 rounded-full border-[72px] border-nav-fg/10"
+            className="pointer-events-none absolute -end-32 -top-24 h-80 w-80 rounded-full border-[72px] border-nav-line"
             aria-hidden="true"
           />
 
           <div className="relative">
-            <div className="inline-flex items-center gap-2 rounded-full border border-nav-fg/15 bg-nav-hover px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-nav-fg">
+            <div className="inline-flex items-center gap-2 rounded-full border border-nav-line bg-nav-hover px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-nav-fg">
               {isRecovery ? (
                 <ShieldCheck aria-hidden="true" className="h-3.5 w-3.5" />
               ) : (
@@ -129,7 +129,7 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
             {isRecovery ? <RecoveryPreview /> : <ConversationPreview />}
           </div>
 
-          <div className="relative mt-9 flex items-center gap-3 border-t border-nav-fg/10 pt-6 text-xs text-nav-fg-muted">
+          <div className="relative mt-9 flex items-center gap-3 border-t border-nav-line pt-6 text-xs text-nav-fg-muted">
             <LockKeyhole aria-hidden="true" className="h-4 w-4" />
             {t(
               "auth.shell.privacyNote",
@@ -160,7 +160,7 @@ function ConversationPreview() {
               {t("auth.preview.contactMeta", "Online now · Acme & Co.")}
             </p>
           </div>
-          <span className="h-2 w-2 rounded-full bg-nav-badge" />
+          <span className="h-2 w-2 rounded-full bg-signal" />
         </div>
 
         <div className="mt-5 rounded-2xl rounded-ss-md bg-surface px-4 py-3 text-sm leading-5 text-fg shadow-sm">
@@ -181,7 +181,7 @@ function ConversationPreview() {
           </p>
         </div>
 
-        <div className="mt-4 flex items-center justify-between rounded-xl border border-nav-fg/10 bg-nav-hover px-3 py-2.5">
+        <div className="mt-4 flex items-center justify-between rounded-xl border border-nav-line bg-nav-hover px-3 py-2.5">
           <div className="flex items-center gap-2 text-xs text-nav-fg/80">
             <UsersRound aria-hidden="true" className="h-3.5 w-3.5" />
             {t("auth.preview.assignedTo", "Assigned to Maya")}
@@ -250,7 +250,7 @@ function RecoveryPreview() {
               aria-hidden="true"
             />
           )}
-          <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full border border-nav-fg/10 bg-nav-active text-[0.65rem] font-bold tracking-wider text-nav-badge">
+          <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full border border-nav-line bg-nav-active text-[0.65rem] font-bold tracking-wider text-nav-badge">
             {step.number}
           </span>
           <div className="pt-0.5">

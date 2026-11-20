@@ -170,7 +170,7 @@ export function VirtualMessageList({
         )}
 
       {!hasNextPage && remoteHistoryStatus === "exhausted" && (
-        <div className="mx-auto my-3 flex w-fit items-center gap-2 px-3 text-[11px] font-medium uppercase tracking-[0.12em] text-fg-muted">
+        <div className="mx-auto my-3 flex w-fit items-center gap-2 px-3 text-[11px] font-medium uppercase tracking-[0.12em] text-fg-subtle">
           <span className="h-px w-8 bg-current opacity-30" />
           {t("chat.beginningOfConversation", "Beginning of conversation")}
           <span className="h-px w-8 bg-current opacity-30" />

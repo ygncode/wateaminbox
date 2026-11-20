@@ -104,7 +104,7 @@ export function OpenOrReopenConversationDialog({
                     "e.g. Starting a new conversation thread",
                   )
             }
-            className="mt-1.5 w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm"
+            className="mt-1.5 w-full rounded-md border border-line-strong bg-raised px-3 py-2 text-sm"
           />
         </label>
         {error && <p className="text-sm text-danger">{error}</p>}

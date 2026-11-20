@@ -133,7 +133,7 @@ function BroadcastStepProgress({ currentStep }: { currentStep: WizardStep }) {
 
   return (
     <nav
-      className="border-b border-line bg-subtle px-4 py-2.5 sm:px-6"
+      className="border-b border-line bg-surface/45 px-4 py-2.5 sm:px-6"
       aria-label={t(
         "broadcasts.creationProgress",
         "Broadcast creation progress",
@@ -165,7 +165,7 @@ function BroadcastStepProgress({ currentStep }: { currentStep: WizardStep }) {
                       "border-accent bg-primary text-on-primary shadow-sm",
                     !isComplete &&
                       !isCurrent &&
-                      "border-line bg-surface text-fg-muted",
+                      "border-line bg-surface text-fg-subtle",
                   )}
                 >
                   {isComplete ? (
@@ -177,7 +177,7 @@ function BroadcastStepProgress({ currentStep }: { currentStep: WizardStep }) {
                 <span
                   className={cn(
                     "mt-1.5 max-w-full truncate text-[10px] font-semibold",
-                    isCurrent || isComplete ? "text-fg" : "text-fg-muted",
+                    isCurrent || isComplete ? "text-fg" : "text-fg-subtle",
                   )}
                 >
                   {t(item.labelKey ?? item.label, item.label)}
@@ -541,7 +541,7 @@ export function CreateBroadcastWizard({
 
         <BroadcastStepProgress currentStep={step} />
 
-        <div className="flex-1 overflow-y-auto bg-subtle px-4 py-5 sm:px-6 sm:py-6">
+        <div className="flex-1 overflow-y-auto bg-page/45 px-4 py-5 sm:px-6 sm:py-6">
           <div className="mx-auto max-w-3xl">
             <StepWizard
               steps={WIZARD_STEPS}
@@ -569,7 +569,7 @@ export function CreateBroadcastWizard({
                     <p className="text-sm font-medium text-fg">
                       {t("tags.title", "Tags")}
                     </p>
-                    <p className="mt-0.5 text-xs text-fg-muted">
+                    <p className="mt-0.5 text-xs text-fg-subtle">
                       {t(
                         "broadcasts.tagsHint",
                         "Every contact carrying a selected tag is included.",
@@ -638,7 +638,7 @@ export function CreateBroadcastWizard({
                     <p className="text-sm font-medium text-fg">
                       {t("chat.contacts", "Contacts")}
                     </p>
-                    <p className="mt-0.5 mb-2 text-xs text-fg-muted">
+                    <p className="mt-0.5 mb-2 text-xs text-fg-subtle">
                       {t(
                         "broadcasts.contactsHint",
                         "Add individual contacts on top of any tags.",
@@ -688,7 +688,7 @@ export function CreateBroadcastWizard({
                   )}
 
                   <div
-                    className="flex items-center justify-between gap-3 rounded-xl border border-line bg-subtle px-3.5 py-2.5"
+                    className="flex items-center justify-between gap-3 rounded-xl border border-line bg-accent-soft px-3.5 py-2.5"
                     aria-live="polite"
                   >
                     <span className="flex items-center gap-2 text-xs font-semibold text-fg-muted">
@@ -755,7 +755,7 @@ export function CreateBroadcastWizard({
                       >
                         {t("broadcasts.steps.message")}
                       </Label>
-                      <span className="text-xs tabular-nums text-fg-muted">
+                      <span className="text-xs tabular-nums text-fg-subtle">
                         {t("broadcasts.characterCount", {
                           count: content.length,
                         })}
@@ -777,7 +777,7 @@ export function CreateBroadcastWizard({
                       className="mt-1.5"
                     />
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs text-fg-muted">
+                      <span className="text-xs text-fg-subtle">
                         {t("broadcasts.insert")}
                       </span>
                       <Button
@@ -797,7 +797,7 @@ export function CreateBroadcastWizard({
                         {"{{firstName}}"}
                       </Button>
                     </div>
-                    <p className="mt-1.5 text-xs text-fg-muted">
+                    <p className="mt-1.5 text-xs text-fg-subtle">
                       {t("broadcasts.tokensExplain", {
                         nameToken: "{{name}}",
                         firstNameToken: "{{firstName}}",
@@ -820,7 +820,7 @@ export function CreateBroadcastWizard({
                   <div>
                     <p className="text-sm font-medium text-fg">
                       {t("broadcasts.attachment", "Attachment")}{" "}
-                      <span className="font-normal text-fg-muted">
+                      <span className="font-normal text-fg-subtle">
                         {t("broadcasts.attachmentHint", "(optional, max 50MB)")}
                       </span>
                     </p>
@@ -858,7 +858,7 @@ export function CreateBroadcastWizard({
                           <p className="truncate text-sm font-medium text-fg">
                             {attachment.file.name}
                           </p>
-                          <p className="text-xs text-fg-muted">
+                          <p className="text-xs text-fg-subtle">
                             {t("broadcasts.sentWithEveryMessage", {
                               size: formatBytes(attachment.file.size),
                             })}
@@ -987,7 +987,7 @@ export function CreateBroadcastWizard({
 
                     {preview.perConnection.length > 0 && (
                       <div className="rounded-xl border border-line/[0.06]">
-                        <p className="border-b border-line/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-muted">
+                        <p className="border-b border-line/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
                           {t("broadcasts.byAccount", "By account")}
                         </p>
                         <ul className="divide-y divide-line/[0.04]">
@@ -1014,7 +1014,7 @@ export function CreateBroadcastWizard({
 
                     {preview.skippedCount > 0 && (
                       <div className="rounded-xl border border-line/[0.06]">
-                        <p className="border-b border-line/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-muted">
+                        <p className="border-b border-line/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
                           {t("broadcasts.skippedCount", {
                             count: preview.skippedCount,
                           })}
@@ -1041,7 +1041,7 @@ export function CreateBroadcastWizard({
 
                     {content.trim() && (
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-fg-subtle">
                           {t("broadcasts.sampleMessage", "Sample message")}
                         </p>
                         <div className="mt-2 max-w-md rounded-xl rounded-ss-sm bg-accent-soft p-3 text-sm text-fg shadow-sm">
@@ -1083,7 +1083,7 @@ export function CreateBroadcastWizard({
                       ))}
                     </div>
                     <label className="mt-3 block max-w-xs">
-                      <span className="text-xs font-medium text-fg-muted">
+                      <span className="text-xs font-medium text-fg-subtle">
                         {t("broadcasts.sendAt", {
                           defaultValue: "Send at ({{timezone}})",
                           timezone:
@@ -1098,7 +1098,7 @@ export function CreateBroadcastWizard({
                           setScheduleValue(event.target.value);
                           setScheduleError(null);
                         }}
-                        className="mt-1 block w-full rounded-lg border border-line/[0.1] bg-surface px-2.5 py-1.5 text-sm text-fg outline-none focus:border-accent focus:ring-1 focus:ring-ring/40"
+                        className="mt-1 block w-full rounded-lg border border-line/[0.1] bg-raised px-2.5 py-1.5 text-sm text-fg outline-none focus:border-accent focus:ring-1 focus:ring-ring/40"
                         aria-label={t(
                           "broadcasts.startTime",
                           "Broadcast start time",

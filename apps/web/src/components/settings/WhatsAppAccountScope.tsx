@@ -70,7 +70,7 @@ export function WhatsAppAccountScope({
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-line bg-subtle px-4 py-3.5 shadow-xs sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-accent/10 bg-surface text-accent shadow-sm">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-line/10 bg-raised text-accent shadow-sm">
           <Smartphone className="h-5 w-5" />
         </div>
         <div className="min-w-0">

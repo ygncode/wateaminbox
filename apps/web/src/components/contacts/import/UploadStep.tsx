@@ -174,7 +174,7 @@ export function UploadStep({
       </div>
 
       {/* Instructions */}
-      <div className="bg-subtle rounded-lg p-4">
+      <div className="bg-muted rounded-lg p-4">
         <h3 className="font-medium text-fg mb-2">
           {t("contacts.csvFormat", "CSV Format")}
         </h3>

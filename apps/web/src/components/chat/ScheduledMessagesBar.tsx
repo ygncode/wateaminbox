@@ -89,7 +89,7 @@ function ScheduledMessageRow({
   };
 
   return (
-    <li className="flex items-start gap-3 rounded-xl border border-line/[0.06] bg-surface p-3">
+    <li className="flex items-start gap-3 rounded-xl border border-line/[0.06] bg-raised p-3">
       <span
         className={`grid size-8 shrink-0 place-items-center rounded-full ${
           isFailed ? "bg-danger-soft text-danger" : "bg-accent/10 text-accent"
@@ -110,7 +110,7 @@ function ScheduledMessageRow({
             </span>
           )}
           {media && (
-            <span className="inline-flex shrink-0 items-center gap-1 text-fg-muted">
+            <span className="inline-flex shrink-0 items-center gap-1 text-fg-subtle">
               <media.icon className="size-3.5" aria-hidden="true" />
               <span className="text-xs font-medium">
                 {t(media.labelKey, media.label)}
@@ -123,7 +123,7 @@ function ScheduledMessageRow({
               (media ? t(media.labelKey, media.label) : null)}
           </span>
         </p>
-        <p className="mt-0.5 text-xs text-fg-muted">
+        <p className="mt-0.5 text-xs text-fg-subtle">
           {isFailed
             ? t("chat.scheduledFailedReason", {
                 defaultValue: "Failed: {{reason}}",
@@ -146,7 +146,7 @@ function ScheduledMessageRow({
         type="button"
         onClick={handleCancel}
         disabled={cancelMutation.isPending}
-        className="grid size-8 shrink-0 place-items-center rounded-full text-fg-muted transition-colors hover:bg-fg/[0.055] hover:text-danger disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+        className="grid size-8 shrink-0 place-items-center rounded-full text-fg-subtle transition-colors hover:bg-fg/[0.055] hover:text-danger disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
         aria-label={
           isFailed
             ? t("chat.dismissFailedMessage", "Dismiss failed message")
@@ -191,7 +191,7 @@ export function ScheduledMessagesBar({ contactId }: ScheduledMessagesBarProps) {
 
   return (
     <>
-      <div className="flex min-h-8 items-center gap-1.5 border-b border-line/[0.055] bg-surface/55 px-4 py-1">
+      <div className="flex min-h-8 items-center gap-1.5 border-b border-line/[0.055] bg-subtle/55 px-4 py-1">
         <CalendarClock
           className={`size-3.5 shrink-0 ${
             failedCount > 0 ? "text-danger" : "text-accent"
@@ -219,14 +219,14 @@ export function ScheduledMessagesBar({ contactId }: ScheduledMessagesBarProps) {
               <DialogPrimitive.Close asChild>
                 <button
                   type="button"
-                  className="grid size-8 place-items-center rounded-full text-fg-muted transition-colors hover:bg-fg/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+                  className="grid size-8 place-items-center rounded-full text-fg-subtle transition-colors hover:bg-fg/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                   aria-label={t("common.close", "Close")}
                 >
                   <X className="size-4.5" aria-hidden="true" />
                 </button>
               </DialogPrimitive.Close>
             </div>
-            <DialogPrimitive.Description className="mt-1 text-xs text-fg-muted">
+            <DialogPrimitive.Description className="mt-1 text-xs text-fg-subtle">
               {t(
                 "chat.scheduledMessagesHint",
                 "These messages will be sent automatically at their scheduled time.",

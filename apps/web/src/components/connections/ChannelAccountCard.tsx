@@ -92,7 +92,7 @@ export function ChannelAccountCard({
     isLive;
 
   return (
-    <div className="overflow-visible rounded-xl border border-line bg-surface">
+    <div className="overflow-visible rounded-xl border border-line bg-subtle">
       <div className="flex items-center gap-3 overflow-visible p-3.5">
         <div className="relative shrink-0">
           <span
@@ -134,7 +134,7 @@ export function ChannelAccountCard({
                   }
                 }}
                 aria-label={t("connections.renameAccount", "Account name")}
-                className="min-w-0 flex-1 rounded-lg border border-line bg-muted px-2 py-1 text-sm text-fg transition-all placeholder-fg-muted focus:border-primary focus:bg-surface focus:outline-none focus:ring-1 focus:ring-ring"
+                className="min-w-0 flex-1 rounded-lg border border-line bg-muted px-2 py-1 text-sm text-fg transition-all placeholder-fg-subtle focus:border-primary focus:bg-surface focus:outline-none focus:ring-1 focus:ring-ring"
               />
               <Button size="sm" onClick={commitRename} disabled={isRenaming}>
                 {isRenaming ? (

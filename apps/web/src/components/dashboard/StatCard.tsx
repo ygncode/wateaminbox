@@ -128,7 +128,7 @@ function CompactStatCard({
   color,
 }: StatCardCompactProps) {
   return (
-    <div className="rounded-xl border border-line bg-subtle p-4">
+    <div className="rounded-xl border border-line bg-muted/60 p-4">
       <div className="mb-3 flex items-center gap-2.5">
         <div
           className={cn(

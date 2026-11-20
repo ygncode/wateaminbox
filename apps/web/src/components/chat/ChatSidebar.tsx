@@ -36,11 +36,11 @@ export const ChatSidebar = memo(function ChatSidebar({
   );
 
   return (
-    <div className={cn("relative flex flex-col h-full bg-surface", className)}>
+    <div className={cn("relative flex flex-col h-full bg-panel", className)}>
       {/* Navigation Tabs - desktop only. Touch layouts switch the same filter
           from the floating bottom navigation, and showing both put two
           controls for one piece of state on a phone-sized screen. */}
-      <div className="hidden h-14 min-h-[56px] items-stretch border-b border-line bg-subtle md:h-[60px] md:min-h-[60px] lg:flex">
+      <div className="hidden h-14 min-h-[56px] items-stretch border-b border-line bg-panel md:h-[60px] md:min-h-[60px] lg:flex">
         <nav className="flex flex-1">
           <TabButton
             isActive={activeView === "chats"}
@@ -99,8 +99,8 @@ const TabButton = memo(function TabButton({
         "flex h-full flex-1 items-center justify-center gap-2 px-4 text-sm font-medium transition-colors",
         "border-b-2 -mb-px",
         isActive
-          ? "text-accent border-primary bg-surface"
-          : "text-fg-muted border-transparent hover:text-fg hover:bg-muted",
+          ? "text-tab-on border-tab-on bg-panel"
+          : "text-fg-muted border-transparent hover:text-fg",
       )}
     >
       {icon}

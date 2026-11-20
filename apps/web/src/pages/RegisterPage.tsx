@@ -292,7 +292,7 @@ export function RegisterPage() {
 
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="mt-6 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-line-strong [&_input]:bg-surface [&_input]:px-3.5"
+          className="mt-6 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-line-strong [&_input]:bg-raised [&_input]:px-3.5"
           aria-busy={isLoading}
           noValidate
         >
@@ -364,7 +364,7 @@ export function RegisterPage() {
               <div>
                 <label
                   htmlFor="discovery-source"
-                  className="mb-1.5 block text-sm font-semibold text-fg"
+                  className="mb-1.5 block text-sm font-semibold text-fg-muted"
                 >
                   {t("auth.discoverySource", "How did you hear about us?")}{" "}
                   <span className="font-normal text-fg-muted">
@@ -400,7 +400,7 @@ export function RegisterPage() {
                 <div>
                   <label
                     htmlFor="discovery-other"
-                    className="mb-1.5 block text-sm font-semibold text-fg"
+                    className="mb-1.5 block text-sm font-semibold text-fg-muted"
                   >
                     {t(
                       "auth.discoveryOther",
@@ -425,7 +425,7 @@ export function RegisterPage() {
           <Button
             type="submit"
             size="lg"
-            className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-primary-hover"
+            className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-accent-soft"
             disabled={isLoading}
           >
             {isLoading ? (

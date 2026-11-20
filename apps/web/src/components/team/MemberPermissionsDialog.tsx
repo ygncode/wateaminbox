@@ -127,7 +127,7 @@ export function MemberPermissionsDialog({
                     {group.options.map((option) => (
                       <label
                         key={option.key}
-                        className="flex cursor-pointer items-start gap-3 p-3.5 hover:bg-muted"
+                        className="flex cursor-pointer items-start gap-3 p-3.5 hover:bg-subtle"
                       >
                         <input
                           type="checkbox"

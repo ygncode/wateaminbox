@@ -322,8 +322,8 @@ export function InviteFormModal({
                                   className={cn(
                                     "flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 transition-colors",
                                     permissions[option.key]
-                                      ? "border-accent/30 bg-subtle"
-                                      : "border-line hover:bg-muted",
+                                      ? "border-accent/30 bg-accent-soft"
+                                      : "border-line hover:bg-subtle",
                                   )}
                                 >
                                   <input
@@ -523,8 +523,8 @@ function RoleButton({
       className={cn(
         "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-start transition-colors",
         selected
-          ? "border-accent bg-subtle text-accent"
-          : "border-line hover:border-line-strong hover:bg-muted",
+          ? "border-accent bg-accent-soft text-accent"
+          : "border-line hover:border-line-strong hover:bg-subtle",
       )}
     >
       <Icon className="h-5 w-5 shrink-0" />
@@ -564,7 +564,7 @@ function AccessModeButton({
       <span
         className={cn(
           "block text-[10px]",
-          selected ? "text-on-primary/70" : "text-fg-muted",
+          selected ? "text-on-primary/70" : "text-fg-subtle",
         )}
       >
         {description}

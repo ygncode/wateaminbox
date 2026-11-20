@@ -199,7 +199,7 @@ export function ServerDataTable<TData extends object>({
       {(search || toolbarLeading || toolbarActions) && (
         <div
           className={cn(
-            "flex shrink-0 flex-col gap-2.5 border-b border-line bg-subtle sm:flex-row sm:items-center",
+            "flex shrink-0 flex-col gap-2.5 border-b border-line bg-surface/40 sm:flex-row sm:items-center",
             density === "compact" ? "px-3 py-2.5" : "p-3",
           )}
         >
@@ -215,13 +215,13 @@ export function ServerDataTable<TData extends object>({
                 value={searchDraft}
                 onChange={(event) => setSearchDraft(event.target.value)}
                 placeholder={search.placeholder ?? `Search ${tableLabel}…`}
-                className="h-9 border-line bg-surface ps-9 pe-9 shadow-none"
+                className="h-9 border-line bg-raised ps-9 pe-9 shadow-none"
               />
               {searchDraft && (
                 <button
                   type="button"
                   onClick={() => setSearchDraft("")}
-                  className="absolute end-2 top-1.5 grid h-6 w-6 place-items-center rounded-md text-fg-muted hover:bg-muted hover:text-fg"
+                  className="absolute end-2 top-1.5 grid h-6 w-6 place-items-center rounded-md text-fg-muted hover:bg-muted-strong hover:text-fg"
                   aria-label={t("common.clearSearch", "Clear search")}
                 >
                   <X className="h-3.5 w-3.5" />
@@ -325,7 +325,7 @@ export function ServerDataTable<TData extends object>({
                 const subRow = renderSubRow?.(row.original);
                 return (
                   <Fragment key={row.id}>
-                    <tr className="group transition-colors hover:bg-muted">
+                    <tr className="group transition-colors hover:bg-subtle">
                       {row.getVisibleCells().map((cell) => (
                         <td
                           key={cell.id}
@@ -379,7 +379,7 @@ export function ServerDataTable<TData extends object>({
         </table>
       </div>
 
-      <footer className="flex shrink-0 flex-col gap-3 border-t border-line bg-subtle px-3 py-2.5 text-xs text-fg-muted sm:flex-row sm:items-center sm:justify-between">
+      <footer className="flex shrink-0 flex-col gap-3 border-t border-line bg-surface/40 px-3 py-2.5 text-xs text-fg-muted sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <span>
             {visibleRange.start}–{visibleRange.end} of{" "}
