@@ -116,7 +116,7 @@ Telegram runs through the Bun API as a webhook/HTTPS adapter. Linked-device What
 
 ## Prerequisites
 
-- [Bun](https://bun.sh/) 1.2.18 or newer
+- [Bun](https://bun.sh/) 1.3.14 or newer
 - [Go](https://go.dev/) 1.26 or newer (the Go modules pin the exact toolchain; Go downloads it automatically when `GOTOOLCHAIN=auto`)
 - [Docker](https://www.docker.com/) with Docker Compose
 - Credentials for one transactional email provider in production: a [Resend](https://resend.com/) API key, or a [Cloudflare Email Service](https://developers.cloudflare.com/email-service/) account ID with an Email Sending token (local development uses a log-only transport)
