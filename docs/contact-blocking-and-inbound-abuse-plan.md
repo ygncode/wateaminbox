@@ -96,7 +96,7 @@ later):
 - `block` drops new inbound **and** forbids outbound. This is the "Block" button.
 - `mute_inbound` stores inbound silently (no unread, no notification, no
   auto-assign or auto-reply) but keeps it auditable. Useful for "noisy but not
-  abusive". This is optional for phase 1.
+  abusive". Ships in the first round (phases 2–3), as decided in section 9.4.
 - `do_not_contact` forbids outbound only (opt-out, legal). It already matches
   RFC wording.
 
@@ -327,7 +327,7 @@ that knows providers.
 |---|---|---|
 | **0. Contracts** | `blocking` capability, typed operations, `endpoint.state` kind, conformance assertions; both adapters declare values. No behaviour change. | none |
 | **1. Policy core** | `contact-policy.ts`; partial unique index plus `expires_at` on `contact_suppressions`; backfill one `block` suppression per `contacts.is_blocked = true` (canonical customer); dual-write. | migration (additive) |
-| **2. Enforcement** | Inbound gate in neutral processor and legacy WhatsApp handler; outbound gate swap; suppressed-event outcome. **This fixes Telegram and mixed customers.** | inbound path, so needs a feature flag per workspace |
+| **2. Enforcement** | Inbound gate in neutral processor and legacy WhatsApp handler (`block` drops, `mute_inbound` silences); outbound gate swap; suppressed-event outcome. **This fixes Telegram and mixed customers.** | inbound path, so needs a feature flag per workspace |
 | **3. API/UI** | Suppression routes, PATCH shim, per-channel status UI, MCP tools. | low |
 | **4. Merge/unmerge** | Suppression move plus snapshot; unmerge restore. | medium (interacts with #378 merge fixes) |
 | **5. Rate limits** | Ingress route-key tier; per-sender bucket and silence; optional auto `mute_inbound`. | tuning |
@@ -358,10 +358,13 @@ Phase 5 answers "too many messages" even without anyone clicking Block.
 1. ~~Drop vs. store hidden for `block`.~~ **Decided (2026-11-20, owner):** drop
    the content and keep only a bounded counter per sender per day. Attachments
    are never fetched. Storing hidden copies as evidence is out of scope.
-2. Should a person-level block also leave or ban in groups the bot admins on
-   Telegram? Proposal: no. Group moderation is a separate feature.
-3. Default per-sender thresholds per channel kind (chat vs. email).
-4. Whether `mute_inbound` ships in phase 2 or waits for phase 5.
+2. ~~Ban in Telegram groups?~~ **Decided (2026-11-20, owner):** no. A
+   person-level block never leaves or bans in groups. Group moderation is a
+   separate feature.
+3. Default per-sender thresholds per channel kind (chat vs. email). Still open;
+   explanation requested before deciding.
+4. ~~`mute_inbound` timing.~~ **Decided (2026-11-20, owner):** ships in the
+   first round with `block` (phases 2–3), including the UI control.
 
 ## 10. Boundary
 
