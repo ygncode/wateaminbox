@@ -8,11 +8,11 @@ Full-text search across messages and contacts, served by PostgreSQL full-text an
 
 **Methods:** GET 3 · POST 0 · DELETE 0 · PATCH 0 · PUT 0
 
-| Method | Path | Access | Description |
-|--------|------|--------|-------------|
-| GET | `/search` | Authenticated · Tenant context · Rate limited · Contact visibility (result-filtered) | Global search across messages and contacts |
-| GET | `/search/contacts` | Authenticated · Tenant context · Rate limited · Contact visibility (result-filtered) | Search contacts only |
-| GET | `/search/messages` | Authenticated · Tenant context · Rate limited · Contact visibility (result-filtered) | Search messages only |
+| Method | Path               | Access                                                                               | Description                                |
+| ------ | ------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------ |
+| GET    | `/search`          | Authenticated · Tenant context · Rate limited · Contact visibility (result-filtered) | Global search across messages and contacts |
+| GET    | `/search/contacts` | Authenticated · Tenant context · Rate limited · Contact visibility (result-filtered) | Search contacts only                       |
+| GET    | `/search/messages` | Authenticated · Tenant context · Rate limited · Contact visibility (result-filtered) | Search messages only                       |
 
 ## Flows
 

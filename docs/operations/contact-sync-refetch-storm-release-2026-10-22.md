@@ -63,12 +63,12 @@ that security job.
 
 ## Pre-deployment image digests
 
-| Container | Image digest |
-| --- | --- |
+| Container          | Image digest                                                              |
+| ------------------ | ------------------------------------------------------------------------- |
 | `api-17`, `api-18` | `sha256:9b8a649f27fba3657ea1d714bec0085b04bdc8232d4d2538a570c363e203f4be` |
-| `web-1` | `sha256:4ebc09ffaba15f9bbee664df2132a0a95f45032223731e3b5028d7335663bbc7` |
-| `orchestrator-1` | `sha256:dafe78fea56eeb3601dbae7693c6db7cd2bb9a37e629922c589785855f87af5e` |
-| `cloud-control-1` | `sha256:190ad0ac432f575f25eb04230eb574f07b2c34c46c68a981b4e87a061b62a194` |
+| `web-1`            | `sha256:4ebc09ffaba15f9bbee664df2132a0a95f45032223731e3b5028d7335663bbc7` |
+| `orchestrator-1`   | `sha256:dafe78fea56eeb3601dbae7693c6db7cd2bb9a37e629922c589785855f87af5e` |
+| `cloud-control-1`  | `sha256:190ad0ac432f575f25eb04230eb574f07b2c34c46c68a981b4e87a061b62a194` |
 
 During the plan build, the already-overloaded `api-17` process exited and
 restarted once without an OOM flag. Its image did not change. This happened

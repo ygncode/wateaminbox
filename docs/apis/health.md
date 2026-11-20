@@ -8,11 +8,11 @@ Infrastructure probes for Kubernetes/Docker: liveness, readiness, and overall st
 
 **Methods:** GET 3 · POST 0 · DELETE 0 · PATCH 0 · PUT 0
 
-| Method | Path | Access | Description |
-|--------|------|--------|-------------|
-| GET | `/health` | Public | Overall system health Used by orchestrators to check if the service is functioning |
-| GET | `/health/live` | Public | Liveness probe Kubernetes uses this to determine if the pod should be restarted |
-| GET | `/health/ready` | Public | Readiness probe Kubernetes uses this to determine if the pod is ready to receive traffic |
+| Method | Path            | Access | Description                                                                              |
+| ------ | --------------- | ------ | ---------------------------------------------------------------------------------------- |
+| GET    | `/health`       | Public | Overall system health Used by orchestrators to check if the service is functioning       |
+| GET    | `/health/live`  | Public | Liveness probe Kubernetes uses this to determine if the pod should be restarted          |
+| GET    | `/health/ready` | Public | Readiness probe Kubernetes uses this to determine if the pod is ready to receive traffic |
 
 ## Flows
 

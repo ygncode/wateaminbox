@@ -251,7 +251,7 @@ Run the backfill with `--batch-size=25` against a workspace that is taking
 live traffic.
 
 At the default of 250 the batch holds its locks long enough to deadlock
-against the *live* inbound message handler, not merely against the
+against the _live_ inbound message handler, not merely against the
 reconciler. PostgreSQL then picks a victim, and when the victim is the live
 handler a real customer message fails to process. Observed on 2026-09-09:
 eighteen deadlocks in four minutes on the busiest workspace, all resolving to

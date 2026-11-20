@@ -90,16 +90,16 @@ claim that all resource-exhaustion risks are resolved.
 
 Existing application upper bounds are preserved, not invented or increased:
 
-| Input | Existing upper bound |
-| --- | --- |
-| Batch message IDs | 50 |
-| Send-message/conversation mentions | 100 |
-| Broadcast audience tags / contacts (REST and MCP) | 50 / 500 |
-| Contact query tag IDs after CSV conversion | 50 |
-| Group participant operations / group creation | 64 / 1023 |
-| Notification muted contacts | 1000 |
-| API token scopes | 2 |
-| SLA weekly days / daily intervals / exception dates | exact 7 / 12 / 366 |
+| Input                                               | Existing upper bound |
+| --------------------------------------------------- | -------------------- |
+| Batch message IDs                                   | 50                   |
+| Send-message/conversation mentions                  | 100                  |
+| Broadcast audience tags / contacts (REST and MCP)   | 50 / 500             |
+| Contact query tag IDs after CSV conversion          | 50                   |
+| Group participant operations / group creation       | 64 / 1023            |
+| Notification muted contacts                         | 1000                 |
+| API token scopes                                    | 2                    |
+| SLA weekly days / daily intervals / exception dates | exact 7 / 12 / 366   |
 
 These bounds precede collection transforms/refinements, so the patched gate is
 usable. Query CSV splitting still allocates before the array validation stage.

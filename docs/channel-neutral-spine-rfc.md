@@ -666,8 +666,12 @@ interface ChannelAdapter {
   readonly channel: Channel;
   readonly provider: Provider;
 
-  verifyAndNormalizeIngress(input: ProviderIngress): Promise<NormalizedChannelEvent[]>;
-  resolveCapabilities(context: CapabilityContext): Promise<ResolvedCapabilities>;
+  verifyAndNormalizeIngress(
+    input: ProviderIngress,
+  ): Promise<NormalizedChannelEvent[]>;
+  resolveCapabilities(
+    context: CapabilityContext,
+  ): Promise<ResolvedCapabilities>;
   send(intent: OutboundMessageIntent): Promise<ProviderSendResult>;
   perform(action: ChannelActionIntent): Promise<ProviderActionResult>;
 }
@@ -1198,20 +1202,20 @@ The generic capability model says what an adapter/account/conversation can do. I
 
 ## Risks and mitigations
 
-| Risk | Mitigation |
-| --- | --- |
-| Contact remains confused with conversation | Add explicit IDs and migrate workflow ownership before enabling merge. |
-| Wrong cross-channel contact merge | Exact scoped endpoint keys, suggestions only for weak evidence, audited manual merge. |
-| Message loss during protocol cutover | Keep legacy WhatsApp subjects authoritative; shadow first; new versioned consumers before publishers. |
-| Duplicate sends | Transactional outbound intent, provider idempotency keys, explicit uncertain outcomes, no blind retry. |
-| Blocking tenant migrations | Nullable/additive DDL, bounded lock timeouts, resumable backfill, `NOT VALID` FKs. |
-| Old API omits shadow writes | Prohibit mixed revisions by default; prove any overlap; continuously reconcile before authority. |
-| Capability checks spread through code | Adapter registry, centralized resolver, API enforcement, architecture tests. |
-| Email overwhelms generic message shape | Normalize recipients/attachments/threading explicitly and keep MIME/provider state in email tables. |
-| Search leaks endpoint data | Conversation visibility filters, safe indexed fields, versioned indexes, authorization tests. |
-| Contact merge corrupts SLA/history | Never move conversations/cases/messages during merge. |
-| Provider payload becomes a data dump | Allowlists, retention policy, redaction, explicit normalized fields. |
-| Hosted orchestration leaks into OSS | Enforce the documented single-host/private-fleet boundary. |
+| Risk                                       | Mitigation                                                                                             |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Contact remains confused with conversation | Add explicit IDs and migrate workflow ownership before enabling merge.                                 |
+| Wrong cross-channel contact merge          | Exact scoped endpoint keys, suggestions only for weak evidence, audited manual merge.                  |
+| Message loss during protocol cutover       | Keep legacy WhatsApp subjects authoritative; shadow first; new versioned consumers before publishers.  |
+| Duplicate sends                            | Transactional outbound intent, provider idempotency keys, explicit uncertain outcomes, no blind retry. |
+| Blocking tenant migrations                 | Nullable/additive DDL, bounded lock timeouts, resumable backfill, `NOT VALID` FKs.                     |
+| Old API omits shadow writes                | Prohibit mixed revisions by default; prove any overlap; continuously reconcile before authority.       |
+| Capability checks spread through code      | Adapter registry, centralized resolver, API enforcement, architecture tests.                           |
+| Email overwhelms generic message shape     | Normalize recipients/attachments/threading explicitly and keep MIME/provider state in email tables.    |
+| Search leaks endpoint data                 | Conversation visibility filters, safe indexed fields, versioned indexes, authorization tests.          |
+| Contact merge corrupts SLA/history         | Never move conversations/cases/messages during merge.                                                  |
+| Provider payload becomes a data dump       | Allowlists, retention policy, redaction, explicit normalized fields.                                   |
+| Hosted orchestration leaks into OSS        | Enforce the documented single-host/private-fleet boundary.                                             |
 
 ## Rejected alternatives
 

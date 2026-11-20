@@ -8,11 +8,11 @@ Stateless Streamable HTTP MCP endpoint for AI agents. Authenticated with an API 
 
 **Methods:** GET 1 · POST 1 · DELETE 1 · PATCH 0 · PUT 0
 
-| Method | Path | Access | Description |
-|--------|------|--------|-------------|
-| DELETE | `/mcp` | Public |  |
-| GET | `/mcp` | Public |  |
-| POST | `/mcp` | Public · Rate limited | Stateless Streamable HTTP MCP endpoint. |
+| Method | Path   | Access                | Description                             |
+| ------ | ------ | --------------------- | --------------------------------------- |
+| DELETE | `/mcp` | Public                |                                         |
+| GET    | `/mcp` | Public                |                                         |
+| POST   | `/mcp` | Public · Rate limited | Stateless Streamable HTTP MCP endpoint. |
 
 ## Flows
 
@@ -65,14 +65,14 @@ the app's scheduled-message UI; those actions are not added to MCP here.
 MCP server version `1.3.0` adds the following tools. All workspace IDs come from
 the authenticated token; callers cannot select another tenant.
 
-| Tools | Scope | Access / behavior |
-|-------|-------|-------------------|
-| `get_sla_policy`, `list_sla_policy_history` | read | Any workspace member; current policy and immutable history |
-| `update_sla_policy` | write | Live owner/admin role required; creates a new policy version |
-| `list_quick_replies`, `get_quick_reply` | read | Shared templates, full content; list supports search, limit (max 50), offset |
-| `create_quick_reply`, `update_quick_reply`, `delete_quick_reply` | write | Same member access and tenant isolation as the app |
-| `get_auto_reply_settings` | read | Current first-contact reply rule |
-| `update_auto_reply_settings` | write | Same member access as the app; replaces the rule |
+| Tools                                                            | Scope | Access / behavior                                                            |
+| ---------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------- |
+| `get_sla_policy`, `list_sla_policy_history`                      | read  | Any workspace member; current policy and immutable history                   |
+| `update_sla_policy`                                              | write | Live owner/admin role required; creates a new policy version                 |
+| `list_quick_replies`, `get_quick_reply`                          | read  | Shared templates, full content; list supports search, limit (max 50), offset |
+| `create_quick_reply`, `update_quick_reply`, `delete_quick_reply` | write | Same member access and tenant isolation as the app                           |
+| `get_auto_reply_settings`                                        | read  | Current first-contact reply rule                                             |
+| `update_auto_reply_settings`                                     | write | Same member access as the app; replaces the rule                             |
 
 Read the current SLA before updating it. Supply `targetMinutes`,
 `directResolutionTargetMinutes`, `groupResponseTargetMinutes`,

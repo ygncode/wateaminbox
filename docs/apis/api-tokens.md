@@ -8,11 +8,11 @@ Personal, revocable API tokens (`wti_...`) that authenticate the MCP endpoint. M
 
 **Methods:** GET 1 · POST 1 · DELETE 1 · PATCH 0 · PUT 0
 
-| Method | Path | Access | Description |
-|--------|------|--------|-------------|
-| GET | `/api-tokens` | Authenticated · Tenant context | List own tokens; ?all=true lists all workspace tokens (admin/owner) |
-| POST | `/api-tokens` | Authenticated · Tenant context | Create an API token; the secret is returned only once |
-| DELETE | `/api-tokens/:id` | Authenticated · Tenant context | Revoke a token (own; admins may revoke any) |
+| Method | Path              | Access                         | Description                                                         |
+| ------ | ----------------- | ------------------------------ | ------------------------------------------------------------------- |
+| GET    | `/api-tokens`     | Authenticated · Tenant context | List own tokens; ?all=true lists all workspace tokens (admin/owner) |
+| POST   | `/api-tokens`     | Authenticated · Tenant context | Create an API token; the secret is returned only once               |
+| DELETE | `/api-tokens/:id` | Authenticated · Tenant context | Revoke a token (own; admins may revoke any)                         |
 
 ## Flows
 

@@ -145,20 +145,20 @@ until the deletion finishes. The participating writers are `messages/send`
 `bulk-jobs`, and `status`. An object still has to look unreferenced across two
 checks a settle window apart before the intent is taken.
 
-Reclaiming objects stranded by purges that ran *before* this queue existed is
+Reclaiming objects stranded by purges that ran _before_ this queue existed is
 **not** automatic and is deliberately not part of startup or the cleanup cycle.
 It requires listing the tenant prefix, so it belongs in a separate, approved
 maintenance operation with a dry run.
 
 ## Main files
 
-| Area | File |
-| --- | --- |
-| Connection routes | `apps/api/src/routes/whatsapp/connections.ts` |
-| Connection service | `apps/api/src/services/whatsapp/connection.ts` |
-| Orchestrator manager | `services/orchestrator/internal/manager/manager.go` |
-| Worker client | `services/whatsapp/internal/client/client.go` |
-| Reconnect policy | `services/whatsapp/internal/client/reconnect.go` |
-| Session bootstrap | `services/whatsapp/internal/handler/bootstrap.go` |
-| API event handlers | `apps/api/src/services/handlers/connection-handlers.ts` |
-| React connection hooks | `apps/web/src/hooks/whatsapp/` |
+| Area                   | File                                                    |
+| ---------------------- | ------------------------------------------------------- |
+| Connection routes      | `apps/api/src/routes/whatsapp/connections.ts`           |
+| Connection service     | `apps/api/src/services/whatsapp/connection.ts`          |
+| Orchestrator manager   | `services/orchestrator/internal/manager/manager.go`     |
+| Worker client          | `services/whatsapp/internal/client/client.go`           |
+| Reconnect policy       | `services/whatsapp/internal/client/reconnect.go`        |
+| Session bootstrap      | `services/whatsapp/internal/handler/bootstrap.go`       |
+| API event handlers     | `apps/api/src/services/handlers/connection-handlers.ts` |
+| React connection hooks | `apps/web/src/hooks/whatsapp/`                          |

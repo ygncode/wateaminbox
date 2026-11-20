@@ -8,9 +8,9 @@ Public feedback submission. Unauthenticated, body-bounded, and emailed to the ad
 
 **Methods:** GET 0 · POST 1 · DELETE 0 · PATCH 0 · PUT 0
 
-| Method | Path | Access | Description |
-|--------|------|--------|-------------|
-| POST | `/feedback` | Public | Submit feedback Public endpoint, no authentication required |
+| Method | Path        | Access | Description                                                 |
+| ------ | ----------- | ------ | ----------------------------------------------------------- |
+| POST   | `/feedback` | Public | Submit feedback Public endpoint, no authentication required |
 
 ## Flows
 

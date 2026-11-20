@@ -8,9 +8,9 @@ Issues a short-lived Centrifugo connection token after authenticated workspace m
 
 **Methods:** GET 0 · POST 1 · DELETE 0 · PATCH 0 · PUT 0
 
-| Method | Path | Access | Description |
-|--------|------|--------|-------------|
-| POST | `/realtime/token` | Authenticated · Tenant context | Issue a short-lived Centrifugo connection token. The server-side channel subscriptions are derived exclusively from the authenticated user and their verified current company membership. |
+| Method | Path              | Access                         | Description                                                                                                                                                                               |
+| ------ | ----------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/realtime/token` | Authenticated · Tenant context | Issue a short-lived Centrifugo connection token. The server-side channel subscriptions are derived exclusively from the authenticated user and their verified current company membership. |
 
 ## Flows
 

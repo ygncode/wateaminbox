@@ -6,9 +6,9 @@ The unified inbox: every conversation the reader can see, across every
 channel, in one server-side order with cursor paging. It is what the web chat
 list and the MCP `list_conversations` tool read.
 
-| Method | Path | Access | Description |
-|--------|------|--------|-------------|
-| GET | `/inbox` | Authenticated · Tenant context | List the inbox, newest activity first. |
+| Method | Path     | Access                         | Description                            |
+| ------ | -------- | ------------------------------ | -------------------------------------- |
+| GET    | `/inbox` | Authenticated · Tenant context | List the inbox, newest activity first. |
 
 ## Rows
 
@@ -27,17 +27,17 @@ before threads on an exact tie, then id descending.
 
 ## Query
 
-| Param | Default | Notes |
-|-------|---------|-------|
-| `limit` | 100 | 1–100 |
-| `cursor` | – | Continue down from a page's `nextCursor`. |
-| `before` | – | Page back up from a page's `prevCursor`. Not with `cursor`. |
-| `search` | – | Name, username, phone (digits match formatted input); thread subject and counterpart name/handle. |
-| `accountId` | – | A WhatsApp connection or a channel account. |
-| `tagIds` | – | Comma-separated tag UUIDs (any). |
-| `includeGroups` | `true` | `false` lists direct conversations only. |
-| `filter` | `all` | `assignedToMe`, `unassigned` or `unread`. |
-| `conversationStatus` | `all` | `open`, `pending`, `resolved` or `all`. |
+| Param                | Default | Notes                                                                                             |
+| -------------------- | ------- | ------------------------------------------------------------------------------------------------- |
+| `limit`              | 100     | 1–100                                                                                             |
+| `cursor`             | –       | Continue down from a page's `nextCursor`.                                                         |
+| `before`             | –       | Page back up from a page's `prevCursor`. Not with `cursor`.                                       |
+| `search`             | –       | Name, username, phone (digits match formatted input); thread subject and counterpart name/handle. |
+| `accountId`          | –       | A WhatsApp connection or a channel account.                                                       |
+| `tagIds`             | –       | Comma-separated tag UUIDs (any).                                                                  |
+| `includeGroups`      | `true`  | `false` lists direct conversations only.                                                          |
+| `filter`             | `all`   | `assignedToMe`, `unassigned` or `unread`.                                                         |
+| `conversationStatus` | `all`   | `open`, `pending`, `resolved` or `all`.                                                           |
 
 Every filter is applied in SQL to both row kinds before paging, so a page is
 never short because rows were dropped afterwards. Members without the
@@ -49,7 +49,10 @@ never short because rows were dropped afterwards. Members without the
 {
   "data": [
     { "type": "contact", "contact": { "id": "…", "displayName": "…" } },
-    { "type": "conversation", "conversation": { "id": "…", "channel": "telegram" } }
+    {
+      "type": "conversation",
+      "conversation": { "id": "…", "channel": "telegram" }
+    }
   ],
   "nextCursor": "WyIxNzkz…",
   "prevCursor": null,

@@ -11,11 +11,22 @@ import {
 import type { Kysely, Transaction } from "kysely";
 import { sql } from "kysely";
 import { openOrReopenCaseForInboundConversation } from "../../services/conversation-case.service.js";
+import {
+  isSuppressionEnforced,
+  recordSuppressedInbound,
+  resolveInboundPolicy,
+} from "./contact-policy.js";
 
 export interface AppliedChannelEvent {
   outcome: "applied" | "duplicate" | "transient";
   conversationId?: string;
   messageId?: string;
+  /**
+   * The event was accepted but deliberately not stored: its sender is a
+   * blocked customer. The inbox row is marked applied, so a provider retry or
+   * replay stays a no-op.
+   */
+  suppressed?: true;
 }
 
 export class ChannelEventIdentityCollisionError extends Error {}
@@ -150,7 +161,11 @@ async function requireMatchingAccount(
 async function applyDurableEvent(
   trx: Transaction<TenantDatabase>,
   event: NormalizedChannelEvent,
-): Promise<{ conversationId?: string; messageId?: string }> {
+): Promise<{
+  conversationId?: string;
+  messageId?: string;
+  suppressed?: true;
+}> {
   switch (event.kind) {
     case "account.status":
       await trx
@@ -288,7 +303,10 @@ async function applyParticipantMutation(
 async function applyMessageUpsert(
   trx: Transaction<TenantDatabase>,
   event: Extract<NormalizedChannelEvent, { kind: "message.upsert" }>,
-): Promise<{ conversationId: string; messageId: string }> {
+): Promise<
+  | { conversationId: string; messageId: string }
+  | { conversationId: string; suppressed: true }
+> {
   const payload = event.payload;
   const conversationId = await ensureConversation(
     trx,
@@ -321,6 +339,42 @@ async function applyMessageUpsert(
     occurredAt.getTime() < existing.provider_occurred_at.getTime()
   ) {
     return { conversationId, messageId: existing.id };
+  }
+
+  // Customer suppression gate (contact blocking, phase 2). Only a new inbound
+  // message is gated: one already stored predates the block and keeps
+  // receiving its own edits. Everything above is identity bookkeeping (the
+  // conversation, endpoint and customer link) and is kept, so the block stays
+  // attached to the right person; nothing that would surface the message is.
+  let silenced = false;
+  if (
+    !existing &&
+    payload.direction === "inbound" &&
+    (await isSuppressionEnforced(trx))
+  ) {
+    const conversationKind = (
+      await trx
+        .selectFrom("conversations")
+        .select("kind")
+        .where("id", "=", conversationId)
+        .executeTakeFirstOrThrow()
+    ).kind;
+    const policy = await resolveInboundPolicy(trx, {
+      channelAccountId: event.channelAccountId,
+      senderEndpointId,
+      conversationKind,
+      now: occurredAt,
+    });
+    if (policy.action === "drop") {
+      if (policy.contactId) {
+        await recordSuppressedInbound(trx, {
+          contactId: policy.contactId,
+          channel: event.channel,
+        });
+      }
+      return { conversationId, suppressed: true };
+    }
+    silenced = policy.action === "silence";
   }
 
   const values = {
@@ -428,7 +482,7 @@ async function applyMessageUpsert(
       )
       .execute();
   }
-  if (!existing && payload.direction === "inbound") {
+  if (!existing && payload.direction === "inbound" && !silenced) {
     const conversation = await trx
       .selectFrom("conversations")
       .select("kind")
@@ -485,6 +539,9 @@ async function applyMessageUpsert(
     event.channelAccountId,
     conversationId,
     messageId,
+    // A muted person's message still refreshes open screens, but raises no
+    // push notification.
+    silenced ? ["realtime"] : ["realtime", "push"],
   );
   return { conversationId, messageId };
 }
@@ -1141,13 +1198,15 @@ async function enqueueFanout(
   channelAccountId: string,
   conversationId: string,
   messageId: string,
+  kinds: ReadonlyArray<"realtime" | "push"> = ["realtime", "push"],
 ): Promise<void> {
-  await sql`INSERT INTO public.channel_message_delivery_outbox
-      (company_id, channel_account_id, conversation_id, message_id, kind, case_event)
-    VALUES
-      (${companyId}::uuid, ${channelAccountId}::uuid, ${conversationId}::uuid, ${messageId}::uuid, 'realtime', NULL),
-      (${companyId}::uuid, ${channelAccountId}::uuid, ${conversationId}::uuid, ${messageId}::uuid, 'push', NULL)
-    ON CONFLICT DO NOTHING`.execute(trx);
+  for (const kind of kinds) {
+    await sql`INSERT INTO public.channel_message_delivery_outbox
+        (company_id, channel_account_id, conversation_id, message_id, kind, case_event)
+      VALUES
+        (${companyId}::uuid, ${channelAccountId}::uuid, ${conversationId}::uuid, ${messageId}::uuid, ${kind}, NULL)
+      ON CONFLICT DO NOTHING`.execute(trx);
+  }
 }
 
 async function recordApplicationFailure(

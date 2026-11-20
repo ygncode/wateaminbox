@@ -62,40 +62,40 @@ Durable, state-changing WhatsApp actions persist state and enqueue a command in 
 
 ## Groups
 
-| Group | File | Endpoints |
-|-------|------|-----------|
-| Auth | [`auth.md`](auth.md) | 14 |
-| Companies (Workspaces) | [`companies.md`](companies.md) | 22 |
-| Invitations (token acceptance) | [`invitations.md`](invitations.md) | 2 |
-| Contacts | [`contacts.md`](contacts.md) | 22 |
-| Inbox (unified list) | [`inbox.md`](inbox.md) | 1 |
-| Conversations | [`conversations.md`](conversations.md) | 14 |
-| Messages | [`messages.md`](messages.md) | 15 |
-| Groups | [`groups.md`](groups.md) | 16 |
-| WhatsApp Connections & Status | [`whatsapp.md`](whatsapp.md) | 17 |
-| Notifications | [`notifications.md`](notifications.md) | 15 |
-| Analytics | [`analytics.md`](analytics.md) | 13 |
-| Bulk Broadcast Jobs | [`bulk-jobs.md`](bulk-jobs.md) | 7 |
-| Catalogs | [`catalogs.md`](catalogs.md) | 9 |
-| Labels | [`labels.md`](labels.md) | 10 |
-| API tokens | [`api-tokens.md`](api-tokens.md) | 3 |
-| MCP | [`mcp.md`](mcp.md) | 3 |
-| Tags | [`tags.md`](tags.md) | 4 |
-| Quick Replies | [`quick-replies.md`](quick-replies.md) | 8 |
-| Search | [`search.md`](search.md) | 3 |
-| Status (Stories) | [`status.md`](status.md) | 6 |
-| Audit | [`audit.md`](audit.md) | 4 |
-| Export | [`export.md`](export.md) | 5 |
-| Media | [`media.md`](media.md) | 3 |
-| Actions (realtime REST) | [`actions.md`](actions.md) | 2 |
-| Realtime (Centrifugo token) | [`realtime.md`](realtime.md) | 1 |
-| Health | [`health.md`](health.md) | 3 |
-| Feedback | [`feedback.md`](feedback.md) | 1 |
-| Debug (NATS) | [`debug.md`](debug.md) | 5 |
-| Root (`/`) | see below | 1 |
+| Group                          | File                                   | Endpoints |
+| ------------------------------ | -------------------------------------- | --------- |
+| Auth                           | [`auth.md`](auth.md)                   | 14        |
+| Companies (Workspaces)         | [`companies.md`](companies.md)         | 22        |
+| Invitations (token acceptance) | [`invitations.md`](invitations.md)     | 2         |
+| Contacts                       | [`contacts.md`](contacts.md)           | 22        |
+| Inbox (unified list)           | [`inbox.md`](inbox.md)                 | 1         |
+| Conversations                  | [`conversations.md`](conversations.md) | 14        |
+| Messages                       | [`messages.md`](messages.md)           | 15        |
+| Groups                         | [`groups.md`](groups.md)               | 16        |
+| WhatsApp Connections & Status  | [`whatsapp.md`](whatsapp.md)           | 17        |
+| Notifications                  | [`notifications.md`](notifications.md) | 15        |
+| Analytics                      | [`analytics.md`](analytics.md)         | 13        |
+| Bulk Broadcast Jobs            | [`bulk-jobs.md`](bulk-jobs.md)         | 7         |
+| Catalogs                       | [`catalogs.md`](catalogs.md)           | 9         |
+| Labels                         | [`labels.md`](labels.md)               | 10        |
+| API tokens                     | [`api-tokens.md`](api-tokens.md)       | 3         |
+| MCP                            | [`mcp.md`](mcp.md)                     | 3         |
+| Tags                           | [`tags.md`](tags.md)                   | 4         |
+| Quick Replies                  | [`quick-replies.md`](quick-replies.md) | 8         |
+| Search                         | [`search.md`](search.md)               | 3         |
+| Status (Stories)               | [`status.md`](status.md)               | 6         |
+| Audit                          | [`audit.md`](audit.md)                 | 4         |
+| Export                         | [`export.md`](export.md)               | 5         |
+| Media                          | [`media.md`](media.md)                 | 3         |
+| Actions (realtime REST)        | [`actions.md`](actions.md)             | 2         |
+| Realtime (Centrifugo token)    | [`realtime.md`](realtime.md)           | 1         |
+| Health                         | [`health.md`](health.md)               | 3         |
+| Feedback                       | [`feedback.md`](feedback.md)           | 1         |
+| Debug (NATS)                   | [`debug.md`](debug.md)                 | 5         |
+| Root (`/`)                     | see below                              | 1         |
 
 ## Root
 
-| Method | Path | Access | Description |
-|--------|------|--------|-------------|
-| GET | `/` | Public | API service info (name and version) |
+| Method | Path | Access | Description                         |
+| ------ | ---- | ------ | ----------------------------------- |
+| GET    | `/`  | Public | API service info (name and version) |

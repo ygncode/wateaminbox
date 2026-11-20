@@ -245,13 +245,13 @@ Use a persistent application rail:
 
 Navigation visibility must be based on effective permissions:
 
-| Destination | Required capability |
-|---|---|
-| Inbox | Workspace membership |
-| Dashboard | `can_view_dashboard` |
-| Team | `can_manage_team` or `can_invite` |
-| Audit | `can_view_audit` |
-| Settings | Workspace membership; individual sections remain permission-aware |
+| Destination | Required capability                                               |
+| ----------- | ----------------------------------------------------------------- |
+| Inbox       | Workspace membership                                              |
+| Dashboard   | `can_view_dashboard`                                              |
+| Team        | `can_manage_team` or `can_invite`                                 |
+| Audit       | `can_view_audit`                                                  |
+| Settings    | Workspace membership; individual sections remain permission-aware |
 
 ### Mobile
 
@@ -540,14 +540,14 @@ Hide or disable export actions when `can_export` is false.
 
 Use capabilities rather than role names for interface behavior:
 
-| Action | Capability or policy |
-|---|---|
-| Open Team destination | `can_manage_team` or `can_invite` |
-| View and manage invitations | `can_invite` |
-| View members | `can_manage_team`, unless a separate view permission is introduced |
-| Change roles | `can_manage_team` plus server-side hierarchy policy |
-| Change custom permissions | Explicit owner or management policy |
-| Remove members | `can_manage_team` plus server-side hierarchy policy |
+| Action                      | Capability or policy                                               |
+| --------------------------- | ------------------------------------------------------------------ |
+| Open Team destination       | `can_manage_team` or `can_invite`                                  |
+| View and manage invitations | `can_invite`                                                       |
+| View members                | `can_manage_team`, unless a separate view permission is introduced |
+| Change roles                | `can_manage_team` plus server-side hierarchy policy                |
+| Change custom permissions   | Explicit owner or management policy                                |
+| Remove members              | `can_manage_team` plus server-side hierarchy policy                |
 
 Resolve the mismatch between backend comments and actual permission enforcement before redesigning the permission UI.
 
@@ -769,9 +769,9 @@ Every tenant query key should include the workspace ID.
 Example:
 
 ```ts
-["workspace", workspaceId, "notifications", "count"]
-["workspace", workspaceId, "analytics", "dashboard"]
-["workspace", workspaceId, "team", "members"]
+["workspace", workspaceId, "notifications", "count"][
+  ("workspace", workspaceId, "analytics", "dashboard")
+][("workspace", workspaceId, "team", "members")];
 ```
 
 Before switching:
@@ -805,8 +805,8 @@ Workspace switching must explicitly coordinate:
 Create reusable capability helpers rather than repeating role checks:
 
 ```ts
-can("can_manage_team")
-canAny(["can_manage_team", "can_invite"])
+can("can_manage_team");
+canAny(["can_manage_team", "can_invite"]);
 ```
 
 The server remains authoritative.

@@ -8,11 +8,11 @@ Media upload and authorized download. Uploads go to private storage (R2/S3); rea
 
 **Methods:** GET 1 · POST 2 · DELETE 0 · PATCH 0 · PUT 0
 
-| Method | Path | Access | Description |
-|--------|------|--------|-------------|
-| POST | `/media/download/:messageId` | Authenticated · Tenant context · Message visibility | Request on-demand download of deferred WhatsApp media |
-| GET | `/media/messages/:messageId` | Authenticated · Tenant context · Message visibility | Request on-demand media download Triggers download for deferred media from history sync |
-| POST | `/media/upload` | Authenticated · Tenant context · Rate limited | Upload a media file (multipart form) |
+| Method | Path                         | Access                                              | Description                                                                             |
+| ------ | ---------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| POST   | `/media/download/:messageId` | Authenticated · Tenant context · Message visibility | Request on-demand download of deferred WhatsApp media                                   |
+| GET    | `/media/messages/:messageId` | Authenticated · Tenant context · Message visibility | Request on-demand media download Triggers download for deferred media from history sync |
+| POST   | `/media/upload`              | Authenticated · Tenant context · Rate limited       | Upload a media file (multipart form)                                                    |
 
 ## Flows
 

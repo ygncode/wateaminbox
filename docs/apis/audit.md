@@ -8,12 +8,12 @@ Audit log for sensitive workspace actions. Read-only; requires `can_view_audit` 
 
 **Methods:** GET 4 · POST 0 · DELETE 0 · PATCH 0 · PUT 0
 
-| Method | Path | Access | Description |
-|--------|------|--------|-------------|
-| GET | `/audit` | Authenticated · Tenant context · `can_view_audit` | Get audit logs with optional filters |
-| GET | `/audit/actions` | Authenticated · Tenant context · `can_view_audit` | Get list of available action types |
-| GET | `/audit/actors` | Authenticated · Tenant context · `can_view_audit` | Actors available to audit filters. |
-| GET | `/audit/export` | Authenticated · Tenant context · `can_view_audit` · `can_export` | Export audit logs as CSV |
+| Method | Path             | Access                                                           | Description                          |
+| ------ | ---------------- | ---------------------------------------------------------------- | ------------------------------------ |
+| GET    | `/audit`         | Authenticated · Tenant context · `can_view_audit`                | Get audit logs with optional filters |
+| GET    | `/audit/actions` | Authenticated · Tenant context · `can_view_audit`                | Get list of available action types   |
+| GET    | `/audit/actors`  | Authenticated · Tenant context · `can_view_audit`                | Actors available to audit filters.   |
+| GET    | `/audit/export`  | Authenticated · Tenant context · `can_view_audit` · `can_export` | Export audit logs as CSV             |
 
 ## Flows
 

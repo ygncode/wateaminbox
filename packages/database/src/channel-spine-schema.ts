@@ -172,6 +172,29 @@ export async function ensureChannelSpineTenantSchema<Database>(
         CHECK (scope IN ('block', 'mute_inbound', 'do_not_contact')) NOT VALID`,
     );
 
+    // Whether this workspace enforces customer suppression (drops a blocked
+    // person's inbound, silences a muted one, refuses outbound). One row, off
+    // until an operator enables it, so the rollout is per workspace. It lives
+    // in the tenant schema so every check reads it in its own transaction.
+    await sql`CREATE TABLE IF NOT EXISTS ${table("contact_policy_settings")} (
+      id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+      enforcement_enabled BOOLEAN NOT NULL DEFAULT false,
+      updated_by UUID,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`.execute(db);
+
+    // Evidence that a blocked person kept writing, without their content: one
+    // bounded counter per person, channel and UTC day.
+    await sql`CREATE TABLE IF NOT EXISTS ${table("contact_suppression_drops")} (
+      contact_id UUID NOT NULL REFERENCES ${table("contacts")}(id) ON DELETE CASCADE,
+      channel TEXT NOT NULL,
+      day DATE NOT NULL,
+      dropped_count INTEGER NOT NULL DEFAULT 0 CHECK (dropped_count >= 0),
+      last_dropped_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (contact_id, channel, day),
+      CHECK (length(trim(channel)) > 0)
+    )`.execute(db);
+
     await sql`CREATE TABLE IF NOT EXISTS ${table("conversations")} (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       channel_account_id UUID NOT NULL REFERENCES ${table("channel_accounts")}(id) ON DELETE RESTRICT,

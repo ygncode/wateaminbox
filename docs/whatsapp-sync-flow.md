@@ -102,11 +102,11 @@ stored as pending; the UI can request it later, and the API publishes
 
 ## Main files
 
-| Area | File |
-| --- | --- |
-| Worker history sync | `services/whatsapp/internal/handler/history_sync.go` |
-| Worker event outbox | `services/whatsapp/internal/nats/publisher.go` |
-| API NATS consumer | `apps/api/src/services/message-handler.ts` |
-| Message handlers | `apps/api/src/services/handlers/message-handlers.ts` |
-| Realtime provider | `apps/web/src/contexts/RealtimeProvider.tsx` |
-| Database constraints | `packages/database/src/migrations/` |
+| Area                 | File                                                 |
+| -------------------- | ---------------------------------------------------- |
+| Worker history sync  | `services/whatsapp/internal/handler/history_sync.go` |
+| Worker event outbox  | `services/whatsapp/internal/nats/publisher.go`       |
+| API NATS consumer    | `apps/api/src/services/message-handler.ts`           |
+| Message handlers     | `apps/api/src/services/handlers/message-handlers.ts` |
+| Realtime provider    | `apps/web/src/contexts/RealtimeProvider.tsx`         |
+| Database constraints | `packages/database/src/migrations/`                  |

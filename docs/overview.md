@@ -24,17 +24,17 @@ WhatsApp Cloud API, email, Messenger, and Instagram are planned adapter families
 
 ## Monorepo
 
-| Path | Responsibility |
-| --- | --- |
-| `apps/web` | React inbox and administration UI |
-| `apps/api` | Hono REST API, auth, channel ingress/dispatch, business services, NATS consumers, Centrifugo publishing |
-| `packages/adapter-telegram` | Telegram Bot normalization, capabilities, and outbound transport |
-| `packages/database` | Kysely types, clients, and migrations |
-| `packages/shared` | Shared TypeScript types, including channel/provider contracts |
-| `packages/ui` | Shared React primitives |
-| `services/orchestrator` | Go linked-device worker lifecycle manager |
-| `services/whatsapp` | Go/whatsmeow connection worker |
-| `services/shared` | Shared Go configuration and NATS contracts |
+| Path                        | Responsibility                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `apps/web`                  | React inbox and administration UI                                                                       |
+| `apps/api`                  | Hono REST API, auth, channel ingress/dispatch, business services, NATS consumers, Centrifugo publishing |
+| `packages/adapter-telegram` | Telegram Bot normalization, capabilities, and outbound transport                                        |
+| `packages/database`         | Kysely types, clients, and migrations                                                                   |
+| `packages/shared`           | Shared TypeScript types, including channel/provider contracts                                           |
+| `packages/ui`               | Shared React primitives                                                                                 |
+| `services/orchestrator`     | Go linked-device worker lifecycle manager                                                               |
+| `services/whatsapp`         | Go/whatsmeow connection worker                                                                          |
+| `services/shared`           | Shared Go configuration and NATS contracts                                                              |
 
 ## Multi-tenancy
 
@@ -96,13 +96,13 @@ bun run dev
 
 Default ports:
 
-| Service | Port |
-| --- | ---: |
-| Web | 4444 |
-| API | 4445 |
+| Service    | Port |
+| ---------- | ---: |
+| Web        | 4444 |
+| API        | 4445 |
 | PostgreSQL | 4447 |
-| NATS | 4448 |
-| MinIO | 4450 |
+| NATS       | 4448 |
+| MinIO      | 4450 |
 | Centrifugo | 4451 |
 
 ## Validation
