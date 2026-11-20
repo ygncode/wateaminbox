@@ -25,6 +25,11 @@ function subscribeDurable(optsArg: unknown): string {
  * immediately, so the supervisor loop would flip back to inactive and sleep
  * for a retry backoff, which is not what a live, message-less subscription
  * does.
+ *
+ * Like a real nats.js subscription, unsubscribe() ends the iteration: a
+ * pending next() settles with `done`. Otherwise a supervisor parked in
+ * `for await` never exits, and shutdown() waits out its whole 5 s safety
+ * timeout in afterEach - which Bun 1.3 reports as a hook timeout.
  */
 function makeIdleSubscription(): {
   [Symbol.asyncIterator](): AsyncIterableIterator<unknown>;
@@ -32,6 +37,7 @@ function makeIdleSubscription(): {
   _unsubscribed: () => boolean;
 } {
   let unsubscribed = false;
+  const waiting: Array<(result: IteratorResult<unknown>) => void> = [];
   return {
     [Symbol.asyncIterator]() {
       return {
@@ -42,14 +48,16 @@ function makeIdleSubscription(): {
           if (unsubscribed) {
             return Promise.resolve({ value: undefined, done: true });
           }
-          return new Promise(() => {
-            // Never resolves while subscribed - simulates an idle consumer.
-          });
+          // Stays pending while subscribed - simulates an idle consumer.
+          return new Promise((resolve) => waiting.push(resolve));
         },
       };
     },
     unsubscribe() {
       unsubscribed = true;
+      for (const resolve of waiting.splice(0)) {
+        resolve({ value: undefined, done: true });
+      }
     },
     _unsubscribed: () => unsubscribed,
   };
@@ -227,6 +235,11 @@ function tracked(mgr: NatsLifecycleManager) {
   return mgr;
 }
 
+// shutdown() waits up to 5 s for a supervisor stuck in subscribe() before it
+// gives up (production behaviour). Tests that stall subscribe() on purpose hit
+// that path, so cleanup needs more than Bun 1.3's default 5 s hook timeout.
+const SHUTDOWN_HOOK_TIMEOUT_MS = 15_000;
+
 afterEach(async () => {
   for (const mgr of managers) {
     try {
@@ -236,7 +249,7 @@ afterEach(async () => {
     }
   }
   managers = [];
-});
+}, SHUTDOWN_HOOK_TIMEOUT_MS);
 
 function makeConnectFn(connFactory: () => MockConnection): ConnectFn {
   return (async () => connFactory()) as unknown as ConnectFn;
