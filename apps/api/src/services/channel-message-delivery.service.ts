@@ -142,6 +142,9 @@ async function deliver(
         },
         conversation: {
           id: row.conversation_id,
+          // The inbox row that holds this thread when it is bridged to a
+          // customer, so a client can link to `/chat/<row>?thread=<id>`.
+          legacyContactId: row.legacy_contact_id,
           subject: row.subject,
           channel: row.channel,
           provider: row.provider,

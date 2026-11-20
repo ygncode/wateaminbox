@@ -193,6 +193,34 @@ export interface NewMessagePayload {
   conversationId: string;
 }
 
+/**
+ * `channel_message:new` - a message on a channel-spine conversation (Telegram
+ * today). Delivered on each authorized viewer's user channel. Carries only a
+ * preview: clients refetch the thread for the full message.
+ */
+export interface ChannelMessageNewPayload {
+  message: {
+    id: string;
+    conversationId: string;
+    channelAccountId: string;
+    externalMessageId?: string | null;
+    direction: "inbound" | "outbound" | "system";
+    messageType?: string | null;
+    textContent?: string | null;
+    status?: string | null;
+    senderName?: string | null;
+    createdAt?: string;
+  };
+  conversation: {
+    id: string;
+    legacyContactId?: string | null;
+    subject?: string | null;
+    channel?: string;
+    provider?: string;
+    accountName?: string | null;
+  };
+}
+
 export interface MessageStatusPayload {
   metadata?: { error?: string; errorMessage?: string };
   messageId: string;

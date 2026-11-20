@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
+  ChannelMessageNewPayload,
   NewMessagePayload,
   NotificationPayload,
   WhatsAppConnectedPayload,
@@ -30,11 +31,15 @@ import {
   updateNotificationPreferences,
 } from "../lib/api";
 import {
+  createAlertDeduper,
+  decideIncomingAlert,
   getDesktopSenderName,
   getMessagePreview,
-  shouldShowDesktopNotification,
 } from "../lib/desktop-notifications";
-import { getSafeNotificationPath } from "../lib/notification-navigation";
+import {
+  chatNotificationPath,
+  getSafeNotificationPath,
+} from "../lib/notification-navigation";
 import { invalidateNotificationQueries } from "../lib/notification-realtime";
 import {
   DEFAULT_NOTIFICATION_SETTINGS,
@@ -42,12 +47,14 @@ import {
   getNotificationSettings,
   isNotificationSupported,
   type NotificationSettings,
+  playNotificationSound,
   requestNotificationPermission,
   saveNotificationSettings,
   sendTestNotification,
   setNotificationSettingsScope,
   showMessageNotification,
 } from "../lib/notifications";
+import { useChatStore } from "../stores/chat-store";
 import { useAuth } from "./auth-context";
 import { useRealtimeContext } from "./RealtimeProvider";
 import { useWorkspace } from "./workspace-context";
@@ -297,49 +304,119 @@ export function NotificationProvider({
     };
   }, [enabled, isConnected, queryClient, subscribe]);
 
+  // One alert decision for every channel, so WhatsApp (`message:new`) and
+  // Telegram (`channel_message:new`) obey the same settings, focus rules,
+  // quiet hours and mutes, and a message replayed by a reconnect or
+  // re-announced once its media arrives alerts only once.
+  const shouldAlertOnce = useMemo(() => createAlertDeduper(), []);
+
   useEffect(() => {
     if (!enabled || !isConnected) return;
-    // User channel: the server already restricted this to members allowed to
-    // read the conversation, so a desktop notification cannot surface a chat
-    // the recipient is not authorized to open.
-    return subscribeUser<NewMessagePayload>(
+    const alert = (input: {
+      messageId: string;
+      senderType: string;
+      senderJid?: string | null;
+      /** Every chat id this message belongs to (thread and inbox row). */
+      chatIds: string[];
+      title: string;
+      body: string;
+      avatarUrl?: string;
+      /** Inbox row to open, and the thread inside it when it differs. */
+      chatId: string;
+      thread?: string;
+    }) => {
+      const openChatId = useChatStore.getState().selectedConversationId;
+      const decision = decideIncomingAlert({
+        settings,
+        permission,
+        senderType: input.senderType,
+        senderJid: input.senderJid,
+        documentVisible: document.visibilityState === "visible",
+        documentFocused: document.hasFocus(),
+        hasActivePushSubscription,
+        isOpenConversation: Boolean(
+          openChatId && input.chatIds.includes(openChatId),
+        ),
+      });
+      if (decision === "none" || !shouldAlertOnce(input.messageId)) return;
+      if (decision === "sound") {
+        void playNotificationSound();
+        return;
+      }
+      const actionPath = getSafeNotificationPath(
+        chatNotificationPath(currentCompanyId, input.chatId, input.thread),
+      );
+      void showMessageNotification(
+        input.title,
+        input.body,
+        input.senderJid ?? "",
+        input.chatIds[0] ?? "",
+        {
+          avatarUrl: input.avatarUrl,
+          messageId: input.messageId,
+          onClick: () => {
+            if (actionPath) navigate(actionPath);
+          },
+        },
+      );
+    };
+
+    // User channel: the server already restricted both events to members
+    // allowed to read the conversation, so an alert cannot surface a chat the
+    // recipient is not authorized to open.
+    const unsubscribeLegacy = subscribeUser<NewMessagePayload>(
       "message:new",
       ({ message, conversationId }) => {
-        if (
-          !shouldShowDesktopNotification({
-            settings,
-            permission,
-            senderType: message.senderType,
-            senderJid: message.senderJid,
-            documentVisible: document.visibilityState === "visible",
-            documentFocused: document.hasFocus(),
-            hasActivePushSubscription,
-          })
-        )
-          return;
-        const actionPath = getSafeNotificationPath(`/chat/${conversationId}`);
-        void showMessageNotification(
-          getDesktopSenderName(message),
-          getMessagePreview(message),
-          message.senderJid || message.senderId,
-          conversationId,
-          {
-            avatarUrl: message.senderAvatarUrl || undefined,
-            messageId: message.id,
-            onClick: () => {
-              if (actionPath) navigate(actionPath);
-            },
-          },
-        );
+        alert({
+          messageId: message.id,
+          senderType: message.senderType,
+          senderJid: message.senderJid,
+          chatIds: [conversationId],
+          title: getDesktopSenderName(message),
+          body: getMessagePreview(message),
+          avatarUrl: message.senderAvatarUrl || undefined,
+          chatId: conversationId,
+        });
       },
     );
+    const unsubscribeChannel = subscribeUser<ChannelMessageNewPayload>(
+      "channel_message:new",
+      ({ message, conversation }) => {
+        if (message.direction !== "inbound") return;
+        const threadId = message.conversationId || conversation.id;
+        const rowId = conversation.legacyContactId ?? null;
+        alert({
+          messageId: message.id,
+          senderType: "contact",
+          chatIds: rowId ? [threadId, rowId] : [threadId],
+          title:
+            message.senderName?.trim() ||
+            conversation.subject?.trim() ||
+            conversation.accountName?.trim() ||
+            "New message",
+          body: getMessagePreview({
+            messageType: message.messageType ?? undefined,
+            content: message.textContent ?? undefined,
+          }),
+          // A bridged thread lives under its customer's inbox row.
+          chatId: rowId ?? threadId,
+          thread: rowId && rowId !== threadId ? threadId : undefined,
+        });
+      },
+    );
+    return () => {
+      unsubscribeLegacy();
+      unsubscribeChannel();
+    };
   }, [
+    currentCompanyId,
     enabled,
     hasActivePushSubscription,
     isConnected,
     navigate,
     permission,
     settings,
+    shouldAlertOnce,
     subscribeUser,
   ]);
 

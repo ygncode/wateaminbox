@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  chatNotificationPath,
   getSafeNotificationPath,
   navigateToNotificationTarget,
 } from "./notification-navigation";
@@ -31,5 +32,27 @@ describe("safe notification navigation", () => {
       }),
     ).toBe(false);
     expect(path).toBe("");
+  });
+});
+
+describe("chat alert targets", () => {
+  test("opens the chat inside the workspace", () => {
+    expect(chatNotificationPath("ws-1", "contact-1")).toBe(
+      "/w/ws-1/chat/contact-1",
+    );
+  });
+
+  test("keeps a merged customer's thread in ?thread=", () => {
+    expect(chatNotificationPath("ws-1", "contact-1", "conv-9")).toBe(
+      "/w/ws-1/chat/contact-1?thread=conv-9",
+    );
+    // The row's own thread is the canonical plain URL.
+    expect(chatNotificationPath("ws-1", "contact-1", "contact-1")).toBe(
+      "/w/ws-1/chat/contact-1",
+    );
+  });
+
+  test("falls back to the legacy path before a workspace is known", () => {
+    expect(chatNotificationPath(null, "conv-9")).toBe("/chat/conv-9");
   });
 });
