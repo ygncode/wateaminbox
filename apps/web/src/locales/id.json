@@ -668,6 +668,7 @@
     "viewShortcuts": "Lihat pintasan",
     "leftWorkspace": "Anda keluar dari {{name}}",
     "languageSaveFailed": "Bahasa tidak dapat disimpan ke akun Anda. Bahasa hanya berlaku di browser ini.",
+    "themeSaveFailed": "Tema tidak dapat disimpan ke akun Anda",
     "notificationSounds": {
       "default": "Bawaan",
       "chime": "Lonceng angin",

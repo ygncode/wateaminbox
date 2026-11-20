@@ -77,6 +77,7 @@ registerRoutes.post(
             hasCustomAvatar: publicUser.hasCustomAvatar,
             emailVerified: publicUser.emailVerified,
             preferredLanguage: publicUser.preferredLanguage,
+            themePreference: publicUser.themePreference,
             createdAt: user.createdAt,
           },
           verificationEmailSent,

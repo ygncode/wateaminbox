@@ -149,6 +149,7 @@ export interface UsersTable {
   email: string;
   avatar_key: string | null;
   preferred_language: string | null;
+  theme_preference: string | null;
   password_hash: string;
   email_verified_at: Date | null;
   created_at: Generated<Date>;

@@ -15,6 +15,7 @@ declare module "hono" {
       name: string | null;
       avatarKey?: string | null;
       preferredLanguage?: string | null;
+      themePreference?: string | null;
       emailVerifiedAt: Date | null;
     };
     session: {
@@ -97,6 +98,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
     name: user.name,
     avatarKey: user.avatarKey,
     preferredLanguage: user.preferredLanguage,
+    themePreference: user.themePreference,
     emailVerifiedAt: user.emailVerifiedAt,
   });
   c.set("session", {
@@ -128,6 +130,7 @@ export const optionalAuthMiddleware = async (c: Context, next: Next) => {
           name: user.name,
           avatarKey: user.avatarKey,
           preferredLanguage: user.preferredLanguage,
+          themePreference: user.themePreference,
           emailVerifiedAt: user.emailVerifiedAt,
         });
         c.set("session", {
