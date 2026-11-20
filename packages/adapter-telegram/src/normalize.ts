@@ -16,6 +16,19 @@ interface TelegramUpdate {
   channel_post?: TelegramMessage;
   edited_channel_post?: TelegramMessage;
   message_reaction?: TelegramMessageReactionUpdated;
+  my_chat_member?: TelegramChatMemberUpdated;
+}
+
+/**
+ * The bot's own membership changed in a chat. In a private chat this is the
+ * only signal that the user blocked (`kicked`) or unblocked (`member`) the
+ * bot; the Bot API has no other way to tell.
+ */
+interface TelegramChatMemberUpdated {
+  chat: TelegramChat;
+  from: TelegramUser;
+  date: number;
+  new_chat_member: { status: string };
 }
 
 interface TelegramChat {
@@ -140,8 +153,52 @@ export function normalizeTelegramUpdate(
   if (update.message_reaction) {
     return normalizeReaction(update, update.message_reaction, context);
   }
+  if (update.my_chat_member) {
+    return normalizeMyChatMember(update, update.my_chat_member, context);
+  }
 
   return [];
+}
+
+/**
+ * A user blocking or unblocking the bot in a private chat becomes an
+ * `endpoint.state` reachability fact. It never blocks the user in the
+ * workspace: that stays the workspace's own decision. Group membership changes
+ * are about the bot, not a person, and are ignored.
+ */
+function normalizeMyChatMember(
+  update: TelegramUpdate,
+  member: TelegramChatMemberUpdated,
+  context: TelegramNormalizationContext,
+): NormalizedChannelEvent[] {
+  if (member.chat?.type !== "private" || !member.from) return [];
+  const status = member.new_chat_member?.status;
+  const reachability =
+    status === "kicked"
+      ? ("unreachable" as const)
+      : status === "member"
+        ? ("reachable" as const)
+        : null;
+  if (!reachability) return [];
+  const event: NormalizedChannelEvent = {
+    contractVersion: 1,
+    eventId: `telegram:${update.update_id}:endpoint.state`,
+    companyId: context.companyId,
+    channelAccountId: context.channelAccountId,
+    channel: "telegram",
+    provider: "telegram_bot",
+    kind: "endpoint.state",
+    providerOccurredAt: unixSecondsToIso(member.date, "member update date"),
+    receivedAt: context.receivedAt,
+    payload: {
+      endpoint: userEndpoint(member.from),
+      reachability,
+      reason:
+        status === "kicked" ? "telegram_bot_blocked" : "telegram_bot_unblocked",
+    },
+  };
+  assertNormalizedChannelEvent(event);
+  return [event];
 }
 
 function normalizeMessage(

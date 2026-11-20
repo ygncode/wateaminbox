@@ -71,7 +71,21 @@ Telegram's addresses. Default 600 requests / 60 s, tunable with
 `RATE_LIMIT_CHANNEL_INGRESS_REQUESTS` / `_WINDOW_SECONDS`. This applies in
 every workspace, enforcing or not.
 
+## Provider signals
+
+A Telegram user blocking the bot in a private chat arrives as `my_chat_member`
+(status `kicked`; `member` again when they unblock). It is recorded as an
+`endpoint.state` reachability fact, `provider_status = unreachable`, and the
+profile shows "This customer has blocked or left you on Telegram". It never
+blocks the person in the workspace.
+
+Bots subscribe to `my_chat_member` when the webhook is configured, which
+happens on connect and on resume. A bot connected before this change keeps its
+old subscription until it is resumed or reconnected. Nothing re-registers live
+webhooks automatically.
+
 ## Not covered yet
 
-- Provider signals such as Telegram `my_chat_member` (phase 6).
 - Workspace-level settings UI for the flood thresholds and auto-mute.
+- WhatsApp blocklist sync as `endpoint.state` (the legacy `is_blocked` mirror
+  already covers it).
