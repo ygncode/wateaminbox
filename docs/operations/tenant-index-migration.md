@@ -4,26 +4,26 @@ Three migrations change per-tenant indexes. They are applied in numeric order by
 the standard migration step and are safe to run in one pass, but 063 is the only
 one that can abort, and the only one with meaningful lock cost.
 
-| #   | Purpose                                                                                                                                        | Builds an index?           | Can abort?                 |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | -------------------------- |
-| 062 | Index `group_participants (participant_jid)` so realtime fan-out can resolve which conversations a JID appears in                              | Yes, on a small table      | No                         |
-| 063 | Give every per-tenant index a deterministic name that fits PostgreSQL's 63-byte limit, and build four indexes that were silently never created | Yes — see cautions         | **Yes**, on duplicate rows |
-| 064 | Index outstanding media download claims so the stranded-media sweep stops sequentially scanning `messages`                                     | Yes, on a tiny partial set | No                         |
+| # | Purpose | Builds an index? | Can abort? |
+| --- | --- | --- | --- |
+| 062 | Index `group_participants (participant_jid)` so realtime fan-out can resolve which conversations a JID appears in | Yes, on a small table | No |
+| 063 | Give every per-tenant index a deterministic name that fits PostgreSQL's 63-byte limit, and build four indexes that were silently never created | Yes — see cautions | **Yes**, on duplicate rows |
+| 064 | Index outstanding media download claims so the stranded-media sweep stops sequentially scanning `messages` | Yes, on a tiny partial set | No |
 
 ## Why 063 matters most
 
 PostgreSQL truncates identifiers at 63 bytes silently. A tenant schema name is
 already 43 characters, so several intended index names overflowed — and three
-families truncated to the _same_ identifier, which turned
+families truncated to the *same* identifier, which turned
 `CREATE INDEX IF NOT EXISTS` into a no-op for every one after the first. Four
 indexes were therefore absent from every tenant, two of them UNIQUE:
 
-| Index                                                     | Guarantee that was missing               |
-| --------------------------------------------------------- | ---------------------------------------- |
-| `whatsapp_connections (phone_number)`                     | one WhatsApp connection per phone number |
-| `whatsapp_labels (whatsapp_connection_id, synced_tag_id)` | one label per connection/synced tag      |
-| `scheduled_messages (contact_id, scheduled_at)`           | per-conversation schedule list (pacing)  |
-| `scheduled_messages (bulk_job_id, status)` partial        | bulk job leaf progress (pacing)          |
+| Index | Guarantee that was missing |
+| --- | --- |
+| `whatsapp_connections (phone_number)` | one WhatsApp connection per phone number |
+| `whatsapp_labels (whatsapp_connection_id, synced_tag_id)` | one label per connection/synced tag |
+| `scheduled_messages (contact_id, scheduled_at)` | per-conversation schedule list (pacing) |
+| `scheduled_messages (bulk_job_id, status)` partial | bulk job leaf progress (pacing) |
 
 The two UNIQUE ones are integrity, not performance: without them the database
 permitted duplicate WhatsApp connections for one phone number and duplicate
@@ -69,7 +69,7 @@ build small indexes.
 Index creation is **not** concurrent in any of the three. Kysely's migrator
 wraps each migration in a transaction, and `CREATE INDEX CONCURRENTLY` cannot
 run inside one. Each build holds an `ACCESS EXCLUSIVE` lock on its table until
-it finishes — blocking reads _and_ writes to that table for the duration.
+it finishes — blocking reads *and* writes to that table for the duration.
 
 What that means per migration:
 
@@ -107,21 +107,21 @@ is a human decision, not a migration's — then re-run.
 Two properties worth knowing:
 
 - **Fail-closed is per target, not per tenant.** Within a blocked tenant, every
-  _unblocked_ target is still applied on that run.
+  *unblocked* target is still applied on that run.
 - **Re-running is safe.** All three migrations are idempotent: anything already
   correct is skipped, and 063 additionally drops an exact-shape duplicate left
   under a historical name rather than keeping both.
 
 ## Rollback semantics
 
-| #   | `down()` behaviour                                                                                                                                                                                                                                                                                                                       |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 062 | Drops the index it created. Fully reversible.                                                                                                                                                                                                                                                                                            |
+| # | `down()` behaviour |
+| --- | --- |
+| 062 | Drops the index it created. Fully reversible. |
 | 063 | Reverses the **renames only**. Indexes it created because they had been silently missing are deliberately **not** dropped — they were meant to exist all along, and dropping a UNIQUE index would reopen the integrity hole the migration closed. It also skips a rename whose historical name is already taken by a truncation sibling. |
-| 064 | Drops the index it created. Fully reversible.                                                                                                                                                                                                                                                                                            |
+| 064 | Drops the index it created. Fully reversible. |
 
-Rolling 063 back therefore returns to the previous _naming_ without returning to
-the previous _integrity gap_. That asymmetry is intentional.
+Rolling 063 back therefore returns to the previous *naming* without returning to
+the previous *integrity gap*. That asymmetry is intentional.
 
 ## New tenants
 

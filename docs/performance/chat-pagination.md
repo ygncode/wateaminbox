@@ -87,11 +87,11 @@ follow-up implements the scoped optimizations described below.
 Each page returns at most 100 rows. Contact responses were ~120–121 KB uncompressed;
 channel responses ~55–56 KB.
 
-| Contacts + channel conversations |  Contacts, offset 0 | Contacts, last full page | Channels, offset 0 | Channels, last full page |
-| -------------------------------- | ------------------: | -----------------------: | -----------------: | -----------------------: |
-| 1,000 + 1,000                    |       12.17 / 17.18 |            10.65 / 13.90 |        4.89 / 6.34 |              4.01 / 5.63 |
-| 10,000 + 10,000                  |   815.46 / 1,204.61 |        827.17 / 2,057.07 |      10.74 / 15.20 |            13.22 / 17.77 |
-| 25,000 + 25,000                  | 1,221.59 / 2,246.84 |        903.37 / 1,194.63 |     72.72 / 162.31 |            47.97 / 56.37 |
+| Contacts + channel conversations | Contacts, offset 0 | Contacts, last full page | Channels, offset 0 | Channels, last full page |
+| --- | ---: | ---: | ---: | ---: |
+| 1,000 + 1,000 | 12.17 / 17.18 | 10.65 / 13.90 | 4.89 / 6.34 | 4.01 / 5.63 |
+| 10,000 + 10,000 | 815.46 / 1,204.61 | 827.17 / 2,057.07 | 10.74 / 15.20 | 13.22 / 17.77 |
+| 25,000 + 25,000 | 1,221.59 / 2,246.84 | 903.37 / 1,194.63 | 72.72 / 162.31 | 47.97 / 56.37 |
 
 The first page is already expensive at larger sizes; this is **not just a deep-OFFSET
 problem**. Tail variation and the faster last-page median do not show a benefit to
@@ -105,11 +105,11 @@ For 10 concurrent contact-list requests, median / p95 completion time:
 
 Filtered contact requests (median / p95):
 
-| Size   |  Tag matching 10% | Exact-name search | Empty Open status |
-| ------ | ----------------: | ----------------: | ----------------: |
-| 1,000  |     10.12 / 16.62 |      8.56 / 54.05 |       7.00 / 8.51 |
-| 10,000 |   100.82 / 113.79 |     30.50 / 44.41 |    97.54 / 118.25 |
-| 25,000 | 886.94 / 1,324.96 |    71.05 / 110.67 | 993.57 / 2,364.32 |
+| Size | Tag matching 10% | Exact-name search | Empty Open status |
+| --- | ---: | ---: | ---: |
+| 1,000 | 10.12 / 16.62 | 8.56 / 54.05 | 7.00 / 8.51 |
+| 10,000 | 100.82 / 113.79 | 30.50 / 44.41 | 97.54 / 118.25 |
+| 25,000 | 886.94 / 1,324.96 | 71.05 / 110.67 | 993.57 / 2,364.32 |
 
 ### Query-plan findings
 
@@ -124,12 +124,12 @@ Filtered contact requests (median / p95):
   confirmed that JIT is a major contributor. These numbers are instrumented row SQL
   only, **not full API latency**:
 
-| Size / offset   | Default JIT, median | JIT off, median |
-| --------------- | ------------------: | --------------: |
-| 10,000 / 0      |            853.65ms |         97.93ms |
-| 10,000 / 9,900  |            833.68ms |         87.09ms |
-| 25,000 / 0      |          1,062.16ms |        203.46ms |
-| 25,000 / 24,900 |            998.28ms |        244.51ms |
+| Size / offset | Default JIT, median | JIT off, median |
+| --- | ---: | ---: |
+| 10,000 / 0 | 853.65ms | 97.93ms |
+| 10,000 / 9,900 | 833.68ms | 87.09ms |
+| 25,000 / 0 | 1,062.16ms | 203.46ms |
+| 25,000 / 24,900 | 998.28ms | 244.51ms |
 
 This is evidence for investigating query-level planning/JIT policy, **not approval
 for a global or production JIT change**. Even with JIT off, work grows with inbox size.
@@ -139,10 +139,10 @@ for a global or production JIT change**. Even with JIT off, work grows with inbo
 Native-speed run:
 
 | Cached contacts | Rendered rows | JS heap after GC |
-| --------------- | ------------: | ---------------: |
-| 100             |            16 |         5.53 MiB |
-| 1,000           |            21 |         7.13 MiB |
-| 10,000          |            21 |        13.75 MiB |
+| --- | ---: | ---: |
+| 100 | 16 | 5.53 MiB |
+| 1,000 | 21 | 7.13 MiB |
+| 10,000 | 21 | 13.75 MiB |
 
 At 10,000 contacts, DOM count stayed around 471 nodes. With 1,000 contacts plus
 1,000 channel conversations, ~20 rows were rendered and heap was ~8.07 MiB.
@@ -150,10 +150,10 @@ Virtualization bounds DOM work, **not the cached data size**, which keeps growin
 
 Scrolling the 10,000 already-loaded contacts:
 
-| CPU setting  | Frame p95 | Frame p99 | Intervals >25ms | Long tasks >50ms |
-| ------------ | --------: | --------: | --------------: | ---------------: |
-| Native       |    16.7ms |    16.8ms |         0 / 179 |                0 |
-| 4× throttled |    33.4ms |    50.1ms |        30 / 179 |         1 (53ms) |
+| CPU setting | Frame p95 | Frame p99 | Intervals >25ms | Long tasks >50ms |
+| --- | ---: | ---: | ---: | ---: |
+| Native | 16.7ms | 16.8ms | 0 / 179 | 0 |
+| 4× throttled | 33.4ms | 50.1ms | 30 / 179 | 1 (53ms) |
 
 Neither scroll sweep made a data request, as expected away from the bottom threshold.
 
@@ -161,11 +161,11 @@ Neither scroll sweep made a data request, as expected away from the bottom thres
 
 With 10,000 contacts / 100 pages cached:
 
-| Action                             | Native result                                           | 4× CPU result                             |
-| ---------------------------------- | ------------------------------------------------------- | ----------------------------------------- |
-| One invalidation                   | 100 requests, 9.016 MiB, 4.50s                          | 100 requests, 9.016 MiB, 4.68s            |
-| Five invalidations, 150ms apart    | 117 requests, 4 aborts, 10.183 MiB, 5.11s               | 116 requests, 4 aborts, 10.093 MiB, 5.32s |
-| Find the 10 oldest unread contacts | 100 contact + 1 empty channel request, 9.016 MiB, 5.15s | Same request count/bytes, 5.47s           |
+| Action | Native result | 4× CPU result |
+| --- | --- | --- |
+| One invalidation | 100 requests, 9.016 MiB, 4.50s | 100 requests, 9.016 MiB, 4.68s |
+| Five invalidations, 150ms apart | 117 requests, 4 aborts, 10.183 MiB, 5.11s | 116 requests, 4 aborts, 10.093 MiB, 5.32s |
+| Find the 10 oldest unread contacts | 100 contact + 1 empty channel request, 9.016 MiB, 5.15s | Same request count/bytes, 5.47s |
 
 Refetch completion also produced an 80ms long task at native speed / 157ms at 4× CPU.
 These refresh times use **40ms synthetic responses**, not the slower measured real
@@ -239,11 +239,11 @@ the 40ms browser responses remain independent of actual API/database timings.
 
 Milliseconds, median / p95, 20 sequential samples per page (10 for the burst):
 
-| Size   | Baseline first page | Optimized first page | Optimized last page | Optimized 10-request burst |
-| ------ | ------------------: | -------------------: | ------------------: | -------------------------: |
-| 1,000  |       12.17 / 17.18 |       75.49 / 138.32 |       32.32 / 89.70 |            609.55 / 658.75 |
-| 10,000 |   815.46 / 1,204.61 |        66.40 / 97.81 |      68.91 / 120.67 |            613.78 / 643.29 |
-| 25,000 | 1,221.59 / 2,246.84 |      150.93 / 313.76 |     144.40 / 182.26 |            851.26 / 897.49 |
+| Size | Baseline first page | Optimized first page | Optimized last page | Optimized 10-request burst |
+| --- | ---: | ---: | ---: | ---: |
+| 1,000 | 12.17 / 17.18 | 75.49 / 138.32 | 32.32 / 89.70 | 609.55 / 658.75 |
+| 10,000 | 815.46 / 1,204.61 | 66.40 / 97.81 | 68.91 / 120.67 | 613.78 / 643.29 |
+| 25,000 | 1,221.59 / 2,246.84 | 150.93 / 313.76 | 144.40 / 182.26 | 851.26 / 897.49 |
 
 The 1,000-contact phase was unusually variable and slower than the baseline; it
 must not be represented as an improvement. Larger-inbox improvements are clear in
@@ -279,13 +279,13 @@ The mixed 1,000 + 1,000 case retained 500 per source, rendered 20 rows, and used
 7.69 MiB. Native and 4× CPU backward-navigation checks both held the anchor at **0px
 shift** and successfully returned to offset zero.
 
-| Action after traversing 10,000 contacts | Native                                                 | 4× CPU                               |
-| --------------------------------------- | ------------------------------------------------------ | ------------------------------------ |
-| One invalidation                        | 5 contacts + 1 empty channel request; 0.451 MiB; 582ms | Same count/bytes; 586ms              |
-| Five invalidations, 150ms apart         | Same count/bytes; 1,198ms; no aborts                   | Same count/bytes; 1,213ms; no aborts |
-| Find ten oldest unread contacts         | 1 contact + 1 empty channel request; 0.009 MiB; 163ms  | Same count/bytes; 221ms              |
-| Scroll frame p95 / p99                  | 16.8 / 16.8ms                                          | 16.7 / 16.8ms                        |
-| Scroll intervals over 25ms              | 0 / 179                                                | 0 / 179                              |
+| Action after traversing 10,000 contacts | Native | 4× CPU |
+| --- | --- | --- |
+| One invalidation | 5 contacts + 1 empty channel request; 0.451 MiB; 582ms | Same count/bytes; 586ms |
+| Five invalidations, 150ms apart | Same count/bytes; 1,198ms; no aborts | Same count/bytes; 1,213ms; no aborts |
+| Find ten oldest unread contacts | 1 contact + 1 empty channel request; 0.009 MiB; 163ms | Same count/bytes; 221ms |
+| Scroll frame p95 / p99 | 16.8 / 16.8ms | 16.7 / 16.8ms |
+| Scroll intervals over 25ms | 0 / 179 | 0 / 179 |
 
 No long tasks occurred in the measured scroll, refresh or unread phases. All six
 scenarios passed without page errors. Startup still had a large standalone-harness
@@ -348,11 +348,11 @@ worktrees, the same synthetic fixture, and **10 samples** per request case. No
 build/test/browser workloads overlapped these API measurements. Milliseconds,
 median / p95 (with only ten samples, p95 here is the largest observation):
 
-| Size   | Current-main first page | Release first page | Current-main 10-request burst | Release 10-request burst |
-| ------ | ----------------------: | -----------------: | ----------------------------: | -----------------------: |
-| 1,000  |           14.52 / 20.84 |      12.44 / 18.33 |                 32.03 / 32.63 |            33.07 / 33.80 |
-| 10,000 |         106.46 / 124.54 |      52.86 / 60.32 |               154.84 / 155.45 |            83.04 / 83.90 |
-| 25,000 |         185.56 / 294.23 |    119.96 / 132.71 |               293.69 / 294.39 |          157.27 / 158.61 |
+| Size | Current-main first page | Release first page | Current-main 10-request burst | Release 10-request burst |
+| --- | ---: | ---: | ---: | ---: |
+| 1,000 | 14.52 / 20.84 | 12.44 / 18.33 | 32.03 / 32.63 | 33.07 / 33.80 |
+| 10,000 | 106.46 / 124.54 | 52.86 / 60.32 | 154.84 / 155.45 | 83.04 / 83.90 |
+| 25,000 | 185.56 / 294.23 | 119.96 / 132.71 | 293.69 / 294.39 | 157.27 / 158.61 |
 
 Current main already coalesces identical pending unrestricted reads, so its burst
 is materially cheaper than the historical baseline. That behavior is preserved.
@@ -456,7 +456,7 @@ WhatsApp and All accounts. Native and 4× CPU runs both verify:
 
 This is a synthetic isolated-sidebar regression, not production RTT measurement.
 The full shell's independent head/badge query can still make its normal unscoped
-head-page request; the fix prevents scanning unrelated _pagination_ windows.
+head-page request; the fix prevents scanning unrelated *pagination* windows.
 Search/status/assignment narrowing on channel rows can still require additional
 pages within the selected account. Mutable offsets remain non-snapshot reads.
 

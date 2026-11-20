@@ -8,12 +8,12 @@ Workspace-local contact tags (distinct from WhatsApp labels). Simple synchronous
 
 **Methods:** GET 1 · POST 1 · DELETE 1 · PATCH 1 · PUT 0
 
-| Method | Path        | Access                         | Description                            |
-| ------ | ----------- | ------------------------------ | -------------------------------------- |
-| GET    | `/tags`     | Authenticated · Tenant context | List all tags with optional pagination |
-| POST   | `/tags`     | Authenticated · Tenant context | Create a new tag                       |
-| DELETE | `/tags/:id` | Authenticated · Tenant context | Delete a tag                           |
-| PATCH  | `/tags/:id` | Authenticated · Tenant context | Update a tag                           |
+| Method | Path | Access | Description |
+|--------|------|--------|-------------|
+| GET | `/tags` | Authenticated · Tenant context | List all tags with optional pagination |
+| POST | `/tags` | Authenticated · Tenant context | Create a new tag |
+| DELETE | `/tags/:id` | Authenticated · Tenant context | Delete a tag |
+| PATCH | `/tags/:id` | Authenticated · Tenant context | Update a tag |
 
 ## Flows
 

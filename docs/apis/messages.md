@@ -8,23 +8,23 @@ Sending, fetching, reacting to, starring, and scheduling messages, plus batch op
 
 **Methods:** GET 3 · POST 8 · DELETE 4 · PATCH 0 · PUT 0
 
-| Method | Path                      | Access                                                                                   | Description                                                                                                                                                       |
-| ------ | ------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/messages`               | Authenticated · Tenant context · Contact visibility (result-filtered)                    | Get messages for a contact                                                                                                                                        |
-| POST   | `/messages`               | Authenticated · Tenant context · `can_send_messages` · Rate limited                      | Queue a message for delivery and return the pending message (200)                                                                                                 |
-| DELETE | `/messages/:id`           | Authenticated · Tenant context · `can_delete` · Message visibility                       | Soft delete a message                                                                                                                                             |
-| POST   | `/messages/:id/forward`   | Authenticated · Tenant context · Message visibility · `can_send_messages` · Rate limited | Forward a message to another contact                                                                                                                              |
-| DELETE | `/messages/:id/reaction`  | Authenticated · Tenant context · Message visibility · `can_send_messages`                | Remove a reaction from a message                                                                                                                                  |
-| POST   | `/messages/:id/reaction`  | Authenticated · Tenant context · Message visibility · `can_send_messages`                | Add a reaction to a message                                                                                                                                       |
-| POST   | `/messages/:id/retry`     | Authenticated · Tenant context · Message visibility · `can_send_messages` · Rate limited | Retry a failed message                                                                                                                                            |
-| DELETE | `/messages/:id/star`      | Authenticated · Tenant context · Message visibility                                      | Unstar a message                                                                                                                                                  |
-| POST   | `/messages/:id/star`      | Authenticated · Tenant context · Message visibility                                      | Star a message                                                                                                                                                    |
-| POST   | `/messages/batch/delete`  | Authenticated · Tenant context · `can_delete` · Message visibility (all selected)        | Soft delete multiple messages at once                                                                                                                             |
-| POST   | `/messages/batch/star`    | Authenticated · Tenant context · Message visibility (all selected)                       | Star/unstar multiple messages at once                                                                                                                             |
-| GET    | `/messages/scheduled`     | Authenticated · Tenant context · Contact visibility (result-filtered)                    | List a conversation's scheduled messages                                                                                                                          |
-| POST   | `/messages/scheduled`     | Authenticated · Tenant context · `can_send_messages` · Rate limited                      | Schedule a message for future delivery                                                                                                                            |
-| DELETE | `/messages/scheduled/:id` | Authenticated · Tenant context · `can_send_messages`                                     | Cancel a scheduled message Only rows that have not started dispatching (or already failed) can be canceled; a row being processed is past the point of no return. |
-| GET    | `/messages/starred`       | Authenticated · Tenant context · Contact visibility (result-filtered)                    | Get all starred messages                                                                                                                                          |
+| Method | Path | Access | Description |
+|--------|------|--------|-------------|
+| GET | `/messages` | Authenticated · Tenant context · Contact visibility (result-filtered) | Get messages for a contact |
+| POST | `/messages` | Authenticated · Tenant context · `can_send_messages` · Rate limited | Queue a message for delivery and return the pending message (200) |
+| DELETE | `/messages/:id` | Authenticated · Tenant context · `can_delete` · Message visibility | Soft delete a message |
+| POST | `/messages/:id/forward` | Authenticated · Tenant context · Message visibility · `can_send_messages` · Rate limited | Forward a message to another contact |
+| DELETE | `/messages/:id/reaction` | Authenticated · Tenant context · Message visibility · `can_send_messages` | Remove a reaction from a message |
+| POST | `/messages/:id/reaction` | Authenticated · Tenant context · Message visibility · `can_send_messages` | Add a reaction to a message |
+| POST | `/messages/:id/retry` | Authenticated · Tenant context · Message visibility · `can_send_messages` · Rate limited | Retry a failed message |
+| DELETE | `/messages/:id/star` | Authenticated · Tenant context · Message visibility | Unstar a message |
+| POST | `/messages/:id/star` | Authenticated · Tenant context · Message visibility | Star a message |
+| POST | `/messages/batch/delete` | Authenticated · Tenant context · `can_delete` · Message visibility (all selected) | Soft delete multiple messages at once |
+| POST | `/messages/batch/star` | Authenticated · Tenant context · Message visibility (all selected) | Star/unstar multiple messages at once |
+| GET | `/messages/scheduled` | Authenticated · Tenant context · Contact visibility (result-filtered) | List a conversation's scheduled messages |
+| POST | `/messages/scheduled` | Authenticated · Tenant context · `can_send_messages` · Rate limited | Schedule a message for future delivery |
+| DELETE | `/messages/scheduled/:id` | Authenticated · Tenant context · `can_send_messages` | Cancel a scheduled message Only rows that have not started dispatching (or already failed) can be canceled; a row being processed is past the point of no return. |
+| GET | `/messages/starred` | Authenticated · Tenant context · Contact visibility (result-filtered) | Get all starred messages |
 
 ## Flows
 

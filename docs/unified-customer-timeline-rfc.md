@@ -68,9 +68,9 @@ row alone for the same reason.
 
 Instead, ownership becomes visible and deliberate:
 
-- the profile lists the owner per thread - _Alice (Telegram), Bob (WhatsApp)_;
+- the profile lists the owner per thread - *Alice (Telegram), Bob (WhatsApp)*;
 - assigning from the merged view assigns every thread, and the confirmation
-  names whose work moves: _"This moves 1 chat from Alice to you."_
+  names whose work moves: *"This moves 1 chat from Alice to you."*
 
 The stricter alternative - adopting the surviving contact's assignee at merge
 time - has precedent, since auto-reopen already unassigns without asking. But
@@ -99,7 +99,7 @@ did 40ms → 5 minutes when tried (`channel-spine-index-runner.ts:131-135`).
 
 **Provenance is missing and must come first.** Today's message payload carries
 no channel, no provider, and no real thread id — its `conversationId` field
-holds the _contact_ id (`message-formatters.ts:352`). A merged list cannot
+holds the *contact* id (`message-formatters.ts:352`). A merged list cannot
 label its own rows until that is fixed.
 
 **Realtime.** A message on any of the customer's threads invalidates the
@@ -122,7 +122,7 @@ target, since what may be sent differs by channel.
 
 ## Risks
 
-- The fan-out still closes threads the operator has not _opened_, even though it
+- The fan-out still closes threads the operator has not *opened*, even though it
   skips those with unread inbound. A read-but-unanswered thread can be resolved
   from another channel. Accepted; the confirmation names the count.
 - Assignment fan-out moves a teammate's conversation. Always confirmed by name,
@@ -162,11 +162,11 @@ customer.
 
 So the trip count is:
 
-|                      | DB trips | scans |
-| -------------------- | -------- | ----- |
-| today                | 2        | 1     |
-| timeline, one thread | 2        | 1     |
-| timeline, merged     | 3        | 2     |
+| | DB trips | scans |
+| --- | --- | --- |
+| today | 2 | 1 |
+| timeline, one thread | 2 | 1 |
+| timeline, merged | 3 | 2 |
 
 Conditions: the single-thread path must benchmark no slower than today on the
 largest workspace before it is enabled, and its realtime cache key must not

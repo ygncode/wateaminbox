@@ -56,12 +56,12 @@ exited successfully.
 
 ## Pre-deployment image digests
 
-| Container          | Image digest                                                              |
-| ------------------ | ------------------------------------------------------------------------- |
+| Container | Image digest |
+| --- | --- |
 | `api-17`, `api-18` | `sha256:9b8a649f27fba3657ea1d714bec0085b04bdc8232d4d2538a570c363e203f4be` |
-| `web-1`            | `sha256:5152ee55ea518cfebe231f9a6f888809391f84ac8620fb33dce7e7f517ab473f` |
-| `orchestrator-1`   | `sha256:dafe78fea56eeb3601dbae7693c6db7cd2bb9a37e629922c589785855f87af5e` |
-| `cloud-control-1`  | `sha256:190ad0ac432f575f25eb04230eb574f07b2c34c46c68a981b4e87a061b62a194` |
+| `web-1` | `sha256:5152ee55ea518cfebe231f9a6f888809391f84ac8620fb33dce7e7f517ab473f` |
+| `orchestrator-1` | `sha256:dafe78fea56eeb3601dbae7693c6db7cd2bb9a37e629922c589785855f87af5e` |
+| `cloud-control-1` | `sha256:190ad0ac432f575f25eb04230eb574f07b2c34c46c68a981b4e87a061b62a194` |
 
 ## Deployment
 

@@ -25,9 +25,9 @@ Every member of a workspace is subscribed to `company:{companyId}`, so anything
 published there is readable by the whole workspace. Events whose payload
 carries conversation content must therefore be addressed to individual users.
 
-| Channel                     | Contents                                                                                                                                                                                                                                                                                                                                                            |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `company:{companyId}`       | Workspace and connection control only: `qr`, `connected`, `disconnected`, `connection:status`, `sync:*`, `history:loaded`, `labels:updated`, `catalogs:updated`, `bulk_job:updated`, `command:failed`, `notification:toast`, `status`.                                                                                                                              |
+| Channel | Contents |
+| --- | --- |
+| `company:{companyId}` | Workspace and connection control only: `qr`, `connected`, `disconnected`, `connection:status`, `sync:*`, `history:loaded`, `labels:updated`, `catalogs:updated`, `bulk_job:updated`, `command:failed`, `notification:toast`, `status`. |
 | `user:{companyId}:{userId}` | `notification:new`, plus every conversation-scoped event: `message:new`, `message:status`, `message:deleted`, `message:reaction`, `message:failed`, `scheduled_message:updated`, `media:downloaded`, `media:download_failed`, `conversation:updated`, `conversation:read`, `contact:updated`, `contact:profile_picture`, `group:updated`, `presence:*`, `typing:*`. |
 
 Conversation-scoped events are fanned out by
@@ -46,7 +46,7 @@ is deliberately absent from `CompanyRealtimeEventType`, so publishing one
 company-wide is a type error, and `apps/api/src/lib/realtime-channel-policy.test.ts`
 pins the split itself.
 
-Assignment changes pass `alsoNotifyUserIds` so the _outgoing_ assignee is told
+Assignment changes pass `alsoNotifyUserIds` so the *outgoing* assignee is told
 the conversation left them — the viewer resolver only sees the new state and
 would otherwise leave their client showing a conversation it can no longer open.
 
@@ -72,7 +72,7 @@ so:
   authorization decision and change constantly, so they are read live on every
   event.
 - **Repeat ephemeral signals are collapsed**
-  (`REALTIME_EPHEMERAL_MIN_INTERVAL_MS`, default 1500). Only an _identical_
+  (`REALTIME_EPHEMERAL_MIN_INTERVAL_MS`, default 1500). Only an *identical*
   state for the same conversation inside the interval is dropped; a state
   change always publishes, so a `typing:stop` can never be suppressed by a
   preceding `typing:start` and an indicator cannot get stuck on.
@@ -89,7 +89,7 @@ conversation-scoped event, even though its payload is derived from a contact.
 
 A Status post is broadcast by its author to their whole audience; it is not a
 message in a one-to-one or group conversation. The workspace's visibility model
-grants access per _contact assignment_, and a Status has no conversation and no
+grants access per *contact assignment*, and a Status has no conversation and no
 assignee to key that decision on — `status_updates` rows carry `from_jid` and a
 connection, not a `contact_id`. Scoping it to "viewers of the contact with a
 matching JID" would be inventing a rule the product does not otherwise have,
@@ -116,15 +116,15 @@ Durable WhatsApp commands are committed to a tenant-local transactional outbox i
 
 ## Main files
 
-| Responsibility                    | File                                         |
-| --------------------------------- | -------------------------------------------- |
-| Server publisher and token signer | `apps/api/src/lib/realtime.ts`               |
-| Connection token endpoint         | `apps/api/src/routes/realtime/index.ts`      |
-| REST realtime actions             | `apps/api/src/routes/actions/index.ts`       |
-| Browser Centrifugo client         | `apps/web/src/lib/realtime.ts`               |
-| React provider and cache updates  | `apps/web/src/contexts/RealtimeProvider.tsx` |
-| Centrifugo configuration          | `infrastructure/centrifugo/config.json`      |
-| Shared payload types              | `packages/shared/src/websocket-types.ts`     |
+| Responsibility | File |
+| --- | --- |
+| Server publisher and token signer | `apps/api/src/lib/realtime.ts` |
+| Connection token endpoint | `apps/api/src/routes/realtime/index.ts` |
+| REST realtime actions | `apps/api/src/routes/actions/index.ts` |
+| Browser Centrifugo client | `apps/web/src/lib/realtime.ts` |
+| React provider and cache updates | `apps/web/src/contexts/RealtimeProvider.tsx` |
+| Centrifugo configuration | `infrastructure/centrifugo/config.json` |
+| Shared payload types | `packages/shared/src/websocket-types.ts` |
 
 The shared type filename is retained for API compatibility; it describes realtime event payloads rather than a transport implementation.
 

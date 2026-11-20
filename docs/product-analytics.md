@@ -8,8 +8,8 @@ grant consent by default.
 This is separate from the built-in workspace analytics dashboard
 (`apps/api/src/services/analytics`, `apps/web/src/hooks/analytics`), which
 serves your team's own conversation metrics. The GA integration lives in
-`apps/web/src/lib/product-analytics` and is referred to as _product
-analytics_.
+`apps/web/src/lib/product-analytics` and is referred to as *product
+analytics*.
 
 GA data is **approximate by design**: consent choices, ad blockers, browser
 privacy features, and network failures all suppress events. Never treat it as
@@ -17,11 +17,11 @@ authoritative for billing, quotas, or exact usage.
 
 ## Configuration
 
-| Variable                  | Default | Meaning                                                                                                                                   |
-| ------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `VITE_GA_ENABLED`         | `false` | Explicit kill switch. Only the exact string `true` enables analytics.                                                                     |
-| `VITE_GA_MEASUREMENT_ID`  | empty   | Your GA4 **web stream** measurement ID (`G-XXXXXXXXXX`). A missing, blank, or malformed ID disables analytics even when the switch is on. |
-| `VITE_GA_REQUIRE_CONSENT` | `true`  | When `true`, each browser must accept an in-app consent prompt before `gtag.js` loads. Only the literal `false` bypasses the gate.        |
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `VITE_GA_ENABLED` | `false` | Explicit kill switch. Only the exact string `true` enables analytics. |
+| `VITE_GA_MEASUREMENT_ID` | empty | Your GA4 **web stream** measurement ID (`G-XXXXXXXXXX`). A missing, blank, or malformed ID disables analytics even when the switch is on. |
+| `VITE_GA_REQUIRE_CONSENT` | `true` | When `true`, each browser must accept an in-app consent prompt before `gtag.js` loads. Only the literal `false` bypasses the gate. |
 
 Rules:
 
@@ -64,7 +64,7 @@ There are two separate choices:
 
 Additional behavior:
 
-- Unavailable or corrupt browser storage is treated as _unknown_ (not
+- Unavailable or corrupt browser storage is treated as *unknown* (not
   granted), never as implicit consent.
 - Calls made before consent is granted are discarded, not replayed later.
 - Consent can be changed at any time from the authenticated app under
@@ -123,14 +123,14 @@ browser-level trends, not tenant-level retention.
 **Stage 1 (instrumented now)** — foundation and activation, each fired once
 and only after a successful outcome:
 
-| Event                               | Fired when                                                         | Parameters                         |
-| ----------------------------------- | ------------------------------------------------------------------ | ---------------------------------- |
-| `page_view`                         | each SPA navigation (sanitized)                                    | canonical path/title               |
-| `sign_up`                           | registration succeeds                                              | `method: email`                    |
-| `login`                             | authentication succeeds                                            | `method: email`                    |
-| `workspace_created`                 | create-workspace mutation succeeds                                 | —                                  |
-| `whatsapp_connection_setup_started` | backend accepts connection creation                                | —                                  |
-| `whatsapp_connection_connected`     | a user-initiated setup/reconnect actually transitions to connected | `connectionMode: new \| reconnect` |
+| Event | Fired when | Parameters |
+| --- | --- | --- |
+| `page_view` | each SPA navigation (sanitized) | canonical path/title |
+| `sign_up` | registration succeeds | `method: email` |
+| `login` | authentication succeeds | `method: email` |
+| `workspace_created` | create-workspace mutation succeeds | — |
+| `whatsapp_connection_setup_started` | backend accepts connection creation | — |
+| `whatsapp_connection_connected` | a user-initiated setup/reconnect actually transitions to connected | `connectionMode: new \| reconnect` |
 
 **Stage 2 (contract defined, not yet instrumented)** — `message_sent`,
 `conversation_resolved`, `teammate_invited`, `quick_reply_used`,

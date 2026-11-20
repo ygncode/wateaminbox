@@ -8,10 +8,10 @@ Public token endpoints for previewing and accepting a workspace invitation. `GET
 
 **Methods:** GET 1 · POST 1 · DELETE 0 · PATCH 0 · PUT 0
 
-| Method | Path                         | Access        | Description                                           |
-| ------ | ---------------------------- | ------------- | ----------------------------------------------------- |
-| GET    | `/invitations/:token`        | Public        | Get invitation details (for preview before accepting) |
-| POST   | `/invitations/:token/accept` | Authenticated | Accept invitation                                     |
+| Method | Path | Access | Description |
+|--------|------|--------|-------------|
+| GET | `/invitations/:token` | Public | Get invitation details (for preview before accepting) |
+| POST | `/invitations/:token/accept` | Authenticated | Accept invitation |
 
 ## Flows
 
