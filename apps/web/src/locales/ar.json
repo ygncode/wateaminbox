@@ -728,6 +728,7 @@
     "viewShortcuts": "عرض الاختصارات",
     "leftWorkspace": "لقد غادرت {{name}}",
     "languageSaveFailed": "تعذّر حفظ اللغة في حسابك. ستُطبَّق في هذا المتصفح فقط.",
+    "themeSaveFailed": "تعذّر حفظ السمة في حسابك",
     "notificationSounds": {
       "default": "افتراضي",
       "chime": "رنين",

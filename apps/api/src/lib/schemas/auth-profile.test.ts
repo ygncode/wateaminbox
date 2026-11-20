@@ -41,9 +41,36 @@ describe("account settings validation", () => {
 
   test("rejects an unsupported or malformed language", () => {
     for (const preferredLanguage of ["xx", "zh-cn", "en-US", "", "<script>"]) {
-      expect(
-        updateProfileSchema.safeParse({ preferredLanguage }).success,
-      ).toBe(false);
+      expect(updateProfileSchema.safeParse({ preferredLanguage }).success).toBe(
+        false,
+      );
+    }
+  });
+
+  test("accepts each supported interface theme", () => {
+    for (const themePreference of [
+      "system",
+      "light",
+      "dark",
+      "whatsapp",
+    ] as const) {
+      expect(updateProfileSchema.parse({ themePreference })).toEqual({
+        themePreference,
+      });
+    }
+  });
+
+  test("lets a user clear their theme choice", () => {
+    expect(updateProfileSchema.parse({ themePreference: null })).toEqual({
+      themePreference: null,
+    });
+  });
+
+  test("rejects an unsupported or malformed theme", () => {
+    for (const themePreference of ["Dark", "solarized", "", "<script>"]) {
+      expect(updateProfileSchema.safeParse({ themePreference }).success).toBe(
+        false,
+      );
     }
   });
 

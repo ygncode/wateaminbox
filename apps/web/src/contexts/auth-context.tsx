@@ -36,6 +36,8 @@ export interface AuthUser {
   hasCustomAvatar: boolean;
   /** Interface language saved on the account, or null if never chosen. */
   preferredLanguage: string | null;
+  /** Interface theme saved on the account, or null if never chosen. */
+  themePreference: string | null;
 }
 
 export interface AuthState {
@@ -85,6 +87,7 @@ interface ApiUser {
   gravatarUrl?: string;
   hasCustomAvatar?: boolean;
   preferredLanguage?: string | null;
+  themePreference?: string | null;
 }
 
 function mapApiUser(apiUser: ApiUser): AuthUser {
@@ -99,6 +102,7 @@ function mapApiUser(apiUser: ApiUser): AuthUser {
     gravatarUrl: apiUser.gravatarUrl,
     hasCustomAvatar: Boolean(apiUser.hasCustomAvatar),
     preferredLanguage: apiUser.preferredLanguage ?? null,
+    themePreference: apiUser.themePreference ?? null,
   };
 }
 

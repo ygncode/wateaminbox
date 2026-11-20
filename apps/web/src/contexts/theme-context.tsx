@@ -5,8 +5,10 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
 import i18n from "../lib/i18n";
 import {
   type Appearance,
@@ -19,6 +21,7 @@ import {
   type ThemeId,
   type ThemePreference,
 } from "../lib/theme/themes";
+import { useAuth } from "./auth-context";
 
 /** What the user picked: a theme id or `system`. */
 export type Theme = ThemePreference;
@@ -26,7 +29,7 @@ export type Theme = ThemePreference;
 export type ResolvedTheme = Appearance;
 
 export interface ThemeContextValue {
-  /** The stored preference (a theme id or `system`). */
+  /** The preference (a theme id or `system`). Account-backed when signed in. */
   theme: Theme;
   /** The theme actually applied after resolving `system`. */
   activeTheme: ThemeId;
@@ -37,7 +40,14 @@ export interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-function getStoredTheme(): Theme | null {
+/*
+ * Source of truth is the signed-in user's account (`themePreference`), so the
+ * theme follows them across browsers and devices. localStorage is only a
+ * paint cache: index.html reads it before React loads so a reload does not
+ * flash the wrong theme. Signed out, the app follows the device.
+ */
+
+function readCache(): Theme | null {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
     return isThemePreference(stored) ? stored : null;
@@ -46,7 +56,7 @@ function getStoredTheme(): Theme | null {
   }
 }
 
-function storeTheme(theme: Theme): void {
+function writeCache(theme: Theme): void {
   try {
     localStorage.setItem(THEME_STORAGE_KEY, theme);
   } catch {
@@ -63,6 +73,20 @@ function resolve(theme: Theme): ThemeId {
   return resolveThemePreference(theme, Boolean(darkQuery()?.matches));
 }
 
+function announce(next: Theme, active: ThemeId) {
+  const announcement = document.getElementById("theme-announcement");
+  if (!announcement) return;
+  const label =
+    next === "system"
+      ? i18n.t("settings.themePanel.system", {
+          resolved: i18n.t(`settings.themePanel.${active}`),
+        })
+      : i18n.t(`settings.themePanel.${next}`);
+  announcement.textContent = i18n.t("settings.themePanel.changed", {
+    theme: label,
+  });
+}
+
 interface ThemeProviderProps {
   children: ReactNode;
   defaultTheme?: Theme;
@@ -72,31 +96,66 @@ export function ThemeProvider({
   children,
   defaultTheme = DEFAULT_THEME_PREFERENCE,
 }: ThemeProviderProps) {
+  const { user, isAuthenticated, updateProfile } = useAuth();
+  const accountTheme = isThemePreference(user?.themePreference)
+    ? user.themePreference
+    : null;
+
   const [theme, setThemeState] = useState<Theme>(
-    () => getStoredTheme() ?? defaultTheme,
+    () => readCache() ?? defaultTheme,
   );
   const [activeTheme, setActiveTheme] = useState<ThemeId>(() => resolve(theme));
 
-  const setTheme = useCallback((next: Theme) => {
+  const adopt = useCallback((next: Theme) => {
     setThemeState(next);
-    storeTheme(next);
+    writeCache(next);
     const active = resolve(next);
     setActiveTheme(active);
     applyTheme(active);
-
-    const announcement = document.getElementById("theme-announcement");
-    if (announcement) {
-      const label =
-        next === "system"
-          ? i18n.t("settings.themePanel.system", {
-              resolved: i18n.t(`settings.themePanel.${active}`),
-            })
-          : i18n.t(`settings.themePanel.${next}`);
-      announcement.textContent = i18n.t("settings.themePanel.changed", {
-        theme: label,
-      });
-    }
+    return active;
   }, []);
+
+  // The account wins: apply its theme whenever it loads or changes (sign-in,
+  // refresh, a change made on another device).
+  // Only react when the *account value* changes, never to local state: a
+  // local pick is applied first and saved after, and must not be reverted
+  // by the not-yet-updated account value in between.
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
+  const userId = user?.id ?? null;
+  const migratedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated || !userId) return;
+    if (accountTheme) {
+      if (accountTheme !== themeRef.current) adopt(accountTheme);
+      return;
+    }
+    // Nothing saved yet: keep what this device shows and save it once, so
+    // choices made before themes were account-backed are not lost.
+    if (migratedFor.current === userId) return;
+    migratedFor.current = userId;
+    updateProfile({ themePreference: themeRef.current }).catch(() => {});
+  }, [isAuthenticated, userId, accountTheme, adopt, updateProfile]);
+
+  // Signed out: follow the device, not the previous user's choice.
+  const wasAuthenticated = useRef(isAuthenticated);
+  useEffect(() => {
+    if (wasAuthenticated.current && !isAuthenticated) adopt("system");
+    wasAuthenticated.current = isAuthenticated;
+  }, [isAuthenticated, adopt]);
+
+  const setTheme = useCallback(
+    (next: Theme) => {
+      const active = adopt(next);
+      announce(next, active);
+      if (!user || accountTheme === next) return;
+      updateProfile({ themePreference: next }).catch(() => {
+        // Applied here already; only saving to the account failed.
+        toast.error(i18n.t("settings.themeSaveFailed"));
+      });
+    },
+    [adopt, user, accountTheme, updateProfile],
+  );
 
   useEffect(() => {
     applyTheme(activeTheme);

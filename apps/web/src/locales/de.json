@@ -680,6 +680,7 @@
     "viewShortcuts": "Tastenkürzel anzeigen",
     "leftWorkspace": "Sie haben {{name}} verlassen",
     "languageSaveFailed": "Die Sprache konnte nicht in Ihrem Konto gespeichert werden. Sie gilt nur in diesem Browser.",
+    "themeSaveFailed": "Design konnte nicht in Ihrem Konto gespeichert werden",
     "notificationSounds": {
       "default": "Standard",
       "chime": "Glockenspiel",

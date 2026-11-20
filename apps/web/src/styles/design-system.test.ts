@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { THEME_IDS, THEMES } from "../lib/theme/themes";
+import { THEME_PREFERENCES as SHARED_THEME_PREFERENCES } from "@wateaminbox/shared";
+import { THEME_IDS, THEME_PREFERENCES, THEMES } from "../lib/theme/themes";
 
 /*
  * Design-system guardrails (see apps/web/DESIGN.md).
@@ -138,4 +139,11 @@ test("meta colour equals each theme's canvas", () => {
     if (canvas) blocks.set(m[1], canvas[1]);
   }
   for (const id of THEME_IDS) expect(blocks.get(id)).toBe(THEMES[id].metaColor);
+});
+
+test("web theme preferences match the API's accepted list", () => {
+  // The API validates account themePreference against the shared list.
+  expect([...THEME_PREFERENCES].sort()).toEqual(
+    [...SHARED_THEME_PREFERENCES].sort(),
+  );
 });

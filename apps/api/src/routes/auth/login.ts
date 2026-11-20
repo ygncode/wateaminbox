@@ -60,6 +60,7 @@ loginRoutes.post(
           hasCustomAvatar: publicUser.hasCustomAvatar,
           emailVerified: publicUser.emailVerified,
           preferredLanguage: publicUser.preferredLanguage,
+          themePreference: publicUser.themePreference,
         },
         tokens: {
           accessToken: tokens.accessToken,

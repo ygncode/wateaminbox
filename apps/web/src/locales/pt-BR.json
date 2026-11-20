@@ -692,6 +692,7 @@
     "viewShortcuts": "Ver atalhos",
     "leftWorkspace": "Você saiu de {{name}}",
     "languageSaveFailed": "Não foi possível salvar o idioma na sua conta. Ele será aplicado apenas neste navegador.",
+    "themeSaveFailed": "Não foi possível salvar o tema na sua conta",
     "notificationSounds": {
       "default": "Padrão",
       "chime": "Carrilhão",

@@ -680,6 +680,7 @@
     "viewShortcuts": "View shortcuts",
     "leftWorkspace": "You left {{name}}",
     "languageSaveFailed": "Couldn’t save your language to your account. It will apply in this browser only.",
+    "themeSaveFailed": "Couldn't save your theme to your account",
     "notificationSounds": {
       "default": "Default",
       "chime": "Chime",

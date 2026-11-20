@@ -692,6 +692,7 @@
     "viewShortcuts": "Ver atajos",
     "leftWorkspace": "Saliste de {{name}}",
     "languageSaveFailed": "No se pudo guardar el idioma en tu cuenta. Solo se aplicará en este navegador.",
+    "themeSaveFailed": "No se pudo guardar el tema en tu cuenta",
     "notificationSounds": {
       "default": "Predeterminado",
       "chime": "Campanilla",

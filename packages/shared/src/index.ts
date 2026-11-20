@@ -29,3 +29,6 @@ export * from "./phone";
 
 // Interface languages
 export * from "./languages";
+
+// Interface themes
+export * from "./themes";
