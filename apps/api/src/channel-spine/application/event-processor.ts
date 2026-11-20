@@ -16,6 +16,10 @@ import {
   recordSuppressedInbound,
   resolveInboundPolicy,
 } from "./contact-policy.js";
+import {
+  recordInboundForFlood,
+  volumeClassForChannel,
+} from "./inbound-flood.js";
 
 export interface AppliedChannelEvent {
   outcome: "applied" | "duplicate" | "transient";
@@ -375,6 +379,19 @@ async function applyMessageUpsert(
       return { conversationId, suppressed: true };
     }
     silenced = policy.action === "silence";
+    // Flood limit (phase 5): a direct customer sending faster than any person
+    // would is kept quiet for a while, without losing the messages. Counted
+    // even while muted, so a flood that keeps going keeps its quiet period
+    // running and can escalate.
+    if (conversationKind === "direct" && contactId) {
+      const flood = await recordInboundForFlood(trx, {
+        contactId,
+        channel: event.channel,
+        volumeClass: volumeClassForChannel(event.channel),
+        at: occurredAt,
+      });
+      silenced ||= flood.silence;
+    }
   }
 
   const values = {

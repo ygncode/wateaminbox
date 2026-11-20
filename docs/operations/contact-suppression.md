@@ -49,9 +49,29 @@ FROM <tenant_schema>.contact_suppression_drops
 ORDER BY last_dropped_at DESC LIMIT 50;
 ```
 
-## Not covered yet (later phases)
+## Flood limits
 
-- Per-channel block status in the profile, a Mute control, and Block for
-  non-WhatsApp customers in the UI (phase 3).
-- Per-sender and per-bot flood limits (phase 5).
+In an enforcing workspace, a customer who writes faster than any person would
+is kept quiet automatically. Their messages are still stored, with no unread
+count, push or auto-reply, through an expiring `mute_inbound` with reason
+`auto:flood`. It shows in the profile, and an operator can lift it early.
+
+| Class | Quiet after | Quiet for | Auto-mute (off by default) |
+|---|---|---|---|
+| chat (WhatsApp, Telegram, ...) | 30 messages / minute | 10 min | 200 in 10 min -> 1 h |
+| email | 10 messages / minute | 30 min | 50 in 10 min -> 1 h |
+
+A flood that keeps going keeps its quiet period running. Nothing is ever
+blocked automatically. Counts live in `<tenant>.inbound_flood_windows`
+(one-minute windows, pruned after 30 minutes).
+
+Separately, provider webhooks (`/api/channel-ingress/*`) are rate-limited per
+channel account instead of per IP, because every Telegram bot is called from
+Telegram's addresses. Default 600 requests / 60 s, tunable with
+`RATE_LIMIT_CHANNEL_INGRESS_REQUESTS` / `_WINDOW_SECONDS`. This applies in
+every workspace, enforcing or not.
+
+## Not covered yet
+
 - Provider signals such as Telegram `my_chat_member` (phase 6).
+- Workspace-level settings UI for the flood thresholds and auto-mute.

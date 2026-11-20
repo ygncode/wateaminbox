@@ -91,6 +91,12 @@ export interface RateLimitConfig {
       whatsapp: RateLimitTier;
       bulk: RateLimitTier;
     };
+    /**
+     * Provider webhooks, keyed by channel account (one bot) rather than IP:
+     * every Telegram bot is called from Telegram's addresses, so an IP bucket
+     * lets one flooded bot starve every other bot on the instance.
+     */
+    channelIngress: RateLimitTier;
   };
 }
 
@@ -344,6 +350,18 @@ export function getRateLimitConfig(): RateLimitConfig {
           ),
         },
       },
+      // A safeguard, set well above any real bot's traffic (Telegram itself
+      // sends at most ~100 updates per webhook call batch).
+      channelIngress: {
+        requests: getDefaultRequests(
+          process.env.RATE_LIMIT_CHANNEL_INGRESS_REQUESTS,
+          600,
+        ),
+        windowSeconds: parsePositiveInt(
+          process.env.RATE_LIMIT_CHANNEL_INGRESS_WINDOW_SECONDS,
+          60,
+        ),
+      },
     },
   };
 }
@@ -487,6 +505,10 @@ export const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
         requests: 10,
         windowSeconds: 60,
       },
+    },
+    channelIngress: {
+      requests: 600,
+      windowSeconds: 60,
     },
   },
 };

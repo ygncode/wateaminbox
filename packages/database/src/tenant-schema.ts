@@ -146,6 +146,12 @@ export const TENANT_SCHEMA_CONTRACT = {
     "updated_by",
     "updated_at",
   ],
+  inbound_flood_windows: [
+    "contact_id",
+    "channel",
+    "window_start",
+    "message_count",
+  ],
   contact_suppression_drops: [
     "contact_id",
     "channel",

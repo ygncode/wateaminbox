@@ -360,6 +360,7 @@ export interface TenantDatabase {
   contact_suppressions: ContactSuppressionsTable;
   contact_policy_settings: ContactPolicySettingsTable;
   contact_suppression_drops: ContactSuppressionDropsTable;
+  inbound_flood_windows: InboundFloodWindowsTable;
   conversations: ConversationsTable;
   conversation_notes: ConversationNotesTable;
   conversation_sync_states: ConversationSyncStatesTable;
@@ -514,6 +515,13 @@ export interface ContactPolicySettingsTable {
   enforcement_enabled: Generated<boolean>;
   updated_by: string | null;
   updated_at: Generated<Date>;
+}
+
+export interface InboundFloodWindowsTable {
+  contact_id: string;
+  channel: string;
+  window_start: Date;
+  message_count: Generated<number>;
 }
 
 export interface ContactSuppressionDropsTable {

@@ -44,6 +44,7 @@ export type {
   ContactsTable,
   ContactPolicySettingsTable,
   ContactSuppressionDropsTable,
+  InboundFloodWindowsTable,
   ContactSuppressionScope,
   ContactSuppressionsTable,
   ContactTagsTable,
