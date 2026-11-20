@@ -19,6 +19,7 @@ import {
   type MessageDbRow,
 } from "../../lib/message-formatters.js";
 import { isConfirmedQuote } from "../../lib/message-quote.js";
+import { hydrateGroupSenderAvatars } from "../../lib/group-sender-avatars.js";
 import { loadMessageReactions } from "../../lib/message-reactions.js";
 import {
   buildCommandSubject,
@@ -309,7 +310,7 @@ messageRoutes.get(
 
     // Map to frontend format using shared formatter
     const authorizedMessages = await authorizeMessageMedia(
-      messages as MessageDbRow[],
+      await hydrateGroupSenderAvatars(tenantDb, messages as MessageDbRow[]),
       companyId,
     );
     // Which thread each message arrived on. One query for the page: a merged

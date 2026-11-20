@@ -17,6 +17,7 @@ import {
 import { normalizeLinkedDeviceMessageEvent } from "../../channel-spine/providers/whatsapp-linked-device/normalize.js";
 import { shadowLinkedDeviceLegacyMutation } from "../../channel-spine/providers/whatsapp-linked-device/shadow.js";
 import { compareLinkedDeviceMessageShadow } from "../../channel-spine/providers/whatsapp-linked-device/shadow-compare.js";
+import { findKnownGroupSenderAvatar } from "../../lib/group-sender-avatars.js";
 import { formatError } from "../../lib/logger.js";
 import { buildInboundMessageMetadata } from "../../lib/message-formatters.js";
 import {
@@ -275,6 +276,28 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         null;
     }
 
+    // A participant's picture reaches message rows only through the
+    // profile-picture event, which updates the rows that already exist. Seed a
+    // new message with the picture already known for this sender so later
+    // messages do not lose the avatar the earlier ones show.
+    const senderAvatarUrl =
+      isGroupMessage &&
+      !payload.fromMe &&
+      normalizedSenderJid &&
+      !normalizedSenderJid.includes("@g.us")
+        ? await findKnownGroupSenderAvatar(tenantDb, {
+            connectionId: connection.id,
+            groupContactId: contact.id,
+            senderJid: normalizedSenderJid,
+          }).catch((error) => {
+            logger.warn(
+              { error: formatError(error), jid: normalizedSenderJid },
+              "Failed to resolve known group sender avatar",
+            );
+            return null;
+          })
+        : null;
+
     // Store the message - also normalize sender_jid
     // Determine media download status based on whether it's a history sync with deferred media
     const hasMediaReference = Boolean(
@@ -371,7 +394,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
           from_me: payload.fromMe,
           sender_jid: normalizedSenderJid,
           sender_name: senderName,
-          sender_avatar_url: null,
+          sender_avatar_url: senderAvatarUrl,
           message_type: payload.messageType as MessageType,
           content: payload.content,
           search_vector: sql`to_tsvector('english', ${payload.content ?? ""})`,
@@ -425,6 +448,9 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
                   THEN messages.sender_name
                 ELSE COALESCE(excluded.sender_name, messages.sender_name)
               END`,
+                    sender_avatar_url: sql<
+                      string | null
+                    >`COALESCE(messages.sender_avatar_url, excluded.sender_avatar_url)`,
                     // Merge rather than replace. History replay can omit a
                     // filename or other metadata that the original event
                     // carried, so retain existing keys while accepting new
