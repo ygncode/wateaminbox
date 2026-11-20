@@ -8,6 +8,15 @@ describe("global rate-limit routing", () => {
     expect(shouldSkipGlobalRateLimit("/api/auth/refresh")).toBe(true);
     expect(shouldSkipGlobalRateLimit("/api/contacts")).toBe(false);
   });
+
+  test("leaves provider webhooks to their per-account limiter", () => {
+    // Every Telegram bot is called from Telegram's addresses; an IP bucket
+    // would let one flooded bot starve the others.
+    expect(
+      shouldSkipGlobalRateLimit("/api/channel-ingress/telegram_bot/abc"),
+    ).toBe(true);
+    expect(shouldSkipGlobalRateLimit("/api/channel-ingress-other")).toBe(false);
+  });
 });
 
 describe("CORS", () => {

@@ -23,9 +23,14 @@ const independentlyRateLimitedAuthPaths = new Set([
 export function shouldSkipGlobalRateLimit(path: string): boolean {
   const isHealthProbe =
     path === "/api/health" || path.startsWith("/api/health/");
+  // Provider webhooks have their own per-account limiter: they all come from
+  // the provider's few addresses, so the IP bucket would make one flooded
+  // bot starve every other bot on the instance.
+  const isChannelIngress = path.startsWith("/api/channel-ingress/");
   return (
     !path.startsWith("/api") ||
     isHealthProbe ||
+    isChannelIngress ||
     independentlyRateLimitedAuthPaths.has(path)
   );
 }

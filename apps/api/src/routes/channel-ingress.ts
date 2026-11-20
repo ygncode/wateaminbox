@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
 import { db } from "@wateaminbox/database";
 import { isChannel, isChannelProvider } from "@wateaminbox/shared";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { applyNormalizedChannelEvent } from "../channel-spine/application/event-processor.js";
 import { channelAdapterRegistry } from "../channel-spine/registry.js";
 import { createLogger, formatError } from "../lib/logger.js";
+import { rateLimitConfig, rateLimitStore } from "../lib/rate-limit-store.js";
+import { createConditionalRateLimiter } from "../middleware/rate-limit.js";
 import { ChannelCredentialKeyError } from "../services/channel-credential.service.js";
 import {
   getChannelSpineWorkspaceAuthority,
@@ -18,6 +20,33 @@ const MAX_INGRESS_BYTES = 1_048_576;
 const logger = createLogger("ChannelIngress");
 
 export const channelIngressRoutes = new Hono();
+
+/**
+ * One bucket per webhook route (one channel account), never per IP: every
+ * Telegram bot is called from Telegram's own addresses, so an IP bucket lets
+ * one flooded bot starve every other bot on the instance. The key is a digest
+ * of the route secret, so the secret itself never reaches the store.
+ */
+export function channelIngressRateLimitKey(c: Context): string {
+  const digest = createHash("sha256")
+    .update(c.req.param("routeKey") ?? "")
+    .digest("hex")
+    .slice(0, 32);
+  return `channel-ingress:${c.req.param("provider") ?? ""}:${digest}`;
+}
+
+channelIngressRoutes.use(
+  "/:provider/:routeKey",
+  createConditionalRateLimiter(
+    {
+      store: rateLimitStore,
+      tier: rateLimitConfig.tiers.channelIngress,
+      keyStrategy: "ip",
+      generateKey: channelIngressRateLimitKey,
+    },
+    rateLimitConfig.enabled,
+  ),
+);
 
 channelIngressRoutes.post("/:provider/:routeKey", async (c) => {
   const provider = c.req.param("provider");

@@ -183,6 +183,19 @@ export async function ensureChannelSpineTenantSchema<Database>(
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`.execute(db);
 
+    // Per-sender inbound flood counter (phase 5): one row per person, channel
+    // and fixed one-minute window, written in the same transaction as the
+    // message so a provider retry or a rolled-back event never counts twice.
+    // Old windows are pruned opportunistically by the writer.
+    await sql`CREATE TABLE IF NOT EXISTS ${table("inbound_flood_windows")} (
+      contact_id UUID NOT NULL REFERENCES ${table("contacts")}(id) ON DELETE CASCADE,
+      channel TEXT NOT NULL,
+      window_start TIMESTAMPTZ NOT NULL,
+      message_count INTEGER NOT NULL DEFAULT 0 CHECK (message_count >= 0),
+      PRIMARY KEY (contact_id, channel, window_start),
+      CHECK (length(trim(channel)) > 0)
+    )`.execute(db);
+
     // Evidence that a blocked person kept writing, without their content: one
     // bounded counter per person, channel and UTC day.
     await sql`CREATE TABLE IF NOT EXISTS ${table("contact_suppression_drops")} (

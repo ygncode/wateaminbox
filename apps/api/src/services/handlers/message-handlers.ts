@@ -14,6 +14,7 @@ import {
   isSuppressionEnforced,
   recordSuppressedInbound,
 } from "../../channel-spine/application/contact-policy.js";
+import { recordInboundForFlood } from "../../channel-spine/application/inbound-flood.js";
 import { normalizeLinkedDeviceMessageEvent } from "../../channel-spine/providers/whatsapp-linked-device/normalize.js";
 import { shadowLinkedDeviceLegacyMutation } from "../../channel-spine/providers/whatsapp-linked-device/shadow.js";
 import { compareLinkedDeviceMessageShadow } from "../../channel-spine/providers/whatsapp-linked-device/shadow-compare.js";
@@ -351,6 +352,15 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
             return { insertResult: null, caseResult: null, suppressed: true };
           }
           silenced = suppressions.some((row) => row.scope === "mute_inbound");
+          // Flood limit (phase 5), counted even while muted so a sustained
+          // flood keeps its quiet period running.
+          const flood = await recordInboundForFlood(trx, {
+            contactId: contact.id,
+            channel: "whatsapp",
+            volumeClass: "chat",
+            at: toDbDate(payload.timestamp),
+          });
+          silenced ||= flood.silence;
         }
         // Linked-device outbound messages use the same contact lock as API and
         // automatic sends, so an auto reply cannot pass its unanswered check
