@@ -29,6 +29,12 @@ const capabilities: ResolvedCapabilities = {
     remoteHistory: false,
   },
   attachment: { enabled: true, maxCount: 1 },
+  blocking: {
+    provider: false,
+    providerStopsInbound: false,
+    reportsRemoteBlock: false,
+  },
+  inboundVolumeClass: "chat",
   constraints: {},
   unavailableReasons: {},
   version: "telegram:v1",

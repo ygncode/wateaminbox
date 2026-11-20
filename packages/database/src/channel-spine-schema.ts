@@ -7,6 +7,12 @@ const ddlLockTimeout = "5s";
  * Reconcile the additive tenant-local channel spine. This function creates no
  * rows and never changes legacy column authority.
  */
+/**
+ * Actor recorded on customer suppressions the system creates or lifts on its
+ * own (the legacy is_blocked backfill, automatic flood mutes). Not a user ID.
+ */
+export const SYSTEM_SUPPRESSION_ACTOR = "00000000-0000-0000-0000-000000000000";
+
 export async function ensureChannelSpineTenantSchema<Database>(
   db: Kysely<Database>,
   schemaName: string,
@@ -149,6 +155,22 @@ export async function ensureChannelSpineTenantSchema<Database>(
       CHECK (length(trim(scope)) > 0),
       CHECK (length(trim(reason)) > 0)
     )`.execute(db);
+
+    // Customer suppression (contact blocking): an automatic flood mute expires
+    // on its own, and a revocation names who lifted it.
+    await addColumnsIfMissing(db, schemaName, "contact_suppressions", [
+      ["expires_at", "TIMESTAMPTZ"],
+      ["revoked_by", "UUID"],
+    ]);
+    await addConstraintIfMissing(
+      db,
+      schemaName,
+      "contact_suppressions",
+      "contact_suppressions_scope_allowed_check",
+      sql`ALTER TABLE ${table("contact_suppressions")}
+        ADD CONSTRAINT contact_suppressions_scope_allowed_check
+        CHECK (scope IN ('block', 'mute_inbound', 'do_not_contact')) NOT VALID`,
+    );
 
     await sql`CREATE TABLE IF NOT EXISTS ${table("conversations")} (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -719,6 +741,12 @@ async function ensureIndexes<Database>(
         WHERE revoked_at IS NULL`,
       ],
       [
+        "contact_suppressions_active_uidx",
+        sql`CREATE UNIQUE INDEX ${sql.ref(`${schemaName}_csup_active_uidx`)}
+        ON ${table("contact_suppressions")} (contact_id, scope)
+        WHERE revoked_at IS NULL`,
+      ],
+      [
         "channel_spine_reconciliation_due_idx",
         sql`CREATE INDEX ${sql.ref(`${schemaName}_csrj_due_idx`)}
         ON ${table("channel_spine_reconciliation_journal")} (status, next_attempt_at, created_at)`,
@@ -749,6 +777,7 @@ function indexNameFor(logicalName: string, schemaName: string): string {
     outbound_message_intents_due_idx: "omi_due_idx",
     outbound_intents_send_message_uidx: "omi_send_msg_uidx",
     contact_suppressions_active_idx: "csup_active_idx",
+    contact_suppressions_active_uidx: "csup_active_uidx",
     channel_spine_reconciliation_due_idx: "csrj_due_idx",
   };
   return `${schemaName}_${suffixes[logicalName]}`;

@@ -18,6 +18,10 @@ import {
 } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import {
+  applySuppression,
+  revokeSuppression,
+} from "../../channel-spine/application/contact-policy.js";
+import {
   getContactPhoneNumber,
   type RawContactFromDb,
   transformContacts,
@@ -477,6 +481,27 @@ contactRoutes.patch(
           "updated_at",
         ])
         .executeTakeFirst();
+
+      if (blockStatusChanged) {
+        // Dual-write the channel-neutral customer suppression (phase 1 of the
+        // contact-blocking plan). Nothing enforces it yet beyond what
+        // is_blocked already does; it exists so enforcement can switch over
+        // without a second backfill.
+        if (body.isBlocked) {
+          await applySuppression(trx, {
+            contactId,
+            scope: "block",
+            reason: "manual",
+            actorUserId: user.id,
+          });
+        } else {
+          await revokeSuppression(trx, {
+            contactId,
+            scope: "block",
+            actorUserId: user.id,
+          });
+        }
+      }
 
       if (blockStatusChanged && blockConnectionId && existingContact.jid) {
         await enqueueConnectionCommand(

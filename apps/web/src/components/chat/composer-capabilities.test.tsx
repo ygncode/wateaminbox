@@ -47,6 +47,12 @@ const CAPABILITIES: ResolvedCapabilities = {
     enabled: true,
     acceptedContentTypes: ["image/jpeg", "image/png"],
   },
+  blocking: {
+    provider: false,
+    providerStopsInbound: false,
+    reportsRemoteBlock: false,
+  },
+  inboundVolumeClass: "chat",
   constraints: {},
   unavailableReasons: {},
   version: "test:v1",
