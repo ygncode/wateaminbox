@@ -355,9 +355,9 @@ Phase 5 answers "too many messages" even without anyone clicking Block.
 
 ## 9. Open questions
 
-1. Drop vs. store hidden for `block`: storing hidden keeps evidence for abuse
-   reports but costs storage and media quota. Proposal: drop content and keep a
-   counter. Attachments are never fetched.
+1. ~~Drop vs. store hidden for `block`.~~ **Decided (2026-11-20, owner):** drop
+   the content and keep only a bounded counter per sender per day. Attachments
+   are never fetched. Storing hidden copies as evidence is out of scope.
 2. Should a person-level block also leave or ban in groups the bot admins on
    Telegram? Proposal: no. Group moderation is a separate feature.
 3. Default per-sender thresholds per channel kind (chat vs. email).
