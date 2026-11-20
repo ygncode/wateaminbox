@@ -1174,7 +1174,31 @@
     "newLabel": "Novo",
     "andMore_one": "E mais {{count}} contato...",
     "andMore_many": "E mais {{count}} de contatos...",
-    "andMore_other": "E mais {{count}} contatos..."
+    "andMore_other": "E mais {{count}} contatos...",
+    "suppression": {
+      "title": "Bloquear e silenciar",
+      "blocked": "Bloqueado em todos os canais",
+      "blockedHint": "Novas mensagens deste cliente são descartadas e ninguém pode enviar mensagens a ele.",
+      "muted": "Silenciado",
+      "mutedUntil": "Silenciado até {{time}}",
+      "mutedHint": "As mensagens continuam chegando, sem notificações nem contadores de não lidas.",
+      "active": "Não bloqueado",
+      "activeHint": "As mensagens deste cliente chegam normalmente.",
+      "block": "Bloquear",
+      "unblock": "Desbloquear",
+      "mute": "Silenciar",
+      "unmute": "Reativar som",
+      "mute1h": "Silenciar por 1 hora",
+      "mute24h": "Silenciar por 24 horas",
+      "muteForever": "Silenciar até eu reativar",
+      "confirmTitle": "Bloquear {{name}}?",
+      "confirmBody": "As novas mensagens dele em todos os canais são descartadas e ninguém neste espaço de trabalho pode enviar mensagens a ele. Você pode desbloquear a qualquer momento.",
+      "notEnforced": "O bloqueio ainda não está ativado neste espaço de trabalho. A escolha fica salva e vale assim que for ativado.",
+      "providerBlocked": "Também bloqueado pelo {{channel}}",
+      "unreachable": "Este cliente bloqueou ou deixou você no {{channel}}",
+      "dropped": "{{count}} mensagens descartadas",
+      "failed": "Não foi possível atualizar o bloqueio. Tente novamente."
+    }
   },
   "groups": {
     "participants": "Participantes",

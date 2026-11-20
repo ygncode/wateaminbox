@@ -18,6 +18,7 @@ import {
 } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import {
+  activeSuppressions,
   applySuppression,
   revokeSuppression,
 } from "../../channel-spine/application/contact-policy.js";
@@ -57,6 +58,7 @@ import { broadcastToContactViewers } from "../../services/message-broadcast.serv
 import { assignmentRoutes } from "./assignment.js";
 import { customerChatsRoutes } from "./chats.js";
 import { firstChatAcknowledgmentRoutes } from "./first-chat-acknowledgment.js";
+import { suppressionRoutes } from "./suppressions.js";
 import { importRoutes } from "./import.js";
 import { customerLifecycleRoutes } from "./lifecycle.js";
 import { mergeRoutes } from "./merge.js";
@@ -94,6 +96,7 @@ contactRoutes.route("/", customerChatsRoutes);
 contactRoutes.route("/", timelineRoutes);
 contactRoutes.route("/", customerLifecycleRoutes);
 contactRoutes.route("/", firstChatAcknowledgmentRoutes);
+contactRoutes.route("/", suppressionRoutes);
 
 // Direct contact resources must honor assignment visibility.
 contactRoutes.use("/:id", requireContactVisibility());
@@ -301,7 +304,14 @@ contactRoutes.get("/:id", async (c) => {
     displayName: getContactDisplayName(contact),
     name: getContactName(contact),
     isGroup: contact.is_group,
-    isBlocked: contact.is_blocked,
+    // Blocked on WhatsApp's own list, or by the workspace on any channel. The
+    // composer and the unblock bar read this one flag.
+    isBlocked:
+      contact.is_blocked ||
+      (!contact.is_group &&
+        (await activeSuppressions(tenantDb, contact.id)).some(
+          (row) => row.scope === "block",
+        )),
     isOnline: contact.is_online,
     lastSeen: contact.last_seen,
     profilePictureUrl: await getAuthorizedAvatarUrlOrNull(

@@ -1134,7 +1134,31 @@
     "status": "Status",
     "exists": "Sudah wujud",
     "newLabel": "Baharu",
-    "andMore_other": "Dan {{count}} lagi kenalan..."
+    "andMore_other": "Dan {{count}} lagi kenalan...",
+    "suppression": {
+      "title": "Sekat dan senyapkan",
+      "blocked": "Disekat di semua saluran",
+      "blockedHint": "Mesej baharu daripada pelanggan ini dibuang dan tiada sesiapa boleh menghantar mesej kepadanya.",
+      "muted": "Disenyapkan",
+      "mutedUntil": "Disenyapkan hingga {{time}}",
+      "mutedHint": "Mesej masih diterima, tanpa pemberitahuan atau lencana belum dibaca.",
+      "active": "Tidak disekat",
+      "activeHint": "Mesej daripada pelanggan ini diterima seperti biasa.",
+      "block": "Sekat",
+      "unblock": "Nyahsekat",
+      "mute": "Senyapkan",
+      "unmute": "Nyahsenyap",
+      "mute1h": "Senyapkan 1 jam",
+      "mute24h": "Senyapkan 24 jam",
+      "muteForever": "Senyapkan sehingga saya nyahsenyap",
+      "confirmTitle": "Sekat {{name}}?",
+      "confirmBody": "Mesej baharunya di semua saluran dibuang dan tiada sesiapa di ruang kerja ini boleh menghantar mesej kepadanya. Anda boleh menyahsekat pada bila-bila masa.",
+      "notEnforced": "Penyekatan belum dihidupkan untuk ruang kerja ini. Pilihan disimpan dan berkuat kuasa sebaik sahaja dihidupkan.",
+      "providerBlocked": "Turut disekat oleh {{channel}}",
+      "unreachable": "Pelanggan ini telah menyekat atau meninggalkan anda di {{channel}}",
+      "dropped": "{{count}} mesej dibuang",
+      "failed": "Tidak dapat mengemas kini sekatan. Cuba lagi."
+    }
   },
   "groups": {
     "participants": "Peserta",

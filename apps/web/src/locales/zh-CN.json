@@ -1134,7 +1134,31 @@
     "status": "状态",
     "exists": "已存在",
     "newLabel": "新建",
-    "andMore_other": "以及另外 {{count}} 位联系人…"
+    "andMore_other": "以及另外 {{count}} 位联系人…",
+    "suppression": {
+      "title": "屏蔽与静音",
+      "blocked": "已在所有渠道屏蔽",
+      "blockedHint": "该客户的新消息会被丢弃，任何人都无法向其发送消息。",
+      "muted": "已静音",
+      "mutedUntil": "静音至 {{time}}",
+      "mutedHint": "消息仍会送达，但不会有通知或未读标记。",
+      "active": "未屏蔽",
+      "activeHint": "该客户的消息正常送达。",
+      "block": "屏蔽",
+      "unblock": "取消屏蔽",
+      "mute": "静音",
+      "unmute": "取消静音",
+      "mute1h": "静音 1 小时",
+      "mute24h": "静音 24 小时",
+      "muteForever": "静音直到我取消",
+      "confirmTitle": "屏蔽 {{name}}？",
+      "confirmBody": "其在所有渠道的新消息都会被丢弃，此工作区的任何人都无法向其发送消息。你可以随时取消屏蔽。",
+      "notEnforced": "此工作区尚未开启屏蔽功能。你的选择已保存，开启后生效。",
+      "providerBlocked": "{{channel}} 也已屏蔽",
+      "unreachable": "该客户已在 {{channel}} 屏蔽或离开你",
+      "dropped": "已丢弃 {{count}} 条消息",
+      "failed": "无法更新屏蔽状态，请重试。"
+    }
   },
   "groups": {
     "participants": "群成员",

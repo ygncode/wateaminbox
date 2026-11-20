@@ -1154,7 +1154,31 @@
     "exists": "Exists",
     "newLabel": "New",
     "andMore_one": "And {{count}} more contact...",
-    "andMore_other": "And {{count}} more contacts..."
+    "andMore_other": "And {{count}} more contacts...",
+    "suppression": {
+      "title": "Block and mute",
+      "blocked": "Blocked on every channel",
+      "blockedHint": "New messages from this customer are dropped and nobody can message them.",
+      "muted": "Muted",
+      "mutedUntil": "Muted until {{time}}",
+      "mutedHint": "Messages still arrive, without notifications or unread badges.",
+      "active": "Not blocked",
+      "activeHint": "Messages from this customer arrive normally.",
+      "block": "Block",
+      "unblock": "Unblock",
+      "mute": "Mute",
+      "unmute": "Unmute",
+      "mute1h": "Mute for 1 hour",
+      "mute24h": "Mute for 24 hours",
+      "muteForever": "Mute until I unmute",
+      "confirmTitle": "Block {{name}}?",
+      "confirmBody": "Their new messages on every channel are dropped and nobody in this workspace can message them. You can unblock them at any time.",
+      "notEnforced": "Blocking is not switched on for this workspace yet. The choice is saved and takes effect once it is.",
+      "providerBlocked": "Also blocked by {{channel}}",
+      "unreachable": "This customer has blocked or left you on {{channel}}",
+      "dropped": "{{count}} messages dropped",
+      "failed": "Could not update the block. Try again."
+    }
   },
   "groups": {
     "participants": "Participants",

@@ -22,6 +22,8 @@ export type AuditAction =
   | "contact.merged"
   | "contact.blocked"
   | "contact.unblocked"
+  | "contact.muted"
+  | "contact.unmuted"
   | "contact.note.created"
   | "contact.note.updated"
   | "contact.note.deleted"
