@@ -2,17 +2,17 @@ import { expect, test } from "bun:test";
 import { Kysely, PostgresDialect, sql } from "kysely";
 import { Pool } from "pg";
 import { SYSTEM_SUPPRESSION_ACTOR } from "./channel-spine-schema.js";
-import { backfillLegacyBlockSuppressions } from "./migrations/114_add_contact_suppression_core.js";
+import { backfillLegacyBlockSuppressions } from "./migrations/115_add_contact_suppression_core.js";
 
 const integration = process.env.RUN_DB_INTEGRATION === "1" ? test : test.skip;
 
 /**
- * Migration 114 on a tenant shaped like production before it: the original
+ * Migration 115 on a tenant shaped like production before it: the original
  * spine `contact_suppressions` (no expiry, no scope check, no unique slot)
  * and WhatsApp contacts carrying `is_blocked`.
  */
 integration(
-  "migration 114 hardens contact_suppressions and backfills one block per blocked person",
+  "migration 115 hardens contact_suppressions and backfills one block per blocked person",
   async () => {
     const url = new URL(process.env.DATABASE_URL!);
     if (!["localhost", "127.0.0.1"].includes(url.hostname)) {

@@ -56,5 +56,5 @@ export async function backfillLegacyBlockSuppressions<Database>(
  * silently unblock customers.
  */
 export async function down(): Promise<void> {
-  throw new Error("migration 114 is forward-only");
+  throw new Error("migration 115 is forward-only");
 }
