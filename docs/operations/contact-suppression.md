@@ -20,7 +20,7 @@ stored are never touched.
 
 ## Enforcement is per workspace and off by default
 
-Migrations 114 and 115 only add the data. Until a workspace is enabled, it
+Migrations 115 and 116 only add the data. Until a workspace is enabled, it
 behaves exactly as before: only WhatsApp's own `contacts.is_blocked` applies,
 and the Block button keeps dual-writing the suppression.
 

@@ -25,5 +25,5 @@ export async function up(db: Kysely<unknown>): Promise<void> {
 
 /** Forward-only: dropping the setting would silently stop enforcement. */
 export async function down(): Promise<void> {
-  throw new Error("migration 115 is forward-only");
+  throw new Error("migration 116 is forward-only");
 }
