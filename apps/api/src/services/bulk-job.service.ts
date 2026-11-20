@@ -26,6 +26,10 @@ import type {
 } from "@wateaminbox/shared";
 import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely, Selectable } from "kysely";
+import {
+  isSuppressionEnforced,
+  resolveContactOutboundPolicy,
+} from "../channel-spine/application/contact-policy.js";
 import { bulkConfig } from "../config/bulk.config.js";
 import {
   ConflictError,
@@ -201,6 +205,7 @@ export async function resolveBulkAudience(
   const eligible: ResolvedRecipient[] = [];
   const skipped: ResolvedRecipient[] = [];
   const seenJids = new Set<string>();
+  const enforceSuppression = await isSuppressionEnforced(tenantDb);
 
   for (const contact of contacts) {
     const recipient: ResolvedRecipient = {
@@ -219,6 +224,16 @@ export async function resolveBulkAudience(
     } else if (!contact.jid) {
       recipient.skipReason = "no_jid";
     } else if (contact.is_blocked) {
+      recipient.skipReason = "blocked";
+    } else if (
+      enforceSuppression &&
+      !(
+        await resolveContactOutboundPolicy(tenantDb, {
+          contactId: contact.id,
+        })
+      ).allowed
+    ) {
+      // A customer blocked or opted out on any channel is not broadcast to.
       recipient.skipReason = "blocked";
     } else if (!contact.whatsapp_connection_id || !contact.connection_id) {
       recipient.skipReason = "no_connection";

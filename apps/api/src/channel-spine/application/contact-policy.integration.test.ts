@@ -309,7 +309,11 @@ describe("contact policy", () => {
             senderEndpointId: endpoint,
             conversationKind: "direct",
           }),
-        ).toEqual({ action: "drop", reason: "provider_blocked" });
+        ).toEqual({
+          action: "drop",
+          reason: "provider_blocked",
+          contactId: person,
+        });
         expect(await activeSuppressions(tenantDb, person)).toEqual([]);
       } finally {
         await tenant.drop();

@@ -42,6 +42,8 @@ export type {
   ContactNotesPrivateTable,
   ContactNotesSharedTable,
   ContactsTable,
+  ContactPolicySettingsTable,
+  ContactSuppressionDropsTable,
   ContactSuppressionScope,
   ContactSuppressionsTable,
   ContactTagsTable,
