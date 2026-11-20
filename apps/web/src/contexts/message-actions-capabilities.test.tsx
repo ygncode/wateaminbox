@@ -30,6 +30,12 @@ const CAPABILITIES: ResolvedCapabilities = {
     remoteHistory: false,
   },
   attachment: { enabled: false },
+  blocking: {
+    provider: false,
+    providerStopsInbound: false,
+    reportsRemoteBlock: false,
+  },
+  inboundVolumeClass: "chat",
   constraints: {},
   unavailableReasons: {},
   version: "test:v1",

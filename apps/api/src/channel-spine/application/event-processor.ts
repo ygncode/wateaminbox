@@ -195,6 +195,9 @@ async function applyDurableEvent(
       return applyAttachmentEvent(trx, event);
     case "sync.checkpoint":
       return applySyncCheckpoint(trx, event);
+    case "endpoint.state":
+      await applyEndpointState(trx, event);
+      return {};
     default:
       throw new Error(`unsupported_durable_event:${event.kind}`);
   }
@@ -944,6 +947,45 @@ async function ensureConversation(
     .returning("id")
     .executeTakeFirstOrThrow();
   return inserted.id;
+}
+
+/**
+ * Record what the provider says about one endpoint on this account.
+ *
+ * Deliberately limited to `endpoint_account_states`: a provider block or an
+ * unsubscribe is a provider fact, and turning it into a customer suppression
+ * would let one channel silently decide do-not-contact for every channel.
+ * Fields the event leaves out keep their stored value.
+ */
+async function applyEndpointState(
+  trx: Transaction<TenantDatabase>,
+  event: Extract<NormalizedChannelEvent, { kind: "endpoint.state" }>,
+): Promise<void> {
+  const { providerBlockState, reachability } = event.payload;
+  if (!providerBlockState && !reachability) return;
+  const endpointId = await ensureEndpoint(trx, event, event.payload.endpoint);
+  const now = new Date();
+  await trx
+    .insertInto("endpoint_account_states")
+    .values({
+      channel_account_id: event.channelAccountId,
+      contact_endpoint_id: endpointId,
+      provider_block_state: providerBlockState ?? "unknown",
+      provider_status: reachability ?? null,
+      updated_at: now,
+    })
+    .onConflict((conflict) =>
+      conflict
+        .columns(["channel_account_id", "contact_endpoint_id"])
+        .doUpdateSet({
+          ...(providerBlockState
+            ? { provider_block_state: providerBlockState }
+            : {}),
+          ...(reachability ? { provider_status: reachability } : {}),
+          updated_at: now,
+        }),
+    )
+    .execute();
 }
 
 async function ensureEndpoint(

@@ -96,6 +96,12 @@ export function unavailableCapabilities(
       remoteHistory: false,
     },
     attachment: { enabled: false },
+    blocking: {
+      provider: false,
+      providerStopsInbound: false,
+      reportsRemoteBlock: false,
+    },
+    inboundVolumeClass: "chat",
     constraints: {},
     unavailableReasons: {
       typing: reason,

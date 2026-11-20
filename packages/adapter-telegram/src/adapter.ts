@@ -122,6 +122,17 @@ export class TelegramBotAdapter implements ChannelAdapter {
   }
 
   async perform(action: ChannelActionIntent): Promise<ProviderActionResult> {
+    // The Bot API has no per-user block for private chats. Answer before any
+    // transport work so the caller records "not supported", not a failure.
+    if (
+      action.operation === "endpoint.block" ||
+      action.operation === "endpoint.unblock"
+    ) {
+      return {
+        outcome: "unsupported",
+        errorCode: "telegram_block_unsupported",
+      };
+    }
     if (!this.#outboundTransport) {
       return { outcome: "permanent_failure", errorCode: "adapter_not_wired" };
     }
@@ -265,6 +276,15 @@ export function telegramBotCapabilities(): ResolvedCapabilities {
       remoteHistory: false,
     },
     attachment: { enabled: true, maxCount: 1 },
+    // The Bot API cannot block a user in a private chat; only the workspace
+    // can drop their updates. A user blocking the bot arrives as
+    // `my_chat_member` once the webhook subscribes to it.
+    blocking: {
+      provider: false,
+      providerStopsInbound: false,
+      reportsRemoteBlock: true,
+    },
+    inboundVolumeClass: "chat",
     constraints: {
       webhookAuthentication: "secret_token",
       outboundRequiresKnownChat: true,
