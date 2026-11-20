@@ -1154,7 +1154,31 @@
     "exists": "Vorhanden",
     "newLabel": "Neu",
     "andMore_one": "Und {{count}} weiterer Kontakt...",
-    "andMore_other": "Und {{count}} weitere Kontakte..."
+    "andMore_other": "Und {{count}} weitere Kontakte...",
+    "suppression": {
+      "title": "Blockieren und stummschalten",
+      "blocked": "Auf allen Kanälen blockiert",
+      "blockedHint": "Neue Nachrichten dieses Kunden werden verworfen, und niemand kann ihm schreiben.",
+      "muted": "Stummgeschaltet",
+      "mutedUntil": "Stummgeschaltet bis {{time}}",
+      "mutedHint": "Nachrichten kommen weiterhin an, ohne Benachrichtigungen oder Ungelesen-Zähler.",
+      "active": "Nicht blockiert",
+      "activeHint": "Nachrichten dieses Kunden kommen normal an.",
+      "block": "Blockieren",
+      "unblock": "Freigeben",
+      "mute": "Stummschalten",
+      "unmute": "Stummschaltung aufheben",
+      "mute1h": "1 Stunde stummschalten",
+      "mute24h": "24 Stunden stummschalten",
+      "muteForever": "Stummschalten, bis ich es aufhebe",
+      "confirmTitle": "{{name}} blockieren?",
+      "confirmBody": "Neue Nachrichten auf allen Kanälen werden verworfen, und niemand in diesem Arbeitsbereich kann ihm schreiben. Du kannst die Blockierung jederzeit aufheben.",
+      "notEnforced": "Blockieren ist für diesen Arbeitsbereich noch nicht eingeschaltet. Die Auswahl ist gespeichert und gilt, sobald es eingeschaltet ist.",
+      "providerBlocked": "Auch von {{channel}} blockiert",
+      "unreachable": "Dieser Kunde hat dich auf {{channel}} blockiert oder verlassen",
+      "dropped": "{{count}} Nachrichten verworfen",
+      "failed": "Die Blockierung konnte nicht geändert werden. Versuche es erneut."
+    }
   },
   "groups": {
     "participants": "Teilnehmer",

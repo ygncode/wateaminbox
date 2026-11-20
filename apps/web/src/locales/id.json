@@ -1134,7 +1134,31 @@
     "status": "Status",
     "exists": "Sudah ada",
     "newLabel": "Baru",
-    "andMore_other": "Dan {{count}} kontak lainnya..."
+    "andMore_other": "Dan {{count}} kontak lainnya...",
+    "suppression": {
+      "title": "Blokir dan bisukan",
+      "blocked": "Diblokir di semua saluran",
+      "blockedHint": "Pesan baru dari pelanggan ini dibuang dan tidak ada yang bisa mengirim pesan kepadanya.",
+      "muted": "Dibisukan",
+      "mutedUntil": "Dibisukan hingga {{time}}",
+      "mutedHint": "Pesan tetap masuk, tanpa notifikasi atau tanda belum dibaca.",
+      "active": "Tidak diblokir",
+      "activeHint": "Pesan dari pelanggan ini masuk seperti biasa.",
+      "block": "Blokir",
+      "unblock": "Buka blokir",
+      "mute": "Bisukan",
+      "unmute": "Bunyikan",
+      "mute1h": "Bisukan 1 jam",
+      "mute24h": "Bisukan 24 jam",
+      "muteForever": "Bisukan sampai saya membunyikan",
+      "confirmTitle": "Blokir {{name}}?",
+      "confirmBody": "Pesan barunya di semua saluran dibuang dan tidak ada seorang pun di ruang kerja ini yang bisa mengirim pesan kepadanya. Anda dapat membuka blokir kapan saja.",
+      "notEnforced": "Pemblokiran belum diaktifkan untuk ruang kerja ini. Pilihan disimpan dan berlaku setelah diaktifkan.",
+      "providerBlocked": "Juga diblokir oleh {{channel}}",
+      "unreachable": "Pelanggan ini memblokir atau meninggalkan Anda di {{channel}}",
+      "dropped": "{{count}} pesan dibuang",
+      "failed": "Tidak dapat memperbarui blokir. Coba lagi."
+    }
   },
   "groups": {
     "participants": "Peserta",

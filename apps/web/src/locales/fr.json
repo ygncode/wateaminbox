@@ -1174,7 +1174,31 @@
     "newLabel": "Nouveau",
     "andMore_one": "Et {{count}} autre contact...",
     "andMore_many": "Et {{count}} autres contacts...",
-    "andMore_other": "Et {{count}} autres contacts..."
+    "andMore_other": "Et {{count}} autres contacts...",
+    "suppression": {
+      "title": "Bloquer et mettre en sourdine",
+      "blocked": "Bloqué sur tous les canaux",
+      "blockedHint": "Les nouveaux messages de ce client sont ignorés et personne ne peut lui écrire.",
+      "muted": "En sourdine",
+      "mutedUntil": "En sourdine jusqu'à {{time}}",
+      "mutedHint": "Les messages arrivent toujours, sans notifications ni badges non lus.",
+      "active": "Non bloqué",
+      "activeHint": "Les messages de ce client arrivent normalement.",
+      "block": "Bloquer",
+      "unblock": "Débloquer",
+      "mute": "Sourdine",
+      "unmute": "Réactiver",
+      "mute1h": "Sourdine pendant 1 heure",
+      "mute24h": "Sourdine pendant 24 heures",
+      "muteForever": "Sourdine jusqu'à réactivation",
+      "confirmTitle": "Bloquer {{name}} ?",
+      "confirmBody": "Ses nouveaux messages sur tous les canaux sont ignorés et personne dans cet espace de travail ne peut lui écrire. Vous pouvez le débloquer à tout moment.",
+      "notEnforced": "Le blocage n'est pas encore activé pour cet espace de travail. Le choix est enregistré et s'appliquera une fois activé.",
+      "providerBlocked": "Également bloqué par {{channel}}",
+      "unreachable": "Ce client vous a bloqué ou quitté sur {{channel}}",
+      "dropped": "{{count}} messages ignorés",
+      "failed": "Impossible de mettre à jour le blocage. Réessayez."
+    }
   },
   "groups": {
     "participants": "Participants",

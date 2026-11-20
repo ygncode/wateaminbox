@@ -2,7 +2,7 @@ import { Ban, Loader2 } from "lucide-react";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { useBlockContact } from "@/hooks/contact";
+import { useSetContactSuppression } from "@/hooks/contact/useContactSuppression";
 
 interface BlockedContactBarProps {
   contactId: string;
@@ -31,11 +31,14 @@ export function BlockedContactBar({
   const { t } = useTranslation();
   const descriptionId = useId();
 
-  const blockContact = useBlockContact();
+  // Lifting the customer block works on every channel and also unblocks a
+  // WhatsApp half on the phone, so a Telegram-only customer can be unblocked
+  // here too (the WhatsApp-only PATCH toggle cannot).
+  const blockContact = useSetContactSuppression(contactId);
 
   const handleUnblock = () => {
     blockContact.mutate(
-      { contactId, isBlocked: false },
+      { scope: "block", on: false },
       {
         onSuccess: () =>
           toast.success(

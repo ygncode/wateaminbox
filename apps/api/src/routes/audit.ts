@@ -145,6 +145,8 @@ auditRoutes.get("/actions", async (c) => {
     "contact.unassigned",
     "contact.blocked",
     "contact.unblocked",
+    "contact.muted",
+    "contact.unmuted",
     "contact.note.created",
     "contact.note.updated",
     "contact.note.deleted",
