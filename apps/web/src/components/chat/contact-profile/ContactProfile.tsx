@@ -87,7 +87,7 @@ export function ContactProfile({
         {isProfileLoading ? (
           <ContactProfileSkeleton />
         ) : !profileContact ? (
-          <div className="p-4 text-center text-red-500 dark:text-red-400">
+          <div className="p-4 text-center text-danger">
             {t(
               "contacts.profileLoadFailed",
               "Failed to load contact information",
@@ -161,7 +161,7 @@ export function ContactProfile({
 
             <RightPanelSection title={t("export.title", "Export")}>
               <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
+                <p className="text-sm text-fg-muted">
                   {t(
                     "contacts.downloadConversation",
                     "Download this conversation as CSV or JSON",
@@ -171,7 +171,7 @@ export function ContactProfile({
                   size="sm"
                   variant="outline"
                   onClick={() => setShowExportDialog(true)}
-                  className="gap-1 dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
+                  className="gap-1"
                 >
                   <Download className="h-4 w-4" />
                   Export

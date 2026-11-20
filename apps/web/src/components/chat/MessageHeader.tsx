@@ -54,7 +54,7 @@ interface MessageHeaderProps {
  * row in the conversation and the one most often mis-tapped while scrolling.
  */
 const actionButtonClass =
-  "grid size-11 shrink-0 touch-manipulation place-items-center rounded-full text-[#54656f] transition-colors hover:bg-black/[0.055] active:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10 md:size-10";
+  "grid size-11 shrink-0 touch-manipulation place-items-center rounded-full text-fg-muted transition-colors hover:bg-fg/[0.055] active:bg-fg/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 md:size-10";
 
 export function MessageHeader({
   contact,
@@ -114,7 +114,7 @@ export function MessageHeader({
     // of the screen and owns the notch inset (height included, not eaten).
     <header
       className={cn(
-        "flex shrink-0 items-center gap-0.5 border-b border-black/[0.06] bg-[#f0f2f5] px-1 dark:border-white/[0.06] dark:bg-dark-secondary md:gap-2 md:px-3",
+        "flex shrink-0 items-center gap-0.5 border-b border-line/[0.06] bg-muted px-1 md:gap-2 md:px-3",
         CONVERSATION_HEADER_INSET_CLASS,
       )}
     >
@@ -140,10 +140,10 @@ export function MessageHeader({
       <button
         type="button"
         onClick={onOpenProfile}
-        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1 py-1 text-start transition-colors hover:bg-black/[0.04] active:bg-black/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:hover:bg-white/[0.05] dark:active:bg-white/[0.08] md:gap-3 md:px-2"
+        className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1 py-1 text-start transition-colors hover:bg-fg/[0.04] active:bg-fg/[0.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 md:gap-3 md:px-2"
       >
         <span className="relative shrink-0">
-          <span className="block size-10 overflow-hidden rounded-full bg-gray-300 dark:bg-dark-tertiary">
+          <span className="block size-10 overflow-hidden rounded-full bg-fg-subtle">
             {contact.avatarUrl ? (
               <img
                 src={contact.avatarUrl}
@@ -160,13 +160,13 @@ export function MessageHeader({
             )}
           </span>
           {contact.isOnline && (
-            <span className="absolute bottom-0 end-0 size-3 rounded-full bg-whatsapp-green ring-2 ring-[#f0f2f5] dark:ring-dark-secondary" />
+            <span className="absolute bottom-0 end-0 size-3 rounded-full bg-primary ring-2 ring-line-strong" />
           )}
         </span>
 
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex min-w-0 items-center gap-2">
-            <h2 className="truncate text-[16px] font-semibold leading-5 tracking-[-0.01em] text-[#111b21] dark:text-dark-text-primary">
+            <h2 className="truncate text-[16px] font-semibold leading-5 tracking-[-0.01em] text-fg">
               {displayName}
             </h2>
             {/* The account pill needs room to stay legible; on a phone the
@@ -187,7 +187,7 @@ export function MessageHeader({
                   />
                 ) : (
                   thread?.accountName && (
-                    <span className="hidden max-w-[110px] shrink truncate rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-700 dark:bg-dark-tertiary dark:text-dark-text-primary md:inline-flex">
+                    <span className="hidden max-w-[110px] shrink truncate rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-fg md:inline-flex">
                       {thread.accountName}
                     </span>
                   )
@@ -198,7 +198,7 @@ export function MessageHeader({
                 where an operator checks who they are talking to before
                 replying, and the badges above describe only the open one. */}
             {isMerged && (
-              <span className="hidden shrink-0 whitespace-nowrap text-[11px] text-[#667781] dark:text-dark-text-secondary md:inline">
+              <span className="hidden shrink-0 whitespace-nowrap text-[11px] text-fg-muted md:inline">
                 {t("chat.mergedThreadCount", {
                   count: threadCount,
                   defaultValue: "· {{count}} chats",
@@ -209,7 +209,7 @@ export function MessageHeader({
 
           <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] leading-4">
             {isTyping ? (
-              <span className="shrink-0 font-medium text-whatsapp-green">
+              <span className="shrink-0 font-medium text-accent">
                 <span className="typing-indicator">
                   {t("chat.typingShort", "typing")}
                   <span className="typing-dots" />
@@ -217,16 +217,14 @@ export function MessageHeader({
               </span>
             ) : (
               statusText && (
-                <span className="truncate text-[#667781] dark:text-dark-text-secondary">
-                  {statusText}
-                </span>
+                <span className="truncate text-fg-muted">{statusText}</span>
               )
             )}
             {(connection || thread?.accountName) && (
               <>
                 {(isTyping || statusText) && (
                   <span
-                    className="size-0.5 shrink-0 rounded-full bg-[#aebac1] dark:bg-dark-border"
+                    className="size-0.5 shrink-0 rounded-full bg-fg-subtle"
                     aria-hidden="true"
                   />
                 )}

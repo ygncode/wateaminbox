@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export function ContactProfileSkeleton() {
   return (
     <div>
-      <div className="flex flex-col items-center gap-2 bg-gray-50 py-5 dark:bg-dark-elevated">
+      <div className="flex flex-col items-center gap-2 bg-subtle py-5">
         <Skeleton className="size-20 rounded-full" />
         <Skeleton className="h-5 w-40" />
         <Skeleton className="h-3 w-28" />
@@ -14,7 +14,7 @@ export function ContactProfileSkeleton() {
       {Array.from({ length: 5 }).map((_, index) => (
         <section
           key={index}
-          className="border-b border-gray-200 bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-secondary"
+          className="border-b border-line bg-surface px-4 py-3"
         >
           <Skeleton className="h-3.5 w-24" />
           <div className="mt-3 space-y-2.5">

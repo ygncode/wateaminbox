@@ -617,7 +617,7 @@ function ConversationLoadingState() {
           height when the contact resolves. */}
       <div
         className={cn(
-          "flex items-center gap-3 border-b border-gray-200 bg-gray-100 px-4 dark:border-dark-border dark:bg-dark-secondary",
+          "flex items-center gap-3 border-b border-line bg-muted px-4",
           CONVERSATION_HEADER_INSET_CLASS,
         )}
         aria-hidden="true"
@@ -634,12 +634,12 @@ function ConversationLoadingState() {
       <ConversationMessagesSkeleton decorative />
 
       <div
-        className="flex min-h-[64px] items-center gap-3 border-t border-gray-200 bg-gray-100 px-3 py-2.5 dark:border-dark-border dark:bg-dark-secondary"
+        className="flex min-h-[64px] items-center gap-3 border-t border-line bg-muted px-3 py-2.5"
         aria-hidden="true"
       >
         <Skeleton className="size-9 shrink-0 rounded-full" />
-        <Skeleton className="h-10 flex-1 rounded-[1.35rem] bg-white dark:bg-dark-tertiary" />
-        <Skeleton className="size-10 shrink-0 rounded-full bg-[#0b6b5d]/30 dark:bg-[#00a884]/30" />
+        <Skeleton className="h-10 flex-1 rounded-[1.35rem] bg-surface" />
+        <Skeleton className="size-10 shrink-0 rounded-full bg-accent/30" />
       </div>
     </div>
   );
@@ -657,7 +657,7 @@ function ConversationLoadError({
   const { t } = useTranslation();
 
   return (
-    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#f6f8f9] px-6 dark:bg-[#0b141a]">
+    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-subtle px-6">
       <div
         className="absolute inset-0 opacity-[0.035] dark:opacity-[0.09]"
         style={{
@@ -668,13 +668,13 @@ function ConversationLoadError({
         aria-hidden="true"
       />
       <div className="relative flex max-w-sm flex-col items-center text-center">
-        <span className="grid size-14 place-items-center rounded-2xl bg-red-50 text-red-600 ring-1 ring-red-100 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50">
+        <span className="grid size-14 place-items-center rounded-2xl bg-danger-soft text-danger ring-1 ring-danger">
           <CircleAlert className="size-6" aria-hidden="true" />
         </span>
-        <h2 className="mt-5 text-lg font-semibold tracking-tight text-[#263a33] dark:text-dark-text-primary">
+        <h2 className="mt-5 text-lg font-semibold tracking-tight text-fg">
           {t("chat.couldNotOpen", "Couldn't open this conversation")}
         </h2>
-        <p className="mt-2 text-sm leading-6 text-[#667781] dark:text-dark-text-secondary">
+        <p className="mt-2 text-sm leading-6 text-fg-muted">
           {message ||
             t(
               "chat.conversationLoadFailed",
@@ -685,7 +685,7 @@ function ConversationLoadError({
           <button
             type="button"
             onClick={onRetry}
-            className="inline-flex h-10 items-center gap-2 rounded-full bg-[#0b6b5d] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#095b50] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 dark:bg-[#00a884] dark:text-[#071b16] dark:hover:bg-[#06bd96]"
+            className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-on-primary transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <RotateCcw className="size-4" aria-hidden="true" />
             {t("chat.tryAgain", "Try again")}
@@ -693,7 +693,7 @@ function ConversationLoadError({
           <button
             type="button"
             onClick={onBackToInbox}
-            className="inline-flex h-10 items-center rounded-full border border-[#dce4e7] bg-white px-4 text-sm font-semibold text-[#54656f] transition-colors hover:bg-[#edf1f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 dark:border-white/10 dark:bg-white/[0.055] dark:text-dark-text-secondary dark:hover:bg-white/10"
+            className="inline-flex h-10 items-center rounded-full border border-line bg-surface px-4 text-sm font-semibold text-fg-muted transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             {t("chat.backToInbox", "Back to inbox")}
           </button>
@@ -708,7 +708,7 @@ function InboxConnectionLoadingState() {
 
   return (
     <div
-      className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#f6f8f9] dark:bg-[#0b141a]"
+      className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-subtle"
       role="status"
       aria-label={t("chat.checkingChannels", "Checking connected channels")}
       aria-busy="true"
@@ -742,7 +742,7 @@ function InboxFirstRunState({
   const { t } = useTranslation();
 
   return (
-    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-y-auto bg-[#f4f7f5] px-5 py-8 dark:bg-[#0b141a] sm:px-8">
+    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-y-auto bg-subtle px-5 py-8 sm:px-8">
       <div
         className="absolute inset-0 opacity-[0.035] dark:opacity-[0.085]"
         style={{
@@ -752,25 +752,21 @@ function InboxFirstRunState({
         }}
         aria-hidden="true"
       />
-      <div
-        className="absolute start-1/2 top-1/2 h-[34rem] w-[46rem] -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 rounded-full bg-[#cdeadd]/45 blur-3xl dark:bg-[#00a884]/[0.07]"
-        aria-hidden="true"
-      />
 
-      <section className="relative grid w-full max-w-4xl overflow-hidden rounded-[2rem] border border-[#d7e2dc] bg-white/90 shadow-[0_28px_80px_-44px_rgba(16,58,44,0.55)] backdrop-blur-sm dark:border-white/[0.09] dark:bg-[#111d22]/95 dark:shadow-black/50 lg:grid-cols-[1.05fr_0.95fr]">
+      <section className="relative grid w-full max-w-4xl overflow-hidden rounded-[2rem] border border-line bg-overlay/90 shadow-lg backdrop-blur-sm lg:grid-cols-[1.05fr_0.95fr]">
         <div className="flex flex-col justify-center px-7 py-9 sm:px-10 sm:py-12 lg:px-12">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#cfe3da] bg-[#eef7f3] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.15em] text-[#167459] dark:border-[#00a884]/20 dark:bg-[#00a884]/10 dark:text-[#53d7b8]">
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-line bg-subtle px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.15em] text-accent">
             <span className="relative flex size-2">
-              <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#27a780] opacity-40" />
-              <span className="relative inline-flex size-2 rounded-full bg-[#168264]" />
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-40" />
+              <span className="relative inline-flex size-2 rounded-full bg-primary" />
             </span>
             {t("chat.sharedInboxSetup", "Shared inbox setup")}
           </div>
 
-          <h1 className="mt-6 max-w-lg text-[2rem] font-semibold leading-[1.08] tracking-[-0.045em] text-[#19372d] dark:text-dark-text-primary sm:text-[2.55rem]">
+          <h1 className="mt-6 max-w-lg text-[2rem] font-semibold leading-[1.08] tracking-[-0.045em] text-fg sm:text-[2.55rem]">
             {t("chat.connectChannelsTitle", "Connect your first channel")}
           </h1>
-          <p className="mt-5 max-w-lg text-[15px] leading-7 text-[#61736c] dark:text-dark-text-secondary">
+          <p className="mt-5 max-w-lg text-[15px] leading-7 text-fg-muted">
             {canManageConnections
               ? t(
                   "chat.connectChannelsHint",
@@ -786,10 +782,10 @@ function InboxFirstRunState({
             <button
               type="button"
               onClick={onConnect}
-              className="mt-8 inline-flex h-12 w-fit items-center gap-3 rounded-xl bg-[#14795e] px-5 text-sm font-semibold text-white shadow-[0_14px_30px_-16px_rgba(20,121,94,0.9)] transition-all hover:-translate-y-0.5 hover:bg-[#0f684f] hover:shadow-[0_18px_34px_-16px_rgba(20,121,94,0.95)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 dark:bg-[#20b68e] dark:text-[#071b16] dark:hover:bg-[#35c59e] dark:focus-visible:ring-offset-[#111d22]"
+              className="mt-8 inline-flex h-12 w-fit items-center gap-3 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary shadow-lg transition-all hover:-translate-y-0.5 hover:bg-primary-hover hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {t("chat.connectChannels", "Connect channels")}
-              <span className="grid size-6 place-items-center rounded-md bg-white/15 dark:bg-black/10">
+              <span className="grid size-6 place-items-center rounded-md bg-on-primary/15">
                 <ArrowRight
                   className="size-4 rtl:-scale-x-100"
                   aria-hidden="true"
@@ -798,8 +794,8 @@ function InboxFirstRunState({
             </button>
           )}
 
-          <div className="mt-8 flex items-start gap-2.5 border-t border-[#e3eae6] pt-5 text-xs leading-5 text-[#71827b] dark:border-white/[0.08] dark:text-dark-text-tertiary">
-            <CheckCheck className="mt-0.5 size-4 shrink-0 text-[#168264] dark:text-[#42c8a7]" />
+          <div className="mt-8 flex items-start gap-2.5 border-t border-line pt-5 text-xs leading-5 text-fg-muted">
+            <CheckCheck className="mt-0.5 size-4 shrink-0 text-accent" />
             <span>
               {t(
                 "chat.channelCredentialsHint",
@@ -809,12 +805,12 @@ function InboxFirstRunState({
           </div>
         </div>
 
-        <div className="relative flex min-h-[27rem] flex-col border-t border-[#d7e2dc] bg-[#eaf4ef] p-7 dark:border-white/[0.08] dark:bg-[#0d2824] lg:border-s lg:border-t-0">
+        <div className="relative flex min-h-[27rem] flex-col border-t border-line bg-muted p-7 lg:border-s lg:border-t-0">
           <div>
-            <p className="text-sm font-semibold text-[#27483d] dark:text-[#d5e8e1]">
+            <p className="text-sm font-semibold text-accent">
               {t("chat.chooseChannelTitle", "Choose where to start")}
             </p>
-            <p className="mt-1 text-xs leading-5 text-[#72847c] dark:text-[#88a39a]">
+            <p className="mt-1 text-xs leading-5 text-fg-muted">
               {t(
                 "chat.chooseChannelHint",
                 "Connect the channels your customers already use.",
@@ -823,10 +819,10 @@ function InboxFirstRunState({
           </div>
 
           <div className="my-7 grid gap-3">
-            <div className="group relative overflow-hidden rounded-2xl border border-[#c8ddd4] bg-white/70 p-4 shadow-[0_14px_34px_-28px_rgba(18,86,64,0.8)] dark:border-white/10 dark:bg-white/[0.045]">
-              <div className="absolute -end-8 -top-8 size-24 rounded-full bg-[#25d366]/10 blur-2xl" />
+            <div className="group relative overflow-hidden rounded-2xl border border-line-strong bg-surface/70 p-4 shadow-lg">
+              <div className="absolute -end-8 -top-8 size-24 rounded-full bg-accent/10 blur-2xl" />
               <div className="relative flex items-center gap-4">
-                <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#e6f7ef] text-[#12845f] ring-1 ring-[#cbe8dc] dark:bg-[#25d366]/10 dark:text-[#55df9a] dark:ring-[#25d366]/15">
+                <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent ring-1 ring-ring">
                   <QrCode
                     className="size-6"
                     strokeWidth={1.7}
@@ -835,14 +831,14 @@ function InboxFirstRunState({
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-[#24483c] dark:text-[#d9ebe4]">
+                    <p className="font-semibold text-accent">
                       {t("chat.whatsappChannel", "WhatsApp")}
                     </p>
-                    <span className="rounded-full bg-[#e7f6ef] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[#167459] dark:bg-[#25d366]/10 dark:text-[#62dfa1]">
+                    <span className="rounded-full bg-accent-soft px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-accent">
                       {t("chat.readyNow", "Ready now")}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs leading-5 text-[#71827b] dark:text-[#8da79e]">
+                  <p className="mt-1 text-xs leading-5 text-fg-muted">
                     {t(
                       "chat.whatsappConnectHint",
                       "Pair securely with a QR code",
@@ -852,10 +848,10 @@ function InboxFirstRunState({
               </div>
             </div>
 
-            <div className="group relative overflow-hidden rounded-2xl border border-[#c8dce1] bg-white/70 p-4 shadow-[0_14px_34px_-28px_rgba(33,112,145,0.75)] dark:border-white/10 dark:bg-white/[0.045]">
-              <div className="absolute -end-8 -top-8 size-24 rounded-full bg-[#229ed9]/10 blur-2xl" />
+            <div className="group relative overflow-hidden rounded-2xl border border-line-strong bg-surface/70 p-4 shadow-lg">
+              <div className="absolute -end-8 -top-8 size-24 rounded-full bg-info/10 blur-2xl" />
               <div className="relative flex items-center gap-4">
-                <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#e9f5fa] text-[#1684b7] ring-1 ring-[#cee6f0] dark:bg-[#229ed9]/10 dark:text-[#62c7f5] dark:ring-[#229ed9]/15">
+                <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-info-soft text-info ring-1 ring-info">
                   <Send
                     className="size-6"
                     strokeWidth={1.7}
@@ -864,14 +860,14 @@ function InboxFirstRunState({
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-[#24483c] dark:text-[#d9ebe4]">
+                    <p className="font-semibold text-accent">
                       {t("chat.telegramChannel", "Telegram Bot")}
                     </p>
-                    <span className="rounded-full bg-[#e9f5fa] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-[#187da9] dark:bg-[#229ed9]/10 dark:text-[#6bcaf3]">
+                    <span className="rounded-full bg-info-soft px-2 py-1 text-[9px] font-bold uppercase tracking-[0.1em] text-info">
                       {t("chat.readyNow", "Ready now")}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs leading-5 text-[#71827b] dark:text-[#8da79e]">
+                  <p className="mt-1 text-xs leading-5 text-fg-muted">
                     {t(
                       "chat.telegramConnectHint",
                       "Add a bot token from BotFather",
@@ -882,20 +878,19 @@ function InboxFirstRunState({
             </div>
           </div>
 
-          <div className="mt-auto flex items-center gap-3 rounded-2xl border border-dashed border-[#bfd7cd] bg-white/35 px-4 py-3 dark:border-white/10 dark:bg-white/[0.025]">
+          <div className="mt-auto flex items-center gap-3 rounded-2xl border border-dashed border-line-strong bg-subtle px-4 py-3">
             <span
               className="flex -space-x-1.5 rtl:space-x-reverse"
               aria-hidden="true"
             >
-              {["#df8b63", "#7b9bd1", "#b58bca"].map((color) => (
+              {["bg-id-5", "bg-id-7", "bg-id-3"].map((color) => (
                 <span
                   key={color}
-                  className="size-5 rounded-full border-2 border-[#eef6f2] dark:border-[#102824]"
-                  style={{ backgroundColor: color }}
+                  className={`size-5 rounded-full border-2 border-surface ${color}`}
                 />
               ))}
             </span>
-            <p className="text-[11px] font-semibold text-[#577168] dark:text-[#9ab6ac]">
+            <p className="text-[11px] font-semibold text-fg-muted">
               {t("chat.moreChannelsSoon", "More channels are on the way")}
             </p>
           </div>
@@ -917,7 +912,7 @@ function InboxEmptyState({
   const isGroupView = activeView === "groups";
 
   return (
-    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-[#f6f8f9] dark:bg-[#0b141a]">
+    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-subtle">
       <div
         className="absolute inset-0 opacity-[0.035] dark:opacity-[0.09]"
         style={{
@@ -928,34 +923,34 @@ function InboxEmptyState({
         aria-hidden="true"
       />
       <div
-        className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.96)_0%,rgba(246,248,249,0.72)_46%,rgba(246,248,249,0)_76%)] dark:bg-[radial-gradient(circle_at_center,rgba(32,44,51,0.68)_0%,rgba(11,20,26,0.32)_48%,rgba(11,20,26,0)_78%)]"
+        className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--surface)_0%,transparent_76%)]"
         aria-hidden="true"
       />
 
       <div className="relative -mt-8 flex max-w-lg flex-col items-center px-8 text-center">
         <div className="relative mb-7 h-36 w-52" aria-hidden="true">
-          <div className="absolute start-1 top-7 h-24 w-32 -rotate-6 rounded-2xl border border-[#dce4e7] bg-white/70 p-4 shadow-sm backdrop-blur-sm dark:border-white/[0.07] dark:bg-[#202c33]/60">
-            <span className="block h-2 w-14 rounded-full bg-[#dfe6e8] dark:bg-white/10" />
-            <span className="mt-3 block h-2 w-20 rounded-full bg-[#edf1f2] dark:bg-white/[0.06]" />
-            <span className="mt-2 block h-2 w-12 rounded-full bg-[#edf1f2] dark:bg-white/[0.06]" />
+          <div className="absolute start-1 top-7 h-24 w-32 -rotate-6 rounded-2xl border border-line bg-overlay/70 p-4 shadow-sm backdrop-blur-sm">
+            <span className="block h-2 w-14 rounded-full bg-muted-strong" />
+            <span className="mt-3 block h-2 w-20 rounded-full bg-muted" />
+            <span className="mt-2 block h-2 w-12 rounded-full bg-muted" />
           </div>
 
-          <div className="absolute end-1 top-3 h-28 w-36 rotate-6 rounded-2xl border border-[#dce4e7] bg-white/80 p-4 shadow-sm backdrop-blur-sm dark:border-white/[0.07] dark:bg-[#202c33]/70">
-            <span className="ms-auto block h-8 w-20 rounded-xl rounded-ee-sm bg-[#d9fdd3] dark:bg-[#005c4b]" />
-            <span className="mt-3 block h-8 w-24 rounded-xl rounded-es-sm bg-[#edf1f2] dark:bg-white/[0.07]" />
+          <div className="absolute end-1 top-3 h-28 w-36 rotate-6 rounded-2xl border border-line bg-overlay/80 p-4 shadow-sm backdrop-blur-sm">
+            <span className="ms-auto block h-8 w-20 rounded-xl rounded-ee-sm bg-accent-soft" />
+            <span className="mt-3 block h-8 w-24 rounded-xl rounded-es-sm bg-muted" />
           </div>
 
-          <div className="absolute start-1/2 top-1/2 grid size-20 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 place-items-center rounded-[1.65rem] border border-white bg-[#0b6b5d] text-white shadow-[0_18px_45px_rgba(11,107,93,0.25)] dark:border-white/10 dark:bg-[#00a884] dark:shadow-black/30">
+          <div className="absolute start-1/2 top-1/2 grid size-20 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 place-items-center rounded-[1.65rem] border border-surface bg-primary text-on-primary shadow-lg">
             <MessagesSquare className="size-9" strokeWidth={1.65} />
           </div>
 
           {connectionState !== "unavailable" && (
             <span
               className={cn(
-                "absolute bottom-2 end-4 grid size-9 place-items-center rounded-full border-4 border-[#f6f8f9] shadow-sm dark:border-[#0b141a]",
+                "absolute bottom-2 end-4 grid size-9 place-items-center rounded-full border-4 border-line shadow-sm",
                 connectionState === "connected"
-                  ? "bg-[#d9fdd3] text-[#008069] dark:bg-[#005c4b] dark:text-[#53bdeb]"
-                  : "bg-[#fff0c7] text-[#a15c00] dark:bg-[#3b3525] dark:text-[#ffd279]",
+                  ? "bg-accent-soft text-accent"
+                  : "bg-warning-soft text-warning",
               )}
             >
               {connectionState === "connected" ? (
@@ -965,22 +960,22 @@ function InboxEmptyState({
               )}
             </span>
           )}
-          <span className="absolute bottom-0 start-5 grid size-10 place-items-center rounded-full border-4 border-[#f6f8f9] bg-[#fff0c7] text-[#a15c00] shadow-sm dark:border-[#0b141a] dark:bg-[#3b3525] dark:text-[#ffd279]">
+          <span className="absolute bottom-0 start-5 grid size-10 place-items-center rounded-full border-4 border-line bg-warning-soft text-warning shadow-sm">
             <UsersRound className="size-4.5" strokeWidth={1.9} />
           </span>
         </div>
 
-        <p className="text-[11px] font-semibold uppercase tracking-[0.19em] text-[#008069] dark:text-[#00a884]">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.19em] text-accent">
           {isGroupView
             ? t("chat.teamGroups", "Team groups")
             : t("chat.teamConversations", "Team conversations")}
         </p>
-        <h2 className="mt-2 text-[1.7rem] font-semibold tracking-[-0.025em] text-[#263a33] dark:text-dark-text-primary">
+        <h2 className="mt-2 text-[1.7rem] font-semibold tracking-[-0.025em] text-fg">
           {isGroupView
             ? t("chat.chooseGroup", "Choose a group to open")
             : t("chat.chooseConversation", "Choose a conversation")}
         </h2>
-        <p className="mt-2.5 max-w-md text-[15px] leading-6 text-[#667781] dark:text-dark-text-secondary">
+        <p className="mt-2.5 max-w-md text-[15px] leading-6 text-fg-muted">
           {isGroupView
             ? t(
                 "chat.chooseGroupHint",
@@ -993,16 +988,16 @@ function InboxEmptyState({
         </p>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dce4e7] bg-white/70 px-3 py-1.5 text-xs font-medium text-[#54656f] shadow-sm backdrop-blur-sm dark:border-white/[0.08] dark:bg-white/[0.045] dark:text-dark-text-secondary">
-            <UsersRound className="size-3.5 text-[#008069] dark:text-[#00a884]" />
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/70 px-3 py-1.5 text-xs font-medium text-fg-muted shadow-sm backdrop-blur-sm">
+            <UsersRound className="size-3.5 text-accent" />
             {t("chat.sharedTeamContext", "Shared team context")}
           </span>
           {connectionState !== "unavailable" && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#dce4e7] bg-white/70 px-3 py-1.5 text-xs font-medium text-[#54656f] shadow-sm backdrop-blur-sm dark:border-white/[0.08] dark:bg-white/[0.045] dark:text-dark-text-secondary">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/70 px-3 py-1.5 text-xs font-medium text-fg-muted shadow-sm backdrop-blur-sm">
               {connectionState === "connected" ? (
-                <CheckCheck className="size-3.5 text-[#008069] dark:text-[#00a884]" />
+                <CheckCheck className="size-3.5 text-accent" />
               ) : (
-                <CircleAlert className="size-3.5 text-[#a15c00] dark:text-[#ffd279]" />
+                <CircleAlert className="size-3.5 text-warning" />
               )}
               {connectionState === "connected"
                 ? t("chat.whatsappSynced", "WhatsApp synced")
@@ -1012,7 +1007,7 @@ function InboxEmptyState({
         </div>
       </div>
 
-      <div className="absolute bottom-8 start-1/2 hidden -translate-x-1/2 rtl:translate-x-1/2 items-center gap-2 text-xs text-[#8696a0] dark:text-dark-text-tertiary sm:flex">
+      <div className="absolute bottom-8 start-1/2 hidden -translate-x-1/2 rtl:translate-x-1/2 items-center gap-2 text-xs text-fg-muted sm:flex">
         <ArrowLeft className="size-3.5 rtl:-scale-x-100" aria-hidden="true" />
         <span>
           {t("chat.selectChatHint", "Select a chat from the list to begin")}

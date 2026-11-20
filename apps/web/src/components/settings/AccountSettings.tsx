@@ -206,17 +206,17 @@ export function AccountSettings() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-2xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:border-dark-border dark:bg-dark-elevated sm:p-6">
+      <section className="rounded-2xl border border-line bg-surface p-5 shadow-xs sm:p-6">
         <h3 className="font-semibold">{t("account.profile", "Profile")}</h3>
-        <p className="mt-1 text-sm leading-6 text-[#65736d] dark:text-dark-text-secondary">
+        <p className="mt-1 text-sm leading-6 text-fg-muted">
           {t(
             "account.profileDescription",
             "Choose how your name and image appear to teammates.",
           )}
         </p>
 
-        <div className="mt-6 flex flex-col gap-5 border-b border-[#e4e9e5] pb-6 sm:flex-row sm:items-center dark:border-dark-border">
-          <Avatar className="h-24 w-24 rounded-2xl border border-[#dce3de] bg-[#edf1ed] shadow-sm dark:border-dark-border">
+        <div className="mt-6 flex flex-col gap-5 border-b border-line pb-6 sm:flex-row sm:items-center">
+          <Avatar className="h-24 w-24 rounded-2xl border border-line bg-muted shadow-sm">
             <AvatarImage
               src={avatarPreview}
               alt={t("account.avatarAlt", {
@@ -267,14 +267,14 @@ export function AccountSettings() {
                     setAvatarError(null);
                   }}
                   disabled={profileBusy}
-                  className="rounded-xl text-[#65736d]"
+                  className="rounded-xl text-fg-muted"
                 >
                   <ImagePlus aria-hidden="true" />
                   {t("account.useGravatar", "Use Gravatar")}
                 </Button>
               )}
             </div>
-            <p className="mt-2 text-xs leading-5 text-[#65736d] dark:text-dark-text-secondary">
+            <p className="mt-2 text-xs leading-5 text-fg-muted">
               {t("account.avatarHint", {
                 defaultValue:
                   "Gravatar is used from your email by default. Custom images can be up to {{mb}} MB, must be at least 128 × 128, and are automatically cropped to {{size}} × {{size}}.",
@@ -283,7 +283,7 @@ export function AccountSettings() {
               })}
             </p>
             {avatarError && (
-              <p className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400">
+              <p className="mt-1.5 text-xs font-medium text-danger">
                 {avatarError}
               </p>
             )}
@@ -345,7 +345,7 @@ export function AccountSettings() {
             <Button
               type="submit"
               disabled={profileBusy}
-              className="rounded-xl bg-[#075e54] text-white hover:bg-[#064b43]"
+              className="rounded-xl bg-primary text-on-primary hover:bg-primary-hover"
             >
               {isSavingProfile ? (
                 <LoaderCircle aria-hidden="true" className="animate-spin" />
@@ -360,16 +360,16 @@ export function AccountSettings() {
         </form>
       </section>
 
-      <section className="rounded-2xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:border-dark-border dark:bg-dark-elevated sm:p-6">
+      <section className="rounded-2xl border border-line bg-surface p-5 shadow-xs sm:p-6">
         <div className="flex items-start gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#e2f4e9] text-[#075e54] dark:bg-emerald-400/10 dark:text-emerald-300">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
             <KeyRound aria-hidden="true" className="h-5 w-5" />
           </span>
           <div>
             <h3 className="font-semibold">
               {t("account.password", "Password")}
             </h3>
-            <p className="mt-1 text-sm leading-6 text-[#65736d] dark:text-dark-text-secondary">
+            <p className="mt-1 text-sm leading-6 text-fg-muted">
               {t(
                 "account.passwordDescription",
                 "Updating your password keeps this session active and signs out your other devices.",
@@ -431,8 +431,8 @@ export function AccountSettings() {
             </div>
           </fieldset>
 
-          <div className="flex flex-col gap-3 border-t border-[#e4e9e5] pt-5 sm:flex-row sm:items-center sm:justify-between dark:border-dark-border">
-            <p className="flex items-center gap-2 text-xs text-[#65736d] dark:text-dark-text-secondary">
+          <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="flex items-center gap-2 text-xs text-fg-muted">
               <ShieldCheck aria-hidden="true" className="h-4 w-4" />
               {t(
                 "account.deviceStaysSignedIn",
@@ -442,7 +442,7 @@ export function AccountSettings() {
             <Button
               type="submit"
               disabled={isChangingPassword}
-              className="rounded-xl bg-[#075e54] text-white hover:bg-[#064b43]"
+              className="rounded-xl bg-primary text-on-primary hover:bg-primary-hover"
             >
               {isChangingPassword ? (
                 <LoaderCircle aria-hidden="true" className="animate-spin" />

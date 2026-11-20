@@ -36,13 +36,13 @@ export function ContactMultiSelect({
         <ul className="mb-2 flex flex-wrap gap-1.5">
           {[...selected.entries()].map(([contactId, displayName]) => (
             <li key={contactId}>
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#00a884]/10 py-1 ps-2.5 pe-1 text-xs font-medium text-[#008069] dark:bg-emerald-900/30 dark:text-emerald-300">
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 py-1 ps-2.5 pe-1 text-xs font-medium text-accent">
                 {displayName}
                 <button
                   type="button"
                   onClick={() => onToggle(contactId, displayName)}
                   aria-label={`Remove ${displayName}`}
-                  className="grid size-4.5 place-items-center rounded-full hover:bg-black/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:hover:bg-white/[0.1]"
+                  className="grid size-4.5 place-items-center rounded-full hover:bg-fg/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                 >
                   <X className="size-3" aria-hidden="true" />
                 </button>
@@ -54,7 +54,7 @@ export function ContactMultiSelect({
 
       <div className="relative">
         <Search
-          className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-[#8696a0] dark:text-dark-text-tertiary"
+          className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-fg-muted"
           aria-hidden="true"
         />
         <input
@@ -63,39 +63,36 @@ export function ContactMultiSelect({
           onChange={(event) => setSearchQuery(event.target.value)}
           placeholder={t("chat.searchContactsEllipsis", "Search contacts…")}
           aria-label={t("chat.searchContactsAria", "Search contacts")}
-          className="w-full rounded-lg border border-black/[0.1] bg-white py-2 ps-9 pe-9 text-sm text-[#111b21] outline-none placeholder:text-[#8696a0] focus:border-[#00a884] focus:ring-1 focus:ring-[#00a884]/40 dark:border-white/[0.1] dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary"
+          className="w-full rounded-lg border border-line/[0.1] bg-surface py-2 ps-9 pe-9 text-sm text-fg outline-none placeholder:text-fg-muted focus:border-accent focus:ring-1 focus:ring-ring/40"
         />
         {searchQuery && (
           <button
             type="button"
             onClick={() => setSearchQuery("")}
             aria-label={t("common.clearSearch", "Clear search")}
-            className="absolute end-2.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full text-[#8696a0] hover:bg-black/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06]"
+            className="absolute end-2.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full text-fg-muted hover:bg-fg/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
             <X className="size-3.5" aria-hidden="true" />
           </button>
         )}
       </div>
 
-      <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-black/[0.06] dark:border-white/[0.07]">
+      <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-line/[0.06]">
         {isLoading ? (
-          <p className="px-4 py-6 text-center text-sm text-[#667781] dark:text-dark-text-secondary">
+          <p className="px-4 py-6 text-center text-sm text-fg-muted">
             {t("broadcasts.loadingContacts", "Loading contacts…")}
           </p>
         ) : availableContacts.length === 0 ? (
           <div className="flex flex-col items-center px-4 py-6 text-center">
-            <Users
-              className="size-6 text-[#8696a0] dark:text-dark-text-tertiary"
-              aria-hidden="true"
-            />
-            <p className="mt-2 text-sm text-[#667781] dark:text-dark-text-secondary">
+            <Users className="size-6 text-fg-muted" aria-hidden="true" />
+            <p className="mt-2 text-sm text-fg-muted">
               {searchQuery
                 ? `No contacts match "${searchQuery}"`
                 : t("broadcasts.noContactsAvailable", "No contacts available")}
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-black/[0.04] dark:divide-white/[0.05]">
+          <ul className="divide-y divide-line/[0.04]">
             {availableContacts.map((chat) => {
               const { contact } = chat;
               const displayName = formatPhoneLikeText(
@@ -109,25 +106,25 @@ export function ContactMultiSelect({
                     role="checkbox"
                     aria-checked={isSelected}
                     onClick={() => onToggle(chat.id, displayName)}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-start transition-colors hover:bg-[#f5f7f4] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#00a884]/40 dark:hover:bg-dark-tertiary/60"
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-start transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40"
                   >
                     <span
                       className={cn(
                         "grid size-5 shrink-0 place-items-center rounded-md border transition-colors",
                         isSelected
-                          ? "border-[#00a884] bg-[#00a884] text-white"
-                          : "border-black/[0.15] dark:border-white/[0.2]",
+                          ? "border-accent bg-primary text-on-primary"
+                          : "border-line-strong",
                       )}
                       aria-hidden="true"
                     >
                       {isSelected && <Check className="size-3.5" />}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-[#111b21] dark:text-dark-text-primary">
+                      <span className="block truncate text-sm font-medium text-fg">
                         {displayName}
                       </span>
                       {contact.phoneNumber && (
-                        <span className="block truncate text-xs text-[#667781] dark:text-dark-text-tertiary">
+                        <span className="block truncate text-xs text-fg-muted">
                           {formatPhoneNumber(contact.phoneNumber)}
                         </span>
                       )}

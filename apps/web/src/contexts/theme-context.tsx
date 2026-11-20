@@ -1,4 +1,3 @@
-import i18n from "../lib/i18n";
 import {
   createContext,
   type ReactNode,
@@ -6,170 +5,183 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { toast } from "sonner";
+import i18n from "../lib/i18n";
+import {
+  type Appearance,
+  applyTheme,
+  DEFAULT_THEME_PREFERENCE,
+  isThemePreference,
+  resolveThemePreference,
+  THEME_STORAGE_KEY,
+  THEMES,
+  type ThemeId,
+  type ThemePreference,
+} from "../lib/theme/themes";
+import { useAuth } from "./auth-context";
 
-/** Available theme options */
-export type Theme = "light" | "dark" | "system";
-
-/** Resolved theme after applying system preference */
-export type ResolvedTheme = "light" | "dark";
+/** What the user picked: a theme id or `system`. */
+export type Theme = ThemePreference;
+/** Light or dark - for code that only cares about brightness. */
+export type ResolvedTheme = Appearance;
 
 export interface ThemeContextValue {
-  /** Current theme setting (light, dark, or system) */
+  /** The preference (a theme id or `system`). Account-backed when signed in. */
   theme: Theme;
-  /** Resolved theme after applying system preference */
+  /** The theme actually applied after resolving `system`. */
+  activeTheme: ThemeId;
+  /** Light or dark appearance of the active theme. */
   resolvedTheme: ResolvedTheme;
-  /** Set the theme */
   setTheme: (theme: Theme) => void;
-  /** Toggle between light and dark (skips system) */
-  toggleTheme: () => void;
 }
-
-const STORAGE_KEY = "wateaminbox-theme";
-const THEMES: Theme[] = ["light", "dark", "system"];
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-function getStoredTheme(): Theme {
+/*
+ * Source of truth is the signed-in user's account (`themePreference`), so the
+ * theme follows them across browsers and devices. localStorage is only a
+ * paint cache: index.html reads it before React loads so a reload does not
+ * flash the wrong theme. Signed out, the app follows the device.
+ */
+
+function readCache(): Theme | null {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored && THEMES.includes(stored as Theme)) {
-      return stored as Theme;
-    }
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    return isThemePreference(stored) ? stored : null;
   } catch {
-    // localStorage not available (privacy mode, incognito)
+    return null; // storage unavailable (privacy mode)
   }
-  return "system";
 }
 
-function setStoredTheme(theme: Theme): void {
+function writeCache(theme: Theme): void {
   try {
-    localStorage.setItem(STORAGE_KEY, theme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
   } catch {
-    // localStorage not available
+    // storage unavailable
   }
 }
 
-function getSystemTheme(): ResolvedTheme {
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+const darkQuery = () =>
+  typeof window === "undefined"
+    ? null
+    : window.matchMedia("(prefers-color-scheme: dark)");
+
+function resolve(theme: Theme): ThemeId {
+  return resolveThemePreference(theme, Boolean(darkQuery()?.matches));
 }
 
-function resolveTheme(theme: Theme): ResolvedTheme {
-  if (theme === "system") {
-    return getSystemTheme();
-  }
-  return theme;
-}
-
-function applyThemeToDOM(resolvedTheme: ResolvedTheme): void {
-  const root = document.documentElement;
-  if (resolvedTheme === "dark") {
-    root.classList.add("dark");
-  } else {
-    root.classList.remove("dark");
-  }
-
-  // Update color-scheme for native elements (scrollbars, inputs, etc.)
-  root.style.colorScheme = resolvedTheme;
-
-  // Update theme-color meta tag for mobile browsers
-  const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-  if (metaThemeColor) {
-    metaThemeColor.setAttribute(
-      "content",
-      resolvedTheme === "dark" ? "#111B21" : "#075E54",
-    );
-  }
+function announce(next: Theme, active: ThemeId) {
+  const announcement = document.getElementById("theme-announcement");
+  if (!announcement) return;
+  const label =
+    next === "system"
+      ? i18n.t("settings.themePanel.system", {
+          resolved: i18n.t(`settings.themePanel.${active}`),
+        })
+      : i18n.t(`settings.themePanel.${next}`);
+  announcement.textContent = i18n.t("settings.themePanel.changed", {
+    theme: label,
+  });
 }
 
 interface ThemeProviderProps {
   children: ReactNode;
-  /** Default theme if none stored */
   defaultTheme?: Theme;
 }
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
+  defaultTheme = DEFAULT_THEME_PREFERENCE,
 }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    const stored = getStoredTheme();
-    return stored || defaultTheme;
-  });
+  const { user, isAuthenticated, updateProfile } = useAuth();
+  const accountTheme = isThemePreference(user?.themePreference)
+    ? user.themePreference
+    : null;
 
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-    resolveTheme(theme),
+  const [theme, setThemeState] = useState<Theme>(
+    () => readCache() ?? defaultTheme,
   );
+  const [activeTheme, setActiveTheme] = useState<ThemeId>(() => resolve(theme));
 
-  // Handle theme changes
-  const setTheme = useCallback((newTheme: Theme) => {
-    setThemeState(newTheme);
-    setStoredTheme(newTheme);
-    const resolved = resolveTheme(newTheme);
-    setResolvedTheme(resolved);
-    applyThemeToDOM(resolved);
-
-    // Announce theme change to screen readers
-    const announcement = document.getElementById("theme-announcement");
-    if (announcement) {
-      const themeLabel =
-        newTheme === "system"
-          ? i18n.t("settings.themePanel.system", {
-              resolved: i18n.t(`settings.themePanel.${resolved}`),
-            })
-          : i18n.t(`settings.themePanel.${newTheme}`);
-      announcement.textContent = i18n.t("settings.themePanel.changed", {
-        theme: themeLabel,
-      });
-    }
+  const adopt = useCallback((next: Theme) => {
+    setThemeState(next);
+    writeCache(next);
+    const active = resolve(next);
+    setActiveTheme(active);
+    applyTheme(active);
+    return active;
   }, []);
 
-  // Toggle cycles through light → dark → system
-  const toggleTheme = useCallback(() => {
-    const currentIndex = THEMES.indexOf(theme);
-    const nextIndex = (currentIndex + 1) % THEMES.length;
-    setTheme(THEMES[nextIndex]);
-  }, [theme, setTheme]);
-
-  // Apply theme on mount
+  // The account wins: apply its theme whenever it loads or changes (sign-in,
+  // refresh, a change made on another device).
+  // Only react when the *account value* changes, never to local state: a
+  // local pick is applied first and saved after, and must not be reverted
+  // by the not-yet-updated account value in between.
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
+  const userId = user?.id ?? null;
+  const migratedFor = useRef<string | null>(null);
   useEffect(() => {
-    applyThemeToDOM(resolvedTheme);
-  }, [resolvedTheme]);
+    if (!isAuthenticated || !userId) return;
+    if (accountTheme) {
+      if (accountTheme !== themeRef.current) adopt(accountTheme);
+      return;
+    }
+    // Nothing saved yet: keep what this device shows and save it once, so
+    // choices made before themes were account-backed are not lost.
+    if (migratedFor.current === userId) return;
+    migratedFor.current = userId;
+    updateProfile({ themePreference: themeRef.current }).catch(() => {});
+  }, [isAuthenticated, userId, accountTheme, adopt, updateProfile]);
 
-  // Listen for system preference changes
+  // Signed out: follow the device, not the previous user's choice.
+  const wasAuthenticated = useRef(isAuthenticated);
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    if (wasAuthenticated.current && !isAuthenticated) adopt("system");
+    wasAuthenticated.current = isAuthenticated;
+  }, [isAuthenticated, adopt]);
 
-    const handleChange = () => {
-      if (theme === "system") {
-        const newResolved = getSystemTheme();
-        setResolvedTheme(newResolved);
-        applyThemeToDOM(newResolved);
-      }
-    };
+  const setTheme = useCallback(
+    (next: Theme) => {
+      const active = adopt(next);
+      announce(next, active);
+      if (!user || accountTheme === next) return;
+      updateProfile({ themePreference: next }).catch(() => {
+        // Applied here already; only saving to the account failed.
+        toast.error(i18n.t("settings.themeSaveFailed"));
+      });
+    },
+    [adopt, user, accountTheme, updateProfile],
+  );
 
-    mediaQuery.addEventListener("change", handleChange);
-    return () => mediaQuery.removeEventListener("change", handleChange);
+  useEffect(() => {
+    applyTheme(activeTheme);
+  }, [activeTheme]);
+
+  useEffect(() => {
+    const query = darkQuery();
+    if (!query || theme !== "system") return;
+    const onChange = () => setActiveTheme(resolve("system"));
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
   }, [theme]);
 
   const value = useMemo<ThemeContextValue>(
     () => ({
       theme,
-      resolvedTheme,
+      activeTheme,
+      resolvedTheme: THEMES[activeTheme].appearance,
       setTheme,
-      toggleTheme,
     }),
-    [theme, resolvedTheme, setTheme, toggleTheme],
+    [theme, activeTheme, setTheme],
   );
 
   return (
     <ThemeContext.Provider value={value}>
       {children}
-      {/* Screen reader announcement for theme changes */}
       <div
         id="theme-announcement"
         role="status"

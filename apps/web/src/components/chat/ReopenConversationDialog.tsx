@@ -85,7 +85,7 @@ export function OpenOrReopenConversationDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <label className="block text-sm font-medium text-gray-700 dark:text-dark-text-primary">
+        <label className="block text-sm font-medium text-fg">
           {t("chat.reason", "Reason")}
           {isReopen ? "" : ` ${t("setup.optional", "(optional)")}`}
           <textarea
@@ -104,19 +104,17 @@ export function OpenOrReopenConversationDialog({
                     "e.g. Starting a new conversation thread",
                   )
             }
-            className="mt-1.5 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-dark-border dark:bg-dark-tertiary"
+            className="mt-1.5 w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm"
           />
         </label>
-        {error && (
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-        )}
+        {error && <p className="text-sm text-danger">{error}</p>}
 
         <DialogFooter className="gap-2 sm:gap-0">
           <button
             type="button"
             onClick={() => handleOpenChange(false)}
             disabled={isSubmitting}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-lg transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-fg hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
@@ -124,7 +122,7 @@ export function OpenOrReopenConversationDialog({
             type="button"
             onClick={handleConfirm}
             disabled={isSubmitting}
-            className="flex items-center gap-2 rounded-lg bg-whatsapp-teal-green px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-whatsapp-teal-green/90 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:bg-accent/90 disabled:opacity-50"
           >
             {isSubmitting ? (
               <>

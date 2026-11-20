@@ -655,11 +655,16 @@
     "workspaceLeaveFailed": "Não foi possível sair do espaço de trabalho",
     "themePanel": {
       "title": "Tema",
-      "description": "Alterne entre claro, escuro e a preferência do sistema.",
+      "description": "Escolha a aparência do WATeamInbox. Sistema segue seu dispositivo entre Claro e Escuro.",
       "changed": "Tema alterado para {{theme}}",
       "system": "Sistema ({{resolved}})",
       "light": "Claro",
-      "dark": "Escuro"
+      "dark": "Escuro",
+      "whatsapp": "WhatsApp",
+      "systemLabel": "Sistema",
+      "lightLabel": "Claro",
+      "darkLabel": "Escuro",
+      "whatsappLabel": "WhatsApp"
     },
     "languagePanel": {
       "title": "Idioma",
@@ -680,11 +685,6 @@
       "description": "As exportações do espaço de trabalho estão disponíveis nas telas correspondentes do Painel e da Auditoria."
     },
     "exportsScope": "As exportações contêm apenas dados de {{name}}.",
-    "themeLight": "Claro",
-    "themeDark": "Escuro",
-    "themeSystem": "Seguir o sistema",
-    "themeChanged": "Tema alterado para {{theme}}",
-    "themeToggleAria": "Tema atual: {{current}}. Clique para mudar para {{next}}",
     "apiTokensPanel": {
       "title": "Agentes de IA (MCP)",
       "description": "Conecte agentes de IA a este espaço de trabalho pelo endpoint MCP com tokens pessoais e revogáveis."
@@ -692,13 +692,15 @@
     "viewShortcuts": "Ver atalhos",
     "leftWorkspace": "Você saiu de {{name}}",
     "languageSaveFailed": "Não foi possível salvar o idioma na sua conta. Ele será aplicado apenas neste navegador.",
+    "themeSaveFailed": "Não foi possível salvar o tema na sua conta",
     "notificationSounds": {
       "default": "Padrão",
       "chime": "Carrilhão",
       "bell": "Sino",
       "pop": "Pop",
       "none": "Nenhum"
-    }
+    },
+    "themeMenuAria": "Tema: {{current}}"
   },
   "dashboard": {
     "totalMessages": "Total de mensagens",

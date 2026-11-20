@@ -1,89 +1,64 @@
-import { Monitor, Moon, Sun } from "lucide-react";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
-import { type Theme, useTheme } from "../../contexts";
+import { Check } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-
-const THEME_CONFIG: Record<
-  Theme,
-  { icon: typeof Sun; labelKey: string; label: string; nextTheme: Theme }
-> = {
-  light: {
-    icon: Sun,
-    labelKey: "settings.themeLight",
-    label: "Light",
-    nextTheme: "dark",
-  },
-  dark: {
-    icon: Moon,
-    labelKey: "settings.themeDark",
-    label: "Dark",
-    nextTheme: "system",
-  },
-  system: {
-    icon: Monitor,
-    labelKey: "settings.themeSystem",
-    label: "Follow System",
-    nextTheme: "light",
-  },
-};
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ThemeIcon, themeLabel } from "@/components/settings/ThemePicker";
+import { useTheme } from "@/contexts";
+import { THEME_PREFERENCES } from "@/lib/theme/themes";
+import { cn } from "@/lib/utils";
 
 interface ThemeToggleProps {
   className?: string;
 }
 
+/** Compact theme menu for the navigation rail and mobile header. */
 export function ThemeToggle({ className }: ThemeToggleProps) {
   const { t } = useTranslation();
-
-  const { theme, toggleTheme } = useTheme();
-  const config = THEME_CONFIG[theme];
-  const Icon = config.icon;
+  const { theme, setTheme } = useTheme();
+  const [open, setOpen] = useState(false);
 
   return (
-    <>
-      <Tooltip>
-        <TooltipTrigger asChild>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          data-testid="theme-toggle"
+          className={cn(
+            "flex h-11 w-11 items-center justify-center rounded-full transition-colors touch-manipulation md:h-10 md:w-10",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            className,
+          )}
+          aria-label={t("settings.themeMenuAria", {
+            defaultValue: "Theme: {{current}}",
+            current: themeLabel(t, theme),
+          })}
+        >
+          <ThemeIcon theme={theme} className="size-5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent side="right" align="end" className="w-48 p-1" role="menu">
+        {THEME_PREFERENCES.map((id) => (
           <button
-            data-testid="theme-toggle"
-            onClick={toggleTheme}
-            className={cn(
-              "flex h-11 w-11 md:h-10 md:w-10 items-center justify-center text-gray-500 hover:text-gray-700 dark:text-dark-text-secondary dark:hover:text-dark-text-primary rounded-full hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation",
-              className,
-            )}
-            aria-label={t("settings.themeToggleAria", {
-              defaultValue:
-                "Current theme: {{current}}. Click to switch to {{next}}",
-              current: t(config.labelKey, config.label),
-              next: t(
-                THEME_CONFIG[config.nextTheme].labelKey,
-                THEME_CONFIG[config.nextTheme].label,
-              ),
-            })}
+            key={id}
+            type="button"
+            role="menuitemradio"
+            aria-checked={theme === id}
+            onClick={() => {
+              setTheme(id);
+              setOpen(false);
+            }}
+            className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-fg transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none"
           >
-            <Icon className="h-5 w-5" />
+            <ThemeIcon theme={id} className="size-4 text-fg-muted" />
+            <span className="flex-1 text-start">{themeLabel(t, id)}</span>
+            {theme === id && <Check className="size-4" />}
           </button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{t(config.labelKey, config.label)}</p>
-        </TooltipContent>
-      </Tooltip>
-
-      {/* Screen reader announcement for theme changes */}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        className="sr-only"
-      >
-        {t("settings.themeChanged", {
-          defaultValue: "Theme changed to {{theme}}",
-          theme: t(config.labelKey, config.label),
-        })}
-      </div>
-    </>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }

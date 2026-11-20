@@ -138,26 +138,17 @@ export function CompanySetupPage() {
   const isBusy = createCompany.isPending || isProcessingLogo;
 
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-[#edf4f0] px-3 py-3 text-slate-950 sm:px-6 sm:py-6 dark:bg-dark-primary dark:text-dark-text-primary">
-      <div
-        className="pointer-events-none absolute -start-32 -top-32 h-96 w-96 rounded-full bg-[#25d366]/12 blur-3xl"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute -bottom-40 -end-24 h-[28rem] w-[28rem] rounded-full bg-[#075e54]/14 blur-3xl"
-        aria-hidden="true"
-      />
-
-      <section className="relative mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-white/80 bg-white shadow-[0_24px_80px_rgba(15,55,43,0.14)] sm:min-h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(0,1.06fr)_minmax(22rem,0.94fr)] dark:border-dark-border dark:bg-dark-elevated dark:shadow-none">
+    <main className="relative min-h-dvh overflow-hidden bg-muted px-3 py-3 text-fg sm:px-6 sm:py-6">
+      <section className="relative mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-lg sm:min-h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(0,1.06fr)_minmax(22rem,0.94fr)]">
         <div className="flex min-w-0 flex-col p-6 sm:p-9 lg:p-12">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <BrandMark className="h-10 w-10 shrink-0 rounded-[0.9rem] object-contain shadow-sm shadow-[#075e54]/20" />
+              <BrandMark className="h-10 w-10 shrink-0 rounded-[0.9rem] object-contain shadow-sm" />
               <div className="leading-none">
-                <p className="text-[1.05rem] font-bold tracking-[-0.03em] text-slate-900 dark:text-dark-text-primary">
+                <p className="text-[1.05rem] font-bold tracking-[-0.03em] text-fg">
                   WATeamInbox
                 </p>
-                <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-dark-text-tertiary">
+                <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-fg-muted">
                   {t("setup.whatsappForTeams", "WhatsApp for teams")}
                 </p>
               </div>
@@ -166,7 +157,7 @@ export function CompanySetupPage() {
               type="button"
               onClick={() => void logout()}
               aria-label={t("nav.signOut", "Sign out")}
-              className="inline-flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] dark:text-dark-text-secondary dark:hover:bg-dark-tertiary dark:hover:text-white"
+              className="inline-flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-semibold text-fg-muted transition-colors hover:bg-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <LogOut aria-hidden="true" className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">
@@ -176,13 +167,13 @@ export function CompanySetupPage() {
           </div>
 
           <div className="mx-auto flex w-full max-w-[34rem] flex-1 flex-col justify-center py-10 lg:py-12">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">
               {t("setup.oneLastStep", "One last step")}
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
+            <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-fg text-balance sm:text-4xl">
               {t("setup.title", "Give your workspace an identity")}
             </h1>
-            <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
+            <p className="mt-3 max-w-lg text-sm leading-6 text-fg-muted">
               {t(
                 "setup.subtitle",
                 "Help teammates recognize the right inbox at a glance. You can start with just a name, or add more context now.",
@@ -192,7 +183,7 @@ export function CompanySetupPage() {
             {createCompany.error && (
               <div
                 role="alert"
-                className="mt-6 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-5 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300"
+                className="mt-6 flex items-start gap-2.5 rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm leading-5 text-danger"
               >
                 <CircleAlert
                   aria-hidden="true"
@@ -208,14 +199,14 @@ export function CompanySetupPage() {
 
             <form
               onSubmit={handleSubmit(onSubmit)}
-              className="mt-8 space-y-6 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3.5 dark:[&_input]:border-dark-border dark:[&_input]:bg-dark-tertiary"
+              className="mt-8 space-y-6 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-line-strong [&_input]:bg-surface [&_input]:px-3.5"
               aria-busy={isBusy}
               noValidate
             >
               <fieldset disabled={isBusy}>
-                <legend className="mb-2 text-sm font-semibold text-slate-700 dark:text-dark-text-secondary">
+                <legend className="mb-2 text-sm font-semibold text-fg">
                   {t("settings.workspaceLogo")}{" "}
-                  <span className="font-normal text-slate-400">
+                  <span className="font-normal text-fg-subtle">
                     {t("setup.optional")}
                   </span>
                 </legend>
@@ -223,10 +214,10 @@ export function CompanySetupPage() {
                 <div
                   className={`relative rounded-2xl border border-dashed p-3 transition-colors ${
                     logoError
-                      ? "border-red-400 bg-red-50/40 dark:bg-red-950/10"
+                      ? "border-danger bg-danger-soft/40"
                       : isDraggingLogo
-                        ? "border-[#0a7c43] bg-[#e7f7ed] dark:bg-[#25d366]/10"
-                        : "border-slate-300 bg-slate-50/70 hover:border-[#76b69d] hover:bg-[#f0f8f3] dark:border-dark-border dark:bg-dark-tertiary/45 dark:hover:border-[#52df83]/50"
+                        ? "border-accent bg-accent-soft"
+                        : "border-line-strong bg-subtle/70 hover:border-accent hover:bg-muted"
                   }`}
                   onDragEnter={(event) => {
                     event.preventDefault();
@@ -260,9 +251,9 @@ export function CompanySetupPage() {
                   <button
                     type="button"
                     onClick={() => logoInputRef.current?.click()}
-                    className="flex w-full cursor-pointer items-center gap-4 rounded-xl text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:focus-visible:ring-[#52df83]"
+                    className="flex w-full cursor-pointer items-center gap-4 rounded-xl text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   >
-                    <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#dcefe7] text-[#075e54] shadow-sm dark:bg-[#25d366]/15 dark:text-[#52df83]">
+                    <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-accent-soft text-accent shadow-sm">
                       {isProcessingLogo ? (
                         <LoaderCircle
                           aria-label={t(
@@ -285,7 +276,7 @@ export function CompanySetupPage() {
                       )}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-dark-text-primary">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-fg">
                         <Upload aria-hidden="true" className="h-4 w-4" />
                         {logoDataUrl
                           ? t(
@@ -294,7 +285,7 @@ export function CompanySetupPage() {
                             )
                           : t("setup.uploadLogo", "Upload logo")}
                       </span>
-                      <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-dark-text-tertiary">
+                      <span className="mt-1 block text-xs leading-5 text-fg-muted">
                         {t("setup.logoHint", {
                           defaultValue:
                             "PNG, JPEG, WebP, GIF, or AVIF · max {{mb}} MB · automatically cropped to {{size}} × {{size}}",
@@ -303,7 +294,7 @@ export function CompanySetupPage() {
                         })}
                       </span>
                       {logoDataUrl && !isProcessingLogo && (
-                        <span className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-[#0a7c43] dark:text-[#52df83]">
+                        <span className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-accent">
                           <Check aria-hidden="true" className="h-3.5 w-3.5" />
                           {t("setup.logoReady", "Logo ready")}
                         </span>
@@ -314,7 +305,7 @@ export function CompanySetupPage() {
                     <button
                       type="button"
                       onClick={removeLogo}
-                      className="absolute end-2 top-2 grid h-8 w-8 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-white hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 dark:hover:bg-dark-secondary"
+                      className="absolute end-2 top-2 grid h-8 w-8 place-items-center rounded-lg text-fg-subtle transition-colors hover:bg-surface hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger"
                       aria-label={t(
                         "setup.removeLogo",
                         "Remove workspace logo",
@@ -327,7 +318,7 @@ export function CompanySetupPage() {
                 {logoError && (
                   <p
                     role="alert"
-                    className="mt-1.5 flex items-start gap-1.5 text-xs font-medium leading-4 text-red-600 dark:text-red-400"
+                    className="mt-1.5 flex items-start gap-1.5 text-xs font-medium leading-4 text-danger"
                   >
                     <CircleAlert
                       aria-hidden="true"
@@ -354,18 +345,16 @@ export function CompanySetupPage() {
                 <div className="mb-1.5 flex items-center justify-between gap-4">
                   <label
                     htmlFor="companyDescription"
-                    className={`text-sm font-semibold transition-colors group-focus-within:text-[#075e54] dark:group-focus-within:text-[#52df83] ${
-                      errors.description
-                        ? "text-red-600 dark:text-red-400"
-                        : "text-slate-700 dark:text-dark-text-secondary"
+                    className={`text-sm font-semibold transition-colors group-focus-within:text-accent  ${
+                      errors.description ? "text-danger" : "text-fg"
                     }`}
                   >
                     {t("settings.description", "Description")}{" "}
-                    <span className="font-normal text-slate-400">
+                    <span className="font-normal text-fg-subtle">
                       {t("setup.optional", "(optional)")}
                     </span>
                   </label>
-                  <span className="text-[0.68rem] tabular-nums text-slate-400">
+                  <span className="text-[0.68rem] tabular-nums text-fg-subtle">
                     {description.length}/280
                   </span>
                 </div>
@@ -382,14 +371,14 @@ export function CompanySetupPage() {
                   aria-describedby={
                     errors.description ? "companyDescription-error" : undefined
                   }
-                  className="w-full resize-none rounded-xl border border-slate-300 bg-white px-3.5 py-3 text-sm leading-5 text-slate-900 shadow-sm transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-slate-400 hover:border-slate-400 focus:border-[#0a7c43] focus:outline-none focus:ring-[3px] focus:ring-[#25d366]/20 aria-invalid:border-red-500 aria-invalid:bg-red-50/35 aria-invalid:focus:border-red-500 aria-invalid:focus:ring-red-500/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary dark:hover:border-slate-500 dark:focus:border-[#52df83] dark:focus:ring-[#25d366]/15 dark:aria-invalid:border-red-500 dark:aria-invalid:bg-red-950/10"
+                  className="w-full resize-none rounded-xl border border-line-strong bg-surface px-3.5 py-3 text-sm leading-5 text-fg shadow-sm transition-[border-color,box-shadow,background-color] duration-200 placeholder:text-fg-subtle hover:border-line-strong focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-ring/20 aria-invalid:border-danger aria-invalid:bg-danger-soft/35 aria-invalid:focus:border-danger aria-invalid:focus:ring-danger/15 disabled:cursor-not-allowed disabled:bg-subtle disabled:opacity-60"
                   {...register("description")}
                 />
                 {errors.description && (
                   <p
                     id="companyDescription-error"
                     role="alert"
-                    className="mt-1.5 flex items-start gap-1.5 text-xs font-medium leading-4 text-red-600 dark:text-red-400"
+                    className="mt-1.5 flex items-start gap-1.5 text-xs font-medium leading-4 text-danger"
                   >
                     <CircleAlert
                       aria-hidden="true"
@@ -403,7 +392,7 @@ export function CompanySetupPage() {
               <Button
                 type="submit"
                 size="lg"
-                className="h-12 w-full rounded-xl bg-[#075e54] text-white shadow-lg shadow-[#075e54]/15 hover:bg-[#064b43] dark:bg-whatsapp-green-a11y-button dark:hover:bg-whatsapp-green-a11y-button/90"
+                className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-primary-hover"
                 disabled={isBusy}
               >
                 {createCompany.isPending ? (
@@ -429,7 +418,7 @@ export function CompanySetupPage() {
             </form>
           </div>
 
-          <p className="text-xs leading-5 text-slate-400 dark:text-dark-text-tertiary">
+          <p className="text-xs leading-5 text-fg-subtle">
             {t(
               "setup.visibilityNote",
               "Workspace details are visible only to invited team members.",
@@ -437,26 +426,26 @@ export function CompanySetupPage() {
           </p>
         </div>
 
-        <aside className="relative hidden overflow-hidden bg-[#073f3a] p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-12">
+        <aside className="relative hidden overflow-hidden bg-nav p-10 text-nav-fg lg:flex lg:flex-col lg:justify-between xl:p-12">
           <div
             className="pointer-events-none absolute inset-0 opacity-[0.16]"
             aria-hidden="true"
             style={{
               backgroundImage:
-                "radial-gradient(circle at center, rgba(255,255,255,0.7) 1px, transparent 1.5px)",
+                "radial-gradient(circle at center, rgba(255,255,255,0.5) 1px, transparent 1.5px)",
               backgroundSize: "24px 24px",
             }}
           />
           <div
-            className="pointer-events-none absolute -end-32 -top-24 h-80 w-80 rounded-full border-[72px] border-[#25d366]/20"
+            className="pointer-events-none absolute -end-32 -top-24 h-80 w-80 rounded-full border-[72px] border-nav-fg/10"
             aria-hidden="true"
           />
 
           <div className="relative">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-emerald-50">
+            <div className="inline-flex items-center gap-2 rounded-full border border-nav-fg/15 bg-nav-hover px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-nav-fg">
               <span
                 aria-hidden="true"
-                className="h-1.5 w-1.5 rounded-full bg-[#8fffb5]"
+                className="h-1.5 w-1.5 rounded-full bg-accent-soft"
               />
               {t("setup.livePreview", "Live workspace preview")}
             </div>
@@ -466,7 +455,7 @@ export function CompanySetupPage() {
                 "Make the right inbox instantly recognizable.",
               )}
             </h2>
-            <p className="mt-5 max-w-sm text-sm leading-6 text-emerald-50/72">
+            <p className="mt-5 max-w-sm text-sm leading-6 text-nav-fg/80">
               {t(
                 "setup.previewBody",
                 "Your name, description, and logo help teammates switch contexts without losing focus.",
@@ -474,9 +463,9 @@ export function CompanySetupPage() {
             </p>
           </div>
 
-          <div className="relative my-10 rounded-[1.5rem] border border-white/15 bg-white/[0.09] p-5 shadow-2xl shadow-black/10 backdrop-blur">
+          <div className="relative my-10 rounded-[1.5rem] border border-white/15 bg-white/[0.09] p-5 shadow-2xl backdrop-blur">
             <div className="flex items-center gap-4">
-              <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#d9fdd3] text-lg font-bold tracking-wide text-[#075e54] shadow-lg shadow-black/10">
+              <span className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-accent-soft text-lg font-bold tracking-wide text-accent shadow-lg">
                 {logoDataUrl ? (
                   <img
                     src={logoDataUrl}
@@ -491,40 +480,40 @@ export function CompanySetupPage() {
                 <p className="truncate text-lg font-semibold tracking-[-0.02em]">
                   {previewName}
                 </p>
-                <p className="mt-1 line-clamp-2 text-xs leading-5 text-emerald-50/60">
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-nav-fg-muted">
                   {previewDescription}
                 </p>
               </div>
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-white/10 bg-black/10 p-3">
+              <div className="rounded-xl border border-nav-fg/10 bg-nav-hover p-3">
                 <UsersRound
                   aria-hidden="true"
-                  className="h-4 w-4 text-[#8fffb5]"
+                  className="h-4 w-4 text-nav-badge"
                 />
                 <p className="mt-3 text-xs font-semibold">
                   {t("setup.inviteYourTeam", "Invite your team")}
                 </p>
-                <p className="mt-1 text-[0.68rem] text-emerald-50/50">
+                <p className="mt-1 text-[0.68rem] text-nav-fg-muted">
                   {t("setup.addMembersAfter", "Add members after setup")}
                 </p>
               </div>
-              <div className="rounded-xl border border-white/10 bg-black/10 p-3">
+              <div className="rounded-xl border border-nav-fg/10 bg-nav-hover p-3">
                 <Building2
                   aria-hidden="true"
-                  className="h-4 w-4 text-[#8fffb5]"
+                  className="h-4 w-4 text-nav-badge"
                 />
                 <p className="mt-3 text-xs font-semibold">
                   {t("setup.privateWorkspace", "Private workspace")}
                 </p>
-                <p className="mt-1 text-[0.68rem] text-emerald-50/50">
+                <p className="mt-1 text-[0.68rem] text-nav-fg-muted">
                   {t("setup.separateData", "Separate data and access")}
                 </p>
               </div>
             </div>
 
-            <div className="mt-4 flex items-center gap-2.5 rounded-xl bg-[#25d366]/14 px-3 py-2.5 text-xs text-[#a9fbc5]">
+            <div className="mt-4 flex items-center gap-2.5 rounded-xl bg-nav-active px-3 py-2.5 text-xs text-nav-badge">
               <Check aria-hidden="true" className="h-4 w-4" />
               {t(
                 "setup.readyForConnection",
@@ -533,7 +522,7 @@ export function CompanySetupPage() {
             </div>
           </div>
 
-          <div className="relative flex items-center gap-3 border-t border-white/10 pt-6 text-xs text-emerald-50/65">
+          <div className="relative flex items-center gap-3 border-t border-nav-fg/10 pt-6 text-xs text-nav-fg-muted">
             <LockKeyhole aria-hidden="true" className="h-4 w-4" />
             {t("setup.ownerNote", "You’ll be the owner of this workspace.")}
           </div>

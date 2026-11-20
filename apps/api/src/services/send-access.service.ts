@@ -17,6 +17,10 @@
 
 import type { Transaction } from "kysely";
 import {
+  isSuppressionEnforced,
+  resolveContactOutboundPolicy,
+} from "../channel-spine/application/contact-policy.js";
+import {
   ContactAssignedToOtherError,
   ContactBlockedError,
   NotFoundError,
@@ -104,6 +108,15 @@ export async function requireSendAccess(
     throw new NotFoundError("Contact");
   }
   if (contact.is_blocked) {
+    throw new ContactBlockedError();
+  }
+  // Customer suppression (contact blocking, phase 2): a block or a
+  // do-not-contact on any part of the merged customer refuses the send, so a
+  // person blocked through Telegram cannot be messaged on WhatsApp either.
+  if (
+    (await isSuppressionEnforced(trx)) &&
+    !(await resolveContactOutboundPolicy(trx, { contactId })).allowed
+  ) {
     throw new ContactBlockedError();
   }
 

@@ -144,7 +144,7 @@ export function LinkifiedText({
           return (
             <span
               key={`${resolvedIndex}-${resolved.value}`}
-              className="font-semibold text-whatsapp-teal-green dark:text-[#53bdeb]"
+              className="font-semibold text-accent"
             >
               {resolved.displayValue}
             </span>
@@ -154,9 +154,7 @@ export function LinkifiedText({
           const contactId = resolved.participant.contactId;
           const mentionClassName = cn(
             "mx-0.5 inline rounded-[0.3rem] px-1 py-0.5 font-semibold",
-            isOwn
-              ? "bg-[#0b6b57]/12 text-[#075e54] dark:bg-[#d9fdd3]/15 dark:text-[#d9fdd3]"
-              : "bg-[#00a884]/12 text-[#087f69] dark:bg-[#53bdeb]/15 dark:text-[#53bdeb]",
+            isOwn ? "bg-accent/12 text-accent" : "bg-accent/12 text-accent",
           );
           return enableInteractions && contactId && onOpenParticipantProfile ? (
             <button
@@ -169,7 +167,7 @@ export function LinkifiedText({
               aria-label={`Open ${resolved.displayValue}'s contact info`}
               className={cn(
                 mentionClassName,
-                "cursor-pointer underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green",
+                "cursor-pointer underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               )}
             >
               {resolved.displayValue}
@@ -193,10 +191,10 @@ export function LinkifiedText({
               rel="noopener noreferrer"
               onClick={(event) => event.stopPropagation()}
               className={cn(
-                "rounded-sm font-medium underline decoration-1 underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green",
+                "rounded-sm font-medium underline decoration-1 underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 isOwn
                   ? "text-current decoration-current/60 hover:decoration-current"
-                  : "text-whatsapp-teal-green decoration-whatsapp-teal-green/50 hover:decoration-whatsapp-teal-green dark:text-[#53bdeb] dark:decoration-[#53bdeb]/50",
+                  : "text-accent decoration-accent/50 hover:decoration-accent",
               )}
             >
               {segment.value}

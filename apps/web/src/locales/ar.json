@@ -691,11 +691,16 @@
     "workspaceLeaveFailed": "تعذرت مغادرة مساحة العمل",
     "themePanel": {
       "title": "السمة",
-      "description": "بدّل بين الفاتح والداكن وتفضيل النظام.",
+      "description": "اختر مظهر WATeamInbox. يتبع خيار النظام جهازك بين الفاتح والداكن.",
       "changed": "تم تغيير السمة إلى {{theme}}",
       "system": "النظام ({{resolved}})",
       "light": "فاتح",
-      "dark": "داكن"
+      "dark": "داكن",
+      "whatsapp": "واتساب",
+      "systemLabel": "النظام",
+      "lightLabel": "فاتح",
+      "darkLabel": "داكن",
+      "whatsappLabel": "واتساب"
     },
     "languagePanel": {
       "title": "اللغة",
@@ -716,11 +721,6 @@
       "description": "تتوفر عمليات تصدير مساحة العمل من طرق عرض لوحة المعلومات والتدقيق ذات الصلة."
     },
     "exportsScope": "تتضمن عمليات التصدير بيانات {{name}} فقط.",
-    "themeLight": "فاتح",
-    "themeDark": "داكن",
-    "themeSystem": "اتباع النظام",
-    "themeChanged": "تم تغيير السمة إلى {{theme}}",
-    "themeToggleAria": "السمة الحالية: {{current}}. انقر للتبديل إلى {{next}}",
     "apiTokensPanel": {
       "title": "وكلاء الذكاء الاصطناعي (MCP)",
       "description": "اربط وكلاء الذكاء الاصطناعي بمساحة العمل هذه عبر نقطة نهاية MCP باستخدام رموز شخصية قابلة للإلغاء."
@@ -728,13 +728,15 @@
     "viewShortcuts": "عرض الاختصارات",
     "leftWorkspace": "لقد غادرت {{name}}",
     "languageSaveFailed": "تعذّر حفظ اللغة في حسابك. ستُطبَّق في هذا المتصفح فقط.",
+    "themeSaveFailed": "تعذّر حفظ السمة في حسابك",
     "notificationSounds": {
       "default": "افتراضي",
       "chime": "رنين",
       "bell": "جرس",
       "pop": "نقرة",
       "none": "بدون"
-    }
+    },
+    "themeMenuAria": "السمة: {{current}}"
   },
   "dashboard": {
     "totalMessages": "إجمالي الرسائل",

@@ -47,10 +47,10 @@ export function RightPanel({
   return (
     <aside
       className={cn(
-        "flex h-full min-h-0 flex-col bg-white dark:bg-dark-secondary",
+        "flex h-full min-h-0 flex-col bg-surface",
         surface === "docked"
           ? // Desktop third column; the slide-in panel is used below `lg`.
-            "hidden border-s border-gray-200 dark:border-dark-border lg:flex lg:w-[350px] xl:w-[400px]"
+            "hidden border-s border-line lg:flex lg:w-[350px] xl:w-[400px]"
           : "w-full",
         className,
       )}
@@ -81,9 +81,9 @@ export function RightPanelHeader({
       className={cn(
         "flex shrink-0 items-center gap-4 px-4",
         surface === "sheet"
-          ? "h-14 touch-none border-b border-black/[0.07] bg-white text-[#111b21] dark:border-white/[0.08] dark:bg-dark-secondary dark:text-dark-text-primary"
+          ? "h-14 touch-none border-b border-line/[0.07] bg-surface text-fg"
           : [
-              "bg-whatsapp-teal-green text-white",
+              "bg-primary text-on-primary",
               // Responsive height, with the notch inset added on top of the
               // row rather than subtracted from it.
               "h-[calc(3.5rem+env(safe-area-inset-top))] md:h-[calc(3.75rem+env(safe-area-inset-top))]",
@@ -99,7 +99,7 @@ export function RightPanelHeader({
           className={cn(
             "flex h-10 w-10 touch-manipulation items-center justify-center rounded-full transition-colors",
             surface === "sheet"
-              ? "text-[#54656f] hover:bg-black/[0.055] active:bg-black/10 dark:text-dark-text-secondary dark:hover:bg-white/[0.06]"
+              ? "text-fg-muted hover:bg-fg/[0.055] active:bg-fg/10"
               : "hover:bg-white/10",
           )}
           aria-label={t("common.closePanel", "Close panel")}
@@ -152,18 +152,13 @@ export function RightPanelSection({
 }: RightPanelSectionProps) {
   return (
     <section
-      className={cn(
-        "border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary px-4 py-3",
-        className,
-      )}
+      className={cn("border-b border-line bg-surface px-4 py-3", className)}
       {...props}
     >
       {(title || titleAction) && (
         <div className="mb-2 flex items-center justify-between gap-2">
           {title && (
-            <h3 className="text-sm font-medium text-whatsapp-teal-green">
-              {title}
-            </h3>
+            <h3 className="text-sm font-medium text-accent">{title}</h3>
           )}
           {titleAction}
         </div>

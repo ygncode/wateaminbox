@@ -91,34 +91,28 @@ const RECIPIENT_STATUS_CONFIG: Record<
   { className: string; dotClassName: string }
 > = {
   sent: {
-    className:
-      "border-emerald-200 bg-emerald-50 text-[#087654] dark:border-emerald-900 dark:bg-emerald-950/35 dark:text-emerald-300",
-    dotClassName: "bg-[#24a778]",
+    className: "border-accent/30 bg-accent-soft text-accent",
+    dotClassName: "bg-primary",
   },
   failed: {
-    className:
-      "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/35 dark:text-red-300",
-    dotClassName: "bg-red-500",
+    className: "border-danger/30 bg-danger-soft text-danger",
+    dotClassName: "bg-danger",
   },
   skipped: {
-    className:
-      "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/35 dark:text-amber-300",
-    dotClassName: "bg-amber-500",
+    className: "border-warning/30 bg-warning-soft text-warning",
+    dotClassName: "bg-warning",
   },
   canceled: {
-    className:
-      "border-[#dfe5e1] bg-[#f1f3f2] text-[#65736d] dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary",
-    dotClassName: "bg-[#8b9891]",
+    className: "border-line bg-subtle text-fg-muted",
+    dotClassName: "bg-fg-subtle",
   },
   scheduled: {
-    className:
-      "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/35 dark:text-sky-300",
-    dotClassName: "bg-sky-500",
+    className: "border-info/30 bg-info-soft text-info",
+    dotClassName: "bg-info",
   },
   processing: {
-    className:
-      "border-emerald-200 bg-emerald-50 text-[#087654] dark:border-emerald-900 dark:bg-emerald-950/35 dark:text-emerald-300",
-    dotClassName: "animate-pulse bg-[#24a778]",
+    className: "border-accent/30 bg-accent-soft text-accent",
+    dotClassName: "animate-pulse bg-primary",
   },
 };
 
@@ -141,9 +135,8 @@ function RecipientStatus({ status }: { status: string }) {
   const { t } = useTranslation();
 
   const config = RECIPIENT_STATUS_CONFIG[status] ?? {
-    className:
-      "border-[#dfe5e1] bg-[#f1f3f2] text-[#65736d] dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-secondary",
-    dotClassName: "bg-[#8b9891]",
+    className: "border-line bg-subtle text-fg-muted",
+    dotClassName: "bg-fg-subtle",
   };
   return (
     <span
@@ -180,17 +173,17 @@ function mediaChip(
 const OUTCOME_STYLES = {
   sent: {
     icon: CheckCircle2,
-    className: "text-[#0b7a55] dark:text-emerald-300",
+    className: "text-accent",
   },
-  pending: { icon: CircleDashed, className: "text-sky-600 dark:text-sky-300" },
-  failed: { icon: XCircle, className: "text-red-600 dark:text-red-300" },
+  pending: { icon: CircleDashed, className: "text-info" },
+  failed: { icon: XCircle, className: "text-danger" },
   skipped: {
     icon: TriangleAlert,
-    className: "text-amber-600 dark:text-amber-300",
+    className: "text-warning",
   },
   canceled: {
     icon: Ban,
-    className: "text-[#718078] dark:text-dark-text-secondary",
+    className: "text-fg-muted",
   },
 };
 
@@ -210,11 +203,9 @@ function OutcomeMetric({
     <div className="min-w-0">
       <div className={cn("flex items-center gap-1.5", className)}>
         <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <p className="text-base font-semibold tabular-nums text-[#20362e] dark:text-dark-text-primary">
-          {value}
-        </p>
+        <p className="text-base font-semibold tabular-nums text-fg">{value}</p>
       </div>
-      <p className="mt-0.5 truncate text-[10px] font-medium text-[#718078] dark:text-dark-text-secondary">
+      <p className="mt-0.5 truncate text-[10px] font-medium text-fg-muted">
         {label}
       </p>
     </div>
@@ -234,14 +225,14 @@ function MetaItem({
   return (
     <div className="flex min-w-0 items-start gap-2.5">
       <Icon
-        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8a9790] dark:text-dark-text-tertiary"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fg-muted"
         aria-hidden="true"
       />
       <div className="min-w-0">
-        <dt className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#8a9790] dark:text-dark-text-tertiary">
+        <dt className="text-[10px] font-bold uppercase tracking-[0.1em] text-fg-muted">
           {label}
         </dt>
-        <dd className="mt-0.5 truncate text-[12px] font-medium text-[#31463e] dark:text-dark-text-primary">
+        <dd className="mt-0.5 truncate text-[12px] font-medium text-fg">
           {children}
         </dd>
       </div>
@@ -277,17 +268,15 @@ function recipientDetail(t: TFunction, recipient: BulkJobRecipient): string {
 /** Absolute timestamp cell shared by the recipient date columns. */
 function TimeCell({ value }: { value: string | null }) {
   if (!value) {
-    return (
-      <span className="text-[#adb8b2] dark:text-dark-text-tertiary">—</span>
-    );
+    return <span className="text-fg-subtle">—</span>;
   }
   const at = dayjs(value);
   return (
     <time dateTime={value} className="block">
-      <span className="block text-[12px] font-medium text-[#40554c] dark:text-dark-text-primary">
+      <span className="block text-[12px] font-medium text-fg">
         {at.format("MMM D, YYYY")}
       </span>
-      <span className="block text-[10px] text-[#7a8881] dark:text-dark-text-secondary">
+      <span className="block text-[10px] text-fg-muted">
         {at.format("HH:mm")}
       </span>
     </time>
@@ -297,8 +286,8 @@ function TimeCell({ value }: { value: string | null }) {
 function DetailSkeleton() {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto sm:gap-4">
-      <div className="shrink-0 overflow-hidden rounded-2xl border border-[#d7e0da] bg-white dark:border-dark-border dark:bg-dark-elevated">
-        <div className="flex items-center gap-3 border-b border-[#e3e9e5] px-4 py-3 dark:border-dark-border">
+      <div className="shrink-0 overflow-hidden rounded-2xl border border-line bg-surface">
+        <div className="flex items-center gap-3 border-b border-line px-4 py-3">
           <Skeleton className="h-9 w-9 rounded-xl" />
           <Skeleton className="h-4 w-52 rounded" />
           <Skeleton className="h-5 w-24 rounded-full" />
@@ -380,16 +369,16 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
         return (
           <div className="flex min-w-0 items-center gap-3">
             <Avatar className="h-8 w-8 shrink-0">
-              <AvatarFallback className="bg-[#e4f1ea] text-[10px] font-bold text-[#075c41] dark:bg-emerald-950/50 dark:text-emerald-300">
+              <AvatarFallback className="bg-accent-soft text-[10px] font-bold text-accent">
                 {identity.initials}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <p className="truncate text-[13px] font-semibold text-[#20362e] dark:text-dark-text-primary">
+              <p className="truncate text-[13px] font-semibold text-fg">
                 {identity.name}
               </p>
               {identity.phone && (
-                <p className="truncate text-[11px] text-[#718078] dark:text-dark-text-secondary">
+                <p className="truncate text-[11px] text-fg-muted">
                   {identity.phone}
                 </p>
               )}
@@ -417,9 +406,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           <p
             className={cn(
               "truncate text-xs",
-              hasIssue
-                ? "text-[#56675f] dark:text-dark-text-secondary"
-                : "text-[#95a098] dark:text-dark-text-tertiary",
+              hasIssue ? "text-fg-muted" : "text-fg-muted",
             )}
             title={detail}
           >
@@ -451,14 +438,14 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
 
   if (isError || !job) {
     return (
-      <div className="flex h-full min-h-80 flex-col items-center justify-center rounded-2xl border border-[#d7e0da] bg-white px-6 py-12 text-center shadow-sm dark:border-dark-border dark:bg-dark-elevated">
-        <span className="grid h-11 w-11 place-items-center rounded-xl bg-red-50 text-red-600 dark:bg-red-950/35 dark:text-red-300">
+      <div className="flex h-full min-h-80 flex-col items-center justify-center rounded-2xl border border-line bg-surface px-6 py-12 text-center shadow-sm">
+        <span className="grid h-11 w-11 place-items-center rounded-xl bg-danger-soft text-danger">
           <AlertCircle className="h-5 w-5" aria-hidden="true" />
         </span>
-        <h2 className="mt-3 text-sm font-semibold text-[#20362e] dark:text-dark-text-primary">
+        <h2 className="mt-3 text-sm font-semibold text-fg">
           {t("broadcasts.loadFailed", "Broadcast could not be loaded")}
         </h2>
-        <p className="mt-1 max-w-sm text-xs leading-5 text-[#718078] dark:text-dark-text-secondary">
+        <p className="mt-1 max-w-sm text-xs leading-5 text-fg-muted">
           {t(
             "broadcasts.loadFailedHint",
             "It may have been removed, or the workspace connection was interrupted.",
@@ -534,13 +521,13 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
     <div className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto overscroll-contain sm:gap-4">
       <section
         aria-labelledby="broadcast-campaign-title"
-        className="shrink-0 overflow-hidden rounded-2xl border border-[#d7e0da] bg-white shadow-[0_8px_24px_rgba(16,44,36,0.05)] dark:border-dark-border dark:bg-dark-elevated dark:shadow-none"
+        className="shrink-0 overflow-hidden rounded-2xl border border-line bg-surface shadow-lg"
       >
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[#e3e9e5] bg-[#fbfcfb] px-4 py-3 dark:border-dark-border dark:bg-dark-secondary/45 sm:px-5">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-subtle px-4 py-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-2.5">
             <h2
               id="broadcast-campaign-title"
-              className="truncate text-base font-semibold tracking-[-0.01em] text-[#172a23] dark:text-dark-text-primary"
+              className="truncate text-base font-semibold tracking-[-0.01em] text-fg"
             >
               {job.name}
             </h2>
@@ -552,7 +539,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="min-w-0 gap-2 border-[#bfd4c8] text-[#087654] shadow-none hover:border-[#8fbba2] hover:bg-[#edf6f1] hover:text-[#075c41] dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950/35"
+                  className="min-w-0 gap-2 border-line-strong text-accent shadow-none hover:border-line-strong hover:bg-muted hover:text-accent"
                   onClick={() => setRescheduleOpen(true)}
                 >
                   <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -565,7 +552,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="min-w-0 gap-2 border-red-200 text-red-600 shadow-none hover:border-red-300 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+                  className="min-w-0 gap-2 border-danger/30 text-danger shadow-none hover:border-danger/30 hover:bg-danger-soft hover:text-danger"
                   onClick={() => setConfirmCancelOpen(true)}
                 >
                   <Ban className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -642,12 +629,12 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           </dl>
 
           <article
-            className="min-w-0 border-t border-[#e3e9e5] p-4 dark:border-dark-border sm:p-5 lg:border-s lg:border-t-0"
+            className="min-w-0 border-t border-line p-4 sm:p-5 lg:border-s lg:border-t-0"
             aria-labelledby="message-preview-title"
           >
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
-                <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#e5f2eb] text-[#0b7a55] dark:bg-emerald-950/50 dark:text-emerald-300">
+                <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent-soft text-accent">
                   <MessageSquareText
                     className="h-3.5 w-3.5"
                     aria-hidden="true"
@@ -655,20 +642,20 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                 </span>
                 <h3
                   id="message-preview-title"
-                  className="text-xs font-semibold text-[#31463e] dark:text-dark-text-primary"
+                  className="text-xs font-semibold text-fg"
                 >
                   {t("broadcasts.messagePreview", "Message preview")}
                 </h3>
               </div>
-              <span className="hidden text-[10px] font-bold uppercase tracking-[0.1em] text-[#8a9790] dark:text-dark-text-tertiary sm:inline">
+              <span className="hidden text-[10px] font-bold uppercase tracking-[0.1em] text-fg-muted sm:inline">
                 {t("broadcasts.tokensHint", "Tokens personalize per contact")}
               </span>
             </div>
 
-            <div className="mt-3 rounded-xl border border-[#e1e8e3] bg-[#f4f7f5] p-3 dark:border-dark-border dark:bg-dark-secondary/55 sm:p-4">
-              <div className="max-h-52 overflow-y-auto rounded-xl rounded-ss-sm bg-[#dff4e8] px-3.5 py-3 text-[13px] leading-5 text-[#172a23] shadow-[0_1px_1px_rgba(16,44,36,0.06)] dark:bg-emerald-950/55 dark:text-dark-text-primary">
+            <div className="mt-3 rounded-xl border border-line bg-subtle p-3 sm:p-4">
+              <div className="max-h-52 overflow-y-auto rounded-xl rounded-ss-sm bg-accent-soft px-3.5 py-3 text-[13px] leading-5 text-fg shadow-xs">
                 {media && (
-                  <span className="mb-2 flex w-fit max-w-full items-center gap-1.5 rounded-md bg-white/65 px-2 py-1 text-[10px] font-semibold text-[#52675f] dark:bg-white/10 dark:text-dark-text-secondary">
+                  <span className="mb-2 flex w-fit max-w-full items-center gap-1.5 rounded-md bg-surface/65 px-2 py-1 text-[10px] font-semibold text-fg-muted">
                     <media.icon
                       className="h-3.5 w-3.5 shrink-0"
                       aria-hidden="true"
@@ -683,7 +670,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                     {job.content}
                   </p>
                 ) : (
-                  <p className="italic text-[#718078] dark:text-dark-text-secondary">
+                  <p className="italic text-fg-muted">
                     {t("broadcasts.attachmentOnly", "Attachment-only message")}
                   </p>
                 )}
@@ -692,25 +679,25 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           </article>
 
           <aside
-            className="border-t border-[#e3e9e5] bg-[#fbfcfb] p-4 dark:border-dark-border dark:bg-dark-secondary/35 sm:p-5 lg:border-s lg:border-t-0"
+            className="border-t border-line bg-subtle p-4 sm:p-5 lg:border-s lg:border-t-0"
             aria-labelledby="delivery-summary-title"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p
                   id="delivery-summary-title"
-                  className="text-xs font-semibold text-[#31463e] dark:text-dark-text-primary"
+                  className="text-xs font-semibold text-fg"
                 >
                   {t("broadcasts.deliverySummary", "Delivery summary")}
                 </p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums tracking-[-0.03em] text-[#172a23] dark:text-dark-text-primary">
+                <p className="mt-1 text-2xl font-semibold tabular-nums tracking-[-0.03em] text-fg">
                   {job.progress.sent}
-                  <span className="ms-1 text-sm font-medium tracking-normal text-[#718078] dark:text-dark-text-secondary">
+                  <span className="ms-1 text-sm font-medium tracking-normal text-fg-muted">
                     {t("broadcasts.ofSent", { total: job.progress.total })}
                   </span>
                 </p>
               </div>
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[#d8e5dd] bg-white text-[#0b7a55] dark:border-dark-border dark:bg-dark-elevated dark:text-emerald-300">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-surface text-accent">
                 <Send className="h-4 w-4" aria-hidden="true" />
               </span>
             </div>
@@ -724,14 +711,11 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
               size="md"
               className="mt-3"
             />
-            <p
-              className="mt-1.5 text-[11px] text-[#718078] dark:text-dark-text-secondary"
-              aria-live="polite"
-            >
+            <p className="mt-1.5 text-[11px] text-fg-muted" aria-live="polite">
               {progressSummary(job)}
             </p>
 
-            <div className="mt-4 grid grid-cols-3 gap-x-4 gap-y-3 border-t border-[#e3e9e5] pt-3 dark:border-dark-border sm:grid-cols-5 lg:grid-cols-3">
+            <div className="mt-4 grid grid-cols-3 gap-x-4 gap-y-3 border-t border-line pt-3 sm:grid-cols-5 lg:grid-cols-3">
               <OutcomeMetric
                 type="sent"
                 label={t("broadcasts.sent", "Sent")}
@@ -780,14 +764,14 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           )}
           toolbarLeading={
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-[#d7e0da] bg-white text-[#0b7a55] dark:border-dark-border dark:bg-dark-elevated dark:text-emerald-300">
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-line bg-surface text-accent">
                 <UsersRound className="h-3.5 w-3.5" aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <p className="truncate text-xs font-semibold text-[#31463e] dark:text-dark-text-primary">
+                <p className="truncate text-xs font-semibold text-fg">
                   {t("broadcasts.recipientOutcomes", "Recipient outcomes")}
                 </p>
-                <p className="hidden truncate text-[10px] text-[#7a8881] sm:block dark:text-dark-text-secondary">
+                <p className="hidden truncate text-[10px] text-fg-muted sm:block">
                   {t(
                     "broadcasts.recipientOutcomesHint",
                     "Individual delivery results and failure details.",

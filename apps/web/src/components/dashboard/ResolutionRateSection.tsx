@@ -51,9 +51,9 @@ function formatMinutes(
 }
 
 function getSlaColor(rate: number): string {
-  if (rate >= 90) return "text-green-600";
-  if (rate >= 70) return "text-yellow-600";
-  return "text-red-600";
+  if (rate >= 90) return "text-accent";
+  if (rate >= 70) return "text-warning";
+  return "text-danger";
 }
 
 /**
@@ -92,29 +92,29 @@ export function ResolutionRateSection({
   } = useResolutionTrend(companyId, startDate, endDate);
 
   return (
-    <section className="rounded-xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_1px_rgba(16,44,36,0.03)] dark:border-dark-border dark:bg-dark-elevated">
+    <section className="rounded-xl border border-line bg-surface p-5 shadow-xs">
       <div className="mb-5 flex items-center gap-3">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#e5f2ec] text-[#0b7a55] dark:bg-emerald-950/50 dark:text-emerald-300">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent-soft text-accent">
           <Target className="h-4 w-4" />
         </span>
         <div>
-          <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+          <h3 className="text-sm font-semibold text-fg">
             {t("dashboard.resolution.title", "Resolution SLA")}
           </h3>
-          <p className="text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
+          <p className="text-[11px] text-fg-muted">
             {t(
               "dashboard.resolution.subtitle",
               "How fast conversations get closed out",
             )}
           </p>
         </div>
-        <span className="ms-auto rounded-full border border-[#dce3de] bg-[#fafcfb] px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#718078] dark:border-dark-border dark:bg-dark-secondary dark:text-dark-text-secondary">
+        <span className="ms-auto rounded-full border border-line bg-subtle px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
           {dayjs(startDate).format("MMM D")} – {dayjs(endDate).format("MMM D")}
         </span>
       </div>
 
       {statsError && (
-        <p className="text-red-500 dark:text-red-400 text-center py-4">
+        <p className="text-danger text-center py-4">
           {t(
             "dashboard.resolution.loadFailed",
             "Failed to load resolution data",
@@ -125,17 +125,17 @@ export function ResolutionRateSection({
       {!statsError && (
         <>
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
-              <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+            <div className="rounded-xl border border-line bg-subtle p-4">
+              <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
                 <Clock className="h-3.5 w-3.5" />
                 {t("dashboard.resolution.avgResolution", "Avg Resolution")}
               </div>
-              <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-[#203b32] dark:text-dark-text-primary">
+              <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">
                 {statsLoading
                   ? "-"
                   : formatMinutes(stats?.averageResolutionMinutes || 0, t)}
               </div>
-              <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+              <div className="mt-1 text-[10px] text-fg-muted">
                 Median:{" "}
                 {statsLoading
                   ? "-"
@@ -143,15 +143,15 @@ export function ResolutionRateSection({
               </div>
             </div>
 
-            <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
-              <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+            <div className="rounded-xl border border-line bg-subtle p-4">
+              <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
                 <CheckCircle className="h-3.5 w-3.5" />
                 {t("dashboard.resolution.slaCompliance", "SLA Compliance")}
               </div>
               <div
                 className={`mt-2 text-2xl font-semibold tracking-[-0.02em] ${
                   statsLoading
-                    ? "text-[#203b32] dark:text-dark-text-primary"
+                    ? "text-fg"
                     : getSlaColor(stats?.slaComplianceRate || 0)
                 }`}
               >
@@ -159,33 +159,33 @@ export function ResolutionRateSection({
                   ? "-"
                   : `${Math.round(stats?.slaComplianceRate || 0)}%`}
               </div>
-              <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+              <div className="mt-1 text-[10px] text-fg-muted">
                 {statsLoading ? "-" : stats?.totalEvaluated || 0} evaluated
               </div>
             </div>
 
-            <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
-              <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+            <div className="rounded-xl border border-line bg-subtle p-4">
+              <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
                 <CheckCircle className="h-3.5 w-3.5" />
                 Resolved
               </div>
-              <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-[#203b32] dark:text-dark-text-primary">
+              <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">
                 {statsLoading ? "-" : stats?.totalResolvedCases || 0}
               </div>
-              <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+              <div className="mt-1 text-[10px] text-fg-muted">
                 {statsLoading ? "-" : stats?.withinSlaCount || 0} within SLA
               </div>
             </div>
 
-            <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
-              <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+            <div className="rounded-xl border border-line bg-subtle p-4">
+              <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
                 <AlertTriangle className="h-3.5 w-3.5" />
                 {t("dashboard.resolution.overdueActive", "Overdue Active")}
               </div>
-              <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-red-600 dark:text-red-400">
+              <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-danger">
                 {statsLoading ? "-" : stats?.overdueActiveCases || 0}
               </div>
-              <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+              <div className="mt-1 text-[10px] text-fg-muted">
                 {t("dashboard.resolution.rightNowAnyAge", "Right now, any age")}
               </div>
             </div>
@@ -199,10 +199,10 @@ export function ResolutionRateSection({
                 return (
                   <div
                     key={kind}
-                    className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-3 dark:border-dark-border dark:bg-dark-tertiary/30"
+                    className="rounded-xl border border-line bg-subtle p-3"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold capitalize text-[#40544c] dark:text-dark-text-primary">
+                      <span className="text-xs font-semibold capitalize text-fg">
                         {kind} chats
                       </span>
                       <span
@@ -211,7 +211,7 @@ export function ResolutionRateSection({
                         {Math.round(k.slaComplianceRate)}%
                       </span>
                     </div>
-                    <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+                    <div className="mt-1 text-[10px] text-fg-muted">
                       {k.totalResolvedCases} resolved · avg{" "}
                       {formatMinutes(k.averageResolutionMinutes, t)} ·{" "}
                       {k.overdueActiveCases} overdue
@@ -225,14 +225,14 @@ export function ResolutionRateSection({
           {/* Resolution trend */}
           <div className="mt-4">
             {trendError ? (
-              <p className="rounded-xl border border-dashed border-red-200 bg-red-50/50 py-4 text-center text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/10 dark:text-red-400">
+              <p className="rounded-xl border border-dashed border-danger/30 bg-danger-soft/50 py-4 text-center text-xs text-danger">
                 {t(
                   "dashboard.resolution.trendLoadFailed",
                   "Failed to load resolution trend",
                 )}
               </p>
             ) : trendLoading ? (
-              <div className="grid h-[220px] place-items-center rounded-xl border border-dashed border-[#dce3de] bg-[#fafcfb] text-sm text-[#718078] dark:border-dark-border dark:bg-dark-secondary/40 dark:text-dark-text-secondary">
+              <div className="grid h-[220px] place-items-center rounded-xl border border-dashed border-line bg-subtle text-sm text-fg-muted">
                 {t("dashboard.resolution.loadingTrend", "Loading trend…")}
               </div>
             ) : (
@@ -242,7 +242,7 @@ export function ResolutionRateSection({
 
           {/* Overdue work queue */}
           {overdueError && (
-            <p className="mt-4 rounded-xl border border-dashed border-red-200 bg-red-50/50 py-4 text-center text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/10 dark:text-red-400">
+            <p className="mt-4 rounded-xl border border-dashed border-danger/30 bg-danger-soft/50 py-4 text-center text-xs text-danger">
               {t(
                 "dashboard.resolution.queueLoadFailed",
                 "Failed to load overdue work queue",
@@ -250,13 +250,13 @@ export function ResolutionRateSection({
             </p>
           )}
           {!overdueError && overdueCases && overdueCases.length > 0 && (
-            <div className="mt-4 rounded-xl border border-red-200 bg-red-50/70 p-4 dark:border-red-900/70 dark:bg-red-950/20">
+            <div className="mt-4 rounded-xl border border-danger/30 bg-danger-soft/70 p-4">
               <div className="mb-3 flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                <h3 className="text-sm font-semibold text-red-900 dark:text-red-300">
+                <AlertTriangle className="h-4 w-4 text-danger" />
+                <h3 className="text-sm font-semibold text-danger">
                   {t("dashboard.resolution.overdueQueue", "Overdue work queue")}
                 </h3>
-                <span className="rounded bg-red-100 dark:bg-red-900/50 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
+                <span className="rounded bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger">
                   {overdueCases.length}
                 </span>
               </div>
@@ -264,17 +264,17 @@ export function ResolutionRateSection({
                 {overdueCases.slice(0, 5).map((item) => (
                   <div
                     key={item.caseId}
-                    className="flex items-center justify-between rounded-lg border border-red-100 bg-white px-3 py-2 text-xs dark:border-red-900/50 dark:bg-dark-elevated"
+                    className="flex items-center justify-between rounded-lg border border-danger/30 bg-surface px-3 py-2 text-xs"
                   >
                     <div>
-                      <span className="font-medium text-gray-900 dark:text-dark-text-primary">
+                      <span className="font-medium text-fg">
                         {item.contactName || item.contactId}
                       </span>
-                      <span className="ms-2 capitalize text-gray-500 dark:text-dark-text-secondary">
+                      <span className="ms-2 capitalize text-fg-muted">
                         {item.kind}
                       </span>
                     </div>
-                    <span className="font-medium text-red-600 dark:text-red-400">
+                    <span className="font-medium text-danger">
                       {formatMinutes(item.elapsedMinutes, t)} elapsed
                     </span>
                   </div>
@@ -285,7 +285,7 @@ export function ResolutionRateSection({
 
           {/* Team attribution (admin only) */}
           {isAdmin && teamError && (
-            <p className="mt-4 rounded-xl border border-dashed border-red-200 bg-red-50/50 py-4 text-center text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/10 dark:text-red-400">
+            <p className="mt-4 rounded-xl border border-dashed border-danger/30 bg-danger-soft/50 py-4 text-center text-xs text-danger">
               {t(
                 "dashboard.resolution.teamLoadFailed",
                 "Failed to load team resolution times",
@@ -293,10 +293,10 @@ export function ResolutionRateSection({
             </p>
           )}
           {isAdmin && !teamError && team && team.length > 0 && (
-            <div className="mt-4 rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/30">
+            <div className="mt-4 rounded-xl border border-line bg-subtle p-4">
               <div className="mb-4 flex items-center gap-2">
-                <Users className="h-4 w-4 text-[#65736d] dark:text-dark-text-secondary" />
-                <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+                <Users className="h-4 w-4 text-fg-muted" />
+                <h3 className="text-sm font-semibold text-fg">
                   {t("dashboard.resolution.teamTimes", "Team resolution times")}
                 </h3>
               </div>
@@ -304,18 +304,18 @@ export function ResolutionRateSection({
                 {team.slice(0, 5).map((member) => (
                   <div
                     key={member.userId}
-                    className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-white dark:hover:bg-dark-tertiary"
+                    className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-surface"
                   >
                     <div>
-                      <div className="text-xs font-medium text-[#40544c] dark:text-dark-text-primary">
+                      <div className="text-xs font-medium text-fg">
                         {member.email}
                       </div>
-                      <div className="text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+                      <div className="text-[10px] text-fg-muted">
                         {member.totalResolvedCases} resolved
                       </div>
                     </div>
                     <div className="text-end">
-                      <div className="text-xs font-semibold text-[#203b32] dark:text-dark-text-primary">
+                      <div className="text-xs font-semibold text-fg">
                         {formatMinutes(member.averageResolutionMinutes, t)}
                       </div>
                       <div

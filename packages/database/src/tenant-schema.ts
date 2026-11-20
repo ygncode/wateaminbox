@@ -137,6 +137,21 @@ export const TENANT_SCHEMA_CONTRACT = {
     "created_by",
     "created_at",
     "revoked_at",
+    "expires_at",
+    "revoked_by",
+  ],
+  contact_policy_settings: [
+    "id",
+    "enforcement_enabled",
+    "updated_by",
+    "updated_at",
+  ],
+  contact_suppression_drops: [
+    "contact_id",
+    "channel",
+    "day",
+    "dropped_count",
+    "last_dropped_at",
   ],
   conversations: [
     "id",

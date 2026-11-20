@@ -19,14 +19,14 @@ export function BroadcastsHeader({
   const { t } = useTranslation();
 
   return (
-    <header className="shrink-0 border-b border-[#dce3de] bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
+    <header className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6">
       <div className="flex min-h-10 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           {showingDetail ? (
             <button
               type="button"
               onClick={onBack}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[#d7e0da] bg-white text-[#52675f] transition-colors hover:bg-[#edf2ef] hover:text-[#075c41] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-secondary dark:hover:bg-dark-tertiary dark:hover:text-emerald-300"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-line bg-surface text-fg-muted transition-colors hover:bg-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label={t(
                 "broadcasts.backToBroadcasts",
                 "Back to broadcasts",
@@ -38,18 +38,18 @@ export function BroadcastsHeader({
               />
             </button>
           ) : (
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/60 dark:text-emerald-300">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
               <Megaphone className="h-4.5 w-4.5" aria-hidden="true" />
             </div>
           )}
 
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold leading-none text-gray-900 dark:text-dark-text-primary">
+            <h1 className="truncate text-lg font-semibold leading-none text-fg">
               {showingDetail
                 ? t("broadcasts.details", "Broadcast details")
                 : "Broadcasts"}
             </h1>
-            <p className="mt-1 truncate text-xs text-[#65736d] dark:text-dark-text-secondary">
+            <p className="mt-1 truncate text-xs text-fg-muted">
               {workspaceName} ·{" "}
               {showingDetail
                 ? t(
@@ -68,7 +68,7 @@ export function BroadcastsHeader({
           <Button
             size="sm"
             onClick={onCreate}
-            className="shrink-0 gap-2 bg-[#0b7a55] text-white shadow-sm hover:bg-[#096747]"
+            className="shrink-0 gap-2 bg-primary text-on-primary shadow-sm hover:bg-primary-hover"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             <span className="hidden sm:inline">

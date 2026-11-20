@@ -123,7 +123,7 @@ export const MessageContextMenu = forwardRef<
   return (
     <div
       ref={ref}
-      className="fixed z-50 bg-white dark:bg-dark-elevated rounded-lg shadow-xl py-1 min-w-[140px] border border-gray-200 dark:border-dark-border"
+      className="fixed z-50 bg-surface rounded-lg shadow-xl py-1 min-w-[140px] border border-line"
       style={{
         left: adjustedPosition.x,
         top: adjustedPosition.y,
@@ -132,7 +132,7 @@ export const MessageContextMenu = forwardRef<
       {menuItems.map((item) => (
         <button
           key={item.label}
-          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary"
+          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-fg hover:bg-muted"
           onClick={() => {
             item.action();
             onClose();

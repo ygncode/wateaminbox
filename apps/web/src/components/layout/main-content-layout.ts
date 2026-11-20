@@ -19,4 +19,4 @@
  * testable without pulling the component's runtime dependencies in.
  */
 export const MAIN_CONTENT_ROOT_CLASS =
-  "flex min-h-0 min-w-0 flex-1 flex-col bg-gray-50 dark:bg-dark-primary";
+  "flex min-h-0 min-w-0 flex-1 flex-col bg-subtle";

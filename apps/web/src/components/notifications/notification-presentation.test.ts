@@ -183,7 +183,8 @@ describe("notification type presentation", () => {
       const visual = getNotificationVisual(type);
       expect(visual.label.length).toBeGreaterThan(0);
       expect(visual.accent).toContain("border-s-");
-      expect(visual.tile).toContain("dark:");
+      // Themes own dark values; styling must be semantic tokens only.
+      expect(visual.tile).not.toContain("dark:");
     }
   });
 

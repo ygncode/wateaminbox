@@ -39,7 +39,7 @@ export function ContactInfoSection({
             <div key={chat.chatId} className="flex items-center gap-3">
               <ChatIdentityAvatar chat={chat} className="size-8" />
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-gray-900 dark:text-dark-text-primary">
+                <p className="truncate text-sm font-medium text-fg">
                   {chat.address
                     ? formatPhoneLikeText(chat.address)
                     : (chat.displayName ??
@@ -47,7 +47,7 @@ export function ContactInfoSection({
                         defaultValue: "Chat",
                       }))}
                 </p>
-                <p className="truncate text-xs text-gray-500 dark:text-dark-text-tertiary">
+                <p className="truncate text-xs text-fg-muted">
                   {[channelLabel(chat.channel), chat.accountName]
                     .filter(Boolean)
                     .join(" · ")}
@@ -65,26 +65,21 @@ export function ContactInfoSection({
       <div className="space-y-3">
         {contact.phoneNumber && (
           <div className="flex items-center gap-3">
-            <Phone className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
+            <Phone className="h-5 w-5 text-fg-subtle" />
             <div>
-              <p
-                dir="ltr"
-                className="text-sm font-medium text-gray-900 dark:text-dark-text-primary text-end"
-              >
+              <p dir="ltr" className="text-sm font-medium text-fg text-end">
                 {formatPhoneNumber(contact.phoneNumber)}
               </p>
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
-                Phone
-              </p>
+              <p className="text-xs text-fg-muted">Phone</p>
             </div>
           </div>
         )}
         {contact.connection && (
           <div className="flex items-center gap-3">
-            <Smartphone className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
+            <Smartphone className="h-5 w-5 text-fg-subtle" />
             <div className="min-w-0">
               <ConnectionBadge connection={contact.connection} />
-              <p className="mt-1 truncate text-xs text-gray-500 dark:text-dark-text-tertiary">
+              <p className="mt-1 truncate text-xs text-fg-muted">
                 Receives on{" "}
                 {getConnectionPhone(contact.connection) || "this account"}
               </p>
@@ -93,12 +88,10 @@ export function ContactInfoSection({
         )}
         {contact.username && (
           <div className="flex items-center gap-3">
-            <AtSign className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
+            <AtSign className="h-5 w-5 text-fg-subtle" />
             <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
-                @{contact.username}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+              <p className="text-sm font-medium text-fg">@{contact.username}</p>
+              <p className="text-xs text-fg-muted">
                 {network
                   ? t("contacts.channelUsername", {
                       channel: network,
@@ -111,12 +104,10 @@ export function ContactInfoSection({
         )}
         {contact.pushName && (
           <div className="flex items-center gap-3">
-            <User className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
+            <User className="h-5 w-5 text-fg-subtle" />
             <div>
-              <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
-                {contact.pushName}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+              <p className="text-sm font-medium text-fg">{contact.pushName}</p>
+              <p className="text-xs text-fg-muted">
                 {network
                   ? t("contacts.channelProfileName", {
                       channel: network,

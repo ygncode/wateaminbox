@@ -20,7 +20,7 @@ export function TagSearchInput({
   return (
     <div className={cn("relative", className)}>
       <Search
-        className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400 dark:text-dark-text-tertiary"
+        className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-fg-subtle"
         aria-hidden="true"
       />
       <input
@@ -30,14 +30,14 @@ export function TagSearchInput({
         placeholder={t("tags.searchPlaceholder", "Search tags…")}
         aria-label={t("tags.search", "Search tags")}
         autoFocus={autoFocus}
-        className="h-8 w-full rounded-lg border border-gray-200 bg-gray-50 py-1.5 ps-8 pe-8 text-xs text-gray-900 outline-none placeholder:text-gray-400 focus:border-whatsapp-green focus:bg-white focus:ring-1 focus:ring-whatsapp-green/30 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary dark:focus:bg-dark-elevated"
+        className="h-8 w-full rounded-lg border border-line bg-subtle py-1.5 ps-8 pe-8 text-xs text-fg outline-none placeholder:text-fg-subtle focus:border-primary focus:bg-surface focus:ring-1 focus:ring-ring/30"
       />
       {value && (
         <button
           type="button"
           onClick={() => onChange("")}
           aria-label={t("tags.clearSearch", "Clear tag search")}
-          className="absolute end-2 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-full text-gray-400 hover:bg-black/5 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 dark:text-dark-text-tertiary dark:hover:bg-white/10"
+          className="absolute end-2 top-1/2 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-full text-fg-subtle hover:bg-fg/5 hover:text-fg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
         >
           <X className="h-3 w-3" aria-hidden="true" />
         </button>

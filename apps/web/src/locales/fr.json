@@ -655,11 +655,16 @@
     "workspaceLeaveFailed": "Impossible de quitter l’espace de travail",
     "themePanel": {
       "title": "Thème",
-      "description": "Alternez entre clair, sombre et la préférence de votre système.",
+      "description": "Choisissez l'apparence de WATeamInbox. Système suit votre appareil entre Clair et Sombre.",
       "changed": "Thème changé : {{theme}}",
       "system": "Système ({{resolved}})",
       "light": "Clair",
-      "dark": "Sombre"
+      "dark": "Sombre",
+      "whatsapp": "WhatsApp",
+      "systemLabel": "Système",
+      "lightLabel": "Clair",
+      "darkLabel": "Sombre",
+      "whatsappLabel": "WhatsApp"
     },
     "languagePanel": {
       "title": "Langue",
@@ -680,11 +685,6 @@
       "description": "Les exportations de l’espace de travail sont disponibles dans les vues Tableau de bord et Audit concernées."
     },
     "exportsScope": "Les exportations ne contiennent que les données de {{name}}.",
-    "themeLight": "Clair",
-    "themeDark": "Sombre",
-    "themeSystem": "Suivre le système",
-    "themeChanged": "Thème changé : {{theme}}",
-    "themeToggleAria": "Thème actuel : {{current}}. Cliquez pour passer à {{next}}",
     "apiTokensPanel": {
       "title": "Agents d’IA (MCP)",
       "description": "Connectez des agents d’IA à cet espace de travail via le point de terminaison MCP, avec des jetons personnels révocables."
@@ -692,13 +692,15 @@
     "viewShortcuts": "Voir les raccourcis",
     "leftWorkspace": "Vous avez quitté {{name}}",
     "languageSaveFailed": "Impossible d’enregistrer la langue sur votre compte. Elle s’appliquera uniquement dans ce navigateur.",
+    "themeSaveFailed": "Impossible d'enregistrer le thème dans votre compte",
     "notificationSounds": {
       "default": "Par défaut",
       "chime": "Carillon",
       "bell": "Cloche",
       "pop": "Pop",
       "none": "Aucun"
-    }
+    },
+    "themeMenuAria": "Thème : {{current}}"
   },
   "dashboard": {
     "totalMessages": "Total des messages",

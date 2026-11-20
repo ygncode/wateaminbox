@@ -35,16 +35,16 @@ export function CustomerEngagementSection({
   const trendState = useAsyncData(trendQuery);
 
   return (
-    <section className="rounded-xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_1px_rgba(16,44,36,0.03)] dark:border-dark-border dark:bg-dark-elevated">
+    <section className="rounded-xl border border-line bg-surface p-5 shadow-xs">
       <div className="mb-5 flex items-center gap-3">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#fff3e2] text-[#b36c24] dark:bg-amber-950/40 dark:text-amber-300">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-warning-soft text-warning">
           <Zap className="h-4 w-4" />
         </span>
         <div>
-          <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+          <h3 className="text-sm font-semibold text-fg">
             {t("dashboard.engagementPanel.title", "Customer engagement")}
           </h3>
-          <p className="text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
+          <p className="text-[11px] text-fg-muted">
             {t(
               "dashboard.engagementPanel.subtitle",
               "Interaction quality across the selected period",
@@ -66,7 +66,7 @@ export function CustomerEngagementSection({
           </div>
         ),
         error: () => (
-          <p className="text-red-500 dark:text-red-400 text-center py-4">
+          <p className="text-danger text-center py-4">
             {t(
               "dashboard.engagementPanel.loadFailed",
               "Failed to load engagement data",
@@ -74,7 +74,7 @@ export function CustomerEngagementSection({
           </p>
         ),
         empty: () => (
-          <p className="text-gray-500 dark:text-dark-text-secondary text-center py-4">
+          <p className="text-fg-muted text-center py-4">
             {t(
               "dashboard.engagementPanel.empty",
               "No engagement data available",
@@ -87,20 +87,20 @@ export function CustomerEngagementSection({
           return (
             <div className="space-y-6">
               <div className="grid gap-4 xl:grid-cols-[17rem_1fr]">
-                <div className="relative overflow-hidden rounded-xl bg-[#173c31] p-5 text-white shadow-[inset_0_1px_rgba(255,255,255,0.08)]">
+                <div className="relative overflow-hidden rounded-xl bg-primary p-5 text-on-primary shadow-none">
                   <div className="absolute -end-10 -top-12 h-40 w-40 rounded-full border border-white/10" />
-                  <div className="absolute -bottom-16 end-8 h-32 w-32 rounded-full bg-emerald-300/5" />
-                  <p className="relative text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-100/70">
+                  <div className="absolute -bottom-16 end-8 h-32 w-32 rounded-full bg-accent-soft/5" />
+                  <p className="relative text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70">
                     {t("dashboard.engagementPanel.score", "Engagement score")}
                   </p>
                   <div className="relative mt-5 flex items-center gap-4">
                     <div
                       className="grid h-24 w-24 shrink-0 place-items-center rounded-full p-[7px]"
                       style={{
-                        background: `conic-gradient(#59d7a5 ${data.engagementScore * 3.6}deg, rgba(255,255,255,0.13) 0deg)`,
+                        background: `conic-gradient(#59d7a5 ${data.engagementScore * 3.6}deg, var(--nav-active) 0deg)`,
                       }}
                     >
-                      <div className="grid h-full w-full place-items-center rounded-full bg-[#173c31]">
+                      <div className="grid h-full w-full place-items-center rounded-full bg-primary">
                         <span className="text-2xl font-semibold tabular-nums">
                           {data.engagementScore}
                         </span>
@@ -110,7 +110,7 @@ export function CustomerEngagementSection({
                       <p className="text-xl font-semibold">
                         {getEngagementLabel(t, data.engagementScore)}
                       </p>
-                      <p className="mt-1 text-xs leading-relaxed text-emerald-100/70">
+                      <p className="mt-1 text-xs leading-relaxed text-white/70">
                         {t(
                           "dashboard.engagementPanel.scoreHint",
                           "Activity, replies, and two-way interactions.",
@@ -172,12 +172,12 @@ export function CustomerEngagementSection({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 divide-x divide-[#e3e9e5] rounded-xl border border-[#e3e9e5] bg-[#fafcfb] py-4 dark:divide-dark-border dark:border-dark-border dark:bg-dark-tertiary/40">
+              <div className="grid grid-cols-3 divide-x divide-line rounded-xl border border-line bg-subtle py-4">
                 <div className="px-3 text-center">
-                  <p className="text-xl font-semibold tracking-[-0.02em] text-[#203b32] dark:text-dark-text-primary">
+                  <p className="text-xl font-semibold tracking-[-0.02em] text-fg">
                     {data.averageMessagesPerContact}
                   </p>
-                  <p className="mt-1 text-[10px] text-[#7a8881] dark:text-dark-text-secondary">
+                  <p className="mt-1 text-[10px] text-fg-muted">
                     {t(
                       "dashboard.engagementPanel.avgPerContact",
                       "Avg. per contact",
@@ -185,10 +185,10 @@ export function CustomerEngagementSection({
                   </p>
                 </div>
                 <div className="px-3 text-center">
-                  <p className="text-xl font-semibold tracking-[-0.02em] text-[#0b7a55] dark:text-emerald-300">
+                  <p className="text-xl font-semibold tracking-[-0.02em] text-accent">
                     {formatNumber(data.messagesSent)}
                   </p>
-                  <p className="mt-1 text-[10px] text-[#7a8881] dark:text-dark-text-secondary">
+                  <p className="mt-1 text-[10px] text-fg-muted">
                     {t(
                       "dashboard.engagementPanel.messagesSent",
                       "Messages sent",
@@ -196,10 +196,10 @@ export function CustomerEngagementSection({
                   </p>
                 </div>
                 <div className="px-3 text-center">
-                  <p className="text-xl font-semibold tracking-[-0.02em] text-[#4185c5] dark:text-blue-300">
+                  <p className="text-xl font-semibold tracking-[-0.02em] text-info">
                     {formatNumber(data.messagesReceived)}
                   </p>
-                  <p className="mt-1 text-[10px] text-[#7a8881] dark:text-dark-text-secondary">
+                  <p className="mt-1 text-[10px] text-fg-muted">
                     {t(
                       "dashboard.engagementPanel.messagesReceived",
                       "Messages received",
@@ -211,7 +211,7 @@ export function CustomerEngagementSection({
               {trendState.isError ? (
                 <p
                   role="status"
-                  className="border-t border-[#e3e9e5] pt-4 text-center text-sm text-red-600 dark:border-dark-border dark:text-red-400"
+                  className="border-t border-line pt-4 text-center text-sm text-danger"
                 >
                   {t(
                     "dashboard.engagementPanel.trendLoadFailed",
@@ -222,15 +222,15 @@ export function CustomerEngagementSection({
                 !trendState.isLoading &&
                 trendData &&
                 trendData.length > 0 && (
-                  <div className="border-t border-[#e3e9e5] pt-5 dark:border-dark-border">
+                  <div className="border-t border-line pt-5">
                     <div className="mb-4">
-                      <h4 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+                      <h4 className="text-sm font-semibold text-fg">
                         {t(
                           "dashboard.engagementPanel.trendTitle",
                           "Engagement trend",
                         )}
                       </h4>
-                      <p className="mt-0.5 text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
+                      <p className="mt-0.5 text-[11px] text-fg-muted">
                         {t(
                           "dashboard.engagementPanel.trendSubtitle",
                           "Engagement score compared with response rate",

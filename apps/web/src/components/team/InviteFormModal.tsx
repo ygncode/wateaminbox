@@ -127,8 +127,8 @@ export function InviteFormModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="mx-4 max-h-[92dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto rounded-2xl border-[#dce3de] p-0 [&>button]:end-4 [&>button]:top-4 [&>button]:grid [&>button]:h-8 [&>button]:w-8 [&>button]:place-items-center [&>button]:rounded-full [&>button]:border [&>button]:border-[#d7e0da] [&>button]:bg-white [&>button]:opacity-100 [&>button]:shadow-sm [&>button]:transition-colors hover:[&>button]:bg-[#edf3ef] sm:w-full dark:border-dark-border dark:[&>button]:border-dark-border dark:[&>button]:bg-dark-elevated dark:hover:[&>button]:bg-dark-tertiary">
-        <div className="border-b border-[#e6ebe7] bg-[#f8faf8] py-4 ps-5 pe-16 dark:border-dark-border dark:bg-dark-tertiary/40 sm:ps-6 sm:pe-20">
+      <DialogContent className="mx-4 max-h-[92dvh] w-[calc(100vw-2rem)] max-w-2xl overflow-y-auto rounded-2xl border-line p-0 [&>button]:end-4 [&>button]:top-4 [&>button]:grid [&>button]:h-8 [&>button]:w-8 [&>button]:place-items-center [&>button]:rounded-full [&>button]:border [&>button]:border-line [&>button]:bg-surface [&>button]:opacity-100 [&>button]:shadow-sm [&>button]:transition-colors hover:[&>button]:bg-muted sm:w-full">
+        <div className="border-b border-line bg-subtle py-4 ps-5 pe-16 sm:ps-6 sm:pe-20">
           <div
             className="mb-4"
             aria-label={t("team.stepProgress", "Step progress")}
@@ -139,31 +139,27 @@ export function InviteFormModal({
           >
             <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-1.5 text-xs font-semibold">
-                <span className="text-[#075c41] dark:text-emerald-300">
-                  {t("team.stepDetails")}
-                </span>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#9ca9a2] rtl:-scale-x-100" />
+                <span className="text-accent">{t("team.stepDetails")}</span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-fg-subtle rtl:-scale-x-100" />
                 <span
                   className={
-                    step === "review"
-                      ? "text-[#075c41] dark:text-emerald-300"
-                      : "text-[#89968f] dark:text-dark-text-secondary"
+                    step === "review" ? "text-accent" : "text-fg-muted"
                   }
                 >
                   {t("team.stepReview")}
                 </span>
               </div>
-              <span className="shrink-0 rounded-full border border-[#d7e0da] bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#65736d] shadow-sm dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-secondary">
+              <span className="shrink-0 rounded-full border border-line bg-surface px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-fg-muted shadow-sm">
                 {t("team.stepOf", {
                   current: step === "details" ? 1 : 2,
                   total: 2,
                 })}
               </span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-[#dce3de] dark:bg-dark-border">
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted-strong">
               <div
                 className={cn(
-                  "h-full rounded-full bg-[#0b7a55] transition-[width] duration-300 ease-out dark:bg-emerald-500",
+                  "h-full rounded-full bg-primary transition-[width] duration-300 ease-out",
                   step === "details" ? "w-1/2" : "w-full",
                 )}
               />
@@ -208,11 +204,11 @@ export function InviteFormModal({
                   <div>
                     <p
                       id="role-label"
-                      className="text-sm font-semibold text-gray-800 dark:text-dark-text-primary"
+                      className="text-sm font-semibold text-fg"
                     >
                       {t("team.workspaceRole", "Workspace role")}
                     </p>
-                    <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
+                    <p className="text-xs text-fg-muted">
                       {t(
                         "team.workspaceRoleHint",
                         "Role controls hierarchy as well as default access.",
@@ -252,25 +248,22 @@ export function InviteFormModal({
                   )}
                 </div>
                 {errors.role && (
-                  <p
-                    className="mt-1 text-xs text-red-500 dark:text-red-400"
-                    role="alert"
-                  >
+                  <p className="mt-1 text-xs text-danger" role="alert">
                     {errors.role.message}
                   </p>
                 )}
               </section>
 
-              <section className="overflow-hidden rounded-xl border border-[#dce3de] dark:border-dark-border">
-                <div className="flex items-start gap-3 bg-[#f8faf8] px-4 py-3 dark:bg-dark-tertiary/40">
-                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/50 dark:text-emerald-300">
+              <section className="overflow-hidden rounded-xl border border-line">
+                <div className="flex items-start gap-3 bg-subtle px-4 py-3">
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
                     <SlidersHorizontal className="h-4 w-4" />
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold">
                       {t("team.startingAccess", "Starting access")}
                     </p>
-                    <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
+                    <p className="text-xs text-fg-muted">
                       {t(
                         "team.startingAccessHint",
                         "Applied when the invitation is accepted.",
@@ -282,7 +275,7 @@ export function InviteFormModal({
                 {canCustomizeAccess ? (
                   <>
                     <div
-                      className="grid grid-cols-2 gap-1 border-y border-[#e6ebe7] bg-white p-1.5 dark:border-dark-border dark:bg-dark-elevated"
+                      className="grid grid-cols-2 gap-1 border-y border-line bg-surface p-1.5"
                       role="radiogroup"
                       aria-label={t(
                         "team.invitationAccessMode",
@@ -319,7 +312,7 @@ export function InviteFormModal({
                       <div className="space-y-4 p-4">
                         {permissionGroups.map((group) => (
                           <fieldset key={group.label}>
-                            <legend className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#65736d] dark:text-dark-text-secondary">
+                            <legend className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-fg-muted">
                               {group.label}
                             </legend>
                             <div className="grid gap-1 sm:grid-cols-2">
@@ -329,8 +322,8 @@ export function InviteFormModal({
                                   className={cn(
                                     "flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 transition-colors",
                                     permissions[option.key]
-                                      ? "border-[#a9d4c1] bg-[#f0f8f4] dark:border-emerald-800 dark:bg-emerald-950/20"
-                                      : "border-[#e6ebe7] hover:bg-[#f8faf8] dark:border-dark-border dark:hover:bg-dark-tertiary/50",
+                                      ? "border-accent/30 bg-subtle"
+                                      : "border-line hover:bg-muted",
                                   )}
                                 >
                                   <input
@@ -342,13 +335,13 @@ export function InviteFormModal({
                                         [option.key]: event.target.checked,
                                       }))
                                     }
-                                    className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-[#0b7a55]"
+                                    className="mt-0.5 h-4 w-4 rounded border-line-strong accent-primary"
                                   />
                                   <span className="min-w-0">
                                     <span className="block text-xs font-semibold">
                                       {option.label}
                                     </span>
-                                    <span className="block text-[11px] leading-4 text-[#65736d] dark:text-dark-text-secondary">
+                                    <span className="block text-[11px] leading-4 text-fg-muted">
                                       {option.description}
                                     </span>
                                   </span>
@@ -368,7 +361,7 @@ export function InviteFormModal({
                         role,
                       })}
                     </p>
-                    <p className="mt-0.5 text-xs leading-5 text-[#65736d] dark:text-dark-text-secondary">
+                    <p className="mt-0.5 text-xs leading-5 text-fg-muted">
                       {t(
                         "team.ownerOnlyCustomAccess",
                         "Only the workspace owner can customize invitation access. Your role can invite this person with the selected preset.",
@@ -380,9 +373,9 @@ export function InviteFormModal({
             </div>
           ) : (
             <div className="space-y-4 px-5 py-5 sm:px-6">
-              <div className="rounded-xl border border-[#dce3de] bg-[#f8faf8] p-4 dark:border-dark-border dark:bg-dark-tertiary/40">
+              <div className="rounded-xl border border-line bg-subtle p-4">
                 <div className="flex items-start gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/50 dark:text-emerald-300">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
                     <Mail className="h-5 w-5" />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -406,13 +399,13 @@ export function InviteFormModal({
                 </div>
               </div>
 
-              <section className="overflow-hidden rounded-xl border border-[#dce3de] dark:border-dark-border">
-                <div className="flex items-center justify-between gap-3 border-b border-[#e6ebe7] px-4 py-3 dark:border-dark-border">
+              <section className="overflow-hidden rounded-xl border border-line">
+                <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
                   <div>
                     <p className="text-sm font-semibold">
                       {t("team.effectiveAccess", "Effective access")}
                     </p>
-                    <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
+                    <p className="text-xs text-fg-muted">
                       {t("team.capabilitiesEnabled", {
                         defaultValue:
                           "{{enabled}} of {{total}} capabilities enabled",
@@ -433,7 +426,7 @@ export function InviteFormModal({
                       key={option.key}
                       className="flex items-center gap-2 text-sm"
                     >
-                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/50 dark:text-emerald-300">
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-accent-soft text-accent">
                         <Check className="h-3 w-3" strokeWidth={3} />
                       </span>
                       <span>{option.label}</span>
@@ -442,7 +435,7 @@ export function InviteFormModal({
                 </div>
               </section>
 
-              <p className="rounded-lg bg-[#fff8e7] px-3 py-2.5 text-xs leading-5 text-[#735c20] dark:bg-amber-950/20 dark:text-amber-200">
+              <p className="rounded-lg bg-warning-soft px-3 py-2.5 text-xs leading-5 text-warning">
                 {t(
                   "team.hierarchyEnforcedNote",
                   "Team hierarchy remains enforced even when a custom capability is enabled.",
@@ -454,14 +447,14 @@ export function InviteFormModal({
           {submitError && (
             <div
               role="alert"
-              className="mx-5 mb-4 flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300 sm:mx-6"
+              className="mx-5 mb-4 flex items-start gap-2 rounded-lg bg-danger-soft p-3 text-sm text-danger sm:mx-6"
             >
               <AlertCircle className="mt-0.5 size-4 shrink-0" />
               <span>{submitError}</span>
             </div>
           )}
 
-          <div className="flex gap-2 border-t border-[#e6ebe7] bg-white px-5 py-4 dark:border-dark-border dark:bg-dark-elevated sm:px-6">
+          <div className="flex gap-2 border-t border-line bg-surface px-5 py-4 sm:px-6">
             {step === "review" ? (
               <Button
                 type="button"
@@ -485,7 +478,7 @@ export function InviteFormModal({
                 type="button"
                 disabled={!isValid}
                 onClick={handleSubmit(() => setStep("review"))}
-                className="ms-auto gap-1.5 bg-[#0b7a55] text-white hover:bg-[#096747]"
+                className="ms-auto gap-1.5 bg-primary text-on-primary hover:bg-primary-hover"
               >
                 {t("team.reviewInvitation", "Review invitation")}
                 <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
@@ -494,7 +487,7 @@ export function InviteFormModal({
               <Button
                 type="submit"
                 disabled={inviteMember.isPending}
-                className="ms-auto bg-[#0b7a55] text-white hover:bg-[#096747]"
+                className="ms-auto bg-primary text-on-primary hover:bg-primary-hover"
               >
                 {inviteMember.isPending
                   ? t("team.sending", "Sending…")
@@ -530,16 +523,14 @@ function RoleButton({
       className={cn(
         "flex items-center gap-3 rounded-xl border px-3.5 py-3 text-start transition-colors",
         selected
-          ? "border-[#81bea4] bg-[#f0f8f4] text-[#075c41] dark:border-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-200"
-          : "border-[#dce3de] hover:border-[#b9c8bf] hover:bg-[#f8faf8] dark:border-dark-border dark:hover:bg-dark-tertiary/50",
+          ? "border-accent bg-subtle text-accent"
+          : "border-line hover:border-line-strong hover:bg-muted",
       )}
     >
       <Icon className="h-5 w-5 shrink-0" />
       <span>
         <span className="block text-sm font-semibold">{title}</span>
-        <span className="block text-[11px] text-[#65736d] dark:text-dark-text-secondary">
-          {description}
-        </span>
+        <span className="block text-[11px] text-fg-muted">{description}</span>
       </span>
     </button>
   );
@@ -565,17 +556,15 @@ function AccessModeButton({
       className={cn(
         "rounded-lg px-3 py-2 text-start transition-colors",
         selected
-          ? "bg-[#10211b] text-white shadow-sm dark:bg-white dark:text-[#10211b]"
-          : "text-[#65736d] hover:bg-[#f4f7f5] dark:text-dark-text-secondary dark:hover:bg-dark-tertiary",
+          ? "bg-primary text-on-primary shadow-sm"
+          : "text-fg-muted hover:bg-muted",
       )}
     >
       <span className="block text-xs font-semibold">{title}</span>
       <span
         className={cn(
           "block text-[10px]",
-          selected
-            ? "text-white/70 dark:text-[#10211b]/60"
-            : "text-[#829089] dark:text-dark-text-tertiary",
+          selected ? "text-on-primary/70" : "text-fg-muted",
         )}
       >
         {description}

@@ -643,11 +643,16 @@
     "workspaceLeaveFailed": "Der Workspace konnte nicht verlassen werden",
     "themePanel": {
       "title": "Design",
-      "description": "Wechseln Sie zwischen Hell, Dunkel und Ihrer Systemeinstellung.",
+      "description": "Wählen Sie das Erscheinungsbild. System folgt Ihrem Gerät zwischen Hell und Dunkel.",
       "changed": "Design geändert zu {{theme}}",
       "system": "System ({{resolved}})",
       "light": "Hell",
-      "dark": "Dunkel"
+      "dark": "Dunkel",
+      "whatsapp": "WhatsApp",
+      "systemLabel": "System",
+      "lightLabel": "Hell",
+      "darkLabel": "Dunkel",
+      "whatsappLabel": "WhatsApp"
     },
     "languagePanel": {
       "title": "Sprache",
@@ -668,11 +673,6 @@
       "description": "Workspace-Exporte stehen in den jeweiligen Dashboard- und Audit-Ansichten zur Verfügung."
     },
     "exportsScope": "Exporte enthalten nur Daten von {{name}}.",
-    "themeLight": "Hell",
-    "themeDark": "Dunkel",
-    "themeSystem": "System folgen",
-    "themeChanged": "Design auf {{theme}} gewechselt",
-    "themeToggleAria": "Aktuelles Design: {{current}}. Klicken, um zu {{next}} zu wechseln",
     "apiTokensPanel": {
       "title": "KI-Agenten (MCP)",
       "description": "Verbinden Sie KI-Agenten über den MCP-Endpunkt mit diesem Workspace – mit persönlichen, widerrufbaren Tokens."
@@ -680,13 +680,15 @@
     "viewShortcuts": "Tastenkürzel anzeigen",
     "leftWorkspace": "Sie haben {{name}} verlassen",
     "languageSaveFailed": "Die Sprache konnte nicht in Ihrem Konto gespeichert werden. Sie gilt nur in diesem Browser.",
+    "themeSaveFailed": "Design konnte nicht in Ihrem Konto gespeichert werden",
     "notificationSounds": {
       "default": "Standard",
       "chime": "Glockenspiel",
       "bell": "Glocke",
       "pop": "Plopp",
       "none": "Keiner"
-    }
+    },
+    "themeMenuAria": "Design: {{current}}"
   },
   "dashboard": {
     "totalMessages": "Nachrichten gesamt",

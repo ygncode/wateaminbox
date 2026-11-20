@@ -133,15 +133,15 @@ export function NotificationsPage() {
   // rail actually widens the inbox instead of opening dead gutters beside a
   // fixed-width column.
   return (
-    <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-[#f5f7f4] dark:bg-dark-primary">
-      <header className="shrink-0 border-b border-[#dce3de] bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
+    <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-subtle">
+      <header className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6">
         <div className="flex w-full flex-wrap items-center gap-3">
-          <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/60 dark:text-emerald-300">
+          <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
             <Bell className="size-[18px]" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-lg font-semibold leading-none text-[#10211b] dark:text-dark-text-primary">
+              <h1 className="text-lg font-semibold leading-none text-fg">
                 {t("notifications.title")}
               </h1>
               {unreadCount > 0 && (
@@ -153,7 +153,7 @@ export function NotificationsPage() {
                 </Badge>
               )}
             </div>
-            <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
+            <p className="mt-1 text-xs text-fg-muted">
               {describeNotificationView({
                 filter,
                 total,
@@ -189,7 +189,7 @@ export function NotificationsPage() {
                 "notifications.openSettings",
                 "Open notification settings",
               )}
-              className="size-9 rounded-lg text-[#65736d] dark:text-dark-text-secondary"
+              className="size-9 rounded-lg text-fg-muted"
               onClick={() => navigate(settingsPath)}
             >
               <Settings2 className="size-4" />
@@ -202,12 +202,12 @@ export function NotificationsPage() {
           one left edge at every width. */}
       <div className="min-h-0 flex-1 overflow-hidden px-4 py-3 sm:px-6 sm:py-4">
         <div className="flex h-full min-h-0 w-full gap-4">
-          <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-[#dce3de] bg-white shadow-sm dark:border-dark-border dark:bg-dark-secondary">
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-[#e6ebe7] px-3 py-2.5 dark:border-dark-border sm:px-4">
+          <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2.5 sm:px-4">
               <div
                 role="group"
                 aria-label={t("notifications.filter", "Filter notifications")}
-                className="flex items-center gap-0.5 rounded-lg border border-[#d7e0da] bg-white p-0.5 shadow-sm dark:border-dark-border dark:bg-dark-elevated"
+                className="flex items-center gap-0.5 rounded-lg border border-line bg-surface p-0.5 shadow-sm"
               >
                 {FILTER_TABS.map((tab) => {
                   const active = filter === tab.id;
@@ -220,13 +220,12 @@ export function NotificationsPage() {
                       onClick={() => setFilter(tab.id)}
                       className={cn(
                         "h-8 rounded-md px-3 text-xs font-medium",
-                        active &&
-                          "bg-[#e8f1ec] text-[#075c41] dark:bg-dark-tertiary dark:text-emerald-300",
+                        active && "bg-muted text-accent",
                       )}
                     >
                       {t(tab.labelKey, tab.label)}
                       {tab.id === "unread" && unreadCount > 0 && (
-                        <span className="ms-1.5 grid min-w-4 place-items-center rounded-full bg-[#0b7a55] px-1 py-0.5 text-[9px] font-bold leading-none tabular-nums text-white">
+                        <span className="ms-1.5 grid min-w-4 place-items-center rounded-full bg-primary px-1 py-0.5 text-[9px] font-bold leading-none tabular-nums text-on-primary">
                           {unreadCount > 99 ? "99+" : unreadCount}
                         </span>
                       )}
@@ -237,7 +236,7 @@ export function NotificationsPage() {
 
               <div className="flex items-center gap-2">
                 <p
-                  className="hidden text-[11px] text-[#7a8881] tabular-nums dark:text-dark-text-secondary sm:block"
+                  className="hidden text-[11px] text-fg-muted tabular-nums sm:block"
                   aria-live="polite"
                 >
                   {range.end === 0
@@ -256,7 +255,7 @@ export function NotificationsPage() {
                     "notifications.refresh",
                     "Refresh notifications",
                   )}
-                  className="size-8 rounded-lg text-[#65736d] dark:text-dark-text-secondary"
+                  className="size-8 rounded-lg text-fg-muted"
                   onClick={controller.refresh}
                   disabled={isFetching}
                 >
@@ -317,7 +316,7 @@ export function NotificationsPage() {
             {(page > 0 || hasMore) && (
               <nav
                 aria-label={t("notifications.pages", "Notification pages")}
-                className="flex shrink-0 items-center justify-between gap-3 border-t border-[#e6ebe7] px-3 py-2.5 dark:border-dark-border sm:px-4"
+                className="flex shrink-0 items-center justify-between gap-3 border-t border-line px-3 py-2.5 sm:px-4"
               >
                 <Button
                   variant="outline"
@@ -329,7 +328,7 @@ export function NotificationsPage() {
                   <ChevronLeft className="me-1 size-4 rtl:-scale-x-100" />
                   {t("notifications.previous")}
                 </Button>
-                <span className="text-[11px] font-medium text-[#7a8881] tabular-nums dark:text-dark-text-secondary">
+                <span className="text-[11px] font-medium text-fg-muted tabular-nums">
                   {t("notifications.pageNumber", { page: page + 1 })}
                 </span>
                 <Button
@@ -349,14 +348,14 @@ export function NotificationsPage() {
           {/* Keyed to the content area, not the viewport: the summary rail
               appears when there is genuinely room for it beside the list. */}
           <aside className="@5xl:flex hidden w-72 shrink-0 flex-col gap-4">
-            <div className="rounded-xl border border-[#dce3de] bg-white p-4 shadow-sm dark:border-dark-border dark:bg-dark-secondary">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#7a8881] dark:text-dark-text-secondary">
+            <div className="rounded-xl border border-line bg-surface p-4 shadow-sm">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-fg-muted">
                 {t("notifications.waitingOnYou", "Waiting on you")}
               </p>
-              <p className="mt-2 text-3xl font-semibold tabular-nums text-[#10211b] dark:text-dark-text-primary">
+              <p className="mt-2 text-3xl font-semibold tabular-nums text-fg">
                 {unreadCount}
               </p>
-              <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
+              <p className="mt-1 text-xs text-fg-muted">
                 {unreadCount === 0
                   ? t(
                       "notifications.allRead",
@@ -383,8 +382,8 @@ export function NotificationsPage() {
             </div>
 
             {typeCounts.length > 0 && (
-              <div className="rounded-xl border border-[#dce3de] bg-white p-4 shadow-sm dark:border-dark-border dark:bg-dark-secondary">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#7a8881] dark:text-dark-text-secondary">
+              <div className="rounded-xl border border-line bg-surface p-4 shadow-sm">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-fg-muted">
                   {t("notifications.onThisPage", "On this page")}
                 </p>
                 <ul className="mt-3 space-y-2.5">
@@ -400,11 +399,9 @@ export function NotificationsPage() {
                             getNotificationVisual(entry.type).dot,
                           )}
                         />
-                        <span className="truncate text-[#31463e] dark:text-dark-text-primary">
-                          {entry.label}
-                        </span>
+                        <span className="truncate text-fg">{entry.label}</span>
                       </span>
-                      <span className="shrink-0 tabular-nums text-[#7a8881] dark:text-dark-text-secondary">
+                      <span className="shrink-0 tabular-nums text-fg-muted">
                         {entry.count}
                       </span>
                     </li>

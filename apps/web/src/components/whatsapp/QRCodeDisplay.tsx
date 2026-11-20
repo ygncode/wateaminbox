@@ -86,8 +86,8 @@ export function QRCodeDisplay({
     <div className="relative inline-block">
       <div
         className={cn(
-          "p-2 bg-white border rounded-lg",
-          small ? "border-gray-200" : "border-2 border-gray-200",
+          "p-2 bg-surface border rounded-lg",
+          small ? "border-line" : "border-2 border-line",
         )}
       >
         {isGenerating && !qrError && (
@@ -97,7 +97,7 @@ export function QRCodeDisplay({
               small ? "w-32 h-32" : "w-48 h-48",
             )}
           >
-            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            <Loader2 className="h-8 w-8 animate-spin text-fg-subtle" />
           </div>
         )}
         {qrError && (
@@ -107,8 +107,8 @@ export function QRCodeDisplay({
               small ? "w-32 h-32" : "w-48 h-48",
             )}
           >
-            <AlertCircle className="h-8 w-8 text-red-500" />
-            <p className="text-xs text-red-600 text-center">
+            <AlertCircle className="h-8 w-8 text-danger" />
+            <p className="text-xs text-danger text-center">
               {t("connections.qrGenerateFailed", "Failed to generate QR")}
             </p>
             <Button size="sm" variant="outline" onClick={onRefresh}>
@@ -126,19 +126,17 @@ export function QRCodeDisplay({
         {displayCountdown <= 30 && displayCountdown > 0 && !qrError && (
           <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-lg">
             <div className="text-center">
-              <p className="text-orange-600 font-medium text-sm">
+              <p className="text-warning font-medium text-sm">
                 {t("connections.expiring", "Expiring")}
               </p>
-              <p className="text-xl font-bold text-gray-900">
-                {displayCountdown}s
-              </p>
+              <p className="text-xl font-bold text-fg">{displayCountdown}s</p>
             </div>
           </div>
         )}
         {displayCountdown === 0 && (
           <div className="absolute inset-0 bg-white/90 flex items-center justify-center rounded-lg">
             <div className="text-center">
-              <p className="text-red-600 font-medium text-sm mb-1">
+              <p className="text-danger font-medium text-sm mb-1">
                 {t("connections.expired", "Expired")}
               </p>
               <Button size="sm" onClick={onRefresh} disabled={isRefreshing}>
@@ -156,7 +154,7 @@ export function QRCodeDisplay({
         )}
       </div>
       {displayCountdown > 30 && (
-        <p className="text-xs text-gray-400 text-center mt-1">
+        <p className="text-xs text-fg-subtle text-center mt-1">
           Expires in {Math.floor(displayCountdown / 60)}:
           {String(displayCountdown % 60).padStart(2, "0")}
         </p>

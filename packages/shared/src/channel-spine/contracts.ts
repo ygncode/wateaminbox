@@ -36,6 +36,7 @@ export const DURABLE_CHANNEL_EVENT_KINDS = [
   "attachment.available",
   "attachment.failed",
   "sync.checkpoint",
+  "endpoint.state",
 ] as const;
 
 export const TRANSIENT_CHANNEL_EVENT_KINDS = [
@@ -193,6 +194,23 @@ export interface PresenceEventPayload {
   expiresAt?: string;
 }
 
+/**
+ * What a provider now says about one endpoint on one account.
+ *
+ * This is a provider fact, never a workspace decision: applying it updates
+ * `endpoint_account_states` and must not create or revoke a customer
+ * suppression. A provider block is not a do-not-contact policy.
+ */
+export interface EndpointStateEventPayload {
+  endpoint: ExternalEndpointReference;
+  /** This account has the endpoint on its provider blocklist (we blocked them). */
+  providerBlockState?: "allowed" | "blocked";
+  /** Whether the endpoint can still receive from this account (they blocked or left us). */
+  reachability?: "reachable" | "unreachable";
+  /** Provider reason code, not free text. */
+  reason?: string;
+}
+
 export interface SyncCheckpointEventPayload {
   conversation?: ExternalConversationReference;
   status: string;
@@ -218,6 +236,7 @@ interface ChannelEventPayloads {
   "typing.update": TypingEventPayload;
   "presence.update": PresenceEventPayload;
   "sync.checkpoint": SyncCheckpointEventPayload;
+  "endpoint.state": EndpointStateEventPayload;
 }
 
 export type NormalizedChannelEvent = {
@@ -281,6 +300,25 @@ export interface ChannelCapabilities {
   scheduledMessages: boolean;
 }
 
+/**
+ * How a provider can stop a person, declared by every adapter.
+ *
+ * Most providers cannot block a user for a business account (a Telegram bot,
+ * LINE, Viber and email cannot), so the application always enforces customer
+ * suppression itself. This only says what the provider adds on top.
+ */
+export interface BlockingCapability {
+  /** The adapter implements `endpoint.block` / `endpoint.unblock`. */
+  provider: boolean;
+  /** A provider block also stops inbound delivery to this account. */
+  providerStopsInbound: boolean;
+  /** The provider reports when the person blocks, unfollows or unsubscribes. */
+  reportsRemoteBlock: boolean;
+}
+
+/** Channel kinds that share inbound flood thresholds. */
+export type InboundVolumeClass = "chat" | "email";
+
 export interface ResolvedCapabilities extends ChannelCapabilities {
   messageTypes: ComposerTypeDescriptor[];
   actions: {
@@ -307,6 +345,9 @@ export interface ResolvedCapabilities extends ChannelCapabilities {
    * composer offers reactions that can only fail at the provider.
    */
   reactionEmojis?: readonly string[];
+  blocking: BlockingCapability;
+  /** Which per-sender flood thresholds apply to this account's inbound. */
+  inboundVolumeClass: InboundVolumeClass;
   constraints: Record<string, unknown>;
   unavailableReasons: Partial<
     Record<keyof ChannelCapabilities, { code: string; message: string }>
@@ -340,6 +381,27 @@ export type ProviderSendResult =
       retryAfterMs?: number;
       providerRequestId?: string;
     };
+
+/**
+ * Operations an adapter may receive through `perform`. Message operations are
+ * dispatched through the outbound intent queue as `action:<operation>`.
+ * `endpoint.*` payloads carry `{ endpoint: ExternalEndpointReference }`; an
+ * adapter without provider blocking answers `unsupported`.
+ */
+export const CHANNEL_ACTION_OPERATIONS = [
+  "delete",
+  "edit",
+  "reaction",
+  "endpoint.block",
+  "endpoint.unblock",
+] as const;
+export type ChannelActionOperation = (typeof CHANNEL_ACTION_OPERATIONS)[number];
+
+export function isChannelActionOperation(
+  value: string,
+): value is ChannelActionOperation {
+  return (CHANNEL_ACTION_OPERATIONS as readonly string[]).includes(value);
+}
 
 export interface ChannelActionIntent {
   companyId: string;

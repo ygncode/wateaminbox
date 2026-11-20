@@ -149,6 +149,7 @@ export interface UsersTable {
   email: string;
   avatar_key: string | null;
   preferred_language: string | null;
+  theme_preference: string | null;
   password_hash: string;
   email_verified_at: Date | null;
   created_at: Generated<Date>;
@@ -357,6 +358,8 @@ export interface TenantDatabase {
   endpoint_account_states: EndpointAccountStatesTable;
   endpoint_presence: EndpointPresenceTable;
   contact_suppressions: ContactSuppressionsTable;
+  contact_policy_settings: ContactPolicySettingsTable;
+  contact_suppression_drops: ContactSuppressionDropsTable;
   conversations: ConversationsTable;
   conversation_notes: ConversationNotesTable;
   conversation_sync_states: ConversationSyncStatesTable;
@@ -489,14 +492,36 @@ export interface EndpointPresenceTable {
   expires_at: Date | null;
 }
 
+export type ContactSuppressionScope =
+  | "block"
+  | "mute_inbound"
+  | "do_not_contact";
+
 export interface ContactSuppressionsTable {
   id: Generated<string>;
   contact_id: string;
-  scope: string;
+  scope: ContactSuppressionScope;
   reason: string;
   created_by: string;
   created_at: Generated<Date>;
   revoked_at: Date | null;
+  expires_at: Date | null;
+  revoked_by: string | null;
+}
+
+export interface ContactPolicySettingsTable {
+  id: Generated<number>;
+  enforcement_enabled: Generated<boolean>;
+  updated_by: string | null;
+  updated_at: Generated<Date>;
+}
+
+export interface ContactSuppressionDropsTable {
+  contact_id: string;
+  channel: string;
+  day: string;
+  dropped_count: Generated<number>;
+  last_dropped_at: Generated<Date>;
 }
 
 export interface ConversationsTable {

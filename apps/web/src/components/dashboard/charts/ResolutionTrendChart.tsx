@@ -61,7 +61,7 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
 
   if (data.length === 0) {
     return (
-      <div className="grid h-[220px] place-items-center rounded-xl border border-dashed border-[#dce3de] bg-[#fafcfb] text-sm text-[#718078] dark:border-dark-border dark:bg-dark-secondary/40 dark:text-dark-text-secondary">
+      <div className="grid h-[220px] place-items-center rounded-xl border border-dashed border-line bg-subtle text-sm text-fg-muted">
         {t(
           "dashboard.charts.noResolutionTrend",
           "No resolution trend in this period",
@@ -121,8 +121,8 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
       >
         <defs>
           <linearGradient id="resolution-time-area" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#0b7a55" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#0b7a55" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--chart-1)" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="var(--chart-1)" stopOpacity="0" />
           </linearGradient>
         </defs>
 
@@ -136,14 +136,14 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
                 y1={y}
                 y2={y}
                 stroke="currentColor"
-                className="text-[#e4eae6] dark:text-dark-border"
+                className="text-fg-subtle"
                 strokeDasharray="3 5"
               />
               <text
                 x={responsiveChartBox.left - 10}
                 y={y + 4}
                 textAnchor="end"
-                className="fill-[#8a9690] text-[10px] dark:fill-dark-text-tertiary"
+                className="fill-fg-muted text-[10px]"
               >
                 {formatAxisNumber(tick)}m
               </text>
@@ -158,7 +158,7 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
         <path
           d={getSmoothPath(points)}
           fill="none"
-          stroke="#0b7a55"
+          stroke="var(--chart-1)"
           strokeWidth="3"
           strokeLinecap="round"
         />
@@ -184,7 +184,7 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
                       ? "end"
                       : "middle"
                 }
-                className="fill-[#8a9690] text-[10px] dark:fill-dark-text-tertiary"
+                className="fill-fg-muted text-[10px]"
               >
                 {dayjs(day.date).format("MMM D")}
               </text>
@@ -200,7 +200,7 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
               y1={responsiveChartBox.top}
               y2={chartBaseline}
               stroke="currentColor"
-              className="text-[#aab5af] dark:text-dark-text-tertiary"
+              className="text-fg-subtle"
               strokeWidth="1"
               strokeDasharray="3 4"
             />
@@ -226,7 +226,7 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
 
       {hoveredDay && hoveredPoint && (
         <div
-          className="pointer-events-none absolute top-0 z-10 min-w-44 -translate-x-1/2 rounded-lg border border-[#dce3de] bg-white/95 px-3 py-2 text-[11px] shadow-lg backdrop-blur-sm dark:border-dark-border dark:bg-dark-secondary/95"
+          className="pointer-events-none absolute top-0 z-10 min-w-44 -translate-x-1/2 rounded-lg border border-line bg-surface/95 px-3 py-2 text-[11px] shadow-lg backdrop-blur-sm"
           style={{
             left: Math.min(
               Math.max(96, hoveredPoint.x),
@@ -235,19 +235,19 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
           }}
           role="status"
         >
-          <p className="mb-1.5 font-semibold text-[#31463e] dark:text-dark-text-primary">
+          <p className="mb-1.5 font-semibold text-fg">
             {dayjs(hoveredDay.date).format("MMM D, YYYY")}
           </p>
-          <p className="flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
+          <p className="flex items-center justify-between gap-4 text-fg-muted">
             <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-[#0b7a55]" />
+              <span className="h-2 w-2 rounded-full bg-primary" />
               {t("dashboard.charts.averageResolution", "Average resolution")}
             </span>
-            <strong className="tabular-nums text-[#075c41] dark:text-emerald-300">
+            <strong className="tabular-nums text-accent">
               {formatMinutes(hoveredDay.averageResolutionMinutes, t)}
             </strong>
           </p>
-          <p className="mt-1 flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
+          <p className="mt-1 flex items-center justify-between gap-4 text-fg-muted">
             <span>{t("dashboard.charts.slaCompliance", "SLA compliance")}</span>
             <strong
               className="tabular-nums"
@@ -258,9 +258,9 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
               {Math.round(hoveredDay.slaComplianceRate)}%
             </strong>
           </p>
-          <p className="mt-1 flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
+          <p className="mt-1 flex items-center justify-between gap-4 text-fg-muted">
             <span>{t("dashboard.charts.resolved", "Resolved")}</span>
-            <strong className="tabular-nums text-[#31463e] dark:text-dark-text-primary">
+            <strong className="tabular-nums text-fg">
               {hoveredDay.resolvedCount.toLocaleString()}
             </strong>
           </p>
@@ -271,9 +271,9 @@ export function ResolutionTrendChart({ data }: ResolutionTrendChartProps) {
 }
 
 function getComplianceColor(rate: number): string {
-  if (rate >= 90) return "#0b7a55";
-  if (rate >= 70) return "#d18b35";
-  return "#cf5a5a";
+  if (rate >= 90) return "var(--chart-1)";
+  if (rate >= 70) return "var(--chart-3)";
+  return "var(--chart-4)";
 }
 
 /** Optional translator keeps this usable outside a React render. */

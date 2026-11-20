@@ -100,22 +100,22 @@ export function EmojiInputPicker({
   return (
     <div
       ref={containerRef}
-      className="absolute bottom-full mb-2 start-0 w-80 bg-white dark:bg-dark-elevated rounded-xl shadow-lg border border-gray-200 dark:border-dark-border overflow-hidden z-20"
+      className="absolute bottom-full mb-2 start-0 w-80 bg-surface rounded-xl shadow-lg border border-line overflow-hidden z-20"
     >
       {/* Search input */}
-      <div className="p-2 border-b border-gray-200 dark:border-dark-border">
+      <div className="p-2 border-b border-line">
         <input
           type="text"
           placeholder={t("chat.searchEmoji", "Search emoji…")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full px-3 py-1.5 text-sm bg-gray-100 dark:bg-dark-tertiary text-gray-900 dark:text-dark-text-primary placeholder-gray-500 dark:placeholder-dark-text-tertiary rounded-lg focus:outline-none focus:ring-1 focus:ring-whatsapp-green"
+          className="w-full px-3 py-1.5 text-sm bg-muted text-fg placeholder-fg-muted rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
         />
       </div>
 
       {/* Category tabs */}
       {!searchQuery && (
-        <div className="flex border-b border-gray-200 dark:border-dark-border overflow-x-auto scrollbar-hide">
+        <div className="flex border-b border-line overflow-x-auto scrollbar-hide">
           {categoryKeys.map((key) => (
             <button
               type="button"
@@ -123,9 +123,7 @@ export function EmojiInputPicker({
               onClick={() => setActiveCategory(key)}
               className={cn(
                 "flex-shrink-0 p-2 text-lg transition-colors",
-                activeCategory === key
-                  ? "bg-gray-100 dark:bg-dark-tertiary"
-                  : "hover:bg-gray-50 dark:hover:bg-dark-tertiary",
+                activeCategory === key ? "bg-muted" : "hover:bg-muted",
               )}
               title={EMOJI_CATEGORIES[key].name}
             >
@@ -144,14 +142,14 @@ export function EmojiInputPicker({
                 type="button"
                 key={`${emoji}-${index}`}
                 onClick={() => handleSelectEmoji(emoji)}
-                className="p-1.5 text-xl hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded transition-colors"
+                className="p-1.5 text-xl hover:bg-muted rounded transition-colors"
               >
                 {emoji}
               </button>
             ))}
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-500 dark:text-dark-text-tertiary text-sm">
+          <div className="flex items-center justify-center h-full text-fg-muted text-sm">
             {searchQuery ? "No emojis found" : "No recent emojis"}
           </div>
         )}

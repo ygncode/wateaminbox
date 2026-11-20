@@ -1,3 +1,4 @@
+import { SYSTEM_SUPPRESSION_ACTOR } from "@wateaminbox/database";
 import {
   getContactDisplayName,
   normalizeJid,
@@ -128,6 +129,40 @@ async function rollbackOptimisticBlockState(
     .where("updated_at", "<=", outbox.created_at)
     .returning(["id", "jid", "custom_name", "push_name", "phone_number"])
     .execute();
+
+  // Keep the dual-written customer suppression in step, under the same fence:
+  // only the suppression row this command's own PATCH wrote is undone.
+  for (const contact of reverted) {
+    if (intended) {
+      await tenantDb
+        .updateTable("contact_suppressions")
+        .set({ revoked_at: toDbDate(), revoked_by: SYSTEM_SUPPRESSION_ACTOR })
+        .where("contact_id", "=", contact.id)
+        .where("scope", "=", "block")
+        .where("reason", "=", "manual")
+        .where("revoked_at", "is", null)
+        .where("created_at", "<=", outbox.created_at)
+        .execute();
+    } else {
+      // The failed unblock revoked the suppression; restore the block unless
+      // something has re-blocked the customer since.
+      await tenantDb
+        .insertInto("contact_suppressions")
+        .values({
+          contact_id: contact.id,
+          scope: "block",
+          reason: "manual",
+          created_by: SYSTEM_SUPPRESSION_ACTOR,
+        })
+        .onConflict((conflict) =>
+          conflict
+            .columns(["contact_id", "scope"])
+            .where("revoked_at", "is", null)
+            .doNothing(),
+        )
+        .execute();
+    }
+  }
 
   for (const contact of reverted) {
     await broadcastToContactViewers(

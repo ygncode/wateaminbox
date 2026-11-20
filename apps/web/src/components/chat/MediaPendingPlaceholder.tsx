@@ -81,9 +81,7 @@ export function MediaPendingPlaceholder({
     <div className="max-w-xs" ref={placeholderRef}>
       <div
         className={`flex flex-col items-center justify-center gap-2 p-6 rounded-lg ${
-          isOwn
-            ? "bg-whatsapp-dark-green/30"
-            : "bg-gray-100 dark:bg-dark-tertiary"
+          isOwn ? "bg-accent/30" : "bg-muted"
         }`}
       >
         {isDownloading ? (
@@ -91,9 +89,7 @@ export function MediaPendingPlaceholder({
           <>
             <svg
               className={`animate-spin h-8 w-8 ${
-                isOwn
-                  ? "text-white/60"
-                  : "text-gray-400 dark:text-dark-text-tertiary"
+                isOwn ? "text-white/60" : "text-fg-subtle"
               }`}
               fill="none"
               viewBox="0 0 24 24"
@@ -113,11 +109,7 @@ export function MediaPendingPlaceholder({
               />
             </svg>
             <span
-              className={`text-xs ${
-                isOwn
-                  ? "text-white/60"
-                  : "text-gray-500 dark:text-dark-text-secondary"
-              }`}
+              className={`text-xs ${isOwn ? "text-white/60" : "text-fg-muted"}`}
             >
               {t("chat.downloadingMedia")}
             </span>
@@ -125,7 +117,7 @@ export function MediaPendingPlaceholder({
         ) : hasFailed ? (
           // Failed state with retry button
           <>
-            <div className={isOwn ? "text-red-300" : "text-red-500"}>
+            <div className={"text-danger"}>
               <svg
                 className="h-8 w-8"
                 fill="none"
@@ -140,9 +132,7 @@ export function MediaPendingPlaceholder({
                 />
               </svg>
             </div>
-            <span
-              className={`text-xs ${isOwn ? "text-red-300" : "text-red-500"}`}
-            >
+            <span className={`text-xs ${"text-danger"}`}>
               {t("chat.downloadFailed")}
             </span>
             <button
@@ -150,7 +140,7 @@ export function MediaPendingPlaceholder({
               className={`text-xs px-2 py-1 rounded ${
                 isOwn
                   ? "bg-white/20 hover:bg-white/30 text-white"
-                  : "bg-gray-200 hover:bg-gray-300 dark:bg-dark-border dark:hover:bg-dark-tertiary text-gray-700 dark:text-dark-text-primary"
+                  : "bg-muted-strong hover:bg-muted-strong text-fg"
               }`}
             >
               {t("chat.retryDownload")}
@@ -159,21 +149,11 @@ export function MediaPendingPlaceholder({
         ) : (
           // Pending state
           <>
-            <div
-              className={
-                isOwn
-                  ? "text-white/60"
-                  : "text-gray-400 dark:text-dark-text-tertiary"
-              }
-            >
+            <div className={isOwn ? "text-white/60" : "text-fg-subtle"}>
               {MediaTypeIcons[type]}
             </div>
             <span
-              className={`text-xs ${
-                isOwn
-                  ? "text-white/60"
-                  : "text-gray-500 dark:text-dark-text-secondary"
-              }`}
+              className={`text-xs ${isOwn ? "text-white/60" : "text-fg-muted"}`}
             >
               {t("chat.mediaNotDownloaded")}
             </span>

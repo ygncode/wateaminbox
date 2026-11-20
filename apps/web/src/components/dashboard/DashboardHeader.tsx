@@ -50,17 +50,17 @@ export function DashboardHeader({
   };
 
   return (
-    <header className="shrink-0 border-b border-[#dce3de] bg-white px-4 py-3 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
+    <header className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/60 dark:text-emerald-300">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
             <BarChart3 className="h-4.5 w-4.5" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg font-semibold leading-none text-gray-900 dark:text-dark-text-primary">
+            <h1 className="text-lg font-semibold leading-none text-fg">
               Dashboard
             </h1>
-            <p className="mt-1 truncate text-xs text-[#65736d] dark:text-dark-text-secondary">
+            <p className="mt-1 truncate text-xs text-fg-muted">
               {workspaceName} · workspace analytics and service health
             </p>
           </div>
@@ -68,7 +68,7 @@ export function DashboardHeader({
 
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <div
-            className="hidden rounded-lg border border-[#d7e0da] bg-[#f7f9f7] p-0.5 dark:border-dark-border dark:bg-dark-elevated sm:flex"
+            className="hidden rounded-lg border border-line bg-subtle p-0.5 sm:flex"
             role="group"
             aria-label={t("dashboard.dateRangeAria", "Dashboard date range")}
           >
@@ -81,8 +81,8 @@ export function DashboardHeader({
                 className={cn(
                   "rounded-md px-3 py-1.5 text-xs font-medium transition-[background-color,color,box-shadow]",
                   dateRange === range.id
-                    ? "bg-white text-[#075c41] shadow-sm dark:bg-dark-tertiary dark:text-emerald-300"
-                    : "text-[#65736d] hover:text-[#10211b] dark:text-dark-text-secondary dark:hover:text-white",
+                    ? "bg-surface text-accent shadow-sm"
+                    : "text-fg-muted hover:text-fg",
                 )}
               >
                 {t(range.labelKey, range.label)}
@@ -118,7 +118,7 @@ export function DashboardHeader({
                 <Button
                   variant="outline"
                   size="sm"
-                  className="gap-2 border-[#d7e0da] shadow-sm dark:border-dark-border"
+                  className="gap-2 border-line shadow-sm"
                 >
                   <Download className="h-4 w-4" /> Export
                   <ChevronDown className="h-3.5 w-3.5" />
@@ -160,9 +160,9 @@ function ExportAction({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-[#edf1ed] dark:hover:bg-dark-tertiary"
+      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-muted"
     >
-      <Icon className="h-4 w-4 text-[#65736d]" /> {label}
+      <Icon className="h-4 w-4 text-fg-muted" /> {label}
     </button>
   );
 }

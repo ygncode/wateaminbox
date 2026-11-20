@@ -17,6 +17,11 @@ import type {
 import { toDbDate } from "@wateaminbox/shared";
 import type { Kysely, Selectable, Transaction } from "kysely";
 import { sql } from "kysely";
+import {
+  activeSuppressions,
+  isSuppressionEnforced,
+  resolveContactOutboundPolicy,
+} from "../channel-spine/application/contact-policy.js";
 import { shadowLinkedDeviceLegacyMutation } from "../channel-spine/providers/whatsapp-linked-device/shadow.js";
 import { bulkConfig } from "../config/bulk.config.js";
 import { NoActiveCaseError } from "../lib/errors.js";
@@ -253,6 +258,13 @@ async function sendScheduledMessage(
     if (!contact) throw new BulkSkipError("contact_missing");
     if (!contact.jid) throw new BulkSkipError("no_jid");
     if (contact.is_blocked) throw new BulkSkipError("blocked");
+    if (
+      (await isSuppressionEnforced(tenantDb)) &&
+      !(await resolveContactOutboundPolicy(tenantDb, { contactId: contact.id }))
+        .allowed
+    ) {
+      throw new BulkSkipError("blocked");
+    }
     const job = await tenantDb
       .selectFrom("bulk_jobs")
       .select(["audience"])
@@ -451,9 +463,21 @@ async function sendScheduledMessage(
               toDbDate(),
             )
           : false;
+      // An auto-reply to a customer blocked or muted since it was queued is
+      // dropped, not sent.
+      const suppressedNow =
+        lockedContact && (await isSuppressionEnforced(trx))
+          ? (await activeSuppressions(trx, lockedContact.id)).some(
+              (row) =>
+                row.scope === "block" ||
+                row.scope === "do_not_contact" ||
+                row.scope === "mute_inbound",
+            )
+          : false;
       const eligible =
         lockedContact &&
         !lockedContact.is_blocked &&
+        !suppressedNow &&
         caseId &&
         setting?.enabled &&
         setting.quick_reply_id === row.auto_reply_quick_reply_id &&

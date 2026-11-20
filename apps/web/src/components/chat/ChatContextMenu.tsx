@@ -66,12 +66,12 @@ export function ChatContextMenu({
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 bg-white dark:bg-dark-elevated rounded-lg shadow-lg py-1 min-w-[180px] border border-gray-200 dark:border-dark-border"
+      className="fixed z-50 bg-surface rounded-lg shadow-lg py-1 min-w-[180px] border border-line"
       style={{ left: x, top: y }}
     >
       <button
         type="button"
-        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-fg hover:bg-muted transition-colors"
         onClick={() => {
           onContactInfo();
           onClose();
@@ -82,7 +82,7 @@ export function ChatContextMenu({
       </button>
       <button
         type="button"
-        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary transition-colors"
+        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-fg hover:bg-muted transition-colors"
         onClick={() => {
           onSelectMessages();
           onClose();

@@ -36,7 +36,7 @@ export function ChatIdentityAvatar({
   const label = chat?.displayName || chat?.address || "";
   return (
     <span className={cn("relative inline-flex size-5 shrink-0", className)}>
-      <span className="size-full overflow-hidden rounded-full bg-gray-100 dark:bg-dark-tertiary">
+      <span className="size-full overflow-hidden rounded-full bg-muted">
         {chat?.avatarUrl ? (
           // The face is how two threads of one customer are told apart at a
           // glance; initials make every thread of a merged customer look the

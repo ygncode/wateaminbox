@@ -1,9 +1,27 @@
 # Web UI conventions
 
+## Design system (read first)
+
+`apps/web/DESIGN.md` is the visual contract: semantic colour tokens, the three
+themes (`light`, `dark`, `whatsapp`), elevation, radius, typography and
+component patterns. Before any UI change:
+
+- Express colour only through semantic tokens (`bg-surface`, `text-fg-muted`,
+  `border-line`, `bg-primary`, `text-accent`, ...). Never use raw palette
+  utilities (`bg-gray-100`), arbitrary hex (`bg-[#0b7a55]`), the legacy
+  `dark-*`/`whatsapp-*` names, or `dark:` colour overrides. Themes own colour.
+- Reuse `src/components/ui` primitives; change appearance there, not at call
+  sites.
+- Check the result in Light, Dark and WhatsApp.
+- Add themes only as described in DESIGN.md ("Adding a theme").
+- `bun test src/styles/design-system.test.ts` enforces this in CI.
+
+## Select
+
 Single-choice dropdowns must use `Select`, `SelectTrigger`, `SelectValue`,
 `SelectContent`, and `SelectItem` from `@/components/ui/select`.
-The shared component owns the inbox theme: gray trigger, green focus ring,
-consistent chevron, menu states, and dark-mode colors. Change it centrally.
+The shared component owns the field style (see DESIGN.md): field background,
+neutral focus ring, consistent chevron, menu states, and theme colours. Change it centrally.
 Call sites may only adjust layout/size (width, height, margin, responsive
 visibility, compact text). Do not override background, border, radius, shadow,
 padding, or focus styles, or import Radix Select directly.

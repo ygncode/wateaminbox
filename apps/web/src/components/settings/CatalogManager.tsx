@@ -161,7 +161,7 @@ export function CatalogManager() {
       {(error || accountScope.isError) && (
         <div
           role="alert"
-          className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300"
+          className="flex items-start gap-2 rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger"
         >
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
@@ -190,27 +190,25 @@ export function CatalogManager() {
           ].map((item) => (
             <div
               key={item.label}
-              className="rounded-xl border border-[#e2e8e3] bg-[#f8faf8] p-3.5 dark:border-white/[0.07] dark:bg-white/[0.025]"
+              className="rounded-xl border border-line bg-subtle p-3.5"
             >
               <dd
                 className={cn(
-                  "text-xl font-semibold tabular-nums text-[#10211b] dark:text-dark-text-primary",
-                  item.active && "text-[#087a5c] dark:text-emerald-300",
+                  "text-xl font-semibold tabular-nums text-fg",
+                  item.active && "text-accent",
                 )}
               >
                 {item.value}
               </dd>
-              <dt className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
-                {item.label}
-              </dt>
+              <dt className="mt-1 text-xs text-fg-muted">{item.label}</dt>
             </div>
           ))}
-          <div className="rounded-xl border border-[#e2e8e3] bg-[#f8faf8] p-3.5 dark:border-white/[0.07] dark:bg-white/[0.025]">
-            <dd className="flex h-6 items-center gap-1.5 text-xs font-medium text-[#315348] dark:text-[#c9d8d2]">
-              <Clock className="h-3.5 w-3.5 text-[#829089]" />
+          <div className="rounded-xl border border-line bg-subtle p-3.5">
+            <dd className="flex h-6 items-center gap-1.5 text-xs font-medium text-accent">
+              <Clock className="h-3.5 w-3.5 text-fg-muted" />
               {formatLastSync(status.lastSyncAt)}
             </dd>
-            <dt className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
+            <dt className="mt-1 text-xs text-fg-muted">
               {t("catalogs.lastSync", "Last sync")}
             </dt>
           </div>
@@ -241,12 +239,12 @@ export function CatalogManager() {
 
       {/* Catalogs List */}
       {isLoading ? (
-        <div className="flex items-center justify-center rounded-xl border border-[#e2e8e3] bg-[#f8faf8] py-10 dark:border-white/[0.07] dark:bg-white/[0.025]">
-          <Loader2 className="h-6 w-6 animate-spin text-gray-400 dark:text-dark-text-tertiary" />
+        <div className="flex items-center justify-center rounded-xl border border-line bg-subtle py-10">
+          <Loader2 className="h-6 w-6 animate-spin text-fg-subtle" />
         </div>
       ) : catalogs.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#d6dfd9] bg-[#f8faf8] px-5 py-10 text-center text-gray-500 dark:border-white/[0.1] dark:bg-white/[0.025] dark:text-dark-text-secondary">
-          <ShoppingBag className="h-12 w-12 mx-auto mb-3 text-gray-300 dark:text-dark-text-tertiary" />
+        <div className="rounded-xl border border-dashed border-line bg-subtle px-5 py-10 text-center text-fg-muted">
+          <ShoppingBag className="h-12 w-12 mx-auto mb-3 text-fg-subtle" />
           <p className="font-medium">
             {t("catalogs.empty", "No catalogs found")}
           </p>
@@ -360,19 +358,15 @@ function CatalogSection({
     <section aria-label={title}>
       <div className="mb-2.5 flex items-end justify-between gap-4 px-0.5">
         <div>
-          <h3 className="text-sm font-semibold text-[#20362e] dark:text-dark-text-primary">
-            {title}
-          </h3>
-          <p className="mt-0.5 text-xs text-[#718078] dark:text-dark-text-secondary">
-            {description}
-          </p>
+          <h3 className="text-sm font-semibold text-fg">{title}</h3>
+          <p className="mt-0.5 text-xs text-fg-muted">{description}</p>
         </div>
         <span
           className={cn(
             "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums",
             archived
-              ? "bg-[#f2eee5] text-[#77684d] dark:bg-amber-900/25 dark:text-amber-200"
-              : "bg-[#e2f2eb] text-[#096447] dark:bg-emerald-900/30 dark:text-emerald-200",
+              ? "bg-warning-soft text-fg-muted"
+              : "bg-accent-soft text-accent",
           )}
         >
           {count}
@@ -417,15 +411,15 @@ function CatalogCard({
       className={cn(
         "relative overflow-visible rounded-2xl border p-4 transition-all duration-200 sm:p-5",
         isArchived
-          ? "border-[#dedbd2] bg-[#fbfaf7] dark:border-amber-100/10 dark:bg-amber-950/[0.08]"
-          : "border-[#dce5df] bg-[#fbfcfb] shadow-[0_1px_2px_rgba(16,33,27,0.03)] hover:-translate-y-px hover:border-[#bfd1c7] hover:shadow-[0_8px_24px_rgba(16,33,27,0.06)] dark:border-white/[0.08] dark:bg-white/[0.025] dark:hover:border-white/[0.14]",
+          ? "border-line bg-subtle"
+          : "border-line bg-subtle shadow-xs hover:-translate-y-px hover:border-line-strong hover:shadow-lg",
       )}
       data-testid={`catalog-item-${catalog.catalogId}`}
     >
       {isArchived && (
         <span
           aria-hidden="true"
-          className="absolute inset-y-4 start-0 w-1 rounded-e-full bg-[#c8a75f] dark:bg-amber-500/60"
+          className="absolute inset-y-4 start-0 w-1 rounded-e-full bg-warning"
         />
       )}
 
@@ -435,8 +429,8 @@ function CatalogCard({
             className={cn(
               "grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl border",
               isArchived
-                ? "border-[#e8dfca] bg-[#fff8e8] text-[#9a6d17] dark:border-amber-400/15 dark:bg-amber-900/20 dark:text-amber-300"
-                : "border-[#f5ddbd] bg-[#fff2df] text-[#d85b08] dark:border-orange-400/15 dark:bg-orange-900/20 dark:text-orange-300",
+                ? "border-warning/30 bg-warning-soft text-warning"
+                : "border-warning/30 bg-warning-soft text-warning",
             )}
           >
             {catalog.headerImageUrl ? (
@@ -456,10 +450,10 @@ function CatalogCard({
           </div>
 
           <div className="min-w-0">
-            <h4 className="truncate text-[15px] font-semibold text-[#16271f] dark:text-dark-text-primary">
+            <h4 className="truncate text-[15px] font-semibold text-fg">
               {catalog.name}
             </h4>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#718078] dark:text-dark-text-secondary">
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
               <span className="inline-flex items-center gap-1.5">
                 <Package className="h-3.5 w-3.5" />
                 {t("catalogs.productCount", {
@@ -479,14 +473,14 @@ function CatalogCard({
           </div>
         </div>
 
-        <div className="mt-4 flex items-center gap-2 border-t border-[#e6ebe8] pt-3 sm:mt-0 sm:shrink-0 sm:border-0 sm:pt-0 dark:border-white/[0.07]">
+        <div className="mt-4 flex items-center gap-2 border-t border-line pt-3 sm:mt-0 sm:shrink-0 sm:border-0 sm:pt-0">
           {isArchived && (
             <Button
               variant="outline"
               size="sm"
               onClick={onRestore}
               disabled={isRestoring || isArchiving}
-              className="flex-1 gap-1.5 border-[#b9d8cc] bg-[#eff8f4] text-[#096447] shadow-none hover:border-[#9cc7b6] hover:bg-[#e2f2eb] hover:text-[#075239] sm:flex-none dark:border-emerald-400/20 dark:bg-emerald-900/20 dark:text-emerald-200 dark:hover:bg-emerald-900/35"
+              className="flex-1 gap-1.5 border-line-strong bg-subtle text-accent shadow-none hover:border-line-strong hover:bg-accent-soft hover:text-accent sm:flex-none"
               data-testid={`restore-catalog-${catalog.catalogId}`}
             >
               {isRestoring && isPending ? (
@@ -505,8 +499,8 @@ function CatalogCard({
             className={cn(
               "flex-1 gap-1.5 sm:flex-none",
               isArchived
-                ? "text-[#4f5f58] hover:bg-[#f2eee5] dark:text-dark-text-secondary dark:hover:bg-amber-900/20"
-                : "border-[#d7e0da] bg-white text-[#315348] shadow-none hover:border-[#bfd1c7] hover:bg-[#f2f7f4] hover:text-[#163f32] dark:border-white/[0.1] dark:bg-white/[0.03] dark:text-dark-text-primary",
+                ? "text-fg-muted hover:bg-warning-soft"
+                : "border-line bg-surface text-accent shadow-none hover:border-line-strong hover:bg-muted hover:text-accent",
             )}
             data-testid={`view-products-${catalog.catalogId}`}
           >
@@ -522,7 +516,7 @@ function CatalogCard({
                 defaultValue: "Actions for {{name}}",
                 name: catalog.name,
               })}
-              triggerClassName="text-[#718078] hover:bg-[#edf3ef] dark:text-dark-text-secondary"
+              triggerClassName="text-fg-muted hover:bg-muted"
             />
           )}
         </div>
@@ -575,12 +569,12 @@ function ProductsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="mx-3 flex max-h-[min(88dvh,760px)] w-[calc(100vw-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-2xl border-[#dce5df] p-0 shadow-[0_24px_80px_rgba(8,28,20,0.22)] sm:w-full [&>button]:end-4 [&>button]:top-4 [&>button]:grid [&>button]:h-8 [&>button]:w-8 [&>button]:place-items-center [&>button]:rounded-full [&>button]:border [&>button]:border-[#d7e0da] [&>button]:bg-white [&>button]:opacity-100 [&>button]:shadow-sm hover:[&>button]:bg-[#edf3ef] dark:border-white/[0.1] dark:[&>button]:border-white/[0.1] dark:[&>button]:bg-dark-elevated dark:hover:[&>button]:bg-dark-tertiary">
-        <div className="border-b border-[#e2e8e3] bg-[linear-gradient(135deg,#f7faf8_0%,#fdfcf8_100%)] px-5 py-5 pe-14 dark:border-white/[0.08] dark:bg-none dark:bg-white/[0.025] sm:px-6 sm:py-6 sm:pe-16">
+      <DialogContent className="mx-3 flex max-h-[min(88dvh,760px)] w-[calc(100vw-1.5rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-2xl border-line p-0 shadow-lg sm:w-full [&>button]:end-4 [&>button]:top-4 [&>button]:grid [&>button]:h-8 [&>button]:w-8 [&>button]:place-items-center [&>button]:rounded-full [&>button]:border [&>button]:border-line [&>button]:bg-surface [&>button]:opacity-100 [&>button]:shadow-sm hover:[&>button]:bg-muted">
+        <div className="border-b border-line bg-subtle px-5 py-5 pe-14 sm:px-6 sm:py-6 sm:pe-16">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <DialogHeader className="min-w-0 space-y-0 text-start">
               <div className="flex min-w-0 items-center gap-3">
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#f5ddbd] bg-[#fff2df] text-[#d85b08] dark:border-orange-400/15 dark:bg-orange-900/20 dark:text-orange-300">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-warning/30 bg-warning-soft text-warning">
                   <ShoppingBag className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
@@ -596,14 +590,14 @@ function ProductsDialog({
                 </div>
               </div>
               {catalog && (
-                <div className="ms-14 mt-3 flex flex-wrap items-center gap-2 text-xs text-[#65736d] dark:text-dark-text-secondary">
-                  <span className="rounded-full border border-[#dce5df] bg-white/80 px-2.5 py-1 font-medium dark:border-white/[0.08] dark:bg-white/[0.04]">
+                <div className="ms-14 mt-3 flex flex-wrap items-center gap-2 text-xs text-fg-muted">
+                  <span className="rounded-full border border-line bg-surface/80 px-2.5 py-1 font-medium">
                     {t("catalogs.productCount", {
                       count: isLoading ? catalog.productCount : products.length,
                       defaultValue: `${isLoading ? catalog.productCount : products.length} products`,
                     })}
                   </span>
-                  <span className="rounded-full border border-[#dce5df] bg-white/80 px-2.5 py-1 font-medium uppercase tracking-wide dark:border-white/[0.08] dark:bg-white/[0.04]">
+                  <span className="rounded-full border border-line bg-surface/80 px-2.5 py-1 font-medium uppercase tracking-wide">
                     {catalog.currency}
                   </span>
                 </div>
@@ -615,7 +609,7 @@ function ProductsDialog({
               size="sm"
               onClick={handleSyncProducts}
               disabled={syncMutation.isPending || !connectionId}
-              className="ms-14 shrink-0 gap-2 self-start border-[#b9d8cc] bg-white text-[#096447] shadow-sm hover:border-[#9cc7b6] hover:bg-[#eff8f4] hover:text-[#075239] sm:ms-0 sm:self-center dark:border-emerald-400/20 dark:bg-white/[0.04] dark:text-emerald-200 dark:hover:bg-emerald-900/25"
+              className="ms-14 shrink-0 gap-2 self-start border-line-strong bg-surface text-accent shadow-sm hover:border-line-strong hover:bg-muted hover:text-accent sm:ms-0 sm:self-center"
               data-testid="sync-products-button"
             >
               {syncMutation.isPending ? (
@@ -633,7 +627,7 @@ function ProductsDialog({
           {error ? (
             <div
               role="alert"
-              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300"
+              className="rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger"
             >
               {t(
                 "catalogs.errors.loadProductsFailed",
@@ -642,14 +636,14 @@ function ProductsDialog({
             </div>
           ) : isLoading ? (
             <div className="flex min-h-44 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-[#718078] dark:text-dark-text-tertiary" />
+              <Loader2 className="h-6 w-6 animate-spin text-fg-muted" />
             </div>
           ) : products.length === 0 ? (
-            <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-[#d6dfd9] bg-[#f8faf8] px-5 py-10 text-center text-[#65736d] dark:border-white/[0.1] dark:bg-white/[0.025] dark:text-dark-text-secondary">
-              <div className="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-white text-[#9aa8a1] shadow-sm dark:bg-white/[0.05] dark:text-dark-text-tertiary">
+            <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-subtle px-5 py-10 text-center text-fg-muted">
+              <div className="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-surface text-fg-subtle shadow-sm">
                 <Package className="h-5 w-5" />
               </div>
-              <p className="font-semibold text-[#31463e] dark:text-dark-text-primary">
+              <p className="font-semibold text-fg">
                 {t("catalogs.noProducts", "No products found")}
               </p>
               <p className="mt-1 max-w-sm text-sm">
@@ -727,14 +721,13 @@ function ProductItem({
   return (
     <div
       className={cn(
-        "group flex items-center gap-3.5 rounded-xl border border-[#dfe6e2] bg-white p-3 transition-all hover:border-[#c8d5ce] hover:shadow-[0_5px_18px_rgba(16,33,27,0.05)] dark:border-white/[0.08] dark:bg-white/[0.025] dark:hover:border-white/[0.14]",
-        product.visibility === "hidden" &&
-          "bg-[#f8faf8] opacity-75 dark:bg-white/[0.015]",
+        "group flex items-center gap-3.5 rounded-xl border border-line bg-surface p-3 transition-all hover:border-line-strong hover:shadow-md",
+        product.visibility === "hidden" && "bg-subtle opacity-75",
       )}
       data-testid={`product-item-${product.productId}`}
     >
       {/* Product image */}
-      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#e3e9e5] bg-[#f3f6f4] dark:border-white/[0.07] dark:bg-white/[0.04]">
+      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-line bg-subtle">
         {imageUrl ? (
           <img
             src={imageUrl}
@@ -742,27 +735,25 @@ function ProductItem({
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
-          <ImageIcon className="h-5 w-5 text-[#9aa8a1] dark:text-dark-text-tertiary" />
+          <ImageIcon className="h-5 w-5 text-fg-subtle" />
         )}
       </div>
 
       {/* Product info */}
       <div className="flex-1 min-w-0">
-        <p className="truncate text-sm font-semibold text-[#20362e] dark:text-dark-text-primary">
-          {product.name}
-        </p>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[#718078] dark:text-dark-text-secondary">
-          <span className="font-semibold text-[#315348] dark:text-dark-text-primary">
+        <p className="truncate text-sm font-semibold text-fg">{product.name}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-muted">
+          <span className="font-semibold text-accent">
             {formatCurrency(product.price, product.currency)}
           </span>
           {product.sku && (
-            <span className="font-mono text-[11px] text-[#829089] dark:text-dark-text-tertiary">
+            <span className="font-mono text-[11px] text-fg-muted">
               {t("catalogs.sku", "SKU")} {product.sku}
             </span>
           )}
         </div>
         {product.category && (
-          <span className="mt-1.5 inline-block rounded-md bg-[#edf3ef] px-1.5 py-0.5 text-[10px] font-medium text-[#52675f] dark:bg-white/[0.05] dark:text-dark-text-secondary">
+          <span className="mt-1.5 inline-block rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-fg-muted">
             {product.category}
           </span>
         )}
@@ -778,8 +769,8 @@ function ProductItem({
         className={cn(
           "h-8 shrink-0 gap-1.5 rounded-full border px-2.5 text-xs shadow-none",
           product.visibility === "hidden"
-            ? "border-[#d9dfdc] bg-[#f4f6f5] text-[#65736d] hover:bg-[#e9eeeb] dark:border-white/[0.08] dark:bg-white/[0.03] dark:text-dark-text-secondary"
-            : "border-[#bde0d1] bg-[#eff8f4] text-[#087a5c] hover:bg-[#e0f1e9] hover:text-[#096447] dark:border-emerald-400/15 dark:bg-emerald-900/20 dark:text-emerald-200",
+            ? "border-line bg-subtle text-fg-muted hover:bg-muted"
+            : "border-accent/30 bg-subtle text-accent hover:bg-accent-soft hover:text-accent",
         )}
         aria-label={`${nextVisibility === "visible" ? "Show" : "Hide"} ${product.name}`}
       >

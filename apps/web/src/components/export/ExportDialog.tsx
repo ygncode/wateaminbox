@@ -242,7 +242,7 @@ export function ExportDialog({
                 </SelectContent>
               </Select>
               {type === "conversation" && dateRange === "all" && (
-                <p className="text-xs text-amber-600 dark:text-amber-400">
+                <p className="text-xs text-warning">
                   {t(
                     "export.messageLimitNote",
                     "Note: Exports are limited to 50,000 messages. Use date ranges for very large conversations.",
@@ -295,8 +295,8 @@ export function ExportDialog({
                           }
                           className={`rounded-full border px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
                             isSelected
-                              ? "border-whatsapp-teal-green bg-whatsapp-teal-green text-white"
-                              : "border-gray-300 bg-white text-gray-600 hover:border-gray-400"
+                              ? "border-primary bg-primary text-on-primary"
+                              : "border-line-strong bg-surface text-fg-muted hover:border-line-strong"
                           }`}
                           style={
                             isSelected
@@ -312,7 +312,7 @@ export function ExportDialog({
                     })}
                   </div>
                 ) : (
-                  <p className="py-2 text-center text-xs text-gray-500 dark:text-dark-text-secondary">
+                  <p className="py-2 text-center text-xs text-fg-muted">
                     {debouncedTagSearch
                       ? t("export.noTagsMatch", {
                           defaultValue: "No tags match “{{query}}”",
@@ -333,7 +333,7 @@ export function ExportDialog({
           <Button
             onClick={handleExport}
             disabled={isLoading}
-            className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
+            className="bg-primary hover:bg-primary-hover"
           >
             {isLoading ? (
               <>

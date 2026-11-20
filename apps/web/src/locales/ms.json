@@ -631,11 +631,16 @@
     "workspaceLeaveFailed": "Tidak dapat meninggalkan ruang kerja",
     "themePanel": {
       "title": "Tema",
-      "description": "Tukar antara cerah, gelap dan keutamaan sistem anda.",
+      "description": "Pilih rupa WATeamInbox. Sistem mengikut peranti anda antara Cerah dan Gelap.",
       "changed": "Tema ditukar kepada {{theme}}",
       "system": "Sistem ({{resolved}})",
       "light": "Cerah",
-      "dark": "Gelap"
+      "dark": "Gelap",
+      "whatsapp": "WhatsApp",
+      "systemLabel": "Sistem",
+      "lightLabel": "Cerah",
+      "darkLabel": "Gelap",
+      "whatsappLabel": "WhatsApp"
     },
     "languagePanel": {
       "title": "Bahasa",
@@ -656,11 +661,6 @@
       "description": "Eksport ruang kerja tersedia daripada paparan Papan pemuka dan Audit yang berkaitan."
     },
     "exportsScope": "Eksport hanya mengandungi data daripada {{name}}.",
-    "themeLight": "Cerah",
-    "themeDark": "Gelap",
-    "themeSystem": "Ikut sistem",
-    "themeChanged": "Tema ditukar kepada {{theme}}",
-    "themeToggleAria": "Tema semasa: {{current}}. Klik untuk bertukar kepada {{next}}",
     "apiTokensPanel": {
       "title": "Ejen AI (MCP)",
       "description": "Sambungkan ejen AI ke ruang kerja ini melalui titik akhir MCP dengan token peribadi yang boleh dibatalkan."
@@ -668,13 +668,15 @@
     "viewShortcuts": "Lihat pintasan",
     "leftWorkspace": "Anda telah meninggalkan {{name}}",
     "languageSaveFailed": "Bahasa tidak dapat disimpan ke akaun anda. Ia hanya digunakan dalam pelayar ini.",
+    "themeSaveFailed": "Tema tidak dapat disimpan ke akaun anda",
     "notificationSounds": {
       "default": "Lalai",
       "chime": "Loceng angin",
       "bell": "Loceng",
       "pop": "Pop",
       "none": "Tiada"
-    }
+    },
+    "themeMenuAria": "Tema: {{current}}"
   },
   "dashboard": {
     "totalMessages": "Jumlah mesej",

@@ -72,6 +72,7 @@ export interface AuthUser {
   name: string | null;
   avatarKey: string | null;
   preferredLanguage: string | null;
+  themePreference: string | null;
   emailVerifiedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -86,6 +87,7 @@ export interface AuthUserResponse {
   hasCustomAvatar: boolean;
   emailVerified: boolean;
   preferredLanguage: string | null;
+  themePreference: string | null;
 }
 
 // Re-export AuthError for backward compatibility with routes
@@ -175,6 +177,7 @@ export async function toAuthUserResponse(
   user: Pick<AuthUser, "id" | "email" | "name" | "emailVerifiedAt"> & {
     avatarKey?: string | null;
     preferredLanguage?: string | null;
+    themePreference?: string | null;
   },
 ): Promise<AuthUserResponse> {
   const gravatarUrl = getGravatarUrl(user.email);
@@ -195,6 +198,7 @@ export async function toAuthUserResponse(
     hasCustomAvatar: Boolean(user.avatarKey),
     emailVerified: Boolean(user.emailVerifiedAt),
     preferredLanguage: user.preferredLanguage ?? null,
+    themePreference: user.themePreference ?? null,
   };
 }
 
@@ -326,6 +330,7 @@ export async function register(
           "name",
           "avatar_key",
           "preferred_language",
+          "theme_preference",
           "email_verified_at",
           "created_at",
           "updated_at",
@@ -374,6 +379,7 @@ export async function register(
       name: user.name,
       avatarKey: user.avatar_key,
       preferredLanguage: user.preferred_language,
+      themePreference: user.theme_preference,
       emailVerifiedAt: user.email_verified_at,
       createdAt: user.created_at,
       updatedAt: user.updated_at,
@@ -506,6 +512,7 @@ export async function issueSessionForVerifiedUser(
         name: lockedUser.name,
         avatarKey: lockedUser.avatar_key,
         preferredLanguage: lockedUser.preferred_language,
+        themePreference: lockedUser.theme_preference,
         emailVerifiedAt: lockedUser.email_verified_at,
         createdAt: lockedUser.created_at,
         updatedAt: lockedUser.updated_at,
@@ -569,6 +576,7 @@ export async function verifyEmail(
         "name",
         "avatar_key",
         "preferred_language",
+        "theme_preference",
         "email_verified_at",
         "created_at",
         "updated_at",
@@ -617,6 +625,7 @@ export async function verifyEmail(
         name: user.name,
         avatarKey: user.avatar_key,
         preferredLanguage: user.preferred_language,
+        themePreference: user.theme_preference,
         emailVerifiedAt: user.email_verified_at,
         createdAt: user.created_at,
         updatedAt: user.updated_at,
@@ -857,6 +866,9 @@ export async function updateProfile(
   if (input.preferredLanguage !== undefined) {
     updateData.preferred_language = input.preferredLanguage;
   }
+  if (input.themePreference !== undefined) {
+    updateData.theme_preference = input.themePreference;
+  }
   if (emailChanged) {
     updateData.email = normalizedEmail;
     updateData.email_verified_at = null;
@@ -871,6 +883,7 @@ export async function updateProfile(
     name: string | null;
     avatar_key: string | null;
     preferred_language: string | null;
+    theme_preference: string | null;
     email_verified_at: Date | null;
     created_at: Date;
     updated_at: Date;
@@ -889,6 +902,7 @@ export async function updateProfile(
           "name",
           "avatar_key",
           "preferred_language",
+          "theme_preference",
           "email_verified_at",
           "created_at",
           "updated_at",
@@ -960,6 +974,7 @@ export async function updateProfile(
       name: updated.name,
       avatarKey: updated.avatar_key,
       preferredLanguage: updated.preferred_language,
+      themePreference: updated.theme_preference,
       emailVerifiedAt: updated.email_verified_at,
       createdAt: updated.created_at,
       updatedAt: updated.updated_at,
@@ -1207,6 +1222,7 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
       "name",
       "avatar_key",
       "preferred_language",
+      "theme_preference",
       "email_verified_at",
       "created_at",
       "updated_at",
@@ -1223,6 +1239,7 @@ export async function getUserById(userId: string): Promise<AuthUser | null> {
     name: user.name,
     avatarKey: user.avatar_key,
     preferredLanguage: user.preferred_language,
+    themePreference: user.theme_preference,
     emailVerifiedAt: user.email_verified_at,
     createdAt: user.created_at,
     updatedAt: user.updated_at,

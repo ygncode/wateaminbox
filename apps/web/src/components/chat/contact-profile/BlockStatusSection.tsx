@@ -52,12 +52,12 @@ export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
           {contact.isBlocked ? (
             <>
               <div className="flex items-center gap-2">
-                <Ban className="h-4 w-4 text-red-500" />
+                <Ban className="h-4 w-4 text-danger" />
                 <div>
-                  <p className="text-sm font-medium text-red-600 dark:text-red-400">
+                  <p className="text-sm font-medium text-danger">
                     {t("contacts.contactBlocked", "Contact Blocked")}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                  <p className="text-xs text-fg-muted">
                     {t(
                       "contacts.blockedHint",
                       "Messages from this contact are blocked",
@@ -70,7 +70,7 @@ export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
                 variant="outline"
                 onClick={handleUnblock}
                 disabled={blockContact.isPending}
-                className="text-whatsapp-green hover:bg-green-50 hover:text-whatsapp-dark-green dark:text-green-400 dark:border-green-400/50 dark:hover:bg-green-400/10 dark:hover:text-green-300"
+                className="text-accent hover:bg-accent-soft hover:text-accent-hover border-accent/40"
               >
                 <CheckCircle className="me-1 h-4 w-4" />
                 Unblock
@@ -79,12 +79,12 @@ export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
           ) : (
             <>
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500" />
+                <CheckCircle className="h-4 w-4 text-accent" />
                 <div>
-                  <p className="text-sm text-gray-700 dark:text-dark-text-primary">
+                  <p className="text-sm text-fg">
                     {t("contacts.notBlocked", "Not Blocked")}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+                  <p className="text-xs text-fg-muted">
                     {t(
                       "contacts.notBlockedHint",
                       "You can receive messages from this contact",
@@ -97,7 +97,7 @@ export function BlockStatusSection({ contact }: BlockStatusSectionProps) {
                 variant="outline"
                 onClick={handleBlock}
                 disabled={blockContact.isPending}
-                className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:border-red-400/50 dark:hover:bg-red-400/10 dark:hover:text-red-300"
+                className="text-danger hover:bg-danger-soft hover:text-danger border-danger/40"
               >
                 <Ban className="me-1 h-4 w-4" />
                 Block

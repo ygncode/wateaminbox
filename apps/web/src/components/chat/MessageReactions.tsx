@@ -96,7 +96,7 @@ export function MessageReactions({
             type="button"
             key={emoji}
             onClick={(event) => openReactionDetails(event, emoji)}
-            className="inline-flex min-h-6 items-center gap-0.5 rounded-full border border-gray-200 bg-white px-1.5 py-0.5 text-xs tabular-nums shadow-md transition-transform hover:-translate-y-0.5 hover:border-whatsapp-green/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green focus-visible:ring-offset-1 dark:border-dark-border dark:bg-dark-elevated"
+            className="inline-flex min-h-6 items-center gap-0.5 rounded-full border border-line bg-surface px-1.5 py-0.5 text-xs tabular-nums shadow-md transition-transform hover:-translate-y-0.5 hover:border-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             aria-label={t("chat.viewReactionPeople", {
               emoji,
               count: reactors.length,
@@ -105,10 +105,7 @@ export function MessageReactions({
           >
             <span aria-hidden="true">{emoji}</span>
             {reactors.length > 1 && (
-              <span
-                className="text-gray-600 dark:text-dark-text-secondary"
-                aria-hidden="true"
-              >
+              <span className="text-fg-muted" aria-hidden="true">
                 {reactors.length}
               </span>
             )}
@@ -121,7 +118,7 @@ export function MessageReactions({
           className="w-[calc(100vw-2rem)] max-w-md gap-0 overflow-hidden rounded-xl p-0"
           onClick={(event) => event.stopPropagation()}
         >
-          <DialogHeader className="border-b border-gray-100 px-5 pb-4 pt-5 text-start dark:border-dark-border">
+          <DialogHeader className="border-b border-line px-5 pb-4 pt-5 text-start">
             <DialogTitle>{t("chat.messageReactions")}</DialogTitle>
             <DialogDescription>
               {t("chat.reactionCount", { count: reactions.length })}
@@ -129,7 +126,7 @@ export function MessageReactions({
           </DialogHeader>
 
           <div
-            className="flex min-h-12 overflow-x-auto border-b border-gray-100 px-2 dark:border-dark-border"
+            className="flex min-h-12 overflow-x-auto border-b border-line px-2"
             role="tablist"
             aria-label={t("chat.filterReactions")}
           >
@@ -193,16 +190,16 @@ function ReactionTab({
       role="tab"
       aria-selected={selected}
       onClick={onSelect}
-      className={`relative flex min-w-16 shrink-0 items-center justify-center gap-1.5 px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green ${
+      className={`relative flex min-w-16 shrink-0 items-center justify-center gap-1.5 px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
         selected
-          ? "font-semibold text-whatsapp-dark-green dark:text-whatsapp-green"
-          : "text-gray-500 hover:text-gray-800 dark:text-dark-text-secondary dark:hover:text-dark-text-primary"
+          ? "font-semibold text-accent-hover"
+          : "text-fg-muted hover:text-fg"
       }`}
     >
       <span className={isEmoji ? "text-base" : "text-sm"}>{label}</span>
       <span className="text-xs tabular-nums opacity-70">{count}</span>
       {selected && (
-        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-t-full bg-whatsapp-green" />
+        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-t-full bg-primary" />
       )}
     </button>
   );
@@ -226,7 +223,7 @@ function ReactorRow({
 
   const content = (
     <>
-      <Avatar className="h-10 w-10 ring-1 ring-black/5 dark:ring-white/10">
+      <Avatar className="h-10 w-10 ring-1 ring-fg/5">
         {reaction.reactorAvatarUrl && (
           <AvatarImage
             src={reaction.reactorAvatarUrl}
@@ -243,18 +240,14 @@ function ReactorRow({
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-gray-900 dark:text-dark-text-primary">
-          {displayName}
-        </p>
+        <p className="truncate text-sm font-medium text-fg">{displayName}</p>
         {onRemove && (
-          <p className="truncate text-xs text-gray-500 dark:text-dark-text-secondary">
+          <p className="truncate text-xs text-fg-muted">
             {t("chat.clickToRemoveReaction")}
           </p>
         )}
         {showJid && (
-          <p className="truncate text-xs text-gray-500 dark:text-dark-text-secondary">
-            {jidLabel}
-          </p>
+          <p className="truncate text-xs text-fg-muted">{jidLabel}</p>
         )}
       </div>
       <span className="text-xl" aria-label={reaction.emoji}>
@@ -268,7 +261,7 @@ function ReactorRow({
       <button
         type="button"
         onClick={onRemove}
-        className="flex min-h-16 w-full items-center gap-3 px-5 py-2.5 text-start transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green dark:hover:bg-dark-tertiary/60"
+        className="flex min-h-16 w-full items-center gap-3 px-5 py-2.5 text-start transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         aria-label={t("chat.removeReaction", { emoji: reaction.emoji })}
       >
         {content}
@@ -277,7 +270,7 @@ function ReactorRow({
   }
 
   return (
-    <div className="flex min-h-16 items-center gap-3 px-5 py-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-dark-tertiary/60">
+    <div className="flex min-h-16 items-center gap-3 px-5 py-2.5 transition-colors hover:bg-muted">
       {content}
     </div>
   );

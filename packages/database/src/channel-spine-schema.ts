@@ -7,6 +7,12 @@ const ddlLockTimeout = "5s";
  * Reconcile the additive tenant-local channel spine. This function creates no
  * rows and never changes legacy column authority.
  */
+/**
+ * Actor recorded on customer suppressions the system creates or lifts on its
+ * own (the legacy is_blocked backfill, automatic flood mutes). Not a user ID.
+ */
+export const SYSTEM_SUPPRESSION_ACTOR = "00000000-0000-0000-0000-000000000000";
+
 export async function ensureChannelSpineTenantSchema<Database>(
   db: Kysely<Database>,
   schemaName: string,
@@ -148,6 +154,45 @@ export async function ensureChannelSpineTenantSchema<Database>(
       revoked_at TIMESTAMPTZ,
       CHECK (length(trim(scope)) > 0),
       CHECK (length(trim(reason)) > 0)
+    )`.execute(db);
+
+    // Customer suppression (contact blocking): an automatic flood mute expires
+    // on its own, and a revocation names who lifted it.
+    await addColumnsIfMissing(db, schemaName, "contact_suppressions", [
+      ["expires_at", "TIMESTAMPTZ"],
+      ["revoked_by", "UUID"],
+    ]);
+    await addConstraintIfMissing(
+      db,
+      schemaName,
+      "contact_suppressions",
+      "contact_suppressions_scope_allowed_check",
+      sql`ALTER TABLE ${table("contact_suppressions")}
+        ADD CONSTRAINT contact_suppressions_scope_allowed_check
+        CHECK (scope IN ('block', 'mute_inbound', 'do_not_contact')) NOT VALID`,
+    );
+
+    // Whether this workspace enforces customer suppression (drops a blocked
+    // person's inbound, silences a muted one, refuses outbound). One row, off
+    // until an operator enables it, so the rollout is per workspace. It lives
+    // in the tenant schema so every check reads it in its own transaction.
+    await sql`CREATE TABLE IF NOT EXISTS ${table("contact_policy_settings")} (
+      id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+      enforcement_enabled BOOLEAN NOT NULL DEFAULT false,
+      updated_by UUID,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`.execute(db);
+
+    // Evidence that a blocked person kept writing, without their content: one
+    // bounded counter per person, channel and UTC day.
+    await sql`CREATE TABLE IF NOT EXISTS ${table("contact_suppression_drops")} (
+      contact_id UUID NOT NULL REFERENCES ${table("contacts")}(id) ON DELETE CASCADE,
+      channel TEXT NOT NULL,
+      day DATE NOT NULL,
+      dropped_count INTEGER NOT NULL DEFAULT 0 CHECK (dropped_count >= 0),
+      last_dropped_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (contact_id, channel, day),
+      CHECK (length(trim(channel)) > 0)
     )`.execute(db);
 
     await sql`CREATE TABLE IF NOT EXISTS ${table("conversations")} (
@@ -719,6 +764,12 @@ async function ensureIndexes<Database>(
         WHERE revoked_at IS NULL`,
       ],
       [
+        "contact_suppressions_active_uidx",
+        sql`CREATE UNIQUE INDEX ${sql.ref(`${schemaName}_csup_active_uidx`)}
+        ON ${table("contact_suppressions")} (contact_id, scope)
+        WHERE revoked_at IS NULL`,
+      ],
+      [
         "channel_spine_reconciliation_due_idx",
         sql`CREATE INDEX ${sql.ref(`${schemaName}_csrj_due_idx`)}
         ON ${table("channel_spine_reconciliation_journal")} (status, next_attempt_at, created_at)`,
@@ -749,6 +800,7 @@ function indexNameFor(logicalName: string, schemaName: string): string {
     outbound_message_intents_due_idx: "omi_due_idx",
     outbound_intents_send_message_uidx: "omi_send_msg_uidx",
     contact_suppressions_active_idx: "csup_active_idx",
+    contact_suppressions_active_uidx: "csup_active_uidx",
     channel_spine_reconciliation_due_idx: "csrj_due_idx",
   };
   return `${schemaName}_${suffixes[logicalName]}`;

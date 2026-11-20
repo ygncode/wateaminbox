@@ -136,9 +136,9 @@ export function AttachmentPreviewDialog({
       }}
     >
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-[80] bg-[#0b141a]/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <DialogPrimitive.Content
-          className="fixed start-1/2 top-1/2 z-[81] flex max-h-[92vh] w-[calc(100%_-_1.5rem)] max-w-3xl -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111b21] text-white shadow-2xl shadow-black/50 outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+          className="fixed start-1/2 top-1/2 z-[81] flex max-h-[92vh] w-[calc(100%_-_1.5rem)] max-w-3xl -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-white/10 bg-black text-white shadow-2xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
           aria-describedby="attachment-preview-description"
           // The schedule sheet layers above this dialog and handles Escape
           // itself. Without this veto one key press would dismiss both, losing
@@ -160,12 +160,12 @@ export function AttachmentPreviewDialog({
             )}
           </DialogPrimitive.Description>
 
-          <header className="flex min-h-16 items-center gap-3 border-b border-white/10 bg-[#202c33] px-3 sm:px-5">
+          <header className="flex min-h-16 items-center gap-3 border-b border-white/10 bg-black px-3 sm:px-5">
             <DialogPrimitive.Close asChild>
               <button
                 type="button"
                 disabled={isBusy}
-                className="grid size-10 shrink-0 place-items-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]"
+                className="grid size-10 shrink-0 place-items-center rounded-full text-white/75 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label={t("chat.cancelAttachment", "Cancel attachment")}
               >
                 <X className="size-5" aria-hidden="true" />
@@ -186,28 +186,28 @@ export function AttachmentPreviewDialog({
             </div>
           </header>
 
-          <div className="flex min-h-56 flex-1 items-center justify-center overflow-auto bg-[#0b141a] p-4 sm:min-h-96 sm:p-8">
+          <div className="flex min-h-56 flex-1 items-center justify-center overflow-auto bg-black p-4 sm:min-h-96 sm:p-8">
             {isVisualMedia && previewUrls[activeIndex] ? (
               isVideo ? (
                 <video
                   src={previewUrls[activeIndex]}
                   controls
                   playsInline
-                  className="max-h-[58vh] max-w-full rounded-lg bg-black object-contain shadow-2xl shadow-black/30"
+                  className="max-h-[58vh] max-w-full rounded-lg bg-black object-contain shadow-2xl"
                   aria-label={`Preview ${file.name}`}
                 />
               ) : (
                 <img
                   src={previewUrls[activeIndex]}
                   alt={`Preview ${file.name}`}
-                  className="max-h-[58vh] max-w-full rounded-lg object-contain shadow-2xl shadow-black/30"
+                  className="max-h-[58vh] max-w-full rounded-lg object-contain shadow-2xl"
                 />
               )
             ) : (
               <div className="flex max-w-sm flex-col items-center text-center">
-                <span className="relative grid size-24 place-items-center rounded-2xl bg-[#202c33] text-[#aebac1] shadow-xl shadow-black/20">
+                <span className="relative grid size-24 place-items-center rounded-2xl bg-black text-fg-subtle shadow-xl">
                   <FileText className="size-11" aria-hidden="true" />
-                  <span className="absolute -bottom-2 rounded-md bg-[#00a884] px-2 py-1 text-[10px] font-bold tracking-wide text-white shadow-md">
+                  <span className="absolute -bottom-2 rounded-md bg-primary px-2 py-1 text-[10px] font-bold tracking-wide text-on-primary shadow-md">
                     {fileExtension}
                   </span>
                 </span>
@@ -222,7 +222,7 @@ export function AttachmentPreviewDialog({
           </div>
 
           {attachmentType === "image" && (
-            <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-t border-white/10 bg-[#111b21] px-3 py-2 sm:px-4">
+            <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-t border-white/10 bg-black px-3 py-2 sm:px-4">
               {attachments.map((attachment, index) => {
                 const url = previewUrls[index];
                 const selected = index === activeIndex;
@@ -235,9 +235,9 @@ export function AttachmentPreviewDialog({
                       type="button"
                       onClick={() => setActiveIndex(index)}
                       disabled={isBusy}
-                      className={`grid size-16 overflow-hidden rounded-lg bg-[#202c33] ring-2 ring-offset-2 ring-offset-[#111b21] transition ${
+                      className={`grid size-16 overflow-hidden rounded-lg bg-black ring-2 ring-offset-2 ring-offset-fg-subtle transition ${
                         selected
-                          ? "ring-[#00a884]"
+                          ? "ring-ring"
                           : "ring-transparent hover:ring-white/25"
                       }`}
                       aria-label={`Preview ${attachment.file.name}`}
@@ -261,7 +261,7 @@ export function AttachmentPreviewDialog({
                       type="button"
                       onClick={() => onRemoveFile(index)}
                       disabled={isBusy}
-                      className="absolute -end-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-[#202c33] text-white shadow-md ring-1 ring-white/20 hover:bg-red-500"
+                      className="absolute -end-1.5 -top-1.5 grid size-6 place-items-center rounded-full bg-black text-white shadow-md ring-1 ring-white/20 hover:bg-danger-hover"
                       aria-label={`Remove ${attachment.file.name}`}
                     >
                       <X className="size-3.5" aria-hidden="true" />
@@ -274,7 +274,7 @@ export function AttachmentPreviewDialog({
                   type="button"
                   onClick={onAddFiles}
                   disabled={isBusy}
-                  className="grid size-16 shrink-0 place-items-center rounded-lg border border-dashed border-white/30 text-white/70 transition hover:border-[#00a884] hover:bg-white/5 hover:text-[#00a884]"
+                  className="grid size-16 shrink-0 place-items-center rounded-lg border border-dashed border-white/30 text-white/70 transition hover:border-accent hover:bg-white/5 hover:text-accent"
                   aria-label={t(
                     "chat.addMoreMedia",
                     "Add more photos or videos",
@@ -288,10 +288,10 @@ export function AttachmentPreviewDialog({
 
           <form
             onSubmit={handleSubmit}
-            className="border-t border-white/10 bg-[#202c33] p-3 sm:p-4"
+            className="border-t border-white/10 bg-black p-3 sm:p-4"
           >
             <div className="flex items-end gap-2">
-              <div className="min-w-0 flex-1 rounded-2xl bg-[#2a3942] px-4 py-2 shadow-inner shadow-black/10 ring-1 ring-white/[0.04] focus-within:ring-[#00a884]/60">
+              <div className="min-w-0 flex-1 rounded-2xl bg-black px-4 py-2 shadow-inner ring-1 ring-white/[0.04] focus-within:ring-ring/60">
                 <textarea
                   value={caption}
                   onChange={(event) => setCaption(event.target.value)}
@@ -302,7 +302,7 @@ export function AttachmentPreviewDialog({
                   autoFocus
                   placeholder={t("chat.addCaption", "Add a caption…")}
                   aria-label={t("chat.attachmentCaption", "Attachment caption")}
-                  className="block max-h-28 min-h-7 w-full resize-none bg-transparent py-1 text-[15px] leading-5 text-white outline-none placeholder:text-[#8696a0] disabled:cursor-not-allowed"
+                  className="block max-h-28 min-h-7 w-full resize-none bg-transparent py-1 text-[15px] leading-5 text-white outline-none placeholder:text-fg-muted disabled:cursor-not-allowed"
                 />
                 {caption.length > MAX_CAPTION_LENGTH - 100 && (
                   <p className="text-end text-[10px] tabular-nums text-white/45">
@@ -316,10 +316,10 @@ export function AttachmentPreviewDialog({
                     type="button"
                     onClick={() => setShowSchedulePopover(!showSchedulePopover)}
                     disabled={isBusy}
-                    className={`grid size-12 shrink-0 place-items-center rounded-full text-white shadow-lg shadow-black/20 transition-all active:scale-95 disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 focus-visible:ring-offset-[#202c33] ${
+                    className={`grid size-12 shrink-0 place-items-center rounded-full text-white shadow-lg transition-all active:scale-95 disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fg-subtle ${
                       showSchedulePopover
-                        ? "bg-[#2a3942] text-[#06cf9c]"
-                        : "bg-[#2a3942] hover:bg-[#34434d]"
+                        ? "bg-black text-accent"
+                        : "bg-black hover:bg-white/15"
                     }`}
                     aria-label={t(
                       "chat.scheduleAttachment",
@@ -349,7 +349,7 @@ export function AttachmentPreviewDialog({
               <button
                 type="submit"
                 disabled={isBusy}
-                className="grid size-12 shrink-0 place-items-center rounded-full bg-[#00a884] text-white shadow-lg shadow-black/20 transition-all hover:bg-[#06cf9c] active:scale-95 disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 focus-visible:ring-offset-[#202c33]"
+                className="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-on-primary shadow-lg transition-all hover:bg-primary-hover active:scale-95 disabled:cursor-wait disabled:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-fg-subtle"
                 aria-label={
                   isSending
                     ? t("chat.sendingAttachment", "Sending attachment")

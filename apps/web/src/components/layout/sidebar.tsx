@@ -10,7 +10,7 @@ export function Sidebar({ className, children, ...props }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "flex h-full flex-col border-e border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary",
+        "flex h-full flex-col border-e border-line bg-surface",
         // Width is controlled by the responsive layout or desktop resize handle.
         "w-full",
         // Mobile: full width, no border
@@ -37,7 +37,7 @@ export function SidebarHeader({
   return (
     <header
       className={cn(
-        "flex items-center justify-between border-b border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-secondary px-4",
+        "flex items-center justify-between border-b border-line bg-muted px-4",
         // Responsive height with safe area support
         "h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]",
         // Safe area inset for notch
@@ -63,10 +63,7 @@ export function SidebarSearch({
 }: SidebarSearchProps) {
   return (
     <div
-      className={cn(
-        "border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary p-2",
-        className,
-      )}
+      className={cn("border-b border-line bg-surface p-2", className)}
       {...props}
     >
       {children}

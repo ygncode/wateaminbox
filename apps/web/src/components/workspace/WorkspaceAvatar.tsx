@@ -25,7 +25,7 @@ export function WorkspaceAvatar({
         // inside is h-full/w-full, so a caller that forgets to pass dimensions
         // gets the logo at its natural size and a torn layout. tailwind-merge
         // lets every caller's own size win, so this only catches omissions.
-        "grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#dcefe7] text-xs font-bold text-[#075c41]",
+        "grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-accent-soft text-xs font-bold text-accent",
         className,
       )}
     >

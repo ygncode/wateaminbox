@@ -20,7 +20,7 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-10 w-full min-w-0 items-center justify-between gap-2 rounded-md border-0 bg-gray-100 px-3 py-2 text-start text-sm text-gray-900 shadow-none ring-offset-white transition-colors focus:outline-none focus:ring-1 focus:ring-whatsapp-green focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-gray-500 [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1 [&>span:first-child]:truncate dark:bg-dark-tertiary dark:text-dark-text-primary dark:ring-offset-dark-primary dark:data-[placeholder]:text-dark-text-secondary",
+      "flex h-9 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-line-strong bg-field px-3 text-start text-sm text-fg shadow-xs transition-[border-color,box-shadow] duration-150 hover:border-fg-subtle/60 focus:outline-none focus-visible:border-fg-muted focus-visible:ring-[3px] focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50 data-[placeholder]:text-fg-subtle [&>span:first-child]:min-w-0 [&>span:first-child]:flex-1 [&>span:first-child]:truncate",
       className,
     )}
     {...props}
@@ -76,7 +76,7 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        "relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[8rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-md border border-gray-200 bg-white text-gray-950 shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-primary",
+        "relative z-50 max-h-[min(24rem,var(--radix-select-content-available-height))] min-w-[8rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-line bg-overlay text-fg shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
         position === "popper" &&
           "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
         className,
@@ -133,7 +133,7 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pe-2 text-sm outline-none data-[highlighted]:bg-gray-100 data-[highlighted]:text-gray-900 data-[state=checked]:text-whatsapp-green-a11y-text data-[disabled]:pointer-events-none data-[disabled]:opacity-50 dark:data-[highlighted]:bg-dark-tertiary dark:data-[highlighted]:text-dark-text-primary dark:data-[state=checked]:text-whatsapp-green",
+      "relative flex w-full cursor-default select-none items-center rounded-md py-1.5 pe-2 text-sm outline-none data-[highlighted]:bg-muted data-[highlighted]:text-fg data-[state=checked]:font-medium data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       hideIndicator ? "ps-2" : "ps-8",
       className,
     )}
@@ -158,7 +158,7 @@ const SelectSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Separator
     ref={ref}
-    className={cn("-mx-1 my-1 h-px bg-gray-100 dark:bg-dark-border", className)}
+    className={cn("-mx-1 my-1 h-px bg-line", className)}
     {...props}
   />
 ));

@@ -48,7 +48,7 @@ export function MediaAlbumContent({
     <div className="w-[min(31rem,72vw)] max-w-full">
       <div
         className={cn(
-          "grid grid-cols-2 gap-1 overflow-hidden rounded-xl bg-black/10 dark:bg-black/25",
+          "grid grid-cols-2 gap-1 overflow-hidden rounded-xl bg-fg/10",
           visibleMessages.length === 3 && "grid-rows-2",
         )}
         aria-label={`${totalCount} media items`}
@@ -65,7 +65,7 @@ export function MediaAlbumContent({
               key={albumMessage.id}
               type="button"
               className={cn(
-                "group/album relative min-h-0 min-w-0 overflow-hidden bg-[#dfe5e7] text-white focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white dark:bg-[#111b21]",
+                "group/album relative min-h-0 min-w-0 overflow-hidden bg-muted-strong text-white focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white",
                 tileClassName(visibleMessages.length, index),
                 enableMediaPreview ? "cursor-pointer" : "pointer-events-none",
               )}
@@ -97,7 +97,7 @@ export function MediaAlbumContent({
                   />
                 )
               ) : (
-                <span className="absolute inset-0 grid place-items-center bg-gradient-to-br from-[#dce5e3] to-[#b7c3c0] text-[#54656f] dark:from-[#243138] dark:to-[#111b21] dark:text-[#aebac1]">
+                <span className="absolute inset-0 grid place-items-center bg-gradient-to-br from-muted-strong to-fg-subtle text-fg-muted">
                   {isVideo ? (
                     <Video className="size-7" aria-hidden="true" />
                   ) : (
@@ -107,8 +107,8 @@ export function MediaAlbumContent({
               )}
 
               {isVideo && !showRemainder && (
-                <span className="absolute inset-0 grid place-items-center bg-black/10">
-                  <span className="grid size-10 place-items-center rounded-full bg-[#111b21]/70 shadow-md backdrop-blur-sm">
+                <span className="absolute inset-0 grid place-items-center bg-fg/10">
+                  <span className="grid size-10 place-items-center rounded-full bg-black/70 shadow-md backdrop-blur-sm">
                     <Play
                       className="ms-0.5 size-5 fill-current"
                       aria-hidden="true"
@@ -118,7 +118,7 @@ export function MediaAlbumContent({
               )}
 
               {showRemainder && (
-                <span className="absolute inset-0 grid place-items-center bg-[#0b141a]/65 text-3xl font-medium tabular-nums backdrop-blur-[2px]">
+                <span className="absolute inset-0 grid place-items-center bg-black/65 text-3xl font-medium tabular-nums backdrop-blur-[2px]">
                   +{hiddenCount}
                 </span>
               )}

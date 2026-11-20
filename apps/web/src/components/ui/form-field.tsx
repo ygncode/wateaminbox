@@ -83,9 +83,8 @@ export function FormField({
       <label
         htmlFor={id}
         className={cn(
-          "mb-1.5 block text-sm font-semibold text-slate-700 transition-colors duration-200 group-focus-within:text-[#075e54] dark:text-dark-text-secondary dark:group-focus-within:text-[#52df83]",
-          error &&
-            "text-red-600 group-focus-within:text-red-600 dark:text-red-400 dark:group-focus-within:text-red-400",
+          "mb-1.5 block text-sm font-semibold text-fg transition-colors duration-200 group-focus-within:text-accent",
+          error && "text-danger group-focus-within:text-danger",
         )}
       >
         {label}
@@ -111,7 +110,7 @@ export function FormField({
           <button
             type="button"
             onClick={() => setIsPasswordVisible((visible) => !visible)}
-            className="absolute inset-y-0 end-0 grid w-11 place-items-center rounded-e-xl text-slate-400 transition-colors hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-inset disabled:pointer-events-none dark:text-dark-text-tertiary dark:hover:text-dark-text-primary dark:focus-visible:ring-[#52df83]"
+            className="absolute inset-y-0 end-0 grid w-11 place-items-center rounded-e-xl text-fg-subtle transition-colors hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:pointer-events-none"
             aria-label={isPasswordVisible ? "Hide password" : "Show password"}
             aria-pressed={isPasswordVisible}
             disabled={disabled}
@@ -125,17 +124,14 @@ export function FormField({
         )}
       </div>
       {hint && !error && (
-        <p
-          id={`${id}-hint`}
-          className="mt-1.5 text-xs leading-4 text-gray-500 dark:text-dark-text-tertiary"
-        >
+        <p id={`${id}-hint`} className="mt-1.5 text-xs leading-4 text-fg-muted">
           {hint}
         </p>
       )}
       {error && (
         <p
           id={`${id}-error`}
-          className="mt-1.5 flex items-start gap-1.5 text-xs font-medium leading-4 text-red-600 dark:text-red-400"
+          className="mt-1.5 flex items-start gap-1.5 text-xs font-medium leading-4 text-danger"
           role="alert"
         >
           <CircleAlert

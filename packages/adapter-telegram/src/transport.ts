@@ -7,6 +7,13 @@ import type {
 import type { TelegramBotOutboundTransport } from "./adapter.js";
 import { telegramBotRequest } from "./api.js";
 
+/** Operations this transport maps to a Bot API message method. */
+const TELEGRAM_MESSAGE_ACTIONS: ReadonlySet<string> = new Set([
+  "delete",
+  "edit",
+  "reaction",
+]);
+
 interface TelegramMessageResult {
   message_id: number;
 }
@@ -179,6 +186,12 @@ export class TelegramBotApiTransport implements TelegramBotOutboundTransport {
   }
 
   async perform(action: ChannelActionIntent): Promise<ProviderActionResult> {
+    if (!TELEGRAM_MESSAGE_ACTIONS.has(action.operation)) {
+      return {
+        outcome: "unsupported",
+        errorCode: "telegram_action_unsupported",
+      };
+    }
     try {
       const context = await this.#ports.resolveOutboundContext(action);
       const messageId = numberValue(action.payload.externalMessageId);

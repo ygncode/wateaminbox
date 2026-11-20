@@ -2,13 +2,13 @@ import { UserRound, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const identityPalettes = [
-  "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
-  "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
-  "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
-  "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
-  "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300",
-  "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
+  "bg-id-1-soft text-id-1",
+  "bg-id-6-soft text-id-6",
+  "bg-id-2-soft text-id-2",
+  "bg-id-4-soft text-id-4",
+  "bg-id-3-soft text-id-3",
+  "bg-id-7-soft text-id-7",
+  "bg-id-5-soft text-id-5",
 ] as const;
 
 export function isUnnamedIdentity(displayName: string | null | undefined) {

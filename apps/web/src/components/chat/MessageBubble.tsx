@@ -47,18 +47,12 @@ import {
 } from "./mobile-message-gestures";
 
 /**
- * Bubble fills.
- *
- * Outgoing used to be solid `whatsapp-green` with white text, which is 1.8:1
- * and the single most repeated element in the product. Both themes now use
- * the fills the app's own conversation skeleton already previews - pale green
- * on dark ink in light mode, deep teal on light ink in dark mode - so bubble
- * text, links, ticks and sender labels all inherit a colour that reads.
+ * Bubble fills come from the theme (`--bubble-in`, `--bubble-out`,
+ * `--bubble-fg`). Each theme keeps bubble text, links, ticks and sender
+ * labels at AA contrast on both fills.
  */
-const OWN_BUBBLE_CLASS =
-  "bg-[#d9fdd3] text-[#111b21] dark:bg-[#005c4b] dark:text-dark-text-primary";
-const INCOMING_BUBBLE_CLASS =
-  "bg-white text-[#111b21] dark:bg-dark-elevated dark:text-dark-text-primary";
+const OWN_BUBBLE_CLASS = "bg-bubble-out text-bubble-fg";
+const INCOMING_BUBBLE_CLASS = "bg-bubble-in text-bubble-fg";
 
 /**
  * Only the first bubble of a run carries a tail; the rest are fully rounded,
@@ -302,7 +296,7 @@ export const MessageBubble = memo(function MessageBubble({
     if (!message.content?.trim()) return null;
     return (
       <div className="flex justify-center py-1.5">
-        <span className="rounded-full bg-black/[0.06] px-3 py-1 text-center text-xs text-[#54656f] dark:bg-white/[0.08] dark:text-dark-text-secondary">
+        <span className="rounded-full bg-fg/[0.06] px-3 py-1 text-center text-xs text-fg-muted">
           {message.content}
         </span>
       </div>
@@ -339,13 +333,11 @@ export const MessageBubble = memo(function MessageBubble({
       <div
         ref={bubbleRef}
         className={cn(
-          "relative max-w-[85%] px-2.5 py-[7px] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] transition-[background-color,box-shadow] duration-300 sm:max-w-[75%] md:max-w-[70%] md:px-3 md:py-2",
+          "relative max-w-[85%] px-2.5 py-[7px] shadow-bubble transition-[background-color,box-shadow] duration-300 sm:max-w-[75%] md:max-w-[70%] md:px-3 md:py-2",
           bubbleRadiusClass(isOwn, groupPosition),
           isOwn ? OWN_BUBBLE_CLASS : INCOMING_BUBBLE_CLASS,
-          isHighlighted &&
-            "ring-2 ring-yellow-400 ring-offset-2 dark:ring-offset-dark-primary",
-          isSelected &&
-            "ring-2 ring-whatsapp-teal-green ring-offset-1 dark:ring-offset-dark-primary",
+          isHighlighted && "ring-2 ring-warning ring-offset-2",
+          isSelected && "ring-2 ring-ring ring-offset-1",
           "touch-manipulation",
         )}
         onContextMenu={selectionMode ? undefined : handleContextMenu}
@@ -515,9 +507,7 @@ function MessageMeta({
     <span
       className={cn(
         "items-center gap-1 whitespace-nowrap text-[11px] leading-4",
-        isOwn
-          ? "text-current opacity-60"
-          : "text-[#667781] dark:text-dark-text-secondary",
+        isOwn ? "text-current opacity-60" : "text-fg-muted",
         variant === "inline"
           ? // `select-none` keeps the timestamp out of a copied message.
             "float-right ms-2 mt-1 inline-flex translate-y-0.5 select-none"
@@ -529,7 +519,7 @@ function MessageMeta({
       </span>
       <MessageStatusIcon message={message} isOwn={isOwn} />
       {message.isStarred && !message.isDeleted && (
-        <StarFilledIcon className="h-3 w-3 text-yellow-500 dark:text-yellow-400" />
+        <StarFilledIcon className="h-3 w-3 text-warning" />
       )}
     </span>
   );
@@ -546,14 +536,11 @@ function ReactionPickerSkeleton({
 }) {
   return (
     <div
-      className="fixed z-50 bg-white dark:bg-dark-elevated rounded-full shadow-lg px-3 py-2 flex items-center gap-2"
+      className="fixed z-50 bg-surface rounded-full shadow-lg px-3 py-2 flex items-center gap-2"
       style={{ left: position.x, top: position.y }}
     >
       {Array.from({ length: 6 }).map((_, i) => (
-        <div
-          key={i}
-          className="w-8 h-8 bg-gray-100 dark:bg-dark-tertiary rounded-full animate-pulse"
-        />
+        <div key={i} className="w-8 h-8 bg-muted rounded-full animate-pulse" />
       ))}
     </div>
   );
@@ -588,8 +575,8 @@ function SelectionCheckbox({
       <div
         className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
           isSelected
-            ? "bg-whatsapp-teal-green border-whatsapp-teal-green"
-            : "border-gray-400 dark:border-dark-text-tertiary bg-transparent"
+            ? "bg-primary border-primary"
+            : "border-line-strong bg-transparent"
         }`}
       >
         {isSelected && (
@@ -669,12 +656,10 @@ function ReplyPreview({
           }
         : {})}
       className={`mb-1.5 w-full overflow-hidden rounded-lg border-s-[3px] p-2 text-start ${
-        isOwn
-          ? "border-[#0e7a52] bg-black/[0.06] dark:border-[#68e0b6] dark:bg-black/20"
-          : "border-whatsapp-green bg-black/[0.045] dark:bg-white/[0.06]"
+        isOwn ? "border-accent bg-fg/[0.06]" : "border-primary bg-fg/[0.045]"
       } ${
         canNavigate
-          ? "cursor-pointer transition-colors hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green dark:hover:bg-black/30"
+          ? "cursor-pointer transition-colors hover:bg-fg/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           : ""
       }`}
     >
@@ -683,9 +668,7 @@ function ReplyPreview({
         <div className="flex-1 min-w-0">
           <p
             className={`text-xs font-semibold mb-0.5 ${
-              isOwn
-                ? "text-current opacity-90"
-                : "text-gray-900 dark:text-dark-text-primary"
+              isOwn ? "text-current opacity-90" : "text-fg"
             }`}
           >
             {replySender}
@@ -696,9 +679,7 @@ function ReplyPreview({
             mentionParticipants={mentionParticipants}
             enableInteractions={false}
             className={`line-clamp-2 text-xs ${
-              isOwn
-                ? "text-current opacity-70"
-                : "text-gray-700 dark:text-dark-text-secondary"
+              isOwn ? "text-current opacity-70" : "text-fg"
             }`}
             groupMentions={replyToMessage?.metadata?.groupMentions}
           />
@@ -727,9 +708,7 @@ function FailedMessageBanner({
   return (
     <div
       className={`mt-2 flex items-center justify-between gap-2 text-xs px-2 py-1 rounded ${
-        isOwn
-          ? "bg-red-500/15 text-red-800 dark:bg-red-500/20 dark:text-red-100"
-          : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-100"
+        isOwn ? "bg-danger/15 text-danger" : "bg-danger-soft text-danger"
       }`}
     >
       <div className="flex items-center gap-2">
@@ -760,8 +739,8 @@ function FailedMessageBanner({
           disabled={isRetrying}
           className={`flex items-center gap-1 px-2 py-0.5 rounded font-medium transition-colors ${
             isOwn
-              ? "bg-black/10 text-current hover:bg-black/15 dark:bg-white/20 dark:hover:bg-white/30"
-              : "bg-red-200 text-red-800 hover:bg-red-300 dark:bg-white/15 dark:text-red-100 dark:hover:bg-white/25"
+              ? "bg-fg/10 text-current hover:bg-fg/15"
+              : "bg-danger-soft text-danger hover:bg-danger-hover"
           } ${isRetrying ? "opacity-50 cursor-not-allowed" : ""}`}
           aria-label={t("chat.retrySendAria", "Retry sending this message")}
         >
@@ -863,13 +842,13 @@ function TeamSenderLabel({
  * that reads on the dark fill disappears on the light one.
  */
 const teamSenderColors = [
-  "text-[#0b6b7a] dark:text-[#a5e8f7]",
-  "text-[#8a5a00] dark:text-[#ffe08a]",
-  "text-[#6b3fa0] dark:text-[#e0cbff]",
-  "text-[#a63a5e] dark:text-[#ffc7da]",
-  "text-[#9a5215] dark:text-[#ffd7ab]",
-  "text-[#0e7a52] dark:text-[#b6f0d3]",
-  "text-[#3f56b0] dark:text-[#c9d6ff]",
+  "text-id-1",
+  "text-id-2",
+  "text-id-3",
+  "text-id-4",
+  "text-id-5",
+  "text-id-6",
+  "text-id-7",
 ] as const;
 
 function getTeamSenderIdentity(
@@ -945,13 +924,13 @@ function TeamSenderAvatar({
 }
 
 const participantColors = [
-  "text-emerald-700 dark:text-emerald-400",
-  "text-cyan-700 dark:text-cyan-400",
-  "text-blue-700 dark:text-blue-400",
-  "text-violet-700 dark:text-violet-400",
-  "text-fuchsia-700 dark:text-fuchsia-400",
-  "text-rose-700 dark:text-rose-400",
-  "text-orange-700 dark:text-orange-400",
+  "text-id-6",
+  "text-id-1",
+  "text-id-7",
+  "text-id-3",
+  "text-id-4",
+  "text-id-5",
+  "text-id-2",
 ] as const;
 
 function getSenderColor(
@@ -1027,7 +1006,7 @@ function GroupParticipantAvatar({
         defaultValue: "Open {{name}}'s contact info",
         name: label,
       })}
-      className="flex shrink-0 self-end rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/50"
+      className="flex shrink-0 self-end rounded-full transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
     >
       {avatar}
     </button>
@@ -1075,7 +1054,7 @@ function SenderAvatar({
 
   return (
     <div
-      className={`${side === "left" ? "me-2" : "ms-2"} mb-0.5 flex h-8 w-8 shrink-0 self-end items-center justify-center overflow-hidden rounded-full shadow-sm ring-1 ring-black/5 dark:ring-white/10`}
+      className={`${side === "left" ? "me-2" : "ms-2"} mb-0.5 flex h-8 w-8 shrink-0 self-end items-center justify-center overflow-hidden rounded-full shadow-sm ring-1 ring-fg/5`}
       title={label}
       aria-label={`${label}'s profile picture`}
     >
@@ -1094,7 +1073,7 @@ function SenderAvatar({
         />
       ) : fallbackKind === "linked-phone" ? (
         <span
-          className="flex h-full w-full items-center justify-center bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+          className="flex h-full w-full items-center justify-center bg-accent-soft text-accent"
           aria-hidden="true"
         >
           <Smartphone className="h-[55%] w-[55%]" strokeWidth={1.9} />
@@ -1155,7 +1134,7 @@ function GroupParticipantLabel({
         name: label,
       })}
       title={senderIdentity || label}
-      className={`mb-1 block max-w-full truncate rounded text-start text-[13px] font-semibold leading-4 underline-offset-2 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/50 ${color}`}
+      className={`mb-1 block max-w-full truncate rounded text-start text-[13px] font-semibold leading-4 underline-offset-2 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${color}`}
     >
       {label}
     </button>

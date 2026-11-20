@@ -53,7 +53,7 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
         role="img"
         aria-label={label}
         title={label}
-        className="inline-flex text-amber-500"
+        className="inline-flex text-warning"
       >
         ?
       </span>
@@ -121,7 +121,7 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
           aria-label={t("chat.statusLabels.read", "Read")}
         >
           <svg
-            className="h-4 w-4 text-[#1a90c9] dark:text-[#53bdeb]"
+            className="h-4 w-4 text-info"
             viewBox="0 0 16 16"
             fill="currentColor"
             aria-hidden="true"
@@ -147,7 +147,7 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
           })}
         >
           <svg
-            className="h-4 w-4 text-red-500"
+            className="h-4 w-4 text-danger"
             viewBox="0 0 16 16"
             fill="currentColor"
             aria-hidden="true"
@@ -157,7 +157,7 @@ export function MessageStatusIcon({ message, isOwn }: MessageStatusIconProps) {
           </svg>
           {/* Tooltip for failed messages */}
           <div
-            className="absolute bottom-full end-0 mb-2 px-2 py-1 bg-gray-900 dark:bg-dark-tertiary text-white text-xs rounded whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10"
+            className="absolute bottom-full end-0 mb-2 px-2 py-1 bg-fg text-canvas text-xs rounded whitespace-nowrap opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10"
             aria-hidden="true"
           >
             {errorMsg}

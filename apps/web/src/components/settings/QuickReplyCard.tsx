@@ -22,22 +22,20 @@ export function QuickReplyCard({
 
   return (
     <div
-      className="group flex items-start gap-3 rounded-xl border border-[#e2e8e3] bg-[#fbfcfb] p-3.5 transition-colors hover:border-[#c8d3cc] hover:bg-[#f8faf8] focus-within:border-[#a9beb3] dark:border-white/[0.07] dark:bg-white/[0.02] dark:hover:border-white/[0.14] dark:hover:bg-white/[0.04]"
+      className="group flex items-start gap-3 rounded-xl border border-line bg-subtle p-3.5 transition-colors hover:border-line-strong hover:bg-muted focus-within:border-line-strong"
       data-testid={`quick-reply-item-${quickReply.shortcut}`}
     >
       {/* Shortcut badge */}
       <div className="flex-shrink-0">
-        <span className="inline-flex items-center rounded-md bg-[#dcefe7] px-2.5 py-1 font-mono text-xs font-semibold text-[#087a5c] dark:bg-emerald-400/10 dark:text-emerald-300">
+        <span className="inline-flex items-center rounded-md bg-accent-soft px-2.5 py-1 font-mono text-xs font-semibold text-accent">
           /{quickReply.shortcut}
         </span>
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-900 dark:text-dark-text-primary truncate">
-          {quickReply.title}
-        </p>
-        <p className="text-sm text-gray-500 dark:text-dark-text-secondary line-clamp-2 mt-0.5">
+        <p className="font-medium text-fg truncate">{quickReply.title}</p>
+        <p className="text-sm text-fg-muted line-clamp-2 mt-0.5">
           {quickReply.content}
         </p>
       </div>
@@ -59,7 +57,7 @@ export function QuickReplyCard({
           variant="ghost"
           size="sm"
           onClick={() => onDelete(quickReply.id)}
-          className="h-8 w-8 p-0 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30"
+          className="h-8 w-8 p-0 text-danger hover:text-danger hover:bg-danger-soft"
           aria-label={`Delete ${quickReply.title}`}
           title={t("quickReplies.deleteAction", "Delete quick reply")}
           data-testid={`delete-quick-reply-${quickReply.shortcut}`}

@@ -131,7 +131,7 @@ export function AddContactDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5 text-whatsapp-teal-green" />
+            <UserPlus className="h-5 w-5 text-accent" />
             {t("contacts.addNewTitle", "Add New Contact")}
           </DialogTitle>
           <DialogDescription>
@@ -144,13 +144,13 @@ export function AddContactDialog({
 
         {success ? (
           <div className="flex flex-col items-center justify-center py-8">
-            <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-4">
-              <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
+            <div className="w-16 h-16 rounded-full bg-accent-soft flex items-center justify-center mb-4">
+              <Check className="h-8 w-8 text-accent" />
             </div>
-            <p className="text-lg font-medium text-gray-900 dark:text-dark-text-primary">
+            <p className="text-lg font-medium text-fg">
               {t("contacts.created", "Contact Created!")}
             </p>
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary mt-1">
+            <p className="text-sm text-fg-muted mt-1">
               {t("contacts.redirecting", "Redirecting to conversation...")}
             </p>
           </div>
@@ -158,7 +158,7 @@ export function AddContactDialog({
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
             {/* Server error message */}
             {serverError && (
-              <div className="flex items-center gap-2 p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg">
+              <div className="flex items-center gap-2 p-3 text-sm text-danger bg-danger-soft rounded-lg">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
                 <span>{serverError}</span>
               </div>
@@ -168,7 +168,7 @@ export function AddContactDialog({
               <div className="space-y-2">
                 <Label htmlFor="connectionId">
                   {t("contacts.whatsappAccount")}{" "}
-                  <span className="text-red-500">*</span>
+                  <span className="text-danger">*</span>
                 </Label>
                 <Controller
                   name="connectionId"
@@ -214,7 +214,7 @@ export function AddContactDialog({
             <div className="space-y-2">
               <Label htmlFor="phoneNumber">
                 {t("contacts.phoneNumber")}{" "}
-                <span className="text-red-500">*</span>
+                <span className="text-danger">*</span>
               </Label>
               <Input
                 id="phoneNumber"
@@ -234,16 +234,13 @@ export function AddContactDialog({
               {errors.phoneNumber ? (
                 <p
                   id="phoneNumber-error"
-                  className="text-xs text-red-500 dark:text-red-400"
+                  className="text-xs text-danger"
                   role="alert"
                 >
                   {errors.phoneNumber.message}
                 </p>
               ) : (
-                <p
-                  id="phoneNumber-hint"
-                  className="text-xs text-gray-500 dark:text-dark-text-tertiary"
-                >
+                <p id="phoneNumber-hint" className="text-xs text-fg-muted">
                   {t(
                     "contacts.countryCodeHint",
                     "Include country code (e.g., +1 for US, +44 for UK, +95 for Myanmar)",
@@ -272,7 +269,7 @@ export function AddContactDialog({
               {errors.customName && (
                 <p
                   id="customName-error"
-                  className="text-xs text-red-500 dark:text-red-400"
+                  className="text-xs text-danger"
                   role="alert"
                 >
                   {errors.customName.message}
@@ -301,16 +298,13 @@ export function AddContactDialog({
               {errors.notes ? (
                 <p
                   id="notes-error"
-                  className="text-xs text-red-500 dark:text-red-400"
+                  className="text-xs text-danger"
                   role="alert"
                 >
                   {errors.notes.message}
                 </p>
               ) : (
-                <p
-                  id="notes-hint"
-                  className="text-xs text-gray-500 dark:text-dark-text-tertiary"
-                >
+                <p id="notes-hint" className="text-xs text-fg-muted">
                   {t(
                     "contacts.notesVisibleHint",
                     "These notes will be visible to all team members",
@@ -334,7 +328,7 @@ export function AddContactDialog({
                 disabled={
                   createContact.isPending || activeConnections.length === 0
                 }
-                className="bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
+                className="bg-primary hover:bg-primary-hover"
                 data-testid="add-contact-submit"
               >
                 {createContact.isPending ? (

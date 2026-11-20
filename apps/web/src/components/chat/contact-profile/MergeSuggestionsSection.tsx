@@ -118,20 +118,17 @@ export function MergeSuggestionsSection({
             type="button"
             onClick={() => setPending(suggestion)}
             disabled={merge.isPending}
-            className="flex w-full items-center gap-2 rounded-lg border border-dashed border-gray-300 px-2.5 py-2 text-start transition-colors hover:bg-black/[0.03] disabled:opacity-60 dark:border-dark-border dark:hover:bg-white/[0.04]"
+            className="flex w-full items-center gap-2 rounded-lg border border-dashed border-line-strong px-2.5 py-2 text-start transition-colors hover:bg-fg/[0.03] disabled:opacity-60"
           >
-            <Merge
-              className="size-4 shrink-0 text-whatsapp-teal-green"
-              aria-hidden="true"
-            />
+            <Merge className="size-4 shrink-0 text-accent" aria-hidden="true" />
             <span className="min-w-0 flex-1">
-              <span className="block text-sm text-gray-900 dark:text-dark-text-primary">
+              <span className="block text-sm text-fg">
                 {t(
                   "contacts.mergeSuggestionPrompt",
                   "View all these chats together",
                 )}
               </span>
-              <span className="block truncate text-[11px] text-gray-500 dark:text-dark-text-tertiary">
+              <span className="block truncate text-[11px] text-fg-muted">
                 {suggestion.matchedAddress} · {suggestion.channels.join(", ")}
                 {suggestion.sameChannel
                   ? ` · ${t("contacts.mergeSameChannel", "same channel")}`
@@ -140,7 +137,7 @@ export function MergeSuggestionsSection({
             </span>
             {suggestion.verified && (
               <ShieldCheck
-                className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                className="size-3.5 shrink-0 text-accent"
                 aria-label={t(
                   "contacts.mergeVerifiedHint",
                   "The matching endpoint is verified by the provider",

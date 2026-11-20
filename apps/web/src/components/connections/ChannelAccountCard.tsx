@@ -92,13 +92,13 @@ export function ChannelAccountCard({
     isLive;
 
   return (
-    <div className="overflow-visible rounded-xl border border-[#dce3de] bg-white dark:border-white/[0.08] dark:bg-white/[0.025]">
+    <div className="overflow-visible rounded-xl border border-line bg-surface">
       <div className="flex items-center gap-3 overflow-visible p-3.5">
         <div className="relative shrink-0">
           <span
             className={cn(
               "grid h-11 w-11 place-items-center rounded-xl shadow-sm",
-              entry?.tileClassName ?? "bg-slate-500 text-white",
+              entry?.tileClassName ?? "bg-fg-subtle text-white",
             )}
           >
             {entry ? (
@@ -111,8 +111,8 @@ export function ChannelAccountCard({
           </span>
           <span
             className={cn(
-              "absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-white dark:border-[#172622]",
-              isLive ? "bg-emerald-500" : "bg-slate-400",
+              "absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-surface",
+              isLive ? "bg-primary" : "bg-fg-subtle",
             )}
           />
         </div>
@@ -134,7 +134,7 @@ export function ChannelAccountCard({
                   }
                 }}
                 aria-label={t("connections.renameAccount", "Account name")}
-                className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-gray-100 px-2 py-1 text-sm text-gray-900 transition-all placeholder-gray-500 focus:border-whatsapp-green focus:bg-white focus:outline-none focus:ring-1 focus:ring-whatsapp-green dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary dark:placeholder-dark-text-tertiary dark:focus:bg-dark-elevated"
+                className="min-w-0 flex-1 rounded-lg border border-line bg-muted px-2 py-1 text-sm text-fg transition-all placeholder-fg-muted focus:border-primary focus:bg-surface focus:outline-none focus:ring-1 focus:ring-ring"
               />
               <Button size="sm" onClick={commitRename} disabled={isRenaming}>
                 {isRenaming ? (
@@ -155,11 +155,9 @@ export function ChannelAccountCard({
               </Button>
             </div>
           ) : (
-            <p className="truncate text-sm font-semibold text-[#10211b] dark:text-[#eef8f3]">
-              {name}
-            </p>
+            <p className="truncate text-sm font-semibold text-fg">{name}</p>
           )}
-          <p className="truncate text-xs text-[#65736d] dark:text-[#a9bab4]">
+          <p className="truncate text-xs text-fg-muted">
             {entry?.name ?? account.channel}
             {" · "}
             {STATUS_LABEL[account.status] ?? account.status}
@@ -173,7 +171,7 @@ export function ChannelAccountCard({
           </p>
           {/* A provider status is the only clue when a webhook half-registered. */}
           {account.providerStatus && !isLive && (
-            <p className="truncate text-xs text-amber-700 dark:text-amber-400">
+            <p className="truncate text-xs text-warning">
               {account.providerStatus.split("_").join(" ")}
             </p>
           )}
@@ -211,24 +209,24 @@ export function ChannelAccountCard({
                 className="fixed inset-0 z-10"
                 onClick={() => setShowMenu(false)}
               />
-              <div className="absolute end-0 z-20 mt-2 w-48 animate-fade-in rounded-xl border border-gray-200 bg-white py-1.5 shadow-xl shadow-gray-200/50 dark:border-dark-border dark:bg-dark-elevated dark:shadow-black/30">
+              <div className="absolute end-0 z-20 mt-2 w-48 animate-fade-in rounded-xl border border-line bg-surface py-1.5 shadow-xl">
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-fg transition-colors hover:bg-muted"
                   onClick={() => {
                     setEditName(name);
                     setEditing(true);
                     setShowMenu(false);
                   }}
                 >
-                  <Edit2 className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary" />
+                  <Edit2 className="h-4 w-4 text-fg-subtle" />
                   {t("connections.rename", "Rename")}
                 </button>
                 {isPaused ? (
                   <button
                     type="button"
                     disabled={isBusy}
-                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-whatsapp-teal-green transition-colors hover:bg-emerald-50 disabled:opacity-50 dark:hover:bg-emerald-900/30"
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-accent transition-colors hover:bg-accent-soft disabled:opacity-50"
                     onClick={() => {
                       onResume();
                       setShowMenu(false);
@@ -245,7 +243,7 @@ export function ChannelAccountCard({
                   <button
                     type="button"
                     disabled={isBusy}
-                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-orange-600 transition-colors hover:bg-orange-50 disabled:opacity-50 dark:text-orange-400 dark:hover:bg-orange-900/30"
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-warning transition-colors hover:bg-warning-soft disabled:opacity-50"
                     onClick={() => {
                       onPause();
                       setShowMenu(false);
@@ -259,10 +257,10 @@ export function ChannelAccountCard({
                     {t("connections.disconnect", "Disconnect")}
                   </button>
                 )}
-                <div className="my-1.5 border-t border-gray-100 dark:border-dark-border" />
+                <div className="my-1.5 border-t border-line" />
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30"
+                  className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-start text-sm text-danger transition-colors hover:bg-danger-soft"
                   onClick={() => {
                     if (isArchived) setPurgeOpen(true);
                     else setUnlinkOpen(true);
@@ -281,7 +279,7 @@ export function ChannelAccountCard({
       </div>
 
       {groupMessagesRestricted && (
-        <p className="border-t border-amber-200/70 bg-amber-50 px-3.5 py-2.5 text-xs leading-5 text-amber-900 dark:border-amber-400/15 dark:bg-amber-400/[0.06] dark:text-amber-200">
+        <p className="border-t border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs leading-5 text-warning">
           <Trans
             i18nKey="connections.telegram.groupRestricted"
             components={{ code: <code className="font-mono" /> }}

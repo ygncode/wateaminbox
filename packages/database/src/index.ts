@@ -42,6 +42,9 @@ export type {
   ContactNotesPrivateTable,
   ContactNotesSharedTable,
   ContactsTable,
+  ContactPolicySettingsTable,
+  ContactSuppressionDropsTable,
+  ContactSuppressionScope,
   ContactSuppressionsTable,
   ContactTagsTable,
   ConversationCaseKind,
@@ -100,7 +103,10 @@ export {
 } from "./client";
 export type { ChannelSpineIndexResult } from "./channel-spine-index-runner";
 export { reconcileChannelSpineConcurrentIndexes } from "./channel-spine-index-runner";
-export { ensureChannelSpineTenantSchema } from "./channel-spine-schema";
+export {
+  ensureChannelSpineTenantSchema,
+  SYSTEM_SUPPRESSION_ACTOR,
+} from "./channel-spine-schema";
 export type {
   DuplicateBlocker,
   TenantIndexPreflightRow,
