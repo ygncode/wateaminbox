@@ -490,14 +490,21 @@ export interface EndpointPresenceTable {
   expires_at: Date | null;
 }
 
+export type ContactSuppressionScope =
+  | "block"
+  | "mute_inbound"
+  | "do_not_contact";
+
 export interface ContactSuppressionsTable {
   id: Generated<string>;
   contact_id: string;
-  scope: string;
+  scope: ContactSuppressionScope;
   reason: string;
   created_by: string;
   created_at: Generated<Date>;
   revoked_at: Date | null;
+  expires_at: Date | null;
+  revoked_by: string | null;
 }
 
 export interface ConversationsTable {
