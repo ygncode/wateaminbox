@@ -49,6 +49,8 @@ export async function configureTelegramWebhook(
       "channel_post",
       "edited_channel_post",
       "message_reaction",
+      // A private-chat user blocking or unblocking the bot (endpoint.state).
+      "my_chat_member",
     ],
     drop_pending_updates: false,
   });

@@ -229,6 +229,69 @@ describe("Telegram Bot update normalization", () => {
     );
   });
 
+  test("turns a private-chat user blocking and unblocking the bot into reachability", () => {
+    const update = (id: number, status: string) => ({
+      update_id: id,
+      my_chat_member: {
+        chat: { id: 42, type: "private", first_name: "Ada" },
+        from: { id: 42, is_bot: false, first_name: "Ada", username: "ada" },
+        date: 1_788_868_800,
+        old_chat_member: { status: "member" },
+        new_chat_member: { status },
+      },
+    });
+    const [blocked] = normalizeTelegramUpdate(update(200, "kicked"), context);
+    expect(blocked).toMatchObject({
+      kind: "endpoint.state",
+      eventId: "telegram:200:endpoint.state",
+      payload: {
+        endpoint: { externalId: "42", identityScope: "telegram-user" },
+        reachability: "unreachable",
+        reason: "telegram_bot_blocked",
+      },
+    });
+    // It is a provider fact only; it never claims the workspace blocked them.
+    expect(
+      (blocked as { payload: { providerBlockState?: string } }).payload
+        .providerBlockState,
+    ).toBeUndefined();
+    const [unblocked] = normalizeTelegramUpdate(update(201, "member"), context);
+    expect(unblocked).toMatchObject({
+      payload: { reachability: "reachable" },
+    });
+  });
+
+  test("ignores the bot's membership changes in groups and unknown statuses", () => {
+    expect(
+      normalizeTelegramUpdate(
+        {
+          update_id: 202,
+          my_chat_member: {
+            chat: { id: -100, type: "supergroup", title: "Team" },
+            from: { id: 7, is_bot: false, first_name: "Admin" },
+            date: 1_788_868_800,
+            new_chat_member: { status: "kicked" },
+          },
+        },
+        context,
+      ),
+    ).toEqual([]);
+    expect(
+      normalizeTelegramUpdate(
+        {
+          update_id: 203,
+          my_chat_member: {
+            chat: { id: 42, type: "private" },
+            from: { id: 42, is_bot: false, first_name: "Ada" },
+            date: 1_788_868_800,
+            new_chat_member: { status: "restricted" },
+          },
+        },
+        context,
+      ),
+    ).toEqual([]);
+  });
+
   test("ignores authenticated update kinds outside the adapter contract", () => {
     expect(
       normalizeTelegramUpdate(
