@@ -155,14 +155,14 @@ export function RegisterPage() {
         >
           <div className="relative mb-7">
             <div
-              className="absolute inset-0 scale-150 rounded-full bg-[#25d366]/10"
+              className="absolute inset-0 scale-150 rounded-full bg-accent/10"
               aria-hidden="true"
             />
             <span
               className={`relative grid h-16 w-16 place-items-center rounded-2xl ${
                 verificationEmailSent
-                  ? "bg-[#e2f8e9] text-[#075e54] dark:bg-[#25d366]/15 dark:text-[#52df83]"
-                  : "bg-amber-100 text-amber-800 dark:bg-amber-400/15 dark:text-amber-300"
+                  ? "bg-accent-soft text-accent"
+                  : "bg-warning-soft text-warning"
               }`}
             >
               {verificationEmailSent ? (
@@ -172,10 +172,10 @@ export function RegisterPage() {
               )}
             </span>
           </div>
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-accent">
             {t("auth.accountCreated", "Account created")}
           </p>
-          <h1 className="text-3xl font-semibold tracking-[-0.035em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
+          <h1 className="text-3xl font-semibold tracking-[-0.035em] text-fg text-balance sm:text-4xl">
             {verificationEmailSent
               ? t("auth.verifyEmailTitle", "Verify your email to continue")
               : t(
@@ -183,7 +183,7 @@ export function RegisterPage() {
                   "Account created, but email delivery failed",
                 )}
           </h1>
-          <p className="mt-4 max-w-md text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
+          <p className="mt-4 max-w-md text-sm leading-6 text-fg-muted">
             {verificationEmailSent ? (
               <Trans
                 i18nKey="auth.verificationSentTo"
@@ -191,7 +191,7 @@ export function RegisterPage() {
                 defaults="We sent a verification link to <strong>{{email}}</strong>. Open it to activate your WATeamInbox account."
                 components={{
                   strong: (
-                    <strong className="break-all font-semibold text-slate-900 dark:text-dark-text-primary" />
+                    <strong className="break-all font-semibold text-fg" />
                   ),
                 }}
               />
@@ -202,7 +202,7 @@ export function RegisterPage() {
                 defaults="We could not send the verification link to <strong>{{email}}</strong>. Sign in with your new credentials to retry delivery."
                 components={{
                   strong: (
-                    <strong className="break-all font-semibold text-slate-900 dark:text-dark-text-primary" />
+                    <strong className="break-all font-semibold text-fg" />
                   ),
                 }}
               />
@@ -212,26 +212,24 @@ export function RegisterPage() {
           <div
             className={`mt-7 flex w-full items-start gap-3 rounded-2xl border p-4 text-start ${
               verificationEmailSent
-                ? "border-emerald-100 bg-emerald-50/70 dark:border-[#25d366]/20 dark:bg-[#25d366]/[0.07]"
-                : "border-amber-200 bg-amber-50 dark:border-amber-400/25 dark:bg-amber-400/[0.08]"
+                ? "border-accent/30 bg-accent-soft/70"
+                : "border-warning/30 bg-warning-soft"
             }`}
           >
             {verificationEmailSent ? (
               <CheckCircle2
                 aria-hidden="true"
-                className="mt-0.5 h-5 w-5 shrink-0 text-[#0a7c43] dark:text-[#52df83]"
+                className="mt-0.5 h-5 w-5 shrink-0 text-accent"
               />
             ) : (
               <CircleAlert
                 aria-hidden="true"
-                className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300"
+                className="mt-0.5 h-5 w-5 shrink-0 text-warning"
               />
             )}
             <p
               className={`text-sm leading-5 ${
-                verificationEmailSent
-                  ? "text-emerald-950/75 dark:text-emerald-50/70"
-                  : "text-amber-950/80 dark:text-amber-100/80"
+                verificationEmailSent ? "text-accent/75" : "text-warning/80"
               }`}
             >
               {verificationEmailSent
@@ -249,7 +247,7 @@ export function RegisterPage() {
           <Button
             asChild
             size="lg"
-            className="mt-7 h-12 w-full rounded-xl bg-[#075e54] text-white shadow-lg shadow-[#075e54]/15 hover:bg-[#064b43]"
+            className="mt-7 h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-primary-hover"
           >
             <Link
               to={buildPostRegistrationLoginUrl(redirectTo, registeredEmail)}
@@ -268,17 +266,17 @@ export function RegisterPage() {
   return (
     <AuthPageShell variant="register">
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">
           {isInvitationRegistration
             ? t("auth.joinWorkspaceEyebrow", "Join your team")
             : t("auth.createWorkspaceEyebrow", "Create your workspace")}
         </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
+        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-fg text-balance sm:text-4xl">
           {isInvitationRegistration
             ? t("auth.invitationRegisterTitle", "Create your account to join")
             : t("auth.registerTitle", "Bring your team into one inbox")}
         </h1>
-        <p className="mt-3 max-w-lg text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
+        <p className="mt-3 max-w-lg text-sm leading-6 text-fg-muted">
           {isInvitationRegistration
             ? t(
                 "auth.invitationRegisterSubtitle",
@@ -294,14 +292,14 @@ export function RegisterPage() {
 
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="mt-6 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3.5 dark:[&_input]:border-dark-border dark:[&_input]:bg-dark-tertiary"
+          className="mt-6 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-line-strong [&_input]:bg-surface [&_input]:px-3.5"
           aria-busy={isLoading}
           noValidate
         >
           {error && (
             <div
               role="alert"
-              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-5 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300"
+              className="rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm leading-5 text-danger"
             >
               {error}
             </div>
@@ -366,10 +364,10 @@ export function RegisterPage() {
               <div>
                 <label
                   htmlFor="discovery-source"
-                  className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-dark-text-secondary"
+                  className="mb-1.5 block text-sm font-semibold text-fg"
                 >
                   {t("auth.discoverySource", "How did you hear about us?")}{" "}
-                  <span className="font-normal text-slate-500 dark:text-dark-text-secondary">
+                  <span className="font-normal text-fg-muted">
                     {t("auth.optional", "(optional)")}
                   </span>
                 </label>
@@ -402,7 +400,7 @@ export function RegisterPage() {
                 <div>
                   <label
                     htmlFor="discovery-other"
-                    className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-dark-text-secondary"
+                    className="mb-1.5 block text-sm font-semibold text-fg"
                   >
                     {t(
                       "auth.discoveryOther",
@@ -417,7 +415,7 @@ export function RegisterPage() {
                     maxLength={200}
                     disabled={isLoading}
                     autoComplete="off"
-                    className="w-full border text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] dark:text-dark-text-primary"
+                    className="w-full border text-sm text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   />
                 </div>
               )}
@@ -427,7 +425,7 @@ export function RegisterPage() {
           <Button
             type="submit"
             size="lg"
-            className="h-12 w-full rounded-xl bg-[#075e54] text-white shadow-lg shadow-[#075e54]/15 hover:bg-[#064b43] dark:bg-whatsapp-green-a11y-button dark:hover:bg-whatsapp-green-a11y-button/90"
+            className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-primary-hover"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -444,11 +442,11 @@ export function RegisterPage() {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-600 dark:text-dark-text-secondary">
+        <p className="mt-6 text-center text-sm text-fg-muted">
           {t("auth.alreadyHaveAccount", "Already have an account?")}{" "}
           <Link
             to={buildAuthUrl("/login", redirectTo, suggestedEmail)}
-            className="rounded-sm font-semibold text-[#0a7c43] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
+            className="rounded-sm font-semibold text-accent underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             {t("auth.signInAction", "Sign in")}
           </Link>

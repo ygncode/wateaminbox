@@ -125,7 +125,7 @@ export function useFirstChatAcknowledgment(contactId: string | undefined) {
           </DialogDescription>
         </DialogHeader>
         <a
-          className="text-sm text-whatsapp-teal-green underline underline-offset-4"
+          className="text-sm text-accent underline underline-offset-4"
           href={notice.guidanceUrl}
           target="_blank"
           rel="noopener noreferrer"
@@ -135,7 +135,7 @@ export function useFirstChatAcknowledgment(contactId: string | undefined) {
             "Read WhatsApp’s responsible messaging guidance",
           )}
         </a>
-        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 p-4 text-sm leading-relaxed dark:border-dark-border">
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-line p-4 text-sm leading-relaxed">
           <Checkbox
             className="mt-1"
             checked={checked}
@@ -149,14 +149,14 @@ export function useFirstChatAcknowledgment(contactId: string | undefined) {
             )}
           </span>
         </label>
-        <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
+        <p className="text-xs text-fg-muted">
           {t(
             "chat.firstChat.record",
             "Your acknowledgment will be saved for this contact with your user account and the time.",
           )}
         </p>
         {error && (
-          <p role="alert" className="text-sm text-red-600">
+          <p role="alert" className="text-sm text-danger">
             {t(
               "chat.firstChat.saveError",
               "Could not save your acknowledgment. Please try again.",

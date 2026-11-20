@@ -5,26 +5,22 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal-green focus-visible:ring-offset-2 dark:focus-visible:ring-offset-dark-primary disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-[background-color,border-color,color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default:
-          "bg-whatsapp-green text-white shadow hover:bg-whatsapp-dark-green",
-        destructive:
-          "bg-red-500 text-white shadow-sm hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700",
+        default: "bg-primary text-on-primary shadow-xs hover:bg-primary-hover",
+        destructive: "bg-danger text-on-danger shadow-xs hover:bg-danger-hover",
         outline:
-          "border border-gray-300 bg-white shadow-sm hover:bg-gray-100 hover:text-gray-900 dark:border-dark-border dark:bg-dark-elevated dark:text-dark-text-primary dark:hover:bg-dark-tertiary dark:hover:text-dark-text-primary",
-        secondary:
-          "bg-gray-100 text-gray-900 shadow-sm hover:bg-gray-200 dark:bg-dark-tertiary dark:text-dark-text-primary dark:hover:bg-dark-border",
-        ghost:
-          "hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-tertiary dark:hover:text-dark-text-primary",
-        link: "text-whatsapp-green underline-offset-4 hover:underline",
+          "border border-line-strong bg-surface text-fg shadow-xs hover:bg-subtle",
+        secondary: "bg-muted text-fg hover:bg-muted-strong",
+        ghost: "text-fg-muted hover:bg-muted hover:text-fg",
+        link: "h-auto px-0 text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-10 rounded-md px-8",
+        default: "h-9 px-3.5",
+        sm: "h-8 px-3 text-[13px]",
+        lg: "h-11 px-5 text-[15px]",
         icon: "h-9 w-9",
       },
     },

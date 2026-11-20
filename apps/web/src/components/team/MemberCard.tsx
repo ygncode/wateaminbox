@@ -85,10 +85,10 @@ export function MemberCard({
   ]);
 
   return (
-    <div className="relative grid gap-3 p-4 transition-colors hover:bg-[#f8faf8] dark:hover:bg-dark-tertiary/50 md:grid-cols-[minmax(0,1.4fr)_8rem_9rem_8rem_3rem] md:items-center md:gap-4">
+    <div className="relative grid gap-3 p-4 transition-colors hover:bg-muted md:grid-cols-[minmax(0,1.4fr)_8rem_9rem_8rem_3rem] md:items-center md:gap-4">
       <div className="flex min-w-0 items-center gap-3">
         <Avatar className="h-10 w-10">
-          <AvatarFallback className="bg-[#dcefe7] font-semibold text-[#075c41]">
+          <AvatarFallback className="bg-accent-soft font-semibold text-accent">
             {initials}
           </AvatarFallback>
         </Avatar>
@@ -102,14 +102,12 @@ export function MemberCard({
             )}
           </div>
           {member.name && (
-            <p className="truncate text-xs text-[#65736d] dark:text-dark-text-secondary">
-              {member.email}
-            </p>
+            <p className="truncate text-xs text-fg-muted">{member.email}</p>
           )}
         </div>
       </div>
       <div className="flex items-center gap-1.5 text-sm">
-        <RoleIcon className="h-3.5 w-3.5 text-[#65736d]" />
+        <RoleIcon className="h-3.5 w-3.5 text-fg-muted" />
         <span>{roleLabel}</span>
       </div>
       <div>
@@ -122,7 +120,7 @@ export function MemberCard({
             : t("team.roleDefaults", "Role defaults")}
         </Badge>
       </div>
-      <time className="font-mono text-xs text-[#65736d] dark:text-dark-text-secondary">
+      <time className="font-mono text-xs text-fg-muted">
         {new Date(member.joinedAt).toLocaleDateString()}
       </time>
       <div className="absolute end-4 mt-1 md:static md:mt-0">

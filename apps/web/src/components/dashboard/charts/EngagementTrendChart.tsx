@@ -57,7 +57,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
 
   if (data.length === 0) {
     return (
-      <div className="grid h-[240px] place-items-center rounded-xl border border-dashed border-[#dce3de] bg-[#fafcfb] text-sm text-[#718078] dark:border-dark-border dark:bg-dark-secondary/40 dark:text-dark-text-secondary">
+      <div className="grid h-[240px] place-items-center rounded-xl border border-dashed border-line bg-subtle text-sm text-fg-muted">
         {t(
           "dashboard.charts.noEngagementTrend",
           "No engagement trend in this period",
@@ -115,28 +115,28 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-end gap-5">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
               {t("dashboard.charts.averageScore", "Average score")}
             </p>
-            <p className="text-xl font-semibold tabular-nums text-[#075c41] dark:text-emerald-300">
+            <p className="text-xl font-semibold tabular-nums text-accent">
               {averageScore}
-              <span className="ms-0.5 text-xs font-medium text-[#7c8983]">
+              <span className="ms-0.5 text-xs font-medium text-fg-muted">
                 /100
               </span>
             </p>
           </div>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
               {t("dashboard.charts.activeTouches", "Active touches")}
             </p>
-            <p className="text-sm font-semibold tabular-nums text-[#31463e] dark:text-dark-text-primary">
+            <p className="text-sm font-semibold tabular-nums text-fg">
               {formatNumber(activeContacts)}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1 text-[10px] font-medium text-[#718078] dark:text-dark-text-secondary">
+        <div className="flex items-center gap-1 text-[10px] font-medium text-fg-muted">
           <Legend
-            swatch="bg-[#0b7a55]"
+            swatch="bg-primary"
             label={t("dashboard.charts.engagement", "Engagement")}
             active={visibleSeries.engagement}
             onToggle={() =>
@@ -147,7 +147,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
             }
           />
           <Legend
-            swatch="border-t-2 border-dashed border-[#d18b35]"
+            swatch="border-t-2 border-dashed border-warning"
             label={t("dashboard.charts.response", "Response")}
             active={visibleSeries.response}
             onToggle={() =>
@@ -173,8 +173,8 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
         >
           <defs>
             <linearGradient id="engagement-area" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#0b7a55" stopOpacity="0.22" />
-              <stop offset="100%" stopColor="#0b7a55" stopOpacity="0" />
+              <stop offset="0%" stopColor="var(--chart-1)" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="var(--chart-1)" stopOpacity="0" />
             </linearGradient>
           </defs>
 
@@ -183,8 +183,8 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
             y={responsiveChartBox.top}
             width={plotWidth}
             height={plotHeight * 0.3}
-            fill="#e8f4ee"
-            className="dark:fill-emerald-950/20"
+            fill="var(--accent-soft)"
+            className="fill-accent-soft/40"
             rx="8"
           />
           {[100, 75, 50, 25, 0].map((tick, index) => {
@@ -197,14 +197,14 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
                   y1={y}
                   y2={y}
                   stroke="currentColor"
-                  className="text-[#e4eae6] dark:text-dark-border"
+                  className="text-fg-subtle"
                   strokeDasharray="3 5"
                 />
                 <text
                   x={responsiveChartBox.left - 10}
                   y={y + 4}
                   textAnchor="end"
-                  className="fill-[#8a9690] text-[10px] dark:fill-dark-text-tertiary"
+                  className="fill-fg-muted text-[10px]"
                 >
                   {tick}
                 </text>
@@ -221,7 +221,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
               <path
                 d={getSmoothPath(scorePoints)}
                 fill="none"
-                stroke="#0b7a55"
+                stroke="var(--chart-1)"
                 strokeWidth="3"
                 strokeLinecap="round"
               />
@@ -231,7 +231,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
             <path
               d={getSmoothPath(responsePoints)}
               fill="none"
-              stroke="#d18b35"
+              stroke="var(--chart-3)"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeDasharray="6 5"
@@ -251,7 +251,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
                       ? "end"
                       : "middle"
                 }
-                className="fill-[#8a9690] text-[10px] dark:fill-dark-text-tertiary"
+                className="fill-fg-muted text-[10px]"
               >
                 {formatDate(day.date)}
               </text>
@@ -266,7 +266,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
                 y1={responsiveChartBox.top}
                 y2={chartBaseline}
                 stroke="currentColor"
-                className="text-[#aab5af] dark:text-dark-text-tertiary"
+                className="text-fg-subtle"
                 strokeWidth="1"
                 strokeDasharray="3 4"
               />
@@ -275,7 +275,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
                   cx={hoveredX}
                   cy={scorePoints[hoveredIndex].y}
                   r="5"
-                  fill="#0b7a55"
+                  fill="var(--chart-1)"
                   stroke="white"
                   strokeWidth="2"
                 />
@@ -285,7 +285,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
                   cx={hoveredX}
                   cy={responsePoints[hoveredIndex].y}
                   r="5"
-                  fill="#d18b35"
+                  fill="var(--chart-3)"
                   stroke="white"
                   strokeWidth="2"
                 />
@@ -304,7 +304,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
 
         {hoveredDay && (visibleSeries.engagement || visibleSeries.response) && (
           <div
-            className="pointer-events-none absolute top-0 z-10 min-w-40 -translate-x-1/2 rounded-lg border border-[#dce3de] bg-white/95 px-3 py-2 text-[11px] shadow-lg backdrop-blur-sm dark:border-dark-border dark:bg-dark-secondary/95"
+            className="pointer-events-none absolute top-0 z-10 min-w-40 -translate-x-1/2 rounded-lg border border-line bg-surface/95 px-3 py-2 text-[11px] shadow-lg backdrop-blur-sm"
             style={{
               left: Math.min(
                 Math.max(88, hoveredX),
@@ -313,27 +313,27 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
             }}
             role="status"
           >
-            <p className="mb-1.5 font-semibold text-[#31463e] dark:text-dark-text-primary">
+            <p className="mb-1.5 font-semibold text-fg">
               {formatDate(hoveredDay.date)}
             </p>
             {visibleSeries.engagement && (
-              <p className="flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
+              <p className="flex items-center justify-between gap-4 text-fg-muted">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-[#0b7a55]" />
+                  <span className="h-2 w-2 rounded-full bg-primary" />
                   Engagement
                 </span>
-                <strong className="tabular-nums text-[#075c41] dark:text-emerald-300">
+                <strong className="tabular-nums text-accent">
                   {hoveredDay.engagementScore}/100
                 </strong>
               </p>
             )}
             {visibleSeries.response && (
-              <p className="mt-1 flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
+              <p className="mt-1 flex items-center justify-between gap-4 text-fg-muted">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-[#d18b35]" />
+                  <span className="h-2 w-2 rounded-full bg-warning" />
                   Response
                 </span>
-                <strong className="tabular-nums text-[#a76521] dark:text-amber-300">
+                <strong className="tabular-nums text-warning">
                   {hoveredDay.responseRate}%
                 </strong>
               </p>
@@ -360,7 +360,7 @@ function Legend({
   return (
     <button
       type="button"
-      className={`flex items-center gap-1.5 rounded-md px-2 py-1.5 transition-colors hover:bg-[#f0f4f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b7a55]/40 dark:hover:bg-dark-tertiary ${
+      className={`flex items-center gap-1.5 rounded-md px-2 py-1.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40  ${
         active ? "opacity-100" : "opacity-40"
       }`}
       aria-pressed={active}

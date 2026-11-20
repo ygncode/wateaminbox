@@ -6,24 +6,24 @@ import { cn, formatPhoneLikeText } from "@/lib/utils";
 
 const accountColors = [
   {
-    dot: "bg-emerald-500",
-    tint: "bg-emerald-50 text-emerald-800 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800",
+    dot: "bg-id-6",
+    tint: "bg-id-6-soft text-id-6 ring-id-6/25",
   },
   {
-    dot: "bg-sky-500",
-    tint: "bg-sky-50 text-sky-800 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-800",
+    dot: "bg-id-1",
+    tint: "bg-id-1-soft text-id-1 ring-id-1/25",
   },
   {
-    dot: "bg-amber-500",
-    tint: "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-800",
+    dot: "bg-id-2",
+    tint: "bg-id-2-soft text-id-2 ring-id-2/25",
   },
   {
-    dot: "bg-rose-500",
-    tint: "bg-rose-50 text-rose-800 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-800",
+    dot: "bg-id-4",
+    tint: "bg-id-4-soft text-id-4 ring-id-4/25",
   },
   {
-    dot: "bg-violet-500",
-    tint: "bg-violet-50 text-violet-800 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-800",
+    dot: "bg-id-3",
+    tint: "bg-id-3-soft text-id-3 ring-id-3/25",
   },
 ] as const;
 
@@ -106,7 +106,7 @@ export function ConnectionBadge({
         <span
           className={cn(
             "relative inline-flex h-2 w-2 rounded-full",
-            isConnected ? color.dot : "bg-gray-400 dark:bg-dark-text-tertiary",
+            isConnected ? color.dot : "bg-fg-subtle",
           )}
         />
       </span>
@@ -141,15 +141,13 @@ export function ChannelRoute({
   return (
     <span
       className={cn(
-        "inline-flex min-w-0 items-center gap-1.5 text-xs text-gray-500 dark:text-dark-text-secondary",
+        "inline-flex min-w-0 items-center gap-1.5 text-xs text-fg-muted",
         className,
       )}
     >
       <Radio className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span className="shrink-0">via</span>
-      <span className="truncate font-semibold text-gray-700 dark:text-dark-text-primary">
-        {label}
-      </span>
+      <span className="truncate font-semibold text-fg">{label}</span>
       {address && address !== label && (
         <span className="truncate font-mono text-[11px]">{address}</span>
       )}
@@ -183,15 +181,13 @@ export function ConnectionRoute({
   return (
     <span
       className={cn(
-        "inline-flex min-w-0 items-center gap-1.5 text-xs text-gray-500 dark:text-dark-text-secondary",
+        "inline-flex min-w-0 items-center gap-1.5 text-xs text-fg-muted",
         className,
       )}
     >
       <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span className="shrink-0">{mode === "sending" ? "via" : "to"}</span>
-      <span className="truncate font-semibold text-gray-700 dark:text-dark-text-primary">
-        {label}
-      </span>
+      <span className="truncate font-semibold text-fg">{label}</span>
       {phone && phone !== label && (
         <span
           className={cn(

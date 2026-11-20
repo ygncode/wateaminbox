@@ -104,10 +104,10 @@ export function ConversationSearch({
   }, []);
 
   return (
-    <div className="flex shrink-0 items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-dark-secondary border-b border-gray-200 dark:border-dark-border">
+    <div className="flex shrink-0 items-center gap-2 px-3 py-2 bg-muted border-b border-line">
       {/* Search input */}
-      <div className="flex-1 flex items-center gap-2 bg-white dark:bg-dark-tertiary rounded-lg px-3 py-1.5 border border-gray-200 dark:border-dark-border focus-within:border-whatsapp-teal-green focus-within:ring-1 focus-within:ring-whatsapp-teal-green">
-        <Search className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary flex-shrink-0" />
+      <div className="flex-1 flex items-center gap-2 bg-surface rounded-lg px-3 py-1.5 border border-line focus-within:border-primary focus-within:ring-1 focus-within:ring-ring">
+        <Search className="h-4 w-4 text-fg-subtle flex-shrink-0" />
         <input
           ref={inputRef}
           type="text"
@@ -115,19 +115,19 @@ export function ConversationSearch({
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={t("search.inConversation", "Search in conversation…")}
-          className="flex-1 bg-transparent text-sm outline-none text-gray-900 dark:text-dark-text-primary placeholder:text-gray-400 dark:placeholder:text-dark-text-tertiary"
+          className="flex-1 bg-transparent text-sm outline-none text-fg placeholder:text-fg-subtle"
           aria-label={t(
             "search.inConversationAria",
             "Search messages in conversation",
           )}
         />
         {isLoading && (
-          <Loader2 className="h-4 w-4 text-gray-400 dark:text-dark-text-tertiary animate-spin flex-shrink-0" />
+          <Loader2 className="h-4 w-4 text-fg-subtle animate-spin flex-shrink-0" />
         )}
         {query && !isLoading && (
           <button
             onClick={handleClear}
-            className="p-0.5 text-gray-400 hover:text-gray-600 dark:text-dark-text-tertiary dark:hover:text-dark-text-secondary rounded"
+            className="p-0.5 text-fg-subtle hover:text-fg-muted rounded"
             aria-label={t("common.clearSearch", "Clear search")}
           >
             <X className="h-4 w-4" />
@@ -138,7 +138,7 @@ export function ConversationSearch({
       {/* Results counter and navigation */}
       {debouncedQuery.length >= 2 && (
         <div className="flex items-center gap-1">
-          <span className="text-sm text-gray-500 dark:text-dark-text-secondary min-w-[60px] text-center">
+          <span className="text-sm text-fg-muted min-w-[60px] text-center">
             {results.length > 0
               ? t("search.resultPosition", {
                   defaultValue: "{{current}} of {{total}}",
@@ -154,7 +154,7 @@ export function ConversationSearch({
           <button
             onClick={goToPrevious}
             disabled={results.length === 0}
-            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 dark:text-dark-text-secondary dark:hover:text-dark-text-primary dark:hover:bg-dark-tertiary rounded disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-1.5 text-fg-muted hover:text-fg hover:bg-muted rounded disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label={t("search.previousResult", "Previous result")}
             title={t("search.previousResultHint", "Previous (Shift+Enter)")}
           >
@@ -163,7 +163,7 @@ export function ConversationSearch({
           <button
             onClick={goToNext}
             disabled={results.length === 0}
-            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 dark:text-dark-text-secondary dark:hover:text-dark-text-primary dark:hover:bg-dark-tertiary rounded disabled:opacity-40 disabled:cursor-not-allowed"
+            className="p-1.5 text-fg-muted hover:text-fg hover:bg-muted rounded disabled:opacity-40 disabled:cursor-not-allowed"
             aria-label={t("search.nextResult", "Next result")}
             title={t("search.nextResultHint", "Next (Enter)")}
           >
@@ -175,7 +175,7 @@ export function ConversationSearch({
       {/* Close button */}
       <button
         onClick={onClose}
-        className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 dark:text-dark-text-secondary dark:hover:text-dark-text-primary dark:hover:bg-dark-tertiary rounded"
+        className="p-1.5 text-fg-muted hover:text-fg hover:bg-muted rounded"
         aria-label={t("search.closeSearch", "Close search")}
         title={t("search.closeSearchHint", "Close (Escape)")}
       >

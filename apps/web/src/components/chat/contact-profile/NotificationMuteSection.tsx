@@ -36,17 +36,17 @@ export function NotificationMuteSection({ contact }: { contact: ContactData }) {
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           {muted ? (
-            <BellOff className="size-5 shrink-0 text-gray-400" />
+            <BellOff className="size-5 shrink-0 text-fg-subtle" />
           ) : (
-            <Bell className="size-5 shrink-0 text-gray-500" />
+            <Bell className="size-5 shrink-0 text-fg-muted" />
           )}
           <div>
-            <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
+            <p className="text-sm font-medium text-fg">
               {muted
                 ? t("contacts.notificationsMuted", "Notifications muted")
                 : t("contacts.messageNotifications", "Message notifications")}
             </p>
-            <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
+            <p className="text-xs text-fg-muted">
               {t(
                 "contacts.muteHint",
                 "Muting affects desktop and push alerts only.",

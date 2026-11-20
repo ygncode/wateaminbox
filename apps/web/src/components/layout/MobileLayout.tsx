@@ -133,7 +133,7 @@ export function MobileLayout({
         // The shell already sits inside the app frame (top bar above, floating
         // navigation below), so it fills its parent - `h-dvh`/`w-screen` here
         // would push the composer past the bottom of the visible area.
-        "flex h-full w-full overflow-hidden bg-gray-200 dark:bg-dark-primary",
+        "flex h-full w-full overflow-hidden bg-canvas",
         className,
       )}
       {...props}
@@ -163,7 +163,7 @@ export function MobileViewContainer({
   return (
     <div
       className={cn(
-        "absolute inset-0 flex flex-col bg-white dark:bg-dark-secondary transition-transform duration-300 ease-in-out",
+        "absolute inset-0 flex flex-col bg-surface transition-transform duration-300 ease-in-out",
         // Slide animations
         view === "chat-list" &&
           (isVisible
@@ -225,7 +225,7 @@ export function MobileHeader({
   return (
     <header
       className={cn(
-        "flex h-14 min-h-[56px] items-center gap-2 border-b border-gray-200 dark:border-dark-border bg-gray-100 dark:bg-dark-secondary px-2 safe-area-top",
+        "flex h-14 min-h-[56px] items-center gap-2 border-b border-line bg-muted px-2 safe-area-top",
         className,
       )}
       {...props}
@@ -233,7 +233,7 @@ export function MobileHeader({
       {showBackButton && (
         <button
           onClick={handleBack}
-          className="flex h-11 w-11 items-center justify-center rounded-full text-gray-600 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-fg-muted hover:bg-muted active:bg-muted-strong transition-colors touch-manipulation"
           aria-label={t("common.goBack", "Go back")}
         >
           <ArrowLeft className="h-6 w-6 rtl:-scale-x-100" />
@@ -245,14 +245,12 @@ export function MobileHeader({
       {(title || subtitle) && (
         <div className="flex-1 min-w-0">
           {title && (
-            <h1 className="text-base font-semibold text-gray-900 dark:text-dark-text-primary truncate">
+            <h1 className="text-base font-semibold text-fg truncate">
               {title}
             </h1>
           )}
           {subtitle && (
-            <p className="text-xs text-gray-500 dark:text-dark-text-secondary truncate">
-              {subtitle}
-            </p>
+            <p className="text-xs text-fg-muted truncate">{subtitle}</p>
           )}
         </div>
       )}
@@ -409,14 +407,14 @@ export function MobileSlideInPanel({
       <aside
         ref={panelRef}
         className={cn(
-          "fixed z-50 flex flex-col overflow-hidden bg-white shadow-xl transition-[transform,translate] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform dark:bg-dark-secondary",
+          "fixed z-50 flex flex-col overflow-hidden bg-surface shadow-xl transition-[transform,translate] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform",
           isDragging && "transition-none",
           position === "right" && "end-0",
           position === "left" && "start-0",
           position !== "bottom" &&
             "inset-y-0 w-full max-w-[26rem] safe-area-left safe-area-right",
           position === "bottom" &&
-            "inset-x-0 bottom-0 h-[78dvh] max-h-[48rem] w-full rounded-t-[1.4rem] shadow-[0_-12px_44px_rgba(11,20,26,0.24)]",
+            "inset-x-0 bottom-0 h-[78dvh] max-h-[48rem] w-full rounded-t-[1.4rem] shadow-lg",
           isOpen
             ? position === "bottom"
               ? "translate-y-0"
@@ -451,10 +449,10 @@ export function MobileSlideInPanel({
       >
         {position === "bottom" && (
           <div
-            className="flex h-6 shrink-0 touch-none cursor-grab items-center justify-center bg-white active:cursor-grabbing dark:bg-dark-secondary"
+            className="flex h-6 shrink-0 touch-none cursor-grab items-center justify-center bg-surface active:cursor-grabbing"
             aria-hidden="true"
           >
-            <span className="h-1 w-10 rounded-full bg-[#c7d0d5] dark:bg-white/20" />
+            <span className="h-1 w-10 rounded-full bg-muted-strong" />
           </div>
         )}
 
@@ -462,7 +460,7 @@ export function MobileSlideInPanel({
         {title && !titleId && (
           <header
             className={cn(
-              "flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-gray-200 dark:border-dark-border bg-whatsapp-teal-green px-4 text-white safe-area-top",
+              "flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-line bg-primary px-4 text-on-primary safe-area-top",
               position === "bottom" && "touch-none",
             )}
           >
@@ -503,7 +501,7 @@ export function MobileActionButton({
   return (
     <button
       className={cn(
-        "flex h-11 w-11 items-center justify-center rounded-full text-gray-600 dark:text-dark-text-secondary hover:bg-gray-200 dark:hover:bg-dark-tertiary active:bg-gray-300 dark:active:bg-dark-border transition-colors touch-manipulation",
+        "flex h-11 w-11 items-center justify-center rounded-full text-fg-muted hover:bg-muted active:bg-muted-strong transition-colors touch-manipulation",
         className,
       )}
       aria-label={label}

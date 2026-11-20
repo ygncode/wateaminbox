@@ -13,25 +13,25 @@
 /** Scrim painted behind the sheet while it is open. */
 export const NOTIFICATION_SCRIM_CLASS = [
   "fixed inset-0 z-40 animate-scrim-in",
-  "bg-gray-950/40 md:bg-gray-950/25 dark:bg-black/60",
+  "bg-scrim md:bg-scrim/60",
 ].join(" ");
 
 /** Full-viewport page on mobile, right-anchored full-height sheet on md+. */
 export const NOTIFICATION_SHEET_CLASS = [
   "fixed z-50 flex flex-col overflow-hidden outline-none",
-  "bg-white dark:bg-dark-secondary animate-sheet-in-right",
+  "bg-surface animate-sheet-in-right",
   // Mobile: the sheet is the page.
   "inset-0 h-dvh w-full",
   // md+: flush against the right edge, full height, bounded width.
   "md:inset-y-0 md:start-auto md:end-0 md:h-dvh",
   "md:w-[400px] md:max-w-[calc(100vw-3rem)]",
-  "md:border-s md:border-gray-200 md:shadow-2xl md:dark:border-dark-border",
+  "md:border-s md:border-line md:shadow-2xl",
 ].join(" ");
 
 /** Fills the container it is portalled into instead of the viewport. */
 export const NOTIFICATION_SHEET_EMBEDDED_CLASS = [
   "absolute inset-0 z-50 flex h-full w-full flex-col overflow-hidden outline-none",
-  "border-0 bg-white dark:bg-dark-secondary",
+  "border-0 bg-surface",
 ].join(" ");
 
 /**

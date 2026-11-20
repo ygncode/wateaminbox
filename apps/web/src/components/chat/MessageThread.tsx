@@ -299,13 +299,13 @@ export function MessageThread({
   // Empty state when no chat selected
   if (!conversationId) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-dark-primary">
+      <div className="flex-1 flex items-center justify-center bg-subtle">
         <div className="text-center max-w-md px-4">
           <BrandMark className="mx-auto mb-4 h-24 w-24 rounded-[1.75rem] object-contain shadow-sm" />
-          <h2 className="text-xl font-semibold text-gray-600 dark:text-dark-text-secondary mb-2">
+          <h2 className="text-xl font-semibold text-fg-muted mb-2">
             WATeamInbox
           </h2>
-          <p className="text-gray-500 dark:text-dark-text-tertiary">
+          <p className="text-fg-muted">
             {t(
               "chat.selectConversationToStart",
               "Select a conversation to start messaging",
@@ -325,11 +325,11 @@ export function MessageThread({
   // Error state
   if (isError) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-dark-primary">
+      <div className="flex-1 flex items-center justify-center bg-subtle">
         <div className="text-center max-w-md px-4">
           <div className="mb-4">
             <svg
-              className="mx-auto h-16 w-16 text-red-400"
+              className="mx-auto h-16 w-16 text-danger"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -342,10 +342,10 @@ export function MessageThread({
               />
             </svg>
           </div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-dark-text-primary mb-1">
+          <h3 className="text-lg font-medium text-fg mb-1">
             {t("chat.messagesLoadFailed", "Failed to load messages")}
           </h3>
-          <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+          <p className="text-sm text-fg-muted">
             {error instanceof Error ? error.message : "An error occurred"}
           </p>
         </div>
@@ -363,22 +363,22 @@ export function MessageThread({
 
         <div className="relative flex max-w-sm flex-col items-center px-6 text-center">
           <div className="relative mb-5">
-            <div className="grid size-20 place-items-center rounded-2xl border border-white/80 bg-white/70 shadow-sm backdrop-blur-sm dark:border-white/[0.08] dark:bg-white/[0.055]">
+            <div className="grid size-20 place-items-center rounded-2xl border border-line bg-surface/70 shadow-sm backdrop-blur-sm">
               <MessageCircle
-                className="size-9 text-[#66756f] dark:text-dark-text-secondary"
+                className="size-9 text-fg-muted"
                 strokeWidth={1.6}
                 aria-hidden="true"
               />
             </div>
-            <span className="absolute -bottom-1.5 -end-1.5 grid size-8 place-items-center rounded-full border-2 border-[#e5ddd5] bg-whatsapp-dark-green text-white shadow-sm dark:border-dark-primary">
+            <span className="absolute -bottom-1.5 -end-1.5 grid size-8 place-items-center rounded-full border-2 border-line bg-primary-hover text-white shadow-sm">
               <Send className="size-3.5" aria-hidden="true" />
             </span>
           </div>
 
-          <h2 className="text-base font-semibold tracking-tight text-[#263a33] dark:text-dark-text-primary">
+          <h2 className="text-base font-semibold tracking-tight text-fg">
             {t("chat.noMessagesYet", "No messages yet")}
           </h2>
-          <p className="mt-1.5 max-w-[280px] text-sm leading-6 text-[#66756f] dark:text-dark-text-secondary">
+          <p className="mt-1.5 max-w-[280px] text-sm leading-6 text-fg-muted">
             {t(
               "chat.sendFirstMessage",
               "Send the first message below to start this conversation.",
@@ -438,9 +438,9 @@ export function MessageThread({
 
       {/* Status for reply-to-original navigation across local/remote history. */}
       {isLoadingHighlightedMessage && (
-        <div className="absolute top-4 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 z-20 bg-white dark:bg-dark-elevated rounded-full px-4 py-2 shadow-lg flex items-center gap-2">
+        <div className="absolute top-4 start-1/2 -translate-x-1/2 rtl:translate-x-1/2 z-20 bg-surface rounded-full px-4 py-2 shadow-lg flex items-center gap-2">
           <svg
-            className="animate-spin h-4 w-4 text-whatsapp-green"
+            className="animate-spin h-4 w-4 text-accent"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -460,7 +460,7 @@ export function MessageThread({
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
           </svg>
-          <span className="text-sm text-gray-700 dark:text-dark-text-primary">
+          <span className="text-sm text-fg">
             {t("chat.findingOriginal", "Finding original message...")}
           </span>
         </div>
@@ -468,7 +468,7 @@ export function MessageThread({
 
       {isHighlightedMessageUnavailable && (
         <div
-          className="absolute top-4 start-1/2 z-20 flex -translate-x-1/2 rtl:translate-x-1/2 items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900 shadow-lg dark:border-amber-300/15 dark:bg-[#332f24] dark:text-amber-100"
+          className="absolute top-4 start-1/2 z-20 flex -translate-x-1/2 rtl:translate-x-1/2 items-center gap-2 rounded-full border border-warning/30 bg-warning-soft px-4 py-2 text-sm text-warning shadow-lg"
           role="status"
           aria-live="polite"
         >
@@ -485,7 +485,7 @@ export function MessageThread({
         <button
           type="button"
           onClick={scrollToBottom}
-          className="absolute bottom-3 end-3 z-20 grid size-10 touch-manipulation place-items-center rounded-full bg-white text-[#54656f] shadow-[0_2px_8px_rgba(11,20,26,0.22)] transition-colors hover:bg-[#f5f6f6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] dark:bg-dark-elevated dark:text-dark-text-secondary dark:hover:bg-dark-tertiary"
+          className="absolute bottom-3 end-3 z-20 grid size-10 touch-manipulation place-items-center rounded-full bg-surface text-fg-muted shadow-md transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t("chat.scrollToBottom", "Scroll to bottom")}
         >
           <ChevronDown

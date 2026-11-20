@@ -42,7 +42,7 @@ export function GroupJoinRequestsSection({
       title={`Join requests${requests.length > 0 ? ` · ${requests.length}` : ""}`}
     >
       {!group.settings.isJoinApprovalRequired && (
-        <p className="mb-3 text-xs text-gray-500 dark:text-dark-text-tertiary">
+        <p className="mb-3 text-xs text-fg-muted">
           {t(
             "groups.approvalOffHint",
             "Approval is currently off, so people who use the invite link join straight away. Requests made before it was turned off still appear here.",
@@ -51,13 +51,13 @@ export function GroupJoinRequestsSection({
       )}
 
       {isLoading ? (
-        <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+        <p className="text-sm text-fg-muted">
           {t("groups.loadingJoinRequests", "Loading join requests…")}
         </p>
       ) : requests.length === 0 ? (
-        <div className="flex gap-3 rounded-lg bg-gray-50 p-3 dark:bg-dark-elevated">
-          <UserPlus className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
-          <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
+        <div className="flex gap-3 rounded-lg bg-subtle p-3">
+          <UserPlus className="mt-0.5 h-5 w-5 shrink-0 text-fg-subtle" />
+          <p className="text-sm leading-5 text-fg-muted">
             {/* "Never asked" and "asked, nobody waiting" are different facts,
                 and saying the second when the first is true would be wrong. */}
             {data?.syncedAt
@@ -76,14 +76,14 @@ export function GroupJoinRequestsSection({
           {requests.map((request) => (
             <li
               key={request.jid}
-              className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 hover:bg-gray-50 dark:hover:bg-dark-elevated"
+              className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 hover:bg-muted"
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-900 dark:text-dark-text-primary">
+                <p className="truncate text-sm font-medium text-fg">
                   {formatPhoneLikeText(request.jid)}
                 </p>
                 {request.requestedAt && (
-                  <p className="truncate text-xs text-gray-500 dark:text-dark-text-tertiary">
+                  <p className="truncate text-xs text-fg-muted">
                     Requested {new Date(request.requestedAt).toLocaleString()}
                   </p>
                 )}

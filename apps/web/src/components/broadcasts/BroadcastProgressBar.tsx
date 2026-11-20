@@ -32,32 +32,32 @@ export function BroadcastProgressBar({
       aria-valuenow={completed}
       aria-label={`${sent} sent, ${failed} failed, ${skipped} skipped, ${canceled} canceled out of ${total} recipients`}
       className={cn(
-        "flex w-full overflow-hidden rounded-full bg-[#e7ece8] dark:bg-dark-tertiary",
+        "flex w-full overflow-hidden rounded-full bg-muted",
         size === "md" ? "h-2" : "h-1.5",
         className,
       )}
     >
       {sent > 0 && (
         <span
-          className="h-full bg-[#24a778] transition-[width] duration-500 dark:bg-emerald-500"
+          className="h-full bg-primary transition-[width] duration-500"
           style={{ width: `${percent(sent)}%` }}
         />
       )}
       {failed > 0 && (
         <span
-          className="h-full bg-red-500 transition-[width] duration-500 dark:bg-red-400"
+          className="h-full bg-danger transition-[width] duration-500"
           style={{ width: `${percent(failed)}%` }}
         />
       )}
       {skipped > 0 && (
         <span
-          className="h-full bg-amber-400 transition-[width] duration-500 dark:bg-amber-500"
+          className="h-full bg-warning transition-[width] duration-500"
           style={{ width: `${percent(skipped)}%` }}
         />
       )}
       {canceled > 0 && (
         <span
-          className="h-full bg-[#9aa69f] transition-[width] duration-500 dark:bg-dark-text-tertiary"
+          className="h-full bg-fg-subtle transition-[width] duration-500"
           style={{ width: `${percent(canceled)}%` }}
         />
       )}

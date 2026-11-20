@@ -38,8 +38,8 @@ export function NotificationSettings() {
 
   if (!isSupported) {
     return (
-      <div className="rounded-lg border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-tertiary p-4">
-        <div className="flex items-center gap-2 text-gray-500 dark:text-dark-text-secondary">
+      <div className="rounded-lg border border-line bg-subtle p-4">
+        <div className="flex items-center gap-2 text-fg-muted">
           <BellOff className="h-5 w-5" />
           <p className="text-sm">
             {t(
@@ -66,7 +66,7 @@ export function NotificationSettings() {
     <div className="space-y-6">
       {/* Sync status indicator */}
       {isLoading && (
-        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary">
+        <div className="flex items-center gap-2 text-sm text-fg-muted">
           <Loader2 className="h-4 w-4 animate-spin" />
           <span>
             {t("notifications.loadingPreferences", "Loading preferences...")}
@@ -74,7 +74,7 @@ export function NotificationSettings() {
         </div>
       )}
       {isSyncing && (
-        <div className="flex items-center gap-2 text-sm text-blue-500">
+        <div className="flex items-center gap-2 text-sm text-info">
           <Cloud className="h-4 w-4" />
           <span>{t("notifications.syncing", "Syncing...")}</span>
         </div>
@@ -82,14 +82,14 @@ export function NotificationSettings() {
 
       {/* Permission banner */}
       {permission === "denied" && (
-        <div className="rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/30 p-4">
+        <div className="rounded-lg border border-warning/30 bg-warning-soft p-4">
           <div className="flex items-start gap-3">
-            <BellOff className="h-5 w-5 text-orange-500 dark:text-orange-400 flex-shrink-0 mt-0.5" />
+            <BellOff className="h-5 w-5 text-warning flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-medium text-orange-800 dark:text-orange-400">
+              <p className="font-medium text-warning">
                 {t("notifications.blocked", "Notifications blocked")}
               </p>
-              <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
+              <p className="text-sm text-warning mt-1">
                 {t(
                   "notifications.blockedHint",
                   "You have blocked notifications for this site. To enable them, click the lock icon in your browser's address bar and allow notifications.",
@@ -101,14 +101,14 @@ export function NotificationSettings() {
       )}
 
       {permission === "default" && (
-        <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/30 p-4">
+        <div className="rounded-lg border border-info/30 bg-info-soft p-4">
           <div className="flex items-start gap-3">
-            <Bell className="h-5 w-5 text-blue-500 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <Bell className="h-5 w-5 text-info flex-shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="font-medium text-blue-800 dark:text-blue-400">
+              <p className="font-medium text-info">
                 {t("notifications.enablePrompt", "Enable notifications")}
               </p>
-              <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+              <p className="text-sm text-info mt-1">
                 {t(
                   "notifications.enablePromptHint",
                   "Get notified when you receive new messages.",
@@ -131,12 +131,12 @@ export function NotificationSettings() {
       )}
 
       {/* Delivery preferences */}
-      <section className="divide-y divide-[#e8ece9] overflow-hidden rounded-2xl border border-[#dce3de] bg-white shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:divide-dark-border dark:border-dark-border dark:bg-dark-elevated">
+      <section className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface shadow-xs">
         <header className="p-5 sm:p-6">
           <h3 className="font-semibold">
             {t("notifications.deliveryPreferences", "Delivery preferences")}
           </h3>
-          <p className="mt-1 text-sm leading-6 text-[#65736d] dark:text-dark-text-secondary">
+          <p className="mt-1 text-sm leading-6 text-fg-muted">
             {t(
               "notifications.deliveryPreferencesHint",
               "Choose how and when this browser should alert you.",
@@ -148,15 +148,15 @@ export function NotificationSettings() {
         <div className="flex items-center justify-between gap-4 p-5 sm:px-6">
           <div className="flex items-center gap-3">
             {settings.enabled ? (
-              <Bell className="h-5 w-5 text-gray-600 dark:text-dark-text-secondary" />
+              <Bell className="h-5 w-5 text-fg-muted" />
             ) : (
-              <BellOff className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
+              <BellOff className="h-5 w-5 text-fg-subtle" />
             )}
             <div>
               <Label className="font-medium">
                 {t("notifications.desktop", "Desktop notifications")}
               </Label>
-              <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+              <p className="text-sm text-fg-muted">
                 {t(
                   "notifications.desktopHint",
                   "Show notifications for new messages",
@@ -175,15 +175,15 @@ export function NotificationSettings() {
         <div className="flex items-center justify-between gap-4 p-5 sm:px-6">
           <div className="flex items-center gap-3">
             {settings.soundEnabled ? (
-              <Volume2 className="h-5 w-5 text-gray-600 dark:text-dark-text-secondary" />
+              <Volume2 className="h-5 w-5 text-fg-muted" />
             ) : (
-              <VolumeX className="h-5 w-5 text-gray-400 dark:text-dark-text-tertiary" />
+              <VolumeX className="h-5 w-5 text-fg-subtle" />
             )}
             <div>
               <Label className="font-medium">
                 {t("notifications.sound", "Notification sound")}
               </Label>
-              <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+              <p className="text-sm text-fg-muted">
                 {t(
                   "notifications.soundHint",
                   "Play a sound when receiving notifications",
@@ -231,12 +231,12 @@ export function NotificationSettings() {
         <div className="p-5 sm:px-6">
           <div className="mb-3 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Moon className="h-5 w-5 text-gray-600 dark:text-dark-text-secondary" />
+              <Moon className="h-5 w-5 text-fg-muted" />
               <div>
                 <Label className="font-medium">
                   {t("notifications.quietHours", "Quiet hours")}
                 </Label>
-                <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+                <p className="text-sm text-fg-muted">
                   {t(
                     "notifications.quietHoursHint",
                     "Pause notifications during specific hours",
@@ -257,7 +257,7 @@ export function NotificationSettings() {
               <div className="flex items-center justify-between gap-2 sm:justify-start">
                 <Label
                   htmlFor="quiet-hours-start"
-                  className="text-sm text-gray-500 dark:text-dark-text-secondary"
+                  className="text-sm text-fg-muted"
                 >
                   {t("notifications.from", "From")}
                 </Label>
@@ -268,13 +268,13 @@ export function NotificationSettings() {
                   onChange={(e) =>
                     updateSettings({ quietHoursStart: e.target.value })
                   }
-                  className="px-2 py-1 border border-gray-200 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary rounded text-sm"
+                  className="px-2 py-1 border border-line rounded text-sm"
                 />
               </div>
               <div className="flex items-center justify-between gap-2 sm:justify-start">
                 <Label
                   htmlFor="quiet-hours-end"
-                  className="text-sm text-gray-500 dark:text-dark-text-secondary"
+                  className="text-sm text-fg-muted"
                 >
                   {t("notifications.to", "To")}
                 </Label>
@@ -285,15 +285,15 @@ export function NotificationSettings() {
                   onChange={(e) =>
                     updateSettings({ quietHoursEnd: e.target.value })
                   }
-                  className="px-2 py-1 border border-gray-200 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary rounded text-sm"
+                  className="px-2 py-1 border border-line rounded text-sm"
                 />
               </div>
             </div>
           )}
         </div>
         {permission === "granted" && settings.enabled && (
-          <footer className="flex flex-col gap-3 bg-[#fbfcfb] p-5 dark:bg-white/[0.02] sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
+          <footer className="flex flex-col gap-3 bg-subtle p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <p className="text-xs text-fg-muted">
               {t(
                 "notifications.testHint",
                 "Confirm that notifications work on this device.",

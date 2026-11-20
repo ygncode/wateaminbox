@@ -83,14 +83,14 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
         const invitation = row.original;
         return (
           <div className="flex min-w-0 items-center gap-3">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#dcefe7] text-[#075c41] dark:bg-emerald-950/60 dark:text-emerald-300">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
               <Mail className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <p className="truncate font-semibold text-[#20362e] dark:text-dark-text-primary">
+              <p className="truncate font-semibold text-fg">
                 {invitation.email}
               </p>
-              <p className="truncate text-xs text-[#718078] dark:text-dark-text-secondary">
+              <p className="truncate text-xs text-fg-muted">
                 {t("team.sentOn", {
                   defaultValue: "Sent {{date}} · {{state}}",
                   date: dayjs(invitation.createdAt).format("MMM D, YYYY"),
@@ -139,13 +139,13 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
       size: 190,
       cell: ({ row }) => (
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-[#31463e] dark:text-dark-text-primary">
+          <p className="truncate text-sm font-medium text-fg">
             {row.original.inviterName ||
               row.original.inviterEmail ||
               t("team.teamMember", "Team member")}
           </p>
           {row.original.inviterName && row.original.inviterEmail && (
-            <p className="truncate text-xs text-[#718078] dark:text-dark-text-secondary">
+            <p className="truncate text-xs text-fg-muted">
               {row.original.inviterEmail}
             </p>
           )}
@@ -165,8 +165,8 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
             dateTime={row.original.expiresAt}
             className={
               isExpiringSoon
-                ? "inline-flex items-center gap-1.5 font-mono text-xs text-orange-600 dark:text-orange-400"
-                : "inline-flex items-center gap-1.5 font-mono text-xs text-[#65736d] dark:text-dark-text-secondary"
+                ? "inline-flex items-center gap-1.5 font-mono text-xs text-warning"
+                : "inline-flex items-center gap-1.5 font-mono text-xs text-fg-muted"
             }
           >
             <Clock className="h-3.5 w-3.5" />
@@ -231,7 +231,7 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
       {actionError && (
         <div
           role="alert"
-          className="shrink-0 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300"
+          className="shrink-0 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger"
         >
           {actionError.message ||
             t(
@@ -257,7 +257,7 @@ export function InvitationsList({ companyId }: InvitationsListProps) {
           label: t("team.searchInvitationsLabel", "Search pending invitations"),
         }}
         toolbarActions={
-          <label className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+          <label className="flex items-center gap-2 text-xs font-medium text-fg-muted">
             <span className="hidden sm:inline">{t("team.role", "Role")}</span>
             <Select
               value={roleFilter}

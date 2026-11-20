@@ -134,7 +134,7 @@ export function ResolveConversationDialog({
             {OUTCOME_OPTIONS.map((option) => (
               <label
                 key={option.value}
-                className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-gray-200 p-2.5 text-sm has-[:checked]:border-whatsapp-teal-green has-[:checked]:bg-whatsapp-teal-green/5 dark:border-dark-border dark:has-[:checked]:border-whatsapp-teal-green"
+                className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-line p-2.5 text-sm has-[:checked]:border-primary has-[:checked]:bg-accent/5"
               >
                 <input
                   type="radio"
@@ -145,10 +145,10 @@ export function ResolveConversationDialog({
                   className="mt-0.5"
                 />
                 <span>
-                  <span className="block font-medium text-gray-900 dark:text-dark-text-primary">
+                  <span className="block font-medium text-fg">
                     {t(option.labelKey, option.label)}
                   </span>
-                  <span className="block text-xs text-gray-500 dark:text-dark-text-secondary">
+                  <span className="block text-xs text-fg-muted">
                     {t(option.hintKey, option.hint)}
                   </span>
                 </span>
@@ -156,9 +156,9 @@ export function ResolveConversationDialog({
             ))}
           </fieldset>
 
-          <label className="block text-sm font-medium text-gray-700 dark:text-dark-text-primary">
+          <label className="block text-sm font-medium text-fg">
             {t("chat.notesLabel", "Notes")}{" "}
-            {outcome === "other" && <span className="text-red-500">*</span>}
+            {outcome === "other" && <span className="text-danger">*</span>}
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
@@ -172,15 +172,13 @@ export function ResolveConversationDialog({
                     )
                   : t("chat.notesPlaceholderOptional", "Optional notes")
               }
-              className="mt-1.5 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-dark-border dark:bg-dark-tertiary"
+              className="mt-1.5 w-full rounded-md border border-line-strong bg-surface px-3 py-2 text-sm"
             />
           </label>
 
-          {error && (
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          )}
+          {error && <p className="text-sm text-danger">{error}</p>}
           {disabled && !isSubmitting && (
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+            <p className="text-sm text-fg-muted">
               {t(
                 "chat.waitingForSend",
                 "Waiting for your message to finish sending…",
@@ -194,7 +192,7 @@ export function ResolveConversationDialog({
             type="button"
             onClick={() => handleOpenChange(false)}
             disabled={isSubmitting}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-lg transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-fg hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
           >
             {t("common.cancel", "Cancel")}
           </button>
@@ -202,7 +200,7 @@ export function ResolveConversationDialog({
             type="button"
             onClick={handleConfirm}
             disabled={confirmDisabled}
-            className="flex items-center gap-2 rounded-lg bg-whatsapp-teal-green px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-whatsapp-teal-green/90 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:bg-accent/90 disabled:opacity-50"
           >
             {isSubmitting ? (
               <>

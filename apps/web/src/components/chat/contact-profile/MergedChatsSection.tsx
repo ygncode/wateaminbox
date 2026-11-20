@@ -105,14 +105,14 @@ export function MergedChatsSection({
         ) : undefined
       }
     >
-      <ul className="divide-y divide-gray-100 overflow-hidden rounded-lg bg-gray-50 dark:divide-dark-border dark:bg-dark-tertiary/40">
+      <ul className="divide-y divide-line overflow-hidden rounded-lg bg-subtle">
         {chats.map((chat) => (
           <li key={chat.chatId}>
             <ThreadRow chat={chat} onSelect={onSelectThread} />
           </li>
         ))}
         {chats.length === 0 && (
-          <li className="px-2.5 py-2 text-xs text-gray-500 dark:text-dark-text-tertiary">
+          <li className="px-2.5 py-2 text-xs text-fg-muted">
             {t("contacts.noChatsYet", "No conversations yet")}
           </li>
         )}
@@ -166,17 +166,15 @@ function ThreadRow({
     <>
       <ChatIdentityAvatar chat={chat} className="size-7" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm text-gray-900 dark:text-dark-text-primary">
-          {name}
-        </span>
+        <span className="block truncate text-sm text-fg">{name}</span>
         {secondary && (
-          <span className="block truncate text-[11px] text-gray-500 dark:text-dark-text-tertiary">
+          <span className="block truncate text-[11px] text-fg-muted">
             {secondary}
           </span>
         )}
       </span>
       {chat.unreadCount > 0 && (
-        <span className="shrink-0 rounded-full bg-[#25d366] px-1.5 text-[10px] font-semibold text-white">
+        <span className="shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-semibold text-on-primary">
           {chat.unreadCount}
         </span>
       )}
@@ -189,10 +187,7 @@ function ThreadRow({
     <button
       type="button"
       onClick={() => onSelect(chat.chatId)}
-      className={cn(
-        className,
-        "transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
-      )}
+      className={cn(className, "transition-colors hover:bg-fg/[0.03]")}
     >
       {body}
     </button>

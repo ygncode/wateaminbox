@@ -55,9 +55,9 @@ function formatMinutes(
 }
 
 function getSlaColor(rate: number): string {
-  if (rate >= 90) return "text-green-600";
-  if (rate >= 70) return "text-yellow-600";
-  return "text-red-600";
+  if (rate >= 90) return "text-accent";
+  if (rate >= 70) return "text-warning";
+  return "text-danger";
 }
 
 /**
@@ -191,14 +191,14 @@ export function ResponseTimeAnalytics({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#eaf1f7] text-[#4185c5] dark:bg-blue-950/40 dark:text-blue-300">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-info-soft text-info">
             <Clock className="h-4 w-4" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+            <h2 className="text-sm font-semibold text-fg">
               {t("dashboard.response.title", "Response performance")}
             </h2>
-            <p className="text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
+            <p className="text-[11px] text-fg-muted">
               {t(
                 "dashboard.response.subtitle",
                 "First-response speed and SLA reliability",
@@ -206,7 +206,7 @@ export function ResponseTimeAnalytics({
             </p>
           </div>
         </div>
-        <span className="rounded-full border border-[#dce3de] bg-[#fafcfb] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#718078] dark:border-dark-border dark:bg-dark-secondary dark:text-dark-text-secondary">
+        <span className="rounded-full border border-line bg-subtle px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
           Last {dateRange === "7d" ? "7" : dateRange === "30d" ? "30" : "90"}{" "}
           days
         </span>
@@ -215,7 +215,7 @@ export function ResponseTimeAnalytics({
       {hasPrimaryError && rangeTooWide && (
         <div
           role="alert"
-          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-5 text-center text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300"
+          className="rounded-xl border border-warning/30 bg-warning-soft px-4 py-5 text-center text-sm text-warning"
         >
           {t(
             "dashboard.response.rangeTooWide",
@@ -226,7 +226,7 @@ export function ResponseTimeAnalytics({
       {hasPrimaryError && !rangeTooWide && (
         <div
           role="alert"
-          className="rounded-xl border border-red-200 bg-red-50 px-4 py-5 text-center text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
+          className="rounded-xl border border-danger/30 bg-danger-soft px-4 py-5 text-center text-sm text-danger"
         >
           {t(
             "dashboard.response.loadFailed",
@@ -238,17 +238,17 @@ export function ResponseTimeAnalytics({
       {/* Stats Cards */}
       {!hasPrimaryError && (
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
-            <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+          <div className="rounded-xl border border-line bg-subtle p-4">
+            <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
               <Clock className="h-3.5 w-3.5" />
               {t("dashboard.response.avgResponse", "Avg Response")}
             </div>
-            <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-[#203b32] dark:text-dark-text-primary">
+            <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">
               {isLoading
                 ? "-"
                 : formatMinutes(stats?.averageResponseTimeMinutes || 0, t)}
             </div>
-            <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+            <div className="mt-1 text-[10px] text-fg-muted">
               Median:{" "}
               {isLoading
                 ? "-"
@@ -256,15 +256,15 @@ export function ResponseTimeAnalytics({
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
-            <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+          <div className="rounded-xl border border-line bg-subtle p-4">
+            <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
               <CheckCircle className="h-3.5 w-3.5" />
               {t("dashboard.response.slaCompliance", "SLA Compliance")}
             </div>
             <div
               className={`mt-2 text-2xl font-semibold tracking-[-0.02em] ${
                 isLoading
-                  ? "text-[#203b32] dark:text-dark-text-primary"
+                  ? "text-fg"
                   : getSlaColor(stats?.slaComplianceRate || 0)
               }`}
             >
@@ -272,35 +272,35 @@ export function ResponseTimeAnalytics({
                 ? "-"
                 : `${Math.round(stats?.slaComplianceRate || 0)}%`}
             </div>
-            <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+            <div className="mt-1 text-[10px] text-fg-muted">
               Current target: {currentTargetMinutes ?? "-"} min
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
-            <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+          <div className="rounded-xl border border-line bg-subtle p-4">
+            <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
               <TrendingUp className="h-3.5 w-3.5" />
               Responses
             </div>
-            <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-[#203b32] dark:text-dark-text-primary">
+            <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">
               {isLoading ? "-" : stats?.totalConversations || 0}
             </div>
-            <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+            <div className="mt-1 text-[10px] text-fg-muted">
               {isLoading ? "-" : stats?.withinSlaCount || 0} within SLA
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
-            <div className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+          <div className="rounded-xl border border-line bg-subtle p-4">
+            <div className="flex items-center gap-2 text-xs font-medium text-fg-muted">
               <AlertTriangle className="h-3.5 w-3.5" />
               {t("dashboard.response.maxResponse", "Max Response")}
             </div>
-            <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-[#203b32] dark:text-dark-text-primary">
+            <div className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-fg">
               {isLoading
                 ? "-"
                 : formatMinutes(stats?.maxResponseTimeMinutes || 0, t)}
             </div>
-            <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+            <div className="mt-1 text-[10px] text-fg-muted">
               Min:{" "}
               {isLoading
                 ? "-"
@@ -319,10 +319,10 @@ export function ResponseTimeAnalytics({
             return (
               <div
                 key={kind}
-                className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-3 dark:border-dark-border dark:bg-dark-tertiary/30"
+                className="rounded-xl border border-line bg-subtle p-3"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold capitalize text-[#40544c] dark:text-dark-text-primary">
+                  <span className="text-xs font-semibold capitalize text-fg">
                     {kind} chats
                   </span>
                   <span
@@ -331,18 +331,16 @@ export function ResponseTimeAnalytics({
                     {Math.round(k.slaComplianceRate)}%
                   </span>
                 </div>
-                <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+                <div className="mt-1 text-[10px] text-fg-muted">
                   {k.totalConversations} episodes · avg{" "}
                   {formatMinutes(k.averageResponseTimeMinutes, t)}
                 </div>
               </div>
             );
           })}
-          <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-3 dark:border-dark-border dark:bg-dark-tertiary/30">
-            <span className="text-xs font-semibold text-[#40544c] dark:text-dark-text-primary">
-              Excluded
-            </span>
-            <div className="mt-1 text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+          <div className="rounded-xl border border-line bg-subtle p-3">
+            <span className="text-xs font-semibold text-fg">Excluded</span>
+            <div className="mt-1 text-[10px] text-fg-muted">
               {stats.excludedCount} unanswered - no_reply_needed/spam/duplicate
               (never counted compliant)
             </div>
@@ -352,12 +350,12 @@ export function ResponseTimeAnalytics({
 
       {/* Trend Chart */}
       {!hasPrimaryError && trend.length > 0 && (
-        <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/30 sm:p-5">
+        <div className="rounded-xl border border-line bg-subtle p-4 sm:p-5">
           <div className="mb-4">
-            <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+            <h3 className="text-sm font-semibold text-fg">
               {t("dashboard.response.trend", "Response-time trend")}
             </h3>
-            <p className="mt-0.5 text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
+            <p className="mt-0.5 text-[11px] text-fg-muted">
               Daily average compared with the current{" "}
               {currentTargetMinutes ?? "-"}-minute target
             </p>
@@ -371,10 +369,10 @@ export function ResponseTimeAnalytics({
 
       {/* Team Performance (Admin only) */}
       {isAdmin && team.length > 0 && (
-        <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/30">
+        <div className="rounded-xl border border-line bg-subtle p-4">
           <div className="mb-4 flex items-center gap-2">
-            <Users className="h-4 w-4 text-[#65736d] dark:text-dark-text-secondary" />
-            <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+            <Users className="h-4 w-4 text-fg-muted" />
+            <h3 className="text-sm font-semibold text-fg">
               {t("dashboard.response.teamTimes", "Team response times")}
             </h3>
           </div>
@@ -382,18 +380,18 @@ export function ResponseTimeAnalytics({
             {team.slice(0, 5).map((member) => (
               <div
                 key={member.userId}
-                className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-white dark:hover:bg-dark-tertiary"
+                className="flex items-center justify-between rounded-lg px-3 py-2.5 hover:bg-surface"
               >
                 <div>
-                  <div className="text-xs font-medium text-[#40544c] dark:text-dark-text-primary">
+                  <div className="text-xs font-medium text-fg">
                     {member.email}
                   </div>
-                  <div className="text-[10px] text-[#87928c] dark:text-dark-text-secondary">
+                  <div className="text-[10px] text-fg-muted">
                     {member.totalResponses} responses
                   </div>
                 </div>
                 <div className="text-end">
-                  <div className="text-xs font-semibold text-[#203b32] dark:text-dark-text-primary">
+                  <div className="text-xs font-semibold text-fg">
                     {formatMinutes(member.averageResponseTimeMinutes, t)}
                   </div>
                   <div
@@ -410,13 +408,13 @@ export function ResponseTimeAnalytics({
 
       {/* SLA Breaches */}
       {breaches.length > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50/70 p-4 dark:border-red-900/70 dark:bg-red-950/20">
+        <div className="rounded-xl border border-danger/30 bg-danger-soft/70 p-4">
           <div className="mb-3 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-            <h3 className="text-sm font-semibold text-red-900 dark:text-red-300">
+            <AlertTriangle className="h-4 w-4 text-danger" />
+            <h3 className="text-sm font-semibold text-danger">
               {t("dashboard.response.slaBreaches", "SLA Breaches")}
             </h3>
-            <span className="rounded bg-red-100 dark:bg-red-900/50 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
+            <span className="rounded bg-danger-soft px-2 py-0.5 text-xs font-medium text-danger">
               {breaches.length}
             </span>
           </div>
@@ -424,26 +422,26 @@ export function ResponseTimeAnalytics({
             {breaches.slice(0, 5).map((breach) => (
               <div
                 key={`${breach.contactId}-${breach.inboundMessageTime}`}
-                className="flex items-center justify-between rounded-lg border border-red-100 bg-white px-3 py-2 text-xs dark:border-red-900/50 dark:bg-dark-elevated"
+                className="flex items-center justify-between rounded-lg border border-danger/30 bg-surface px-3 py-2 text-xs"
               >
                 <div>
-                  <span className="font-medium text-gray-900 dark:text-dark-text-primary">
+                  <span className="font-medium text-fg">
                     {breach.contactName || breach.contactId}
                   </span>
-                  <span className="ms-2 text-gray-500 dark:text-dark-text-secondary">
+                  <span className="ms-2 text-fg-muted">
                     {dayjs(breach.inboundMessageTime).format("MMM D, YYYY")}
                   </span>
                 </div>
                 <div className="text-end">
-                  <span className="font-medium text-red-600 dark:text-red-400">
+                  <span className="font-medium text-danger">
                     {formatMinutes(breach.responseMinutes, t)}
                   </span>
                   {breach.responseTime ? (
-                    <span className="ms-2 text-xs text-gray-500 dark:text-dark-text-secondary">
+                    <span className="ms-2 text-xs text-fg-muted">
                       {t("dashboard.response.responded", "responded")}
                     </span>
                   ) : (
-                    <span className="ms-2 text-xs text-red-500 dark:text-red-400">
+                    <span className="ms-2 text-xs text-danger">
                       {t("dashboard.response.noResponse", "no response")}
                     </span>
                   )}

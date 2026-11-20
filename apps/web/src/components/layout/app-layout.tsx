@@ -25,7 +25,7 @@ export function AppLayout({ className, children, ...props }: AppLayoutProps) {
       className={cn(
         // Safe-area insets belong to the app shell (top bar above, floating
         // navigation below); repeating them here double-padded every edge.
-        "flex h-full w-full overflow-hidden bg-gray-200 dark:bg-dark-primary",
+        "flex h-full w-full overflow-hidden bg-canvas",
         className,
       )}
       {...props}

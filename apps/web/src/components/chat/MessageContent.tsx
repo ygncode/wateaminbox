@@ -49,9 +49,7 @@ export function MessageContent({
 
   if (message.isDeleted) {
     return (
-      <span className="italic text-gray-500 dark:text-gray-400">
-        {t("chat.messageDeleted")}
-      </span>
+      <span className="italic text-fg-muted">{t("chat.messageDeleted")}</span>
     );
   }
 
@@ -109,8 +107,8 @@ export function MessageContent({
                 type="button"
                 className={`group/media relative block max-w-full overflow-hidden rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/90 focus-visible:ring-offset-2 ${
                   isOwn
-                    ? "focus-visible:ring-offset-whatsapp-green"
-                    : "focus-visible:ring-offset-white dark:focus-visible:ring-offset-dark-elevated"
+                    ? "focus-visible:ring-offset-ring"
+                    : "focus-visible:ring-offset-white"
                 } ${enableMediaPreview ? "cursor-zoom-in" : "pointer-events-none"}`}
                 onClick={(event) => {
                   if (!enableMediaPreview) return;
@@ -129,7 +127,7 @@ export function MessageContent({
                   loading="lazy"
                 />
                 {enableMediaPreview && (
-                  <span className="absolute end-2 top-2 grid size-8 place-items-center rounded-full bg-[#111b21]/60 text-white opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover/media:opacity-100 group-focus-visible/media:opacity-100">
+                  <span className="absolute end-2 top-2 grid size-8 place-items-center rounded-full bg-black/60 text-white opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover/media:opacity-100 group-focus-visible/media:opacity-100">
                     <Maximize2 className="size-4" aria-hidden="true" />
                   </span>
                 )}
@@ -144,7 +142,7 @@ export function MessageContent({
               />
             </>
           ) : (
-            <div className="flex h-40 w-64 items-center justify-center rounded-lg bg-black/10 text-sm text-current/60 dark:bg-white/[0.06]">
+            <div className="flex h-40 w-64 items-center justify-center rounded-lg bg-fg/10 text-sm text-current/60">
               {t("chat.imageUnavailable", "Image unavailable")}
             </div>
           )}
@@ -184,8 +182,8 @@ export function MessageContent({
                 type="button"
                 className={`group/media relative block max-w-full overflow-hidden rounded-lg bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/90 focus-visible:ring-offset-2 ${
                   isOwn
-                    ? "focus-visible:ring-offset-whatsapp-green"
-                    : "focus-visible:ring-offset-white dark:focus-visible:ring-offset-dark-elevated"
+                    ? "focus-visible:ring-offset-ring"
+                    : "focus-visible:ring-offset-white"
                 } ${enableMediaPreview ? "cursor-pointer" : "pointer-events-none"}`}
                 onClick={(event) => {
                   if (!enableMediaPreview) return;
@@ -207,14 +205,14 @@ export function MessageContent({
                 />
                 {enableMediaPreview && (
                   <>
-                    <span className="absolute inset-0 bg-black/10 transition-colors group-hover/media:bg-black/20" />
-                    <span className="absolute start-1/2 top-1/2 grid size-14 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#111b21]/75 text-white shadow-lg backdrop-blur-sm transition-transform group-hover/media:scale-105 group-focus-visible/media:scale-105">
+                    <span className="absolute inset-0 bg-fg/10 transition-colors group-hover/media:bg-black/20" />
+                    <span className="absolute start-1/2 top-1/2 grid size-14 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/75 text-white shadow-lg backdrop-blur-sm transition-transform group-hover/media:scale-105 group-focus-visible/media:scale-105">
                       <Play
                         className="ms-0.5 size-6 fill-current"
                         aria-hidden="true"
                       />
                     </span>
-                    <span className="absolute end-2 top-2 grid size-8 place-items-center rounded-full bg-[#111b21]/60 text-white opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover/media:opacity-100 group-focus-visible/media:opacity-100">
+                    <span className="absolute end-2 top-2 grid size-8 place-items-center rounded-full bg-black/60 text-white opacity-0 shadow-sm backdrop-blur-sm transition-opacity group-hover/media:opacity-100 group-focus-visible/media:opacity-100">
                       <Maximize2 className="size-4" aria-hidden="true" />
                     </span>
                   </>
@@ -231,7 +229,7 @@ export function MessageContent({
               />
             </>
           ) : (
-            <div className="flex h-40 w-64 items-center justify-center rounded-lg bg-black/10 text-sm text-current/60 dark:bg-white/[0.06]">
+            <div className="flex h-40 w-64 items-center justify-center rounded-lg bg-fg/10 text-sm text-current/60">
               {t("chat.videoUnavailable", "Video unavailable")}
             </div>
           )}
@@ -269,7 +267,7 @@ export function MessageContent({
           />
           {message.metadata?.duration && (
             <span
-              className="text-xs text-gray-500 tabular-nums"
+              className="text-xs text-fg-muted tabular-nums"
               aria-hidden="true"
             >
               {Math.floor(message.metadata.duration / 60)}:
@@ -306,7 +304,7 @@ export function MessageContent({
           : undefined;
       const mimeSubtype = mimeTypeParts?.[mimeTypeParts.length - 1];
       const cardClassName =
-        "flex w-full max-w-xs items-center gap-3 rounded-lg bg-gray-100 p-3 text-start transition-colors hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green dark:bg-dark-tertiary dark:hover:bg-dark-border";
+        "flex w-full max-w-xs items-center gap-3 rounded-lg bg-muted p-3 text-start transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
       const withCaption = (card: ReactNode) => (
         <div className="max-w-xs">
           {card}
@@ -325,7 +323,7 @@ export function MessageContent({
         <>
           <div className="flex-shrink-0">
             <svg
-              className="h-10 w-10 text-gray-500 dark:text-dark-text-secondary"
+              className="h-10 w-10 text-fg-muted"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -340,10 +338,8 @@ export function MessageContent({
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate">
-              {fileName}
-            </p>
-            <p className="text-xs uppercase text-gray-500 dark:text-dark-text-secondary">
+            <p className="text-sm font-medium text-fg truncate">{fileName}</p>
+            <p className="text-xs uppercase text-fg-muted">
               {isPdf
                 ? "PDF"
                 : fileExtension || mimeSubtype || t("chat.document")}
@@ -441,8 +437,8 @@ export function MessageContent({
                 type="button"
                 className={`group/media relative block max-w-full rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/90 focus-visible:ring-offset-2 ${
                   isOwn
-                    ? "focus-visible:ring-offset-whatsapp-green"
-                    : "focus-visible:ring-offset-white dark:focus-visible:ring-offset-dark-elevated"
+                    ? "focus-visible:ring-offset-ring"
+                    : "focus-visible:ring-offset-white"
                 } ${enableMediaPreview ? "cursor-zoom-in" : "pointer-events-none"}`}
                 onClick={(event) => {
                   if (!enableMediaPreview) return;
@@ -455,7 +451,7 @@ export function MessageContent({
                 {isLottieSticker ? (
                   <Suspense
                     fallback={
-                      <div className="size-40 animate-pulse rounded-lg bg-black/5 dark:bg-white/[0.06]" />
+                      <div className="size-40 animate-pulse rounded-lg bg-fg/5" />
                     }
                   >
                     <LottieSticker src={mediaUrl} className="size-40" />
@@ -491,7 +487,7 @@ export function MessageContent({
               />
             </>
           ) : (
-            <div className="flex size-40 items-center justify-center rounded-lg bg-black/10 text-sm text-current/60 dark:bg-white/[0.06]">
+            <div className="flex size-40 items-center justify-center rounded-lg bg-fg/10 text-sm text-current/60">
               {t("chat.stickerUnavailable", "Sticker unavailable")}
             </div>
           )}
@@ -500,9 +496,9 @@ export function MessageContent({
     },
     location: () => (
       <div className="max-w-xs">
-        <div className="bg-gray-200 dark:bg-dark-tertiary rounded-lg h-32 flex items-center justify-center">
+        <div className="bg-muted-strong rounded-lg h-32 flex items-center justify-center">
           <svg
-            className="h-8 w-8 text-gray-500 dark:text-dark-text-secondary"
+            className="h-8 w-8 text-fg-muted"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -528,8 +524,8 @@ export function MessageContent({
       </div>
     ),
     template: () => (
-      <div className="p-3 bg-gray-50 dark:bg-dark-tertiary rounded-lg border border-gray-200 dark:border-dark-border">
-        <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-1">
+      <div className="p-3 bg-subtle rounded-lg border border-line">
+        <p className="text-xs text-fg-muted mb-1">
           {t("chat.templateMessage", "Template Message")}
         </p>
         <LinkifiedText
@@ -543,9 +539,7 @@ export function MessageContent({
     reaction: () => (
       <div className="flex items-center gap-2">
         <span className="text-2xl">{message.content}</span>
-        <span className="text-xs text-gray-500 dark:text-dark-text-secondary">
-          Reaction
-        </span>
+        <span className="text-xs text-fg-muted">Reaction</span>
       </div>
     ),
   };
@@ -587,18 +581,16 @@ function ContactCardMessage({
     <section
       className={cn(
         "min-w-[15rem] max-w-[19rem] overflow-hidden rounded-xl border",
-        isOwn
-          ? "border-black/[0.08] bg-white/45 dark:border-white/[0.1] dark:bg-black/15"
-          : "border-black/[0.07] bg-[#f7f9fa] dark:border-white/[0.08] dark:bg-white/[0.045]",
+        isOwn ? "border-line bg-bubble-in/50" : "border-line/[0.07] bg-subtle",
       )}
       aria-label={heading}
     >
-      <div className="flex items-center gap-1.5 border-b border-black/[0.06] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#667781] dark:border-white/[0.07] dark:text-dark-text-tertiary">
+      <div className="flex items-center gap-1.5 border-b border-line/[0.06] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
         <UserRound className="size-3.5" aria-hidden="true" />
         <span>{heading}</span>
       </div>
 
-      <div className="divide-y divide-black/[0.06] dark:divide-white/[0.07]">
+      <div className="divide-y divide-line/[0.06]">
         {cards.length > 0 ? (
           cards.map((card, cardIndex) => {
             const primaryPhone = card.phoneNumbers[0]?.value;
@@ -611,13 +603,13 @@ function ContactCardMessage({
                     onOpenSharedContact?.(card);
                   }}
                   disabled={!onOpenSharedContact}
-                  className="flex w-full items-start gap-3 px-3 py-3 text-start outline-none transition-colors enabled:hover:bg-black/[0.035] enabled:focus-visible:ring-2 enabled:focus-visible:ring-inset enabled:focus-visible:ring-[#00a884]/40 disabled:cursor-default dark:enabled:hover:bg-white/[0.04]"
+                  className="flex w-full items-start gap-3 px-3 py-3 text-start outline-none transition-colors enabled:hover:bg-fg/[0.035] enabled:focus-visible:ring-2 enabled:focus-visible:ring-inset enabled:focus-visible:ring-ring/40 disabled:cursor-default"
                   aria-label={t("chat.openSharedContact", {
                     defaultValue: "Open contact info for {{name}}",
                     name: card.displayName,
                   })}
                 >
-                  <div className="size-11 shrink-0 overflow-hidden rounded-full shadow-sm ring-1 ring-black/[0.06] dark:ring-white/[0.1]">
+                  <div className="size-11 shrink-0 overflow-hidden rounded-full shadow-sm ring-1 ring-fg/[0.06]">
                     <IdentityAvatarFallback
                       displayName={card.displayName}
                       identity={`${card.displayName}-${cardIndex}`}
@@ -625,7 +617,7 @@ function ContactCardMessage({
                     />
                   </div>
                   <div className="min-w-0 flex-1 pt-0.5">
-                    <p className="truncate text-[15px] font-semibold leading-5 text-[#111b21] dark:text-dark-text-primary">
+                    <p className="truncate text-[15px] font-semibold leading-5 text-fg">
                       {card.displayName}
                     </p>
                     {card.phoneNumbers.length > 0 ? (
@@ -633,13 +625,13 @@ function ContactCardMessage({
                         {card.phoneNumbers.map((phone, phoneIndex) => (
                           <div
                             key={`${phone.value}-${phoneIndex}`}
-                            className="flex min-h-5 items-center gap-1.5 text-xs text-[#54656f] dark:text-dark-text-secondary"
+                            className="flex min-h-5 items-center gap-1.5 text-xs text-fg-muted"
                           >
                             <span className="truncate tabular-nums">
                               {formatPhoneNumber(phone.value)}
                             </span>
                             {phone.label && (
-                              <span className="ms-auto shrink-0 text-[10px] text-[#8696a0] dark:text-dark-text-tertiary">
+                              <span className="ms-auto shrink-0 text-[10px] text-fg-muted">
                                 {phone.label}
                               </span>
                             )}
@@ -647,7 +639,7 @@ function ContactCardMessage({
                         ))}
                       </div>
                     ) : (
-                      <p className="mt-1 text-xs text-[#8696a0] dark:text-dark-text-tertiary">
+                      <p className="mt-1 text-xs text-fg-muted">
                         {t(
                           "chat.contactDetailsUnavailable",
                           "Phone number unavailable",
@@ -664,7 +656,7 @@ function ContactCardMessage({
                       event.stopPropagation();
                       onMessageSharedContact(card);
                     }}
-                    className="flex min-h-10 w-full items-center justify-center gap-2 border-t border-black/[0.06] px-3 text-sm font-semibold text-[#008069] outline-none transition-colors hover:bg-black/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#00a884]/40 dark:border-white/[0.07] dark:text-[#53bdeb] dark:hover:bg-white/[0.04]"
+                    className="flex min-h-10 w-full items-center justify-center gap-2 border-t border-line/[0.06] px-3 text-sm font-semibold text-accent outline-none transition-colors hover:bg-fg/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40"
                   >
                     <MessageCircle className="size-4" aria-hidden="true" />
                     {t("chat.messageContact", "Message")}
@@ -674,7 +666,7 @@ function ContactCardMessage({
             );
           })
         ) : (
-          <p className="px-3 py-4 text-sm text-[#667781] dark:text-dark-text-secondary">
+          <p className="px-3 py-4 text-sm text-fg-muted">
             {t("chat.contactDetailsUnavailable", "Contact details unavailable")}
           </p>
         )}

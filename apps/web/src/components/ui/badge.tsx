@@ -4,18 +4,17 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium leading-4 transition-colors",
   {
     variants: {
       variant: {
-        default:
-          "border-transparent bg-whatsapp-green text-white shadow hover:bg-whatsapp-dark-green",
-        secondary:
-          "border-transparent bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-dark-tertiary dark:text-dark-text-primary dark:hover:bg-dark-border",
-        destructive:
-          "border-transparent bg-red-500 text-white shadow hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700",
-        outline:
-          "text-gray-900 border-gray-300 dark:text-dark-text-primary dark:border-dark-border",
+        default: "bg-primary text-on-primary",
+        secondary: "bg-muted text-fg-muted",
+        destructive: "bg-danger-soft text-danger",
+        outline: "border border-line text-fg-muted",
+        success: "bg-success-soft text-success",
+        warning: "bg-warning-soft text-warning",
+        info: "bg-info-soft text-info",
       },
     },
     defaultVariants: {

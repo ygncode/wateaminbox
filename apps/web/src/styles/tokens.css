@@ -1,0 +1,150 @@
+/*
+ * Semantic design tokens -> Tailwind utilities.
+ *
+ * `@theme inline` makes each `--color-*` below a utility in every colour
+ * position (bg-, text-, border-, ring-, fill-, ...) that resolves to the
+ * active theme's variable at runtime. Opacity modifiers work: `bg-accent/10`.
+ *
+ * Only these names may be used for colour in components. See DESIGN.md.
+ */
+@theme inline {
+  /* Surfaces */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-subtle: var(--subtle);
+  --color-muted: var(--muted);
+  --color-muted-strong: var(--muted-strong);
+  --color-selected: var(--selected);
+  --color-field: var(--field);
+  --color-overlay: var(--overlay);
+  --color-scrim: var(--scrim);
+
+  /* Lines */
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  /* Text */
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+
+  /* Actions */
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-ring: var(--ring);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+
+  /* Status */
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-soft: var(--danger-soft);
+  --color-on-danger: var(--on-danger);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  /* Navigation rail */
+  --color-nav: var(--nav);
+  --color-nav-fg: var(--nav-fg);
+  --color-nav-fg-muted: var(--nav-fg-muted);
+  --color-nav-hover: var(--nav-hover);
+  --color-nav-active: var(--nav-active);
+  --color-nav-active-fg: var(--nav-active-fg);
+  --color-nav-badge: var(--nav-badge);
+  --color-on-nav-badge: var(--on-nav-badge);
+
+  /* Conversation */
+  --color-chat: var(--chat);
+  --color-bubble-in: var(--bubble-in);
+  --color-bubble-out: var(--bubble-out);
+  --color-bubble-fg: var(--bubble-fg);
+  --color-note: var(--note);
+  --color-note-fg: var(--note-fg);
+  --color-note-line: var(--note-line);
+  --color-highlight: var(--highlight);
+
+  /* Identity (people, accounts) */
+  --color-id-1: var(--id-1);
+  --color-id-1-soft: var(--id-1-soft);
+  --color-id-2: var(--id-2);
+  --color-id-2-soft: var(--id-2-soft);
+  --color-id-3: var(--id-3);
+  --color-id-3-soft: var(--id-3-soft);
+  --color-id-4: var(--id-4);
+  --color-id-4-soft: var(--id-4-soft);
+  --color-id-5: var(--id-5);
+  --color-id-5-soft: var(--id-5-soft);
+  --color-id-6: var(--id-6);
+  --color-id-6-soft: var(--id-6-soft);
+  --color-id-7: var(--id-7);
+  --color-id-7-soft: var(--id-7-soft);
+
+  /* Charts */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-grid: var(--chart-grid);
+
+  /* Third-party brand marks. Constant across themes; only for logos/icons. */
+  --color-brand-whatsapp: #25d366;
+  --color-brand-whatsapp-business: #128c7e;
+  --color-brand-telegram: #2aabee;
+  --color-brand-messenger: #0084ff;
+  --color-brand-line: #06c755;
+  --color-brand-instagram-1: #f58529;
+  --color-brand-instagram-2: #dd2a7b;
+  --color-brand-instagram-3: #8134af;
+
+  /* Typography: platform UI fonts, no webfont download */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter",
+    "Segoe UI Variable", "Segoe UI", system-ui, "Noto Sans", sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji";
+  --font-mono:
+    "SF Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+
+  /* Elevation */
+  --shadow-xs: 0 1px 2px rgb(var(--shadow-color) / 0.05);
+  --shadow-sm:
+    0 1px 2px rgb(var(--shadow-color) / 0.06),
+    0 1px 3px rgb(var(--shadow-color) / 0.04);
+  --shadow-md:
+    0 4px 12px rgb(var(--shadow-color) / 0.08),
+    0 1px 3px rgb(var(--shadow-color) / 0.05);
+  --shadow-lg:
+    0 12px 32px rgb(var(--shadow-color) / 0.12),
+    0 2px 6px rgb(var(--shadow-color) / 0.06);
+  --shadow-bubble: var(--bubble-shadow);
+}
+
+/*
+ * Legacy aliases. Older code used `dark:*-dark-*` and `whatsapp-*` names.
+ * They now resolve to semantic tokens so any remaining usage follows the
+ * active theme. Do not use them in new code; the colour-policy test rejects
+ * new occurrences.
+ */
+@theme inline {
+  --color-dark-primary: var(--canvas);
+  --color-dark-secondary: var(--surface);
+  --color-dark-elevated: var(--surface);
+  --color-dark-tertiary: var(--muted);
+  --color-dark-border: var(--line);
+  --color-dark-text-primary: var(--fg);
+  --color-dark-text-secondary: var(--fg-muted);
+  --color-dark-text-tertiary: var(--fg-subtle);
+  --color-whatsapp-green: var(--accent);
+  --color-whatsapp-dark-green: var(--accent-hover);
+  --color-whatsapp-teal-green: var(--accent);
+  --color-whatsapp-blue: var(--info);
+  --color-whatsapp-green-a11y-text: var(--accent);
+  --color-whatsapp-green-a11y-button: var(--primary);
+}

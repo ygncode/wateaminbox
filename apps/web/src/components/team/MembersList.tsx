@@ -153,7 +153,7 @@ export function MembersList({
       header: t("team.joined", "Joined"),
       size: 150,
       cell: ({ row }) => (
-        <time className="font-mono text-xs text-[#65736d] dark:text-dark-text-secondary">
+        <time className="font-mono text-xs text-fg-muted">
           {new Date(row.original.joinedAt).toLocaleDateString()}
         </time>
       ),
@@ -238,7 +238,7 @@ export function MembersList({
       {actionError && (
         <div
           role="alert"
-          className="shrink-0 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300"
+          className="shrink-0 rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger"
         >
           {actionError.message ||
             t("team.memberUpdateFailed", "Could not update this team member")}
@@ -258,7 +258,7 @@ export function MembersList({
           label: t("team.searchLabel", "Search team members"),
         }}
         toolbarActions={
-          <label className="flex items-center gap-2 text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
+          <label className="flex items-center gap-2 text-xs font-medium text-fg-muted">
             <span className="hidden sm:inline">{t("team.role", "Role")}</span>
             <Select
               value={roleFilter}
@@ -357,15 +357,13 @@ function MemberIdentity({
   return (
     <div className="flex min-w-0 items-center gap-3">
       <Avatar className="h-9 w-9 shrink-0">
-        <AvatarFallback className="bg-[#dcefe7] text-xs font-bold text-[#075c41]">
+        <AvatarFallback className="bg-accent-soft text-xs font-bold text-accent">
           {initials}
         </AvatarFallback>
       </Avatar>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <p className="truncate font-semibold text-[#20362e] dark:text-dark-text-primary">
-            {displayName}
-          </p>
+          <p className="truncate font-semibold text-fg">{displayName}</p>
           {isCurrentUser && (
             <Badge variant="outline" className="text-[9px]">
               {t("team.you")}
@@ -373,9 +371,7 @@ function MemberIdentity({
           )}
         </div>
         {member.name && (
-          <p className="truncate text-xs text-[#718078] dark:text-dark-text-secondary">
-            {member.email}
-          </p>
+          <p className="truncate text-xs text-fg-muted">{member.email}</p>
         )}
       </div>
     </div>
@@ -387,7 +383,7 @@ function MemberRole({ role }: { role: CompanyMember["role"] }) {
     role === "owner" ? Crown : role === "admin" ? ShieldCheck : Shield;
   return (
     <span className="inline-flex items-center gap-1.5 capitalize">
-      <Icon className="h-3.5 w-3.5 text-[#65736d]" />
+      <Icon className="h-3.5 w-3.5 text-fg-muted" />
       {role}
     </span>
   );

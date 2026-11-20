@@ -66,7 +66,7 @@ export function LottieSticker({
 
   if (failed) {
     return (
-      <div className="flex size-40 items-center justify-center rounded-lg bg-black/10 text-sm text-current/60 dark:bg-white/[0.06]">
+      <div className="flex size-40 items-center justify-center rounded-lg bg-fg/10 text-sm text-current/60">
         {t("chat.stickerUnavailable", "Sticker unavailable")}
       </div>
     );

@@ -18,19 +18,19 @@ const numberFormatter = new Intl.NumberFormat(undefined, {
 function TransferPath({ reduceMotion }: { reduceMotion: boolean }) {
   return (
     <div className="relative grid grid-cols-[52px_1fr_52px] items-center gap-3 py-2">
-      <div className="relative z-10 grid size-13 place-items-center rounded-2xl border border-gray-200 bg-white text-gray-700 shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-dark-text-primary">
+      <div className="relative z-10 grid size-13 place-items-center rounded-2xl border border-line bg-surface text-fg shadow-sm">
         <Smartphone className="size-5" strokeWidth={1.8} />
-        <span className="absolute -end-1 -top-1 size-3 rounded-full border-2 border-white bg-whatsapp-green dark:border-[#172229]" />
+        <span className="absolute -end-1 -top-1 size-3 rounded-full border-2 border-surface bg-primary" />
       </div>
 
-      <div className="relative h-px overflow-visible bg-gray-200 dark:bg-white/10">
-        <div className="absolute inset-y-0 start-0 w-full bg-gradient-to-r from-whatsapp-green/70 via-whatsapp-green/20 to-transparent" />
+      <div className="relative h-px overflow-visible bg-muted-strong">
+        <div className="absolute inset-y-0 start-0 w-full bg-gradient-to-r from-accent/70 via-accent/20 to-transparent" />
         {[0, 1, 2].map((packet) => (
           <motion.span
             // Packet motion makes the transfer direction legible without
             // pretending that an unknown total is a percentage.
             key={packet}
-            className="absolute -top-1 size-2 rounded-full bg-whatsapp-green shadow-[0_0_12px_rgba(37,211,102,0.75)]"
+            className="absolute -top-1 size-2 rounded-full bg-primary shadow-md"
             initial={{ left: "0%", opacity: 0 }}
             animate={
               reduceMotion
@@ -55,7 +55,7 @@ function TransferPath({ reduceMotion }: { reduceMotion: boolean }) {
       </div>
 
       <motion.div
-        className="relative z-10 grid size-13 place-items-center rounded-2xl bg-whatsapp-green text-[#062b1a] shadow-[0_12px_28px_rgba(37,211,102,0.22)]"
+        className="relative z-10 grid size-13 place-items-center rounded-2xl bg-primary text-accent shadow-lg"
         animate={reduceMotion ? undefined : { scale: [1, 1.04, 1] }}
         transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
       >
@@ -108,14 +108,14 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
         >
           <motion.div
             layout
-            className="relative overflow-hidden rounded-[22px] border border-black/10 bg-white/95 shadow-[0_24px_70px_rgba(15,23,42,0.2),0_2px_10px_rgba(15,23,42,0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-[#172229]/95 dark:shadow-[0_28px_80px_rgba(0,0,0,0.46)]"
+            className="relative overflow-hidden rounded-[22px] border border-line/10 bg-overlay/95 shadow-lg backdrop-blur-xl"
           >
-            <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-whatsapp-green to-transparent" />
+            <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent" />
             <div
               className="pointer-events-none absolute inset-0 opacity-[0.035] dark:opacity-[0.055]"
               style={{
                 backgroundImage:
-                  "linear-gradient(rgba(17,27,33,.7) 1px, transparent 1px), linear-gradient(90deg, rgba(17,27,33,.7) 1px, transparent 1px)",
+                  "linear-gradient(var(--line-strong) 1px, transparent 1px), linear-gradient(90deg, var(--line-strong) 1px, transparent 1px)",
                 backgroundSize: "22px 22px",
               }}
             />
@@ -133,14 +133,14 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                     <div>
                       <div className="mb-1.5 flex items-center gap-2">
                         <span className="relative flex size-2.5">
-                          <span className="absolute inline-flex size-full animate-ping rounded-full bg-whatsapp-green opacity-50 motion-reduce:animate-none" />
-                          <span className="relative inline-flex size-2.5 rounded-full bg-whatsapp-green" />
+                          <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-50 motion-reduce:animate-none" />
+                          <span className="relative inline-flex size-2.5 rounded-full bg-primary" />
                         </span>
-                        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-whatsapp-green-a11y-text dark:text-whatsapp-green">
+                        <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-accent">
                           {t("chat.historyImportLive", "History import live")}
                         </span>
                       </div>
-                      <h2 className="text-[19px] font-semibold tracking-[-0.02em] text-gray-950 dark:text-dark-text-primary">
+                      <h2 className="text-[19px] font-semibold tracking-[-0.02em] text-fg">
                         {t(
                           "chat.bringingUpToDate",
                           "Bringing your inbox up to date",
@@ -151,7 +151,7 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                     <button
                       type="button"
                       onClick={() => setIsExpanded(false)}
-                      className="grid size-8 shrink-0 place-items-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green dark:text-dark-text-secondary dark:hover:bg-white/10 dark:hover:text-white"
+                      className="grid size-8 shrink-0 place-items-center rounded-full text-fg-muted transition-colors hover:bg-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       aria-label={t(
                         "chat.collapseSyncStatus",
                         "Collapse sync status",
@@ -163,17 +163,17 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
 
                   <TransferPath reduceMotion={reduceMotion} />
 
-                  <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-gray-200/80 bg-gray-50/80 dark:border-white/[0.08] dark:bg-black/10">
-                    <div className="border-e border-gray-200/80 px-3.5 py-3 dark:border-white/[0.08]">
+                  <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line/80 bg-subtle/80">
+                    <div className="border-e border-line/80 px-3.5 py-3">
                       <motion.p
                         key={totals.conversations}
                         initial={{ opacity: 0, y: 4 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="font-mono text-xl font-semibold tabular-nums text-gray-950 dark:text-white"
+                        className="font-mono text-xl font-semibold tabular-nums text-fg"
                       >
                         {numberFormatter.format(totals.conversations)}
                       </motion.p>
-                      <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-gray-500 dark:text-dark-text-secondary">
+                      <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
                         Conversations
                       </p>
                     </div>
@@ -182,18 +182,18 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                         key={totals.messages}
                         initial={{ opacity: 0, y: 4 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="font-mono text-xl font-semibold tabular-nums text-gray-950 dark:text-white"
+                        className="font-mono text-xl font-semibold tabular-nums text-fg"
                       >
                         {numberFormatter.format(totals.messages)}
                       </motion.p>
-                      <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-gray-500 dark:text-dark-text-secondary">
+                      <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
                         Messages
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-3 flex items-center gap-2 text-xs text-gray-500 dark:text-dark-text-secondary">
-                    <MessageSquareText className="size-3.5 text-whatsapp-green-a11y-text dark:text-whatsapp-green" />
+                  <div className="mt-3 flex items-center gap-2 text-xs text-fg-muted">
+                    <MessageSquareText className="size-3.5 text-accent" />
                     <span>
                       {t(
                         "chat.inboxAvailableDuringSync",
@@ -215,10 +215,10 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                   exit={{ opacity: 0 }}
                   className="relative flex items-center gap-3 p-2.5 ps-3"
                 >
-                  <div className="relative grid size-9 place-items-center rounded-xl bg-whatsapp-green/15 text-whatsapp-green-a11y-text dark:bg-whatsapp-green/15 dark:text-whatsapp-green">
+                  <div className="relative grid size-9 place-items-center rounded-xl bg-accent/15 text-accent">
                     <Inbox className="size-4" />
                     <motion.span
-                      className="absolute -end-0.5 -top-0.5 size-2 rounded-full bg-whatsapp-green"
+                      className="absolute -end-0.5 -top-0.5 size-2 rounded-full bg-primary"
                       animate={
                         reduceMotion ? undefined : { opacity: [0.35, 1, 0.35] }
                       }
@@ -226,17 +226,17 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
                     />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-gray-950 dark:text-dark-text-primary">
+                    <p className="truncate text-sm font-semibold text-fg">
                       {t("chat.syncingHistory", "Syncing WhatsApp history")}
                     </p>
-                    <p className="truncate font-mono text-[11px] text-gray-500 dark:text-dark-text-secondary">
+                    <p className="truncate font-mono text-[11px] text-fg-muted">
                       {compactSummary}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setIsExpanded(true)}
-                    className="grid size-8 place-items-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green dark:text-dark-text-secondary dark:hover:bg-white/10 dark:hover:text-white"
+                    className="grid size-8 place-items-center rounded-full text-fg-muted transition-colors hover:bg-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={t(
                       "chat.expandSyncStatus",
                       "Expand sync status",

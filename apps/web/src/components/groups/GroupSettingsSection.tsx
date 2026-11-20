@@ -65,21 +65,21 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
   return (
     <RightPanelSection title={t("groups.settings", "Group settings")}>
       {!group.isMember ? (
-        <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
+        <p className="text-sm leading-5 text-fg-muted">
           {t(
             "groups.settingsLeftHint",
             "This WhatsApp account has left the group, so its settings can no longer be changed from here.",
           )}
         </p>
       ) : !group.isAdmin ? (
-        <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
+        <p className="text-sm leading-5 text-fg-muted">
           {t(
             "groups.settingsAdminOnlyHint",
             "Only group admins can change these settings. This WhatsApp account is a member, not an admin.",
           )}
         </p>
       ) : group.connection?.status !== "connected" ? (
-        <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
+        <p className="text-sm leading-5 text-fg-muted">
           {t(
             "groups.settingsOfflineHint",
             "The WhatsApp account for this group is offline. Reconnect it to change group settings.",
@@ -92,7 +92,7 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
           "waiting" from "the control is broken". */}
       {updateSettings.isPending && (
         <p
-          className="mb-3 flex items-center gap-2 text-xs text-gray-500 dark:text-dark-text-tertiary"
+          className="mb-3 flex items-center gap-2 text-xs text-fg-muted"
           role="status"
         >
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -115,7 +115,7 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
             disabled={disabled}
             onChange={(event) => setName(event.target.value)}
           />
-          <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+          <p className="text-xs text-fg-muted">
             {trimmedName.length}/{GROUP_NAME_MAX_LENGTH} characters. This is the
             name every member sees on WhatsApp.
           </p>
@@ -156,7 +156,7 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
           {t("groups.saveNameDescription")}
         </Button>
 
-        <div className="space-y-3 border-t border-gray-200 pt-4 dark:border-dark-border">
+        <div className="space-y-3 border-t border-line pt-4">
           <PermissionToggle
             id="group-announce"
             label={t("groups.onlyAdminsSend", "Only admins can send messages")}
@@ -247,9 +247,7 @@ function PermissionToggle({
         <Label htmlFor={id} className="text-sm font-medium">
           {label}
         </Label>
-        <p className="mt-0.5 text-xs text-gray-500 dark:text-dark-text-tertiary">
-          {description}
-        </p>
+        <p className="mt-0.5 text-xs text-fg-muted">{description}</p>
       </div>
       <input
         id={id}
@@ -258,7 +256,7 @@ function PermissionToggle({
         checked={checked}
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
-        className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-whatsapp-teal-green disabled:cursor-not-allowed disabled:opacity-50"
+        className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50"
       />
     </div>
   );

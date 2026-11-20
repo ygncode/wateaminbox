@@ -148,16 +148,16 @@ export function ContactImport({
   };
 
   return (
-    <div className="bg-white dark:bg-dark-elevated rounded-lg shadow-lg dark:shadow-black/30 max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+    <div className="bg-surface rounded-lg shadow-lg max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-dark-border">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-line">
+        <h2 className="text-lg font-semibold text-fg">
           {t("contacts.importTitle", "Import Contacts")}
         </h2>
         {onClose && (
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded text-gray-600 dark:text-dark-text-secondary"
+            className="p-1 hover:bg-muted rounded text-fg-muted"
           >
             <X className="h-5 w-5" />
           </button>
@@ -167,7 +167,7 @@ export function ContactImport({
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-2 text-red-700 dark:text-red-400">
+          <div className="mb-4 p-3 bg-danger-soft border border-danger/30 rounded-lg flex items-center gap-2 text-danger">
             <AlertCircle className="h-5 w-5 flex-shrink-0" />
             <span>{error}</span>
           </div>
@@ -209,28 +209,22 @@ export function ContactImport({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-secondary">
+      <div className="flex items-center justify-between px-6 py-4 border-t border-line bg-subtle">
         {step === "upload" && (
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-dark-text-secondary">
+          <div className="flex items-center gap-2 text-sm text-fg-muted">
             <FileText className="h-4 w-4" />
             {t("contacts.supportedFormat", "Supported format: CSV")}
           </div>
         )}
 
         {step === "preview" && (
-          <button
-            onClick={handleReset}
-            className="text-gray-600 dark:text-dark-text-secondary hover:text-gray-800 dark:hover:text-dark-text-primary"
-          >
+          <button onClick={handleReset} className="text-fg-muted hover:text-fg">
             {t("contacts.chooseDifferentFile", "Choose different file")}
           </button>
         )}
 
         {step === "complete" && (
-          <button
-            onClick={handleReset}
-            className="text-gray-600 dark:text-dark-text-secondary hover:text-gray-800 dark:hover:text-dark-text-primary"
-          >
+          <button onClick={handleReset} className="text-fg-muted hover:text-fg">
             {t("contacts.importMore", "Import more")}
           </button>
         )}
@@ -241,7 +235,7 @@ export function ContactImport({
           {onClose && step !== "importing" && (
             <button
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-lg"
+              className="px-4 py-2 text-fg hover:bg-muted rounded-lg"
             >
               {step === "complete"
                 ? t("contacts.steps.done")
@@ -253,7 +247,7 @@ export function ContactImport({
             <button
               onClick={handleImport}
               disabled={loading}
-              className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50"
+              className="px-4 py-2 bg-info text-white rounded-lg hover:bg-info disabled:opacity-50"
             >
               {t("contacts.importCount", { count: preview?.total ?? 0 })}
             </button>

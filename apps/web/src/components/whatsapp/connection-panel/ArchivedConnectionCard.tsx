@@ -31,23 +31,23 @@ export function ArchivedConnectionCard({
   const [purgeOpen, setPurgeOpen] = useState(false);
 
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-stone-200/90 bg-stone-50/70 p-4 dark:border-white/[0.08] dark:bg-white/[0.025]">
-      <div className="absolute inset-y-0 start-0 w-1 bg-stone-300 transition-colors group-hover:bg-emerald-500 dark:bg-white/10" />
+    <div className="group relative overflow-hidden rounded-xl border border-line/90 bg-subtle/70 p-4">
+      <div className="absolute inset-y-0 start-0 w-1 bg-fg-subtle transition-colors group-hover:bg-primary-hover" />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3 ps-1">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white text-stone-500 shadow-sm ring-1 ring-stone-200 dark:bg-white/[0.06] dark:text-stone-300 dark:ring-white/10">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface text-fg-muted shadow-sm ring-1 ring-line-strong">
             <Smartphone className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <p className="truncate text-sm font-semibold text-stone-900 dark:text-stone-100">
+              <p className="truncate text-sm font-semibold text-fg">
                 {connection.name}
               </p>
-              <span className="rounded-full bg-stone-200/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-stone-600 dark:bg-white/10 dark:text-stone-300">
+              <span className="rounded-full bg-muted-strong/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-fg-muted">
                 {t("connections.archived")}
               </span>
             </div>
-            <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
+            <p className="mt-0.5 text-xs text-fg-muted">
               {connection.phoneNumber || t("connections.identityRetained")}
             </p>
           </div>
@@ -57,7 +57,7 @@ export function ArchivedConnectionCard({
           <Button
             variant="outline"
             size="sm"
-            className="gap-2 border-emerald-200 bg-white text-emerald-800 hover:border-emerald-400 hover:bg-emerald-50 dark:border-emerald-400/20 dark:bg-emerald-400/[0.06] dark:text-emerald-300"
+            className="gap-2 border-accent/30 bg-surface text-accent hover:border-accent hover:bg-accent-soft"
             disabled={isRelinking || isPurging}
             onClick={() => void onRelink()}
           >
@@ -71,7 +71,7 @@ export function ArchivedConnectionCard({
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 text-stone-400 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+            className="h-9 w-9 p-0 text-fg-subtle hover:bg-danger-soft hover:text-danger"
             disabled={isRelinking || isPurging}
             onClick={() => setPurgeOpen(true)}
             aria-label={t("connections.permanentDeleteAria", {
@@ -92,8 +92,8 @@ export function ArchivedConnectionCard({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-2 border-t border-stone-200/70 pt-3 text-xs text-stone-500 dark:border-white/[0.06] dark:text-stone-400">
-        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+      <div className="mt-3 flex items-center gap-2 border-t border-line/70 pt-3 text-xs text-fg-muted">
+        <ShieldCheck className="h-3.5 w-3.5 text-accent" />
         {t(
           "connections.dataRetained",
           "Conversations, notes, and assignments are retained.",

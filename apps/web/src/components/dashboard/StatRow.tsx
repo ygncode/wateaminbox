@@ -13,19 +13,17 @@ export function StatRow({ label, value, total }: StatRowProps) {
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between text-xs">
-        <span className="font-medium text-[#596b64] dark:text-dark-text-secondary">
-          {label}
-        </span>
-        <span className="font-semibold tabular-nums text-[#203b32] dark:text-dark-text-primary">
+        <span className="font-medium text-fg-muted">{label}</span>
+        <span className="font-semibold tabular-nums text-fg">
           {value}
-          <span className="ms-1 text-[10px] font-normal text-[#95a099]">
+          <span className="ms-1 text-[10px] font-normal text-fg-muted">
             {Math.round(percentage)}%
           </span>
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-[#edf1ee] dark:bg-dark-tertiary">
+      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
         <div
-          className="h-full rounded-full bg-[#0b7a55] transition-[width]"
+          className="h-full rounded-full bg-primary transition-[width]"
           style={{ width: `${percentage}%` }}
         />
       </div>

@@ -34,8 +34,8 @@ export function ProfileHeader({
         : null;
 
   return (
-    <div className="flex flex-col items-center gap-2 bg-gray-50 dark:bg-dark-elevated py-5">
-      <Avatar className="h-20 w-20 border-2 border-white dark:border-dark-tertiary shadow-sm">
+    <div className="flex flex-col items-center gap-2 bg-subtle py-5">
+      <Avatar className="h-20 w-20 border-2 border-surface shadow-sm">
         <AvatarImage
           src={contact.profilePictureUrl || undefined}
           alt={contact.displayName}
@@ -51,10 +51,10 @@ export function ProfileHeader({
         </AvatarFallback>
       </Avatar>
       <div className="text-center">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-dark-text-primary">
+        <h3 className="text-base font-semibold text-fg">
           {contact.displayName}
         </h3>
-        <p className="text-xs text-gray-500 dark:text-dark-text-secondary">
+        <p className="text-xs text-fg-muted">
           {[
             secondaryIdentity,
             chatCount && chatCount > 1
@@ -73,7 +73,7 @@ export function ProfileHeader({
           type="button"
           onClick={onMessage}
           size="sm"
-          className="mt-1 min-w-28 rounded-full bg-[#00a884] px-5 text-white hover:bg-[#008f72]"
+          className="mt-1 min-w-28 rounded-full bg-primary px-5 text-on-primary hover:bg-primary-hover"
         >
           <MessageCircle aria-hidden="true" />
           {t("chat.messageContact", "Message")}

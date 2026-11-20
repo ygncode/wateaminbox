@@ -631,11 +631,16 @@
     "workspaceLeaveFailed": "Tidak dapat keluar dari ruang kerja",
     "themePanel": {
       "title": "Tema",
-      "description": "Beralih antara terang, gelap, dan preferensi sistem Anda.",
+      "description": "Pilih tampilan WATeamInbox. Sistem mengikuti perangkat Anda antara Terang dan Gelap.",
       "changed": "Tema diubah ke {{theme}}",
       "system": "Sistem ({{resolved}})",
       "light": "Terang",
-      "dark": "Gelap"
+      "dark": "Gelap",
+      "whatsapp": "WhatsApp",
+      "systemLabel": "Sistem",
+      "lightLabel": "Terang",
+      "darkLabel": "Gelap",
+      "whatsappLabel": "WhatsApp"
     },
     "languagePanel": {
       "title": "Bahasa",
@@ -656,11 +661,6 @@
       "description": "Ekspor ruang kerja tersedia di tampilan Dasbor dan Audit yang relevan."
     },
     "exportsScope": "Ekspor hanya berisi data dari {{name}}.",
-    "themeLight": "Terang",
-    "themeDark": "Gelap",
-    "themeSystem": "Ikuti sistem",
-    "themeChanged": "Tema diubah ke {{theme}}",
-    "themeToggleAria": "Tema saat ini: {{current}}. Klik untuk beralih ke {{next}}",
     "apiTokensPanel": {
       "title": "Agen AI (MCP)",
       "description": "Hubungkan agen AI ke ruang kerja ini melalui endpoint MCP dengan token pribadi yang dapat dicabut."
@@ -674,7 +674,8 @@
       "bell": "Lonceng",
       "pop": "Pop",
       "none": "Tidak ada"
-    }
+    },
+    "themeMenuAria": "Tema: {{current}}"
   },
   "dashboard": {
     "totalMessages": "Total pesan",

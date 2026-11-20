@@ -83,21 +83,17 @@ function ChartPanel({
   return (
     <section
       className={cn(
-        "rounded-xl border border-[#dce3de] bg-white p-4 shadow-[0_1px_1px_rgba(16,44,36,0.03)] dark:border-dark-border dark:bg-dark-elevated sm:p-5",
+        "rounded-xl border border-line bg-surface p-4 shadow-xs sm:p-5",
         className,
       )}
     >
       <div className="mb-5 flex items-center gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#e5f2ec] text-[#0b7a55] dark:bg-emerald-950/50 dark:text-emerald-300">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
           {icon}
         </span>
         <div>
-          <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
-            {title}
-          </h3>
-          <p className="mt-0.5 text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
-            {description}
-          </p>
+          <h3 className="text-sm font-semibold text-fg">{title}</h3>
+          <p className="mt-0.5 text-[11px] text-fg-muted">{description}</p>
         </div>
       </div>
       {isLoading ? (
@@ -109,7 +105,7 @@ function ChartPanel({
           <Skeleton className="h-[220px] w-full rounded-xl" />
         </div>
       ) : isError ? (
-        <div className="grid h-[276px] place-items-center rounded-xl border border-red-100 bg-red-50/60 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-300">
+        <div className="grid h-[276px] place-items-center rounded-xl border border-danger/30 bg-danger-soft/60 text-sm text-danger">
           {t("dashboard.charts.loadFailed", "This chart could not be loaded")}
         </div>
       ) : (
@@ -239,16 +235,16 @@ export function StatsCardsRow({
       )}
     >
       {/* Contact Stats */}
-      <div className="rounded-xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_1px_rgba(16,44,36,0.03)] dark:border-dark-border dark:bg-dark-elevated">
+      <div className="rounded-xl border border-line bg-surface p-5 shadow-xs">
         <div className="mb-5 flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#e5f2ec] text-[#0b7a55] dark:bg-emerald-950/50 dark:text-emerald-300">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent-soft text-accent">
             <Users className="h-4 w-4" />
           </span>
           <div>
-            <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+            <h3 className="text-sm font-semibold text-fg">
               {t("dashboard.charts.contactHealth", "Contact health")}
             </h3>
-            <p className="text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
+            <p className="text-[11px] text-fg-muted">
               {t(
                 "dashboard.charts.contactHealthHint",
                 "Profile quality and ownership · all time",
@@ -263,16 +259,16 @@ export function StatsCardsRow({
             <Skeleton className="h-6 w-full" />
           </div>
         ) : isContactsError ? (
-          <p className="text-red-500 dark:text-red-400 text-center py-4">
+          <p className="text-danger text-center py-4">
             {t("dashboard.charts.dataLoadFailed", "Failed to load data")}
           </p>
         ) : contactStats ? (
           <div>
-            <div className="mb-5 rounded-xl bg-[#f4f8f5] px-4 py-3 dark:bg-dark-tertiary/60">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7a8881] dark:text-dark-text-secondary">
+            <div className="mb-5 rounded-xl bg-subtle px-4 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
                 {t("dashboard.charts.totalContacts", "Total contacts")}
               </p>
-              <p className="mt-0.5 text-2xl font-semibold tabular-nums text-[#203b32] dark:text-dark-text-primary">
+              <p className="mt-0.5 text-2xl font-semibold tabular-nums text-fg">
                 {formatNumber(contactStats.total)}
               </p>
             </div>
@@ -300,23 +296,23 @@ export function StatsCardsRow({
             </div>
           </div>
         ) : (
-          <p className="text-gray-500 dark:text-dark-text-secondary text-center py-4">
+          <p className="text-fg-muted text-center py-4">
             {t("dashboard.charts.noData", "No data available")}
           </p>
         )}
       </div>
 
       {/* Message Types */}
-      <div className="rounded-xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_1px_rgba(16,44,36,0.03)] dark:border-dark-border dark:bg-dark-elevated">
+      <div className="rounded-xl border border-line bg-surface p-5 shadow-xs">
         <div className="mb-5 flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#eef1f7] text-[#48668b] dark:bg-blue-950/40 dark:text-blue-300">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-muted text-info">
             <BarChart3 className="h-4 w-4" />
           </span>
           <div>
-            <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+            <h3 className="text-sm font-semibold text-fg">
               {t("dashboard.charts.messageMix", "Message mix")}
             </h3>
-            <p className="text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
+            <p className="text-[11px] text-fg-muted">
               {t(
                 "dashboard.charts.messageMixHint",
                 "Top formats in the selected period",
@@ -330,7 +326,7 @@ export function StatsCardsRow({
             <Skeleton className="h-6 w-full" />
           </div>
         ) : isTypesError ? (
-          <p className="text-red-500 dark:text-red-400 text-center py-4">
+          <p className="text-danger text-center py-4">
             {t("dashboard.charts.dataLoadFailed", "Failed to load data")}
           </p>
         ) : messageTypes && messageTypes.length > 0 ? (
@@ -338,16 +334,16 @@ export function StatsCardsRow({
             {messageTypes.slice(0, 5).map((type) => (
               <div key={type.type}>
                 <div className="mb-1.5 flex items-center justify-between gap-3">
-                  <span className="text-xs font-medium capitalize text-[#4d5f58] dark:text-dark-text-secondary">
+                  <span className="text-xs font-medium capitalize text-fg-muted">
                     {type.type}
                   </span>
-                  <span className="text-xs font-semibold tabular-nums text-[#203b32] dark:text-dark-text-primary">
+                  <span className="text-xs font-semibold tabular-nums text-fg">
                     {formatNumber(type.count)}
                   </span>
                 </div>
-                <div className="h-1.5 overflow-hidden rounded-full bg-[#edf1ee] dark:bg-dark-tertiary">
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                   <div
-                    className="h-full rounded-full bg-[#5682ad]"
+                    className="h-full rounded-full bg-info"
                     style={{
                       width: `${(type.count / maxMessageTypeCount) * 100}%`,
                     }}
@@ -357,7 +353,7 @@ export function StatsCardsRow({
             ))}
           </div>
         ) : (
-          <p className="text-gray-500 dark:text-dark-text-secondary text-center py-4">
+          <p className="text-fg-muted text-center py-4">
             {t("dashboard.charts.noData", "No data available")}
           </p>
         )}
@@ -365,16 +361,16 @@ export function StatsCardsRow({
 
       {/* Team Activity (Admin only) */}
       {isAdmin && (
-        <div className="rounded-xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_1px_rgba(16,44,36,0.03)] dark:border-dark-border dark:bg-dark-elevated">
+        <div className="rounded-xl border border-line bg-surface p-5 shadow-xs">
           <div className="mb-5 flex items-center gap-3">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#fff3e2] text-[#b36c24] dark:bg-amber-950/40 dark:text-amber-300">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-warning-soft text-warning">
               <UserCheck className="h-4 w-4" />
             </span>
             <div>
-              <h3 className="text-sm font-semibold text-[#203b32] dark:text-dark-text-primary">
+              <h3 className="text-sm font-semibold text-fg">
                 {t("dashboard.charts.teamActivity", "Team activity")}
               </h3>
-              <p className="text-[11px] text-[#7a8881] dark:text-dark-text-secondary">
+              <p className="text-[11px] text-fg-muted">
                 {t(
                   "dashboard.charts.teamActivityHint",
                   "Most active senders · all time",
@@ -388,7 +384,7 @@ export function StatsCardsRow({
               <Skeleton className="h-10 w-full" />
             </div>
           ) : isTeamError ? (
-            <p className="text-red-500 dark:text-red-400 text-center py-4">
+            <p className="text-danger text-center py-4">
               {t("dashboard.charts.dataLoadFailed", "Failed to load data")}
             </p>
           ) : teamStats && teamStats.length > 0 ? (
@@ -396,24 +392,24 @@ export function StatsCardsRow({
               {teamStats.slice(0, 5).map((member, index) => (
                 <div
                   key={member.userId}
-                  className="flex items-center justify-between gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-[#f5f8f6] dark:hover:bg-dark-tertiary/60"
+                  className="flex items-center justify-between gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-muted"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                    <span className="w-4 text-[10px] font-semibold tabular-nums text-[#9aa59f]">
+                    <span className="w-4 text-[10px] font-semibold tabular-nums text-fg-subtle">
                       {index + 1}
                     </span>
                     <Avatar className="h-8 w-8 shrink-0">
-                      <AvatarFallback className="bg-[#edf1ee] text-[10px] font-semibold text-[#4d5f58] dark:bg-dark-tertiary dark:text-dark-text-secondary">
+                      <AvatarFallback className="bg-muted text-[10px] font-semibold text-fg-muted">
                         {member.email.slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="truncate text-xs font-medium text-[#40544c] dark:text-dark-text-primary">
+                    <span className="truncate text-xs font-medium text-fg">
                       {member.email}
                     </span>
                   </div>
                   <Badge
                     variant="outline"
-                    className="border-[#e1e7e3] bg-[#fafcfb] text-[10px] tabular-nums dark:border-dark-border dark:bg-dark-secondary"
+                    className="border-line bg-subtle text-[10px] tabular-nums"
                   >
                     {formatNumber(member.messagesSent)} sent
                   </Badge>
@@ -421,7 +417,7 @@ export function StatsCardsRow({
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 dark:text-dark-text-secondary text-center py-4">
+            <p className="text-fg-muted text-center py-4">
               {t("dashboard.charts.noTeamActivity", "No team activity")}
             </p>
           )}

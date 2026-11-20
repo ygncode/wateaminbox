@@ -113,12 +113,12 @@ export function ErrorFallback({
   };
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-gray-100 dark:bg-dark-primary p-4">
-      <div className="max-w-md w-full bg-white dark:bg-dark-elevated rounded-lg shadow-lg p-8 text-center">
+    <div className="min-h-dvh flex items-center justify-center bg-muted p-4">
+      <div className="max-w-md w-full bg-surface rounded-lg shadow-lg p-8 text-center">
         {/* Error Icon */}
-        <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+        <div className="w-16 h-16 bg-danger-soft rounded-full flex items-center justify-center mx-auto mb-6">
           <svg
-            className="w-8 h-8 text-red-600 dark:text-red-400"
+            className="w-8 h-8 text-danger"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -133,12 +133,12 @@ export function ErrorFallback({
         </div>
 
         {/* Error Title */}
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary mb-2 text-balance">
+        <h1 className="text-2xl font-bold text-fg mb-2 text-balance">
           {t("errors.somethingWentWrong", "Something went wrong")}
         </h1>
 
         {/* Error Description */}
-        <p className="text-gray-600 dark:text-dark-text-secondary mb-6">
+        <p className="text-fg-muted mb-6">
           {t(
             "errors.unexpectedBody",
             "We're sorry, but something unexpected happened. Please try refreshing the page or going back to the home screen.",
@@ -147,16 +147,16 @@ export function ErrorFallback({
 
         {/* Error Details (dev only) */}
         {process.env.NODE_ENV === "development" && error && (
-          <details className="text-start mb-6 bg-gray-50 dark:bg-dark-secondary rounded-lg p-4">
-            <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-dark-text-secondary mb-2">
+          <details className="text-start mb-6 bg-subtle rounded-lg p-4">
+            <summary className="cursor-pointer text-sm font-medium text-fg mb-2">
               {t("errors.errorDetails", "Error Details")}
             </summary>
             <div className="mt-2 text-xs">
-              <p className="font-mono text-red-600 dark:text-red-400 break-all mb-2">
+              <p className="font-mono text-danger break-all mb-2">
                 {error.message}
               </p>
               {errorInfo && (
-                <pre className="font-mono text-gray-600 dark:text-dark-text-tertiary whitespace-pre-wrap break-all max-h-40 overflow-auto">
+                <pre className="font-mono text-fg-muted whitespace-pre-wrap break-all max-h-40 overflow-auto">
                   {errorInfo.componentStack}
                 </pre>
               )}
@@ -166,16 +166,12 @@ export function ErrorFallback({
 
         {/* Action Buttons */}
         <div className="flex gap-3 justify-center">
-          <Button
-            variant="outline"
-            onClick={handleGoHome}
-            className="dark:border-dark-border dark:text-dark-text-primary dark:hover:bg-dark-tertiary"
-          >
+          <Button variant="outline" onClick={handleGoHome}>
             {t("errors.goHome", "Go to Home")}
           </Button>
           <Button
             onClick={handleRefresh}
-            className="bg-whatsapp-green-a11y-button hover:bg-whatsapp-green-a11y-button/90 text-white"
+            className="bg-primary hover:bg-accent/90 text-on-primary"
           >
             {t("errors.refreshPage", "Refresh Page")}
           </Button>

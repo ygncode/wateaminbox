@@ -185,21 +185,21 @@ export function ServerDataTable<TData extends object>({
   return (
     <section
       className={cn(
-        "relative flex h-full min-h-[24rem] flex-col overflow-hidden rounded-2xl border border-[#d7e0da] bg-white shadow-[0_12px_34px_rgba(16,33,27,0.07)] dark:border-dark-border dark:bg-dark-elevated dark:shadow-none",
+        "relative flex h-full min-h-[24rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-lg",
         className,
       )}
       aria-busy={isFetching}
     >
       {isFetching && !isLoading && (
-        <div className="absolute inset-x-0 top-0 z-30 h-0.5 overflow-hidden bg-[#dcefe7] dark:bg-emerald-950">
-          <div className="h-full w-1/3 animate-pulse bg-[#0b7a55]" />
+        <div className="absolute inset-x-0 top-0 z-30 h-0.5 overflow-hidden bg-accent-soft">
+          <div className="h-full w-1/3 animate-pulse bg-primary" />
         </div>
       )}
 
       {(search || toolbarLeading || toolbarActions) && (
         <div
           className={cn(
-            "flex shrink-0 flex-col gap-2.5 border-b border-[#e3e9e5] bg-[#fbfcfb] sm:flex-row sm:items-center dark:border-dark-border dark:bg-dark-secondary/40",
+            "flex shrink-0 flex-col gap-2.5 border-b border-line bg-subtle sm:flex-row sm:items-center",
             density === "compact" ? "px-3 py-2.5" : "p-3",
           )}
         >
@@ -209,19 +209,19 @@ export function ServerDataTable<TData extends object>({
               <span className="sr-only">
                 {search.label ?? `Search ${tableLabel}`}
               </span>
-              <Search className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-[#718078]" />
+              <Search className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-fg-muted" />
               <Input
                 id={searchId}
                 value={searchDraft}
                 onChange={(event) => setSearchDraft(event.target.value)}
                 placeholder={search.placeholder ?? `Search ${tableLabel}…`}
-                className="h-9 border-[#d7e0da] bg-white ps-9 pe-9 shadow-none dark:border-dark-border dark:bg-dark-tertiary"
+                className="h-9 border-line bg-surface ps-9 pe-9 shadow-none"
               />
               {searchDraft && (
                 <button
                   type="button"
                   onClick={() => setSearchDraft("")}
-                  className="absolute end-2 top-1.5 grid h-6 w-6 place-items-center rounded-md text-[#718078] hover:bg-[#edf1ed] hover:text-[#10211b] dark:hover:bg-dark-border dark:hover:text-white"
+                  className="absolute end-2 top-1.5 grid h-6 w-6 place-items-center rounded-md text-fg-muted hover:bg-muted hover:text-fg"
                   aria-label={t("common.clearSearch", "Clear search")}
                 >
                   <X className="h-3.5 w-3.5" />
@@ -238,7 +238,7 @@ export function ServerDataTable<TData extends object>({
       )}
 
       {toolbarPanel && (
-        <div className="shrink-0 border-b border-[#e3e9e5] bg-white p-3 dark:border-dark-border dark:bg-dark-elevated">
+        <div className="shrink-0 border-b border-line bg-surface p-3">
           {toolbarPanel}
         </div>
       )}
@@ -260,7 +260,7 @@ export function ServerDataTable<TData extends object>({
                     scope="col"
                     style={{ width: header.getSize() }}
                     className={cn(
-                      "border-b border-[#d7e0da] bg-[#edf1ed]/95 px-4 text-[10px] font-bold uppercase tracking-[0.13em] text-[#5f6e66] backdrop-blur dark:border-dark-border dark:bg-dark-tertiary/95 dark:text-dark-text-secondary",
+                      "border-b border-line bg-muted/95 px-4 text-[10px] font-bold uppercase tracking-[0.13em] text-fg-muted backdrop-blur",
                       density === "compact" ? "py-2.5" : "py-3",
                     )}
                   >
@@ -285,7 +285,7 @@ export function ServerDataTable<TData extends object>({
                     <td
                       key={`loading-cell-${rowIndex}-${columnIndex}`}
                       className={cn(
-                        "border-b border-[#edf1ed] px-4 dark:border-dark-border",
+                        "border-b border-line px-4",
                         density === "compact" ? "py-2.5" : "py-3.5",
                       )}
                     >
@@ -302,12 +302,10 @@ export function ServerDataTable<TData extends object>({
             ) : error ? (
               <tr>
                 <td colSpan={columns.length} className="h-56 px-6 text-center">
-                  <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+                  <p className="text-sm font-semibold text-danger">
                     Could not load {tableLabel.toLowerCase()}
                   </p>
-                  <p className="mt-1 text-xs text-[#718078] dark:text-dark-text-secondary">
-                    {error.message}
-                  </p>
+                  <p className="mt-1 text-xs text-fg-muted">{error.message}</p>
                   {onRetry && (
                     <Button
                       type="button"
@@ -327,12 +325,12 @@ export function ServerDataTable<TData extends object>({
                 const subRow = renderSubRow?.(row.original);
                 return (
                   <Fragment key={row.id}>
-                    <tr className="group transition-colors hover:bg-[#f5f8f6] dark:hover:bg-dark-tertiary/45">
+                    <tr className="group transition-colors hover:bg-muted">
                       {row.getVisibleCells().map((cell) => (
                         <td
                           key={cell.id}
                           className={cn(
-                            "border-b border-[#edf1ed] px-4 align-middle text-sm last:text-end dark:border-dark-border",
+                            "border-b border-line px-4 align-middle text-sm last:text-end",
                             density === "compact" ? "py-2.5" : "py-3.5",
                           )}
                         >
@@ -347,7 +345,7 @@ export function ServerDataTable<TData extends object>({
                       <tr>
                         <td
                           colSpan={row.getVisibleCells().length}
-                          className="border-b border-[#d7e0da] bg-[#f8faf8] px-4 py-4 text-start dark:border-dark-border dark:bg-dark-tertiary/35"
+                          className="border-b border-line bg-subtle px-4 py-4 text-start"
                         >
                           {subRow}
                         </td>
@@ -359,10 +357,10 @@ export function ServerDataTable<TData extends object>({
             ) : (
               <tr>
                 <td colSpan={columns.length} className="h-64 px-6 text-center">
-                  <p className="text-sm font-semibold text-[#263b33] dark:text-dark-text-primary">
+                  <p className="text-sm font-semibold text-fg">
                     {emptyTitle ?? t("table.emptyTitle", "Nothing here yet")}
                   </p>
-                  <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-[#718078] dark:text-dark-text-secondary">
+                  <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-fg-muted">
                     {emptyDescription ??
                       t(
                         "table.emptyDescription",
@@ -381,15 +379,13 @@ export function ServerDataTable<TData extends object>({
         </table>
       </div>
 
-      <footer className="flex shrink-0 flex-col gap-3 border-t border-[#d7e0da] bg-[#fbfcfb] px-3 py-2.5 text-xs text-[#65736d] sm:flex-row sm:items-center sm:justify-between dark:border-dark-border dark:bg-dark-secondary/40 dark:text-dark-text-secondary">
+      <footer className="flex shrink-0 flex-col gap-3 border-t border-line bg-subtle px-3 py-2.5 text-xs text-fg-muted sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <span>
             {visibleRange.start}–{visibleRange.end} of{" "}
-            <strong className="font-semibold text-[#263b33] dark:text-dark-text-primary">
-              {rowCount}
-            </strong>
+            <strong className="font-semibold text-fg">{rowCount}</strong>
           </span>
-          <span className="text-[#c1cbc5] dark:text-dark-border">•</span>
+          <span className="text-fg-subtle">•</span>
           <label className="flex items-center gap-1.5">
             Rows
             <Select

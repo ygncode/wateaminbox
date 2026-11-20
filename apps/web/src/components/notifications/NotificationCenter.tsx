@@ -190,16 +190,13 @@ function NotificationPanel({
       data-testid="notification-panel"
     >
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] border-b border-gray-200 dark:border-dark-border bg-white dark:bg-dark-secondary">
+      <div className="flex shrink-0 items-center justify-between px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] border-b border-line bg-surface">
         <div className="flex items-center gap-2">
-          <h2
-            id={titleId}
-            className="text-base font-semibold text-gray-900 dark:text-dark-text-primary"
-          >
+          <h2 id={titleId} className="text-base font-semibold text-fg">
             {t("notifications.title")}
           </h2>
           {unreadCount > 0 && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium tabular-nums bg-whatsapp-green/10 dark:bg-whatsapp-green/20 text-whatsapp-dark-green">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium tabular-nums bg-accent/10 text-accent-hover">
               {unreadCount} new
             </span>
           )}
@@ -209,7 +206,7 @@ function NotificationPanel({
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 px-2.5 text-xs font-medium text-gray-600 dark:text-dark-text-secondary hover:text-whatsapp-dark-green hover:bg-whatsapp-green/10 dark:hover:bg-whatsapp-green/20 rounded-lg"
+              className="h-8 px-2.5 text-xs font-medium text-fg-muted hover:text-accent-hover hover:bg-accent/10 rounded-lg"
               onClick={markAllAsRead}
               disabled={isMarkingAllAsRead}
             >
@@ -220,7 +217,7 @@ function NotificationPanel({
           <Button
             variant="ghost"
             size="sm"
-            className="size-10 md:size-8 p-0 rounded-lg text-gray-400 dark:text-dark-text-tertiary hover:text-gray-600 dark:hover:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-dark-tertiary"
+            className="size-10 md:size-8 p-0 rounded-lg text-fg-subtle hover:text-fg-muted hover:bg-muted"
             onClick={onClose}
             aria-label={t("notifications.close", "Close notifications")}
           >
@@ -270,11 +267,11 @@ function NotificationPanel({
       {/* Footer. Always present: the full inbox holds read notifications the
           sheet's short list does not, so it stays reachable from an empty or
           failed sheet too. */}
-      <div className="shrink-0 pb-[env(safe-area-inset-bottom)] border-t border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-tertiary">
+      <div className="shrink-0 pb-[env(safe-area-inset-bottom)] border-t border-line bg-subtle">
         <Button
           variant="ghost"
           size="sm"
-          className="w-full h-11 text-sm font-medium text-gray-600 dark:text-dark-text-secondary hover:text-whatsapp-dark-green hover:bg-transparent rounded-none"
+          className="w-full h-11 text-sm font-medium text-fg-muted hover:text-accent-hover hover:bg-transparent rounded-none"
           onClick={() => {
             onClose();
             navigate(notificationsPath);
@@ -359,8 +356,8 @@ export const NotificationCenter = memo(function NotificationCenter({
         size="sm"
         className={cn(
           "relative size-9 p-0 rounded-full",
-          "hover:bg-whatsapp-green/10 hover:text-whatsapp-dark-green",
-          isOpen && "bg-whatsapp-green/10 text-whatsapp-dark-green",
+          "hover:bg-accent/10 hover:text-accent-hover",
+          isOpen && "bg-accent/10 text-accent-hover",
           className,
         )}
         onClick={() => setIsOpen((open) => !open)}
@@ -377,7 +374,7 @@ export const NotificationCenter = memo(function NotificationCenter({
         {unreadCount > 0 && (
           <Badge
             variant="destructive"
-            className="absolute -top-1 -end-1 h-5 min-w-5 px-1.5 text-[10px] font-bold tabular-nums rounded-full border-2 border-white dark:border-dark-elevated shadow-sm"
+            className="absolute -top-1 -end-1 h-5 min-w-5 px-1.5 text-[10px] font-bold tabular-nums rounded-full border-2 border-surface shadow-sm"
             data-testid="notification-badge"
           >
             {unreadCount > 99 ? "99+" : unreadCount}

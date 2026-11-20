@@ -15,26 +15,21 @@ export type StatCardColor =
   | "default";
 
 const colorClasses: Record<StatCardColor, string> = {
-  green:
-    "text-[#0b7a55] dark:text-emerald-300 bg-[#e5f2ec] dark:bg-emerald-950/50",
-  blue: "text-[#3f78ad] dark:text-blue-300 bg-[#eaf1f7] dark:bg-blue-950/40",
-  orange:
-    "text-[#b36c24] dark:text-amber-300 bg-[#fff2df] dark:bg-amber-950/40",
-  yellow:
-    "text-[#a47718] dark:text-yellow-300 bg-[#fff8dd] dark:bg-yellow-950/40",
-  purple:
-    "text-[#70649a] dark:text-violet-300 bg-[#f1eef8] dark:bg-violet-950/40",
-  default:
-    "text-[#536b62] dark:text-dark-text-secondary bg-[#edf2ef] dark:bg-dark-tertiary",
+  green: "text-accent bg-accent-soft",
+  blue: "text-info bg-info-soft",
+  orange: "text-warning bg-warning-soft",
+  yellow: "text-warning bg-warning-soft",
+  purple: "text-fg-muted bg-muted",
+  default: "text-fg-muted bg-muted",
 };
 
 const accentClasses: Record<StatCardColor, string> = {
-  green: "bg-[#0b7a55]",
-  blue: "bg-[#4185c5]",
-  orange: "bg-[#d18b35]",
-  yellow: "bg-[#c79a2e]",
-  purple: "bg-[#7b6ca8]",
-  default: "bg-[#8da097]",
+  green: "bg-primary",
+  blue: "bg-info",
+  orange: "bg-warning",
+  yellow: "bg-warning",
+  purple: "bg-fg-subtle",
+  default: "bg-fg-subtle",
 };
 
 /**
@@ -92,7 +87,7 @@ function OverviewStatCard({
   color = "default",
 }: StatCardOverviewProps) {
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-[#dce3de] bg-white p-4 shadow-[0_1px_1px_rgba(16,44,36,0.03)] transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-[#bdcbc3] hover:shadow-[0_8px_24px_rgba(16,44,36,0.08)] dark:border-dark-border dark:bg-dark-elevated dark:hover:border-[#43525b]">
+    <div className="group relative overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-xs transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lg">
       <span
         className={cn(
           "absolute inset-x-0 top-0 h-0.5 opacity-80",
@@ -107,13 +102,13 @@ function OverviewStatCard({
       >
         {icon}
       </div>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
         {label}
       </p>
       {isLoading ? (
         <Skeleton className="mt-1.5 h-8 w-16" />
       ) : (
-        <p className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-[#203b32] tabular-nums dark:text-dark-text-primary">
+        <p className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-fg tabular-nums">
           {value !== undefined ? formatNumber(value) : "-"}
         </p>
       )}
@@ -133,7 +128,7 @@ function CompactStatCard({
   color,
 }: StatCardCompactProps) {
   return (
-    <div className="rounded-xl border border-[#e3e9e5] bg-[#fafcfb] p-4 dark:border-dark-border dark:bg-dark-tertiary/60">
+    <div className="rounded-xl border border-line bg-subtle p-4">
       <div className="mb-3 flex items-center gap-2.5">
         <div
           className={cn(
@@ -143,19 +138,13 @@ function CompactStatCard({
         >
           {icon}
         </div>
-        <span className="text-xs font-medium text-[#65736d] dark:text-dark-text-secondary">
-          {label}
-        </span>
+        <span className="text-xs font-medium text-fg-muted">{label}</span>
       </div>
-      <p className="text-2xl font-semibold tracking-[-0.02em] text-[#203b32] tabular-nums dark:text-dark-text-primary">
+      <p className="text-2xl font-semibold tracking-[-0.02em] text-fg tabular-nums">
         {formatNumber(value)}
         {suffix}
       </p>
-      {detail && (
-        <p className="mt-1 text-[11px] text-[#87928c] dark:text-dark-text-secondary">
-          {detail}
-        </p>
-      )}
+      {detail && <p className="mt-1 text-[11px] text-fg-muted">{detail}</p>}
     </div>
   );
 }

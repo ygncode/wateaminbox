@@ -129,16 +129,16 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
     <RightPanelSection title={t("contacts.assignment", "Assignment")}>
       <div className="space-y-3">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-dark-tertiary dark:text-dark-text-secondary">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-fg-muted">
             <Users className="h-4 w-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-gray-700 dark:text-dark-text-primary">
+            <p className="truncate text-sm font-medium text-fg">
               {contact.assignment
                 ? contact.assignment.assignedToName
                 : t("contacts.unassigned", "Unassigned")}
             </p>
-            <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+            <p className="text-xs text-fg-muted">
               {contact.assignment
                 ? t("contacts.assignedSince", "Assigned since {{date}}", {
                     date: formatShortDate(contact.assignment.assignedAt),
@@ -155,7 +155,7 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
           <div className="space-y-1.5">
             <label
               htmlFor={`contact-assignee-${contact.id}`}
-              className="text-xs font-medium text-gray-500 dark:text-dark-text-secondary"
+              className="text-xs font-medium text-fg-muted"
             >
               {t("contacts.assignConversationTo", "Assign conversation to")}
             </label>
@@ -175,7 +175,7 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
                 <SelectValue />
                 {isPending && (
                   <Loader2
-                    className="ms-auto h-3.5 w-3.5 animate-spin text-gray-400"
+                    className="ms-auto h-3.5 w-3.5 animate-spin text-fg-subtle"
                     aria-hidden="true"
                   />
                 )}
@@ -204,7 +204,7 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
             {identities.isError && (
               <button
                 type="button"
-                className="text-xs font-medium text-red-600 hover:underline dark:text-red-400"
+                className="text-xs font-medium text-danger hover:underline"
                 onClick={() => void identities.refetch()}
               >
                 {t(
@@ -219,7 +219,7 @@ export function AssignmentSection({ contact }: AssignmentSectionProps) {
             size="sm"
             onClick={() => void handleAssignToMe()}
             disabled={isPending}
-            className="w-full bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
+            className="w-full bg-primary hover:bg-primary-hover"
           >
             {assignContact.isPending ? (
               <Loader2 className="me-1 h-4 w-4 animate-spin" />
@@ -295,16 +295,16 @@ export function ConversationAssignmentSection({
     <RightPanelSection title={t("contacts.assignment", "Assignment")}>
       <div className="space-y-3">
         <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-dark-tertiary dark:text-dark-text-secondary">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-fg-muted">
             <Users className="h-4 w-4" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-gray-700 dark:text-dark-text-primary">
+            <p className="truncate text-sm font-medium text-fg">
               {assignment
                 ? assignedToName
                 : t("contacts.unassigned", "Unassigned")}
             </p>
-            <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+            <p className="text-xs text-fg-muted">
               {assignment
                 ? t("contacts.assignedSince", "Assigned since {{date}}", {
                     date: formatShortDate(assignment.assigned_at),
@@ -348,7 +348,7 @@ export function ConversationAssignmentSection({
               void assign.mutateAsync(undefined).catch(assignmentError)
             }
             disabled={isPending}
-            className="w-full bg-whatsapp-teal-green hover:bg-whatsapp-dark-green"
+            className="w-full bg-primary hover:bg-primary-hover"
           >
             {assign.isPending ? (
               <Loader2 className="me-1 h-4 w-4 animate-spin" />

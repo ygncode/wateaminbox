@@ -66,10 +66,10 @@ export function RescheduleBroadcastDialog({
         if (!isSubmitting) onOpenChange(nextOpen);
       }}
     >
-      <DialogContent className="mx-3 w-[calc(100vw-1.5rem)] max-w-md rounded-2xl border-[#d7e0da] p-0 dark:border-dark-border sm:w-full">
-        <DialogHeader className="border-b border-[#e3e9e5] px-5 py-4 pe-12 text-start dark:border-dark-border">
+      <DialogContent className="mx-3 w-[calc(100vw-1.5rem)] max-w-md rounded-2xl border-line p-0 sm:w-full">
+        <DialogHeader className="border-b border-line px-5 py-4 pe-12 text-start">
           <div className="flex items-start gap-3">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#e2f1e9] text-[#087654] dark:bg-emerald-950/60 dark:text-emerald-300">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
               <CalendarClock className="h-4 w-4" aria-hidden="true" />
             </span>
             <div>
@@ -112,10 +112,10 @@ export function RescheduleBroadcastDialog({
           </div>
 
           <label htmlFor="broadcast-reschedule-at" className="block">
-            <span className="text-xs font-semibold text-[#40554c] dark:text-dark-text-primary">
+            <span className="text-xs font-semibold text-fg">
               {t("broadcasts.newStartTime", "New start time")}
             </span>
-            <span className="mt-0.5 block text-[11px] text-[#718078] dark:text-dark-text-secondary">
+            <span className="mt-0.5 block text-[11px] text-fg-muted">
               {t("broadcasts.timesShownIn", { timezone })}
             </span>
             <input
@@ -133,12 +133,12 @@ export function RescheduleBroadcastDialog({
               aria-describedby={
                 error ? "broadcast-reschedule-error" : undefined
               }
-              className="mt-2 block w-full rounded-lg border border-[#cfd9d3] bg-white px-3 py-2 text-sm text-[#172a23] outline-none transition focus:border-[#0b7a55] focus:ring-2 focus:ring-[#0b7a55]/20 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary"
+              className="mt-2 block w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-fg outline-none transition focus:border-accent focus:ring-2 focus:ring-ring/20"
             />
             {error && (
               <span
                 id="broadcast-reschedule-error"
-                className="mt-1.5 block text-xs text-red-600 dark:text-red-400"
+                className="mt-1.5 block text-xs text-danger"
                 role="alert"
               >
                 {error}
@@ -146,7 +146,7 @@ export function RescheduleBroadcastDialog({
             )}
           </label>
 
-          <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs leading-5 text-sky-800 dark:border-sky-900 dark:bg-sky-950/35 dark:text-sky-200">
+          <p className="rounded-lg border border-info/30 bg-info-soft px-3 py-2 text-xs leading-5 text-info">
             {t(
               "broadcasts.rescheduleWindowHint",
               "Rescheduling is available only until the first recipient begins processing. If sending starts while this dialog is open, the update will be safely rejected.",
@@ -154,7 +154,7 @@ export function RescheduleBroadcastDialog({
           </p>
         </div>
 
-        <DialogFooter className="gap-2 border-t border-[#e3e9e5] px-5 py-4 dark:border-dark-border sm:space-x-0">
+        <DialogFooter className="gap-2 border-t border-line px-5 py-4 sm:space-x-0">
           <Button
             type="button"
             variant="outline"
@@ -167,7 +167,7 @@ export function RescheduleBroadcastDialog({
             type="button"
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="gap-2 bg-[#0b7a55] text-white hover:bg-[#096747]"
+            className="gap-2 bg-primary text-on-primary hover:bg-primary-hover"
           >
             {isSubmitting && (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />

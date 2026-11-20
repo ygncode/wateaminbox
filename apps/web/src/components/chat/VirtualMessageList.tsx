@@ -119,7 +119,7 @@ export function VirtualMessageList({
         <div className="flex justify-center py-2">
           <button
             onClick={() => fetchNextPage?.()}
-            className="text-sm text-whatsapp-teal-green hover:underline"
+            className="text-sm text-accent hover:underline"
           >
             {t("chat.loadOlderMessages", "Load older messages")}
           </button>
@@ -130,11 +130,11 @@ export function VirtualMessageList({
         !hasNextPage &&
         remoteHistoryStatus === "requesting" && (
           <div
-            className="mx-auto my-3 flex w-fit items-center gap-2 rounded-full border border-black/[0.06] bg-white/75 px-3.5 py-2 text-xs font-medium text-[#54656f] shadow-sm backdrop-blur dark:border-white/10 dark:bg-[#202c33]/85 dark:text-dark-text-secondary"
+            className="mx-auto my-3 flex w-fit items-center gap-2 rounded-full border border-line/[0.06] bg-overlay/75 px-3.5 py-2 text-xs font-medium text-fg-muted shadow-sm backdrop-blur"
             role="status"
             aria-live="polite"
           >
-            <Loader2 className="size-3.5 animate-spin text-[#00a884]" />
+            <Loader2 className="size-3.5 animate-spin text-accent" />
             {t("chat.waitingForHistory", "Waiting for WhatsApp history…")}
           </div>
         )}
@@ -147,7 +147,7 @@ export function VirtualMessageList({
               type="button"
               onClick={onRequestRemoteHistory}
               disabled={isRequestingRemoteHistory}
-              className="group inline-flex h-9 items-center gap-2 rounded-full border border-[#c9d7d3] bg-white/80 px-4 text-xs font-semibold text-[#0b6b5d] shadow-sm backdrop-blur transition hover:border-[#00a884] hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 dark:border-white/10 dark:bg-[#202c33]/85 dark:text-[#53d8ba] dark:hover:border-[#00a884]/60 dark:hover:bg-[#26353d]"
+              className="group inline-flex h-9 items-center gap-2 rounded-full border border-line-strong bg-overlay/80 px-4 text-xs font-semibold text-accent shadow-sm backdrop-blur transition hover:border-accent hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
             >
               {isRequestingRemoteHistory ? (
                 <Loader2 className="size-3.5 animate-spin" />
@@ -162,7 +162,7 @@ export function VirtualMessageList({
                   )}
             </button>
             {remoteHistoryError && (
-              <p className="max-w-sm text-xs leading-5 text-amber-700 dark:text-amber-200">
+              <p className="max-w-sm text-xs leading-5 text-warning">
                 {remoteHistoryError}
               </p>
             )}
@@ -170,7 +170,7 @@ export function VirtualMessageList({
         )}
 
       {!hasNextPage && remoteHistoryStatus === "exhausted" && (
-        <div className="mx-auto my-3 flex w-fit items-center gap-2 px-3 text-[11px] font-medium uppercase tracking-[0.12em] text-[#7a8b85] dark:text-dark-text-tertiary">
+        <div className="mx-auto my-3 flex w-fit items-center gap-2 px-3 text-[11px] font-medium uppercase tracking-[0.12em] text-fg-muted">
           <span className="h-px w-8 bg-current opacity-30" />
           {t("chat.beginningOfConversation", "Beginning of conversation")}
           <span className="h-px w-8 bg-current opacity-30" />
@@ -180,8 +180,8 @@ export function VirtualMessageList({
       {canLoadRemoteHistory &&
         !hasNextPage &&
         remoteHistoryStatus === "unavailable" && (
-          <div className="mx-auto my-3 flex max-w-sm items-center gap-2.5 rounded-xl border border-amber-200/80 bg-amber-50/85 px-3.5 py-2.5 text-start text-xs leading-5 text-amber-900 shadow-sm backdrop-blur dark:border-amber-300/10 dark:bg-amber-300/[0.07] dark:text-amber-100">
-            <Smartphone className="size-4 shrink-0 text-amber-600 dark:text-amber-300" />
+          <div className="mx-auto my-3 flex max-w-sm items-center gap-2.5 rounded-xl border border-warning/30 bg-warning-soft/85 px-3.5 py-2.5 text-start text-xs leading-5 text-warning shadow-sm backdrop-blur">
+            <Smartphone className="size-4 shrink-0 text-warning" />
             {t(
               "chat.earlierOnPrimaryPhone",
               "WhatsApp says earlier messages are only available on the primary phone.",
@@ -214,7 +214,7 @@ export function VirtualMessageList({
                 }}
               >
                 <div className="my-3 flex justify-center">
-                  <span className="rounded-full bg-white/85 px-3 py-1 text-[11.5px] font-medium text-[#54656f] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] backdrop-blur-sm dark:bg-[#182229]/95 dark:text-dark-text-secondary">
+                  <span className="rounded-full bg-overlay/85 px-3 py-1 text-[11.5px] font-medium text-fg-muted shadow-xs backdrop-blur-sm">
                     {formatDateSep(item.date, t)}
                   </span>
                 </div>
@@ -242,7 +242,7 @@ export function VirtualMessageList({
                   {isChannel(item.channel) && (
                     <ChannelBadge channel={item.channel} iconOnly compact />
                   )}
-                  <span className="text-[11.5px] font-medium text-[#54656f] dark:text-dark-text-secondary">
+                  <span className="text-[11.5px] font-medium text-fg-muted">
                     {channelDisplayName(item.channel)}
                     {label ? ` · ${label}` : ""}
                   </span>

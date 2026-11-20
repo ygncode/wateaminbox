@@ -69,12 +69,13 @@ function NavigationLink({
   const Icon = item.icon;
   const unreadCount = item.unreadCount ?? 0;
   const baseClass = cn(
-    "group relative flex items-center rounded-xl font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300",
+    "group relative flex items-center rounded-xl font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     collapsed
       ? "h-11 w-full justify-center px-0 text-sm"
       : "h-10 gap-3 px-3 text-sm",
   );
-  const inactiveClass = "text-[#b8c9c2] hover:bg-white/[0.07] hover:text-white";
+  const inactiveClass =
+    "text-nav-fg-muted hover:bg-nav-hover hover:text-nav-fg";
   const content = (
     <>
       <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
@@ -84,7 +85,7 @@ function NavigationLink({
       {unreadCount > 0 && (
         <span
           className={cn(
-            "flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#25d366] px-1 text-[10px] font-bold leading-none text-[#073b2a] tabular-nums shadow-sm",
+            "flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-nav-badge px-1 text-[10px] font-bold leading-none text-on-nav-badge tabular-nums",
             collapsed ? "absolute end-1.5 top-1" : "ms-auto",
           )}
           aria-hidden="true"
@@ -121,7 +122,10 @@ function NavigationLink({
       aria-label={accessibleLabel}
       title={title}
       className={({ isActive }) =>
-        cn(baseClass, isActive ? "bg-[#dcefe7] text-[#075c41]" : inactiveClass)
+        cn(
+          baseClass,
+          isActive ? "bg-nav-active text-nav-active-fg" : inactiveClass,
+        )
       }
     >
       {content}
@@ -153,10 +157,7 @@ function MoreLink({
       <a
         href={item.path}
         onClick={onClick}
-        className={cn(
-          baseClass,
-          "hover:bg-[#edf1ed] dark:hover:bg-dark-tertiary",
-        )}
+        className={cn(baseClass, "hover:bg-muted")}
       >
         {content}
       </a>
@@ -170,9 +171,7 @@ function MoreLink({
       className={({ isActive }) =>
         cn(
           baseClass,
-          isActive
-            ? "bg-[#dcefe7] text-[#075c41]"
-            : "hover:bg-[#edf1ed] dark:hover:bg-dark-tertiary",
+          isActive ? "bg-accent-soft text-accent" : "hover:bg-muted",
         )
       }
     >
@@ -188,7 +187,7 @@ function ButtonSignOut({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+      className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-danger hover:bg-danger-soft"
     >
       <LogOut className="h-4 w-4" />
       {t("nav.signOut", "Sign out")}
@@ -306,13 +305,13 @@ export function ProtectedAppLayout() {
   };
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-[#f5f7f4] text-[#10211b] dark:bg-dark-primary dark:text-dark-text-primary">
+    <div className="flex h-dvh w-full overflow-hidden bg-subtle text-fg">
       <a href="#main-content" className="skip-link">
         {t("nav.skipToMain", "Skip to main content")}
       </a>
       <aside
         className={cn(
-          "relative hidden h-full shrink-0 flex-col bg-[#102c24] py-3 transition-[width,padding] duration-200 ease-out lg:flex",
+          "relative hidden h-full shrink-0 flex-col bg-nav py-3 transition-[width,padding] duration-200 ease-out lg:flex",
           sidebarCollapsed ? "w-[72px] px-2" : "w-[226px] px-3",
         )}
       >
@@ -334,7 +333,7 @@ export function ProtectedAppLayout() {
             type="button"
             onClick={toggleSidebar}
             className={cn(
-              "mb-2 flex h-10 w-full items-center rounded-xl text-sm font-medium text-[#91a8a0] transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300",
+              "mb-2 flex h-10 w-full items-center rounded-xl text-sm font-medium text-nav-fg-muted transition-colors hover:bg-nav-hover hover:text-nav-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nav-fg/40",
               sidebarCollapsed ? "justify-center px-0" : "gap-3 px-3",
             )}
             aria-label={
@@ -359,7 +358,7 @@ export function ProtectedAppLayout() {
                 : t("nav.collapseSidebar", "Collapse sidebar")}
             </span>
           </button>
-          <div className="space-y-1 border-t border-white/10 pt-3">
+          <div className="space-y-1 border-t border-nav-fg/10 pt-3">
             <NavigationLink item={settingsItem} collapsed={sidebarCollapsed} />
             <div
               className={cn(
@@ -367,13 +366,13 @@ export function ProtectedAppLayout() {
                 sidebarCollapsed ? "flex-col px-0" : "px-1",
               )}
             >
-              <NotificationCenter className="rounded-xl text-[#b8c9c2] hover:bg-white/10 hover:text-white dark:hover:bg-white/10" />
-              <ThemeToggle className="rounded-xl text-[#b8c9c2] hover:bg-white/10 hover:text-white dark:hover:bg-white/10" />
+              <NotificationCenter className="rounded-xl text-nav-fg-muted hover:bg-nav-hover hover:text-nav-fg" />
+              <ThemeToggle className="rounded-xl text-nav-fg-muted hover:bg-nav-hover hover:text-nav-fg" />
             </div>
             {sidebarCollapsed ? (
               <div className="mt-2 flex flex-col items-center gap-1.5">
                 <Avatar
-                  className="h-10 w-10 rounded-xl border border-white/10 bg-white/10"
+                  className="h-10 w-10 rounded-xl border border-nav-fg/10 bg-nav-hover"
                   title={t("nav.signedInAs", {
                     name: user?.name || user?.email,
                   })}
@@ -383,7 +382,7 @@ export function ProtectedAppLayout() {
                     alt=""
                     className="object-cover"
                   />
-                  <AvatarFallback className="rounded-xl bg-white/10 text-sm font-semibold text-white">
+                  <AvatarFallback className="rounded-xl bg-nav-active text-sm font-semibold text-nav-fg">
                     {(user?.name || user?.email || "U")
                       .slice(0, 1)
                       .toUpperCase()}
@@ -392,7 +391,7 @@ export function ProtectedAppLayout() {
                 <button
                   type="button"
                   onClick={() => void logout()}
-                  className="grid h-10 w-10 place-items-center rounded-xl text-[#91a8a0] transition-colors hover:bg-red-400/10 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+                  className="grid h-10 w-10 place-items-center rounded-xl text-nav-fg-muted transition-colors hover:bg-nav-hover hover:text-nav-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-nav-fg/40"
                   aria-label={t("nav.signOut", "Sign out")}
                   title={t("nav.signOut", "Sign out")}
                 >
@@ -400,25 +399,25 @@ export function ProtectedAppLayout() {
                 </button>
               </div>
             ) : (
-              <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-black/10">
+              <div className="mt-2 overflow-hidden rounded-xl border border-nav-fg/10 bg-nav-hover">
                 <div className="flex items-center gap-3 p-2.5">
-                  <Avatar className="h-10 w-10 rounded-xl bg-white/10">
+                  <Avatar className="h-10 w-10 rounded-xl bg-nav-hover">
                     <AvatarImage
                       src={user?.avatarUrl}
                       alt=""
                       className="object-cover"
                     />
-                    <AvatarFallback className="rounded-xl bg-white/10 text-sm font-semibold text-white">
+                    <AvatarFallback className="rounded-xl bg-nav-active text-sm font-semibold text-nav-fg">
                       {(user?.name || user?.email || "U")
                         .slice(0, 1)
                         .toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold leading-5 text-white">
+                    <p className="truncate text-sm font-semibold leading-5 text-nav-fg">
                       {user?.name || t("nav.account")}
                     </p>
-                    <p className="truncate text-[11px] leading-4 text-[#91a8a0]">
+                    <p className="truncate text-[11px] leading-4 text-nav-fg-muted">
                       {user?.email}
                     </p>
                   </div>
@@ -426,7 +425,7 @@ export function ProtectedAppLayout() {
                 <button
                   type="button"
                   onClick={() => void logout()}
-                  className="flex h-9 w-full items-center gap-2 border-t border-white/10 px-3 text-xs font-medium text-[#a7bbb3] transition-colors hover:bg-red-400/10 hover:text-red-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-300"
+                  className="flex h-9 w-full items-center gap-2 border-t border-nav-fg/10 px-3 text-xs font-medium text-nav-fg-muted transition-colors hover:bg-nav-hover hover:text-nav-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-nav-fg/40"
                 >
                   <LogOut className="h-3.5 w-3.5" />
                   {t("nav.signOut", "Sign out")}
@@ -448,14 +447,14 @@ export function ProtectedAppLayout() {
             inherits the notch inset - see conversation-chrome.ts. */}
         <header
           className={cn(
-            "safe-area-top h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center justify-between border-b border-[#dce3de] bg-[#102c24] px-2",
+            "safe-area-top h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center justify-between border-b border-nav-fg/10 bg-nav px-2",
             shellChrome.workspaceHeaderClass,
           )}
         >
           <WorkspaceSwitcher compact />
-          <div className="flex items-center text-[#b8c9c2]">
-            <NotificationCenter className="text-[#b8c9c2] hover:bg-white/10 hover:text-white dark:hover:bg-white/10" />
-            <ThemeToggle className="text-[#b8c9c2] hover:bg-white/10 hover:text-white dark:hover:bg-white/10" />
+          <div className="flex items-center text-nav-fg-muted">
+            <NotificationCenter className="text-nav-fg-muted hover:bg-nav-hover hover:text-nav-fg" />
+            <ThemeToggle className="text-nav-fg-muted hover:bg-nav-hover hover:text-nav-fg" />
           </div>
         </header>
         <main
@@ -472,16 +471,16 @@ export function ProtectedAppLayout() {
           <Outlet />
           {isSwitching && (
             <div
-              className="absolute inset-0 z-50 grid place-items-center bg-[#f5f7f4]/95 backdrop-blur-sm dark:bg-dark-primary/95"
+              className="absolute inset-0 z-50 grid place-items-center bg-subtle/95 backdrop-blur-sm"
               role="status"
               aria-live="polite"
             >
               <div className="flex flex-col items-center text-center">
-                <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#0b7a55] border-t-transparent" />
+                <div className="h-9 w-9 animate-spin rounded-full border-2 border-accent border-t-transparent" />
                 <p className="mt-4 text-sm font-semibold">
                   {t("nav.switchingTo", { name: switchingTo?.name })}
                 </p>
-                <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
+                <p className="mt-1 text-xs text-fg-muted">
                   {t("nav.preparingWorkspace", "Preparing a clean workspace")}
                 </p>
               </div>
@@ -506,14 +505,14 @@ export function ProtectedAppLayout() {
             <DialogHeader>
               <DialogTitle>{t("nav.profile", "Profile")}</DialogTitle>
             </DialogHeader>
-            <div className="flex items-center gap-3 rounded-xl bg-[#f5f7f4] p-3 dark:bg-dark-tertiary">
+            <div className="flex items-center gap-3 rounded-xl bg-subtle p-3">
               <Avatar className="h-11 w-11 rounded-xl">
                 <AvatarImage
                   src={user?.avatarUrl}
                   alt=""
                   className="object-cover"
                 />
-                <AvatarFallback className="rounded-xl bg-[#dcefe7] text-sm font-semibold text-[#075c41]">
+                <AvatarFallback className="rounded-xl bg-accent-soft text-sm font-semibold text-accent">
                   {(user?.name || user?.email || "U").slice(0, 1).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -521,9 +520,7 @@ export function ProtectedAppLayout() {
                 <p className="truncate text-sm font-semibold">
                   {user?.name || t("nav.account", "Account")}
                 </p>
-                <p className="truncate text-xs text-[#65736d] dark:text-dark-text-secondary">
-                  {user?.email}
-                </p>
+                <p className="truncate text-xs text-fg-muted">{user?.email}</p>
               </div>
             </div>
             <nav
@@ -538,7 +535,7 @@ export function ProtectedAppLayout() {
                 />
               ))}
             </nav>
-            <div className="flex items-center justify-end border-t border-[#dce3de] pt-3 dark:border-dark-border">
+            <div className="flex items-center justify-end border-t border-line pt-3">
               <ButtonSignOut onClick={() => void logout()} />
             </div>
           </DialogContent>

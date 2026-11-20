@@ -35,7 +35,7 @@ const sizeClasses = {
  *
  * @example
  * // With custom color
- * <LoadingSpinner className="text-blue-500" />
+ * <LoadingSpinner className="text-info" />
  */
 export function LoadingSpinner({
   size = "md",
@@ -49,11 +49,7 @@ export function LoadingSpinner({
 
   return (
     <svg
-      className={cn(
-        "animate-spin text-whatsapp-green",
-        sizeClasses[size],
-        className,
-      )}
+      className={cn("animate-spin text-accent", sizeClasses[size], className)}
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"

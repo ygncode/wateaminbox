@@ -81,25 +81,22 @@ function EmojiPickerSkeleton() {
   const { t } = useTranslation();
 
   return (
-    <div className="absolute bottom-full mb-2 start-0 w-80 bg-white dark:bg-dark-elevated rounded-xl shadow-lg border border-gray-200 dark:border-dark-border overflow-hidden z-20">
+    <div className="absolute bottom-full mb-2 start-0 w-80 bg-surface rounded-xl shadow-lg border border-line overflow-hidden z-20">
       {/* Search placeholder */}
-      <div className="p-2 border-b border-gray-200 dark:border-dark-border">
-        <div className="h-8 bg-gray-100 dark:bg-dark-tertiary rounded-lg animate-pulse" />
+      <div className="p-2 border-b border-line">
+        <div className="h-8 bg-muted rounded-lg animate-pulse" />
       </div>
       {/* Category tabs placeholder */}
-      <div className="flex gap-1 p-2 border-b border-gray-200 dark:border-dark-border">
+      <div className="flex gap-1 p-2 border-b border-line">
         {Array.from({ length: 7 }).map((_, i) => (
-          <div
-            key={i}
-            className="h-8 w-8 bg-gray-100 dark:bg-dark-tertiary rounded animate-pulse"
-          />
+          <div key={i} className="h-8 w-8 bg-muted rounded animate-pulse" />
         ))}
       </div>
       {/* Emoji grid placeholder */}
       <div className="h-64 p-2 flex items-center justify-center">
         <div className="flex flex-col items-center gap-2">
           <svg
-            className="animate-spin h-6 w-6 text-whatsapp-green"
+            className="animate-spin h-6 w-6 text-accent"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -118,7 +115,7 @@ function EmojiPickerSkeleton() {
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             />
           </svg>
-          <span className="text-sm text-gray-500 dark:text-dark-text-secondary">
+          <span className="text-sm text-fg-muted">
             {t("chat.loadingEmojis", "Loading emojis...")}
           </span>
         </div>
@@ -820,10 +817,10 @@ function AcknowledgedMessageComposer({
     <>
       {/* No top border: the lifecycle bar directly above already draws one
           and shares this surface, so a second rule read as a seam. */}
-      <footer className="bg-[#f0f2f5] dark:bg-dark-secondary">
+      <footer className="bg-muted">
         {/* Disconnected banner */}
         {isDisconnected && (
-          <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 dark:border-amber-800/30 dark:bg-amber-900/20 dark:text-amber-200">
+          <div className="border-b border-warning/30 bg-warning-soft px-4 py-2 text-center text-sm text-warning">
             {channelAccount
               ? `${channelAccount.displayName?.trim() || `This ${channelAccount.channelName} account`} is disconnected. This conversation cannot be moved to another account.`
               : `${connection?.name || connection?.phoneNumber || "This WhatsApp account"} is disconnected. This conversation cannot be rerouted to another number.`}
@@ -834,7 +831,7 @@ function AcknowledgedMessageComposer({
             which account, and what can be done with the conversation. The
             operator's own name used to lead this row, which is the one thing
             they already know. */}
-        <div className="flex min-h-8 min-w-0 items-center gap-2 border-b border-black/[0.055] bg-white/55 px-3 py-1 dark:border-white/[0.06] dark:bg-white/[0.025]">
+        <div className="flex min-h-8 min-w-0 items-center gap-2 border-b border-line/[0.055] bg-surface/55 px-3 py-1">
           {/* Only rendered for a merged customer, who has a second thread to
               switch to. It moves between conversations; it never redirects
               this one's messages onto another. */}
@@ -872,13 +869,13 @@ function AcknowledgedMessageComposer({
         {/* Reply preview */}
         {replyToMessage && (
           <div className="px-3 pt-2">
-            <div className="flex items-center overflow-hidden rounded-xl border border-black/[0.06] bg-white shadow-sm dark:border-white/[0.07] dark:bg-dark-elevated">
+            <div className="flex items-center overflow-hidden rounded-xl border border-line/[0.06] bg-surface shadow-sm">
               <span
-                className="w-1 self-stretch bg-[#00a884]"
+                className="w-1 self-stretch bg-primary"
                 aria-hidden="true"
               />
               <div className="flex-1 min-w-0">
-                <p className="truncate px-3 pt-2 text-xs font-semibold text-[#008069] dark:text-emerald-300">
+                <p className="truncate px-3 pt-2 text-xs font-semibold text-accent">
                   {replyToMessage.senderType === "user" ? "You" : "Contact"}
                 </p>
                 <LinkifiedText
@@ -893,13 +890,13 @@ function AcknowledgedMessageComposer({
                   isOwn={replyToMessage.senderType === "user"}
                   mentionParticipants={mentionParticipants}
                   enableInteractions={false}
-                  className="truncate px-3 pb-2 text-sm text-[#667781] dark:text-dark-text-secondary"
+                  className="truncate px-3 pb-2 text-sm text-fg-muted"
                 />
               </div>
               <button
                 type="button"
                 onClick={onClearReply}
-                className="me-2 grid size-8 shrink-0 place-items-center rounded-full text-[#8696a0] transition-colors hover:bg-black/[0.055] hover:text-[#54656f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-tertiary dark:hover:bg-white/[0.06] dark:hover:text-dark-text-secondary"
+                className="me-2 grid size-8 shrink-0 place-items-center rounded-full text-fg-muted transition-colors hover:bg-fg/[0.055] hover:text-fg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                 aria-label={t("chat.cancelReply", "Cancel reply")}
               >
                 <X className="size-4.5" aria-hidden="true" />
@@ -916,10 +913,10 @@ function AcknowledgedMessageComposer({
           <div
             className={`relative flex min-w-0 flex-1 items-end gap-0.5 rounded-[1.5rem] px-1 ring-1 transition-shadow ${
               isInputDisabled
-                ? "bg-black/[0.035] opacity-60 ring-black/[0.05] dark:bg-white/[0.045] dark:ring-white/[0.05]"
+                ? "bg-fg/[0.035] opacity-60 ring-fg/[0.05]"
                 : shouldShowQuickReplyPicker || shouldShowMentionPicker
-                  ? "bg-white shadow-[0_1px_1px_rgba(11,20,26,0.08)] ring-[#00a884]/50 dark:bg-dark-tertiary dark:ring-emerald-400/40"
-                  : "bg-white shadow-[0_1px_1px_rgba(11,20,26,0.08)] ring-black/[0.055] focus-within:ring-[#00a884]/35 dark:bg-dark-tertiary dark:ring-white/[0.06]"
+                  ? "bg-surface shadow-xs ring-ring/50"
+                  : "bg-surface shadow-xs ring-fg/[0.055] focus-within:ring-ring/35"
             }`}
           >
             {shouldShowMentionPicker && activeMentionToken && (
@@ -940,7 +937,7 @@ function AcknowledgedMessageComposer({
                   setShowEmojiPicker(!showEmojiPicker);
                   setShowAttachmentMenu(false);
                 }}
-                className="grid size-9 shrink-0 touch-manipulation place-items-center rounded-full text-[#54656f] transition-colors hover:bg-black/[0.055] active:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
+                className="grid size-9 shrink-0 touch-manipulation place-items-center rounded-full text-fg-muted transition-colors hover:bg-fg/[0.055] active:bg-fg/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
                 aria-label={t("chat.insertEmoji", "Insert emoji")}
                 aria-expanded={showEmojiPicker}
               >
@@ -968,12 +965,12 @@ function AcknowledgedMessageComposer({
                 <button
                   type="button"
                   disabled={isInputDisabled}
-                  className={`grid size-9 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 ${
+                  className={`grid size-9 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 ${
                     isInputDisabled
-                      ? "cursor-not-allowed text-[#aebac1] dark:text-dark-text-tertiary"
+                      ? "cursor-not-allowed text-fg-subtle"
                       : showAttachmentMenu
-                        ? "rotate-45 bg-black/[0.07] text-[#008069] dark:bg-white/[0.08] dark:text-emerald-300"
-                        : "text-[#54656f] hover:bg-black/[0.055] active:bg-black/10 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
+                        ? "rotate-45 bg-fg/[0.07] text-accent"
+                        : "text-fg-muted hover:bg-fg/[0.055] active:bg-fg/10"
                   }`}
                   onClick={() => {
                     setShowAttachmentMenu(!showAttachmentMenu);
@@ -994,16 +991,16 @@ function AcknowledgedMessageComposer({
                 {showAttachmentMenu && (
                   <div
                     id="message-attachment-menu"
-                    className="absolute bottom-full start-0 z-30 mb-3 w-52 origin-bottom-left animate-in rounded-2xl border border-black/[0.07] bg-white p-2 shadow-[0_12px_36px_rgba(11,20,26,0.18)] fade-in-0 zoom-in-95 duration-150 dark:border-white/[0.08] dark:bg-dark-elevated dark:shadow-black/40"
+                    className="absolute bottom-full start-0 z-30 mb-3 w-52 origin-bottom-left animate-in rounded-2xl border border-line/[0.07] bg-surface p-2 shadow-lg fade-in-0 zoom-in-95 duration-150"
                   >
                     {(features.attachmentTypes.includes("image") ||
                       features.attachmentTypes.includes("video")) && (
                       <button
                         type="button"
-                        className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-start text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
+                        className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-start text-sm font-medium text-fg transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
                         onClick={() => triggerFileInput("image")}
                       >
-                        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#bf59cf] text-white">
+                        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-id-3 text-white">
                           <ImageIcon className="size-4.5" aria-hidden="true" />
                         </span>
                         <span>
@@ -1014,10 +1011,10 @@ function AcknowledgedMessageComposer({
                     {features.attachmentTypes.includes("document") && (
                       <button
                         type="button"
-                        className="mt-0.5 flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-start text-sm font-medium text-[#3b4a54] transition-colors hover:bg-[#f0f2f5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/35 dark:text-dark-text-primary dark:hover:bg-white/[0.06]"
+                        className="mt-0.5 flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-start text-sm font-medium text-fg transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
                         onClick={() => triggerFileInput("document")}
                       >
-                        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#5157ae] text-white">
+                        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-info text-white">
                           <FileText className="size-4.5" aria-hidden="true" />
                         </span>
                         <span>{t("chat.mediaTypes.document", "Document")}</span>
@@ -1107,7 +1104,7 @@ function AcknowledgedMessageComposer({
                         ? `group-mention-option-${selectedMentionIndex}`
                         : undefined
                   }
-                  className={`block max-h-[150px] w-full resize-none bg-transparent px-2 py-2 text-[15px] leading-5 text-[#111b21] outline-none placeholder:text-[#667781] dark:text-dark-text-primary dark:placeholder:text-dark-text-tertiary ${
+                  className={`block max-h-[150px] w-full resize-none bg-transparent px-2 py-2 text-[15px] leading-5 text-fg outline-none placeholder:text-fg-muted   ${
                     isInputDisabled ? "cursor-not-allowed" : ""
                   }`}
                   style={{ minHeight: "36px" }}
@@ -1126,10 +1123,10 @@ function AcknowledgedMessageComposer({
                     setShowAttachmentMenu(false);
                     setShowEmojiPicker(false);
                   }}
-                  className={`grid size-9 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/40 ${
+                  className={`grid size-9 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 ${
                     showSchedulePopover
-                      ? "bg-black/[0.07] text-[#008069] dark:bg-white/[0.08] dark:text-emerald-300"
-                      : "text-[#54656f] hover:bg-black/[0.055] active:bg-black/10 dark:text-dark-text-secondary dark:hover:bg-white/[0.06] dark:active:bg-white/10"
+                      ? "bg-fg/[0.07] text-accent"
+                      : "text-fg-muted hover:bg-fg/[0.055] active:bg-fg/10"
                   }`}
                   aria-label={t("chat.scheduleMessage", "Schedule message")}
                   aria-expanded={showSchedulePopover}
@@ -1159,10 +1156,10 @@ function AcknowledgedMessageComposer({
             type="button"
             onClick={handleSend}
             disabled={!message.trim() || isInputDisabled}
-            className={`grid size-11 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884]/45 focus-visible:ring-offset-2 focus-visible:ring-offset-[#f0f2f5] dark:focus-visible:ring-offset-dark-secondary ${
+            className={`grid size-11 shrink-0 touch-manipulation place-items-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 focus-visible:ring-offset-2 focus-visible:ring-offset-line-strong  ${
               message.trim() && !isInputDisabled
-                ? "bg-[#00a884] text-white shadow-sm shadow-[#00a884]/25 hover:bg-[#008f72] active:scale-95"
-                : "cursor-not-allowed bg-black/[0.05] text-[#aebac1] dark:bg-white/[0.06] dark:text-dark-text-tertiary"
+                ? "bg-primary text-on-primary shadow-sm hover:bg-primary-hover active:scale-95"
+                : "cursor-not-allowed bg-fg/[0.05] text-fg-subtle"
             }`}
             aria-label={t("chat.sendMessage", "Send Message")}
           >

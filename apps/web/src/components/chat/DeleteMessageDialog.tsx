@@ -51,7 +51,7 @@ export const DeleteMessageDialog = memo(function DeleteMessageDialog({
             type="button"
             onClick={() => onOpenChange(false)}
             disabled={isDeleting}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary rounded-lg transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-fg hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
@@ -59,7 +59,7 @@ export const DeleteMessageDialog = memo(function DeleteMessageDialog({
             type="button"
             onClick={handleConfirm}
             disabled={isDeleting}
-            className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 text-sm font-medium text-on-danger bg-danger hover:bg-danger-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {isDeleting ? (
               <>

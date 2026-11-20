@@ -56,15 +56,11 @@ function ShortcutItem({ shortcut }: { shortcut: KeyboardShortcut }) {
   return (
     <div className="flex items-center justify-between py-2 px-1">
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 dark:text-dark-text-primary">
-          {shortcut.label}
-        </p>
-        <p className="text-xs text-gray-500 dark:text-dark-text-secondary truncate">
-          {shortcut.description}
-        </p>
+        <p className="text-sm font-medium text-fg">{shortcut.label}</p>
+        <p className="text-xs text-fg-muted truncate">{shortcut.description}</p>
       </div>
       <div className="flex-shrink-0 ms-4">
-        <kbd className="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono font-medium text-gray-700 dark:text-dark-text-primary bg-gray-100 dark:bg-dark-tertiary border border-gray-300 dark:border-dark-border rounded shadow-sm">
+        <kbd className="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono font-medium text-fg bg-muted border border-line-strong rounded shadow-sm">
           {formattedKeys}
         </kbd>
       </div>
@@ -90,13 +86,13 @@ function ShortcutSection({
 
   return (
     <div className="mb-6 last:mb-0">
-      <h3 className="text-sm font-semibold text-gray-700 dark:text-dark-text-primary mb-1">
+      <h3 className="text-sm font-semibold text-fg mb-1">
         {t(category.labelKey, category.label)}
       </h3>
-      <p className="text-xs text-gray-500 dark:text-dark-text-secondary mb-3">
+      <p className="text-xs text-fg-muted mb-3">
         {t(category.descriptionKey, category.description)}
       </p>
-      <div className="divide-y divide-gray-100 dark:divide-dark-border">
+      <div className="divide-y divide-line">
         {shortcuts.map((shortcut) => (
           <ShortcutItem key={shortcut.id} shortcut={shortcut} />
         ))}
@@ -181,10 +177,10 @@ export function KeyboardShortcutsModal({
           </div>
         </ScrollArea>
 
-        <div className="pt-4 border-t border-gray-200 dark:border-dark-border">
-          <p className="text-xs text-gray-500 dark:text-dark-text-secondary text-center">
+        <div className="pt-4 border-t border-line">
+          <p className="text-xs text-fg-muted text-center">
             Press{" "}
-            <kbd className="px-1.5 py-0.5 text-xs font-mono bg-gray-100 dark:bg-dark-tertiary border border-gray-300 dark:border-dark-border rounded">
+            <kbd className="px-1.5 py-0.5 text-xs font-mono bg-muted border border-line-strong rounded">
               Esc
             </kbd>{" "}
             to close this dialog

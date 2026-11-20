@@ -643,11 +643,16 @@
     "workspaceLeaveFailed": "Could not leave workspace",
     "themePanel": {
       "title": "Theme",
-      "description": "Cycle between light, dark, and your system preference.",
+      "description": "Choose how WATeamInbox looks. System follows your device between Light and Dark.",
       "changed": "Theme changed to {{theme}}",
       "system": "System ({{resolved}})",
       "light": "Light",
-      "dark": "Dark"
+      "dark": "Dark",
+      "whatsapp": "WhatsApp",
+      "systemLabel": "System",
+      "lightLabel": "Light",
+      "darkLabel": "Dark",
+      "whatsappLabel": "WhatsApp"
     },
     "languagePanel": {
       "title": "Language",
@@ -668,11 +673,6 @@
       "description": "Workspace exports are available from the relevant Dashboard and Audit views."
     },
     "exportsScope": "Exports contain data from {{name}} only.",
-    "themeLight": "Light",
-    "themeDark": "Dark",
-    "themeSystem": "Follow System",
-    "themeChanged": "Theme changed to {{theme}}",
-    "themeToggleAria": "Current theme: {{current}}. Click to switch to {{next}}",
     "apiTokensPanel": {
       "title": "AI agents (MCP)",
       "description": "Connect AI agents to this workspace through the MCP endpoint with personal, revocable tokens."
@@ -686,7 +686,8 @@
       "bell": "Bell",
       "pop": "Pop",
       "none": "None"
-    }
+    },
+    "themeMenuAria": "Theme: {{current}}"
   },
   "dashboard": {
     "totalMessages": "Total Messages",

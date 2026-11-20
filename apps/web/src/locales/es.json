@@ -655,11 +655,16 @@
     "workspaceLeaveFailed": "No se pudo salir del espacio de trabajo",
     "themePanel": {
       "title": "Tema",
-      "description": "Alterna entre claro, oscuro y la preferencia de tu sistema.",
+      "description": "Elige cómo se ve WATeamInbox. Sistema sigue a tu dispositivo entre Claro y Oscuro.",
       "changed": "Tema cambiado a {{theme}}",
       "system": "Sistema ({{resolved}})",
       "light": "Claro",
-      "dark": "Oscuro"
+      "dark": "Oscuro",
+      "whatsapp": "WhatsApp",
+      "systemLabel": "Sistema",
+      "lightLabel": "Claro",
+      "darkLabel": "Oscuro",
+      "whatsappLabel": "WhatsApp"
     },
     "languagePanel": {
       "title": "Idioma",
@@ -680,11 +685,6 @@
       "description": "Las exportaciones del espacio de trabajo están disponibles en las vistas correspondientes del Panel y de Auditoría."
     },
     "exportsScope": "Las exportaciones contienen únicamente datos de {{name}}.",
-    "themeLight": "Claro",
-    "themeDark": "Oscuro",
-    "themeSystem": "Seguir el sistema",
-    "themeChanged": "Tema cambiado a {{theme}}",
-    "themeToggleAria": "Tema actual: {{current}}. Haz clic para cambiar a {{next}}",
     "apiTokensPanel": {
       "title": "Agentes de IA (MCP)",
       "description": "Conecta agentes de IA a este espacio de trabajo mediante el endpoint de MCP con tokens personales y revocables."
@@ -698,7 +698,8 @@
       "bell": "Campana",
       "pop": "Pop",
       "none": "Ninguno"
-    }
+    },
+    "themeMenuAria": "Tema: {{current}}"
   },
   "dashboard": {
     "totalMessages": "Total de mensajes",

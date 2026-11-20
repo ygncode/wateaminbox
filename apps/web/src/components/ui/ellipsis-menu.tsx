@@ -235,7 +235,7 @@ export function EllipsisMenu({
           aria-haspopup="menu"
           aria-expanded={isOpen}
           className={cn(
-            "inline-flex items-center gap-0.5 text-xs font-medium text-whatsapp-teal-green hover:underline",
+            "inline-flex items-center gap-0.5 text-xs font-medium text-accent hover:underline",
             triggerClassName,
           )}
         >
@@ -263,7 +263,7 @@ export function EllipsisMenu({
           role="menu"
           aria-orientation="vertical"
           className={cn(
-            "absolute top-full z-50 mt-1 w-48 rounded-md border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated py-1 shadow-lg",
+            "absolute top-full z-50 mt-1 w-48 rounded-md border border-line bg-surface py-1 shadow-lg",
             align === "right" ? "end-0" : "start-0",
             menuClassName,
           )}
@@ -278,10 +278,10 @@ export function EllipsisMenu({
                 disabled={item.disabled}
                 onClick={() => handleItemClick(item)}
                 className={cn(
-                  "flex w-full items-center gap-2 px-4 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green focus:bg-gray-100 dark:focus:bg-dark-tertiary",
+                  "flex w-full items-center gap-2 px-4 py-2 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring focus:bg-muted",
                   item.destructive
-                    ? "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
-                    : "text-gray-700 dark:text-dark-text-primary hover:bg-gray-100 dark:hover:bg-dark-tertiary",
+                    ? "text-danger hover:bg-danger-soft"
+                    : "text-fg hover:bg-muted",
                   item.disabled && "opacity-50 cursor-not-allowed",
                 )}
               >

@@ -105,10 +105,10 @@ function SettingsPanel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-[#dce3de] bg-white p-5 shadow-[0_1px_2px_rgba(16,33,27,.03)] dark:border-dark-border dark:bg-dark-elevated sm:p-6">
+    <section className="rounded-2xl border border-line bg-surface p-5 shadow-xs sm:p-6">
       {title && <h3 className="font-semibold">{title}</h3>}
       {description && (
-        <p className="mb-5 mt-1 text-sm leading-6 text-[#65736d] dark:text-dark-text-secondary">
+        <p className="mb-5 mt-1 text-sm leading-6 text-fg-muted">
           {description}
         </p>
       )}
@@ -159,7 +159,7 @@ export function SlaPolicySettings() {
   if (isLoading) {
     return (
       <SettingsPanel title={t("sla.title", "Response SLA")}>
-        <div className="flex items-center gap-2 text-sm text-[#65736d] dark:text-dark-text-secondary">
+        <div className="flex items-center gap-2 text-sm text-fg-muted">
           <LoaderCircle className="h-4 w-4 animate-spin" />
           {t("sla.loading", "Loading SLA policy…")}
         </div>
@@ -170,7 +170,7 @@ export function SlaPolicySettings() {
   if (isError || !policy) {
     return (
       <SettingsPanel title={t("sla.title", "Response SLA")}>
-        <p className="text-sm text-red-600 dark:text-red-400">
+        <p className="text-sm text-danger">
           {t("sla.loadFailed", "Could not load the SLA policy.")}
         </p>
       </SettingsPanel>
@@ -484,13 +484,13 @@ export function SlaPolicySettings() {
           )}
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-[#e6ebe7] p-4 dark:border-dark-border">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#829089]">
+            <div className="rounded-xl border border-line p-4">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-fg-muted">
                 {t("sla.directChats", "Direct chats")}
               </p>
               <dl className="space-y-3">
                 <div>
-                  <dt className="text-xs font-medium text-[#829089]">
+                  <dt className="text-xs font-medium text-fg-muted">
                     {t("sla.responseTarget", "Response target")}
                   </dt>
                   <dd className="mt-1 text-sm font-semibold">
@@ -501,7 +501,7 @@ export function SlaPolicySettings() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium text-[#829089]">
+                  <dt className="text-xs font-medium text-fg-muted">
                     {t("sla.resolutionTarget", "Resolution target")}
                   </dt>
                   <dd className="mt-1 text-sm font-semibold">
@@ -513,13 +513,13 @@ export function SlaPolicySettings() {
                 </div>
               </dl>
             </div>
-            <div className="rounded-xl border border-[#e6ebe7] p-4 dark:border-dark-border">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[#829089]">
+            <div className="rounded-xl border border-line p-4">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-fg-muted">
                 {t("sla.groupChats", "Group chats")}
               </p>
               <dl className="space-y-3">
                 <div>
-                  <dt className="text-xs font-medium text-[#829089]">
+                  <dt className="text-xs font-medium text-fg-muted">
                     {t("sla.responseTarget", "Response target")}
                   </dt>
                   <dd className="mt-1 text-sm font-semibold">
@@ -530,7 +530,7 @@ export function SlaPolicySettings() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium text-[#829089]">
+                  <dt className="text-xs font-medium text-fg-muted">
                     {t("sla.resolutionTarget", "Resolution target")}
                   </dt>
                   <dd className="mt-1 text-sm font-semibold">
@@ -545,14 +545,14 @@ export function SlaPolicySettings() {
           </div>
 
           <div className="mt-4">
-            <dt className="text-xs font-medium text-[#829089]">
+            <dt className="text-xs font-medium text-fg-muted">
               {t("sla.timezone", "Timezone")}
             </dt>
             <dd className="mt-1 text-sm font-semibold">{policy.timezone}</dd>
           </div>
 
           <div className="mt-5">
-            <p className="mb-2 text-xs font-medium text-[#829089]">
+            <p className="mb-2 text-xs font-medium text-fg-muted">
               {t("sla.weeklyHours", "Weekly hours")}
             </p>
             <div className="space-y-1">
@@ -562,16 +562,14 @@ export function SlaPolicySettings() {
                 .map((day) => (
                   <div
                     key={day.weekday}
-                    className="flex items-center justify-between rounded-lg px-3 py-1.5 text-sm odd:bg-[#f8faf8] dark:odd:bg-dark-tertiary/30"
+                    className="flex items-center justify-between rounded-lg px-3 py-1.5 text-sm odd:bg-subtle"
                   >
-                    <span className="text-[#40544c] dark:text-dark-text-primary">
+                    <span className="text-fg">
                       {weekdayLabel(t, day.weekday)}
                     </span>
                     <span
                       className={
-                        day.open
-                          ? "font-medium text-[#203b32] dark:text-dark-text-primary"
-                          : "text-[#87928c] dark:text-dark-text-secondary"
+                        day.open ? "font-medium text-fg" : "text-fg-muted"
                       }
                     >
                       {formatIntervals(day, t)}
@@ -583,24 +581,24 @@ export function SlaPolicySettings() {
 
           {policy.exceptions.length > 0 && (
             <div className="mt-5">
-              <p className="mb-2 text-xs font-medium text-[#829089]">
+              <p className="mb-2 text-xs font-medium text-fg-muted">
                 {t("sla.dateExceptions", "Date exceptions")}
               </p>
               <div className="space-y-1">
                 {policy.exceptions.map((exception) => (
                   <div
                     key={exception.date}
-                    className="flex items-center justify-between rounded-lg px-3 py-1.5 text-sm odd:bg-[#f8faf8] dark:odd:bg-dark-tertiary/30"
+                    className="flex items-center justify-between rounded-lg px-3 py-1.5 text-sm odd:bg-subtle"
                   >
-                    <span className="text-[#40544c] dark:text-dark-text-primary">
+                    <span className="text-fg">
                       {exception.date}
                       {exception.label ? ` – ${exception.label}` : ""}
                     </span>
                     <span
                       className={
                         exception.closed
-                          ? "text-[#87928c] dark:text-dark-text-secondary"
-                          : "font-medium text-[#203b32] dark:text-dark-text-primary"
+                          ? "text-fg-muted"
+                          : "font-medium text-fg"
                       }
                     >
                       {exception.closed
@@ -616,7 +614,7 @@ export function SlaPolicySettings() {
           )}
 
           {history && history.length > 1 && (
-            <p className="mt-5 text-xs text-[#87928c] dark:text-dark-text-secondary">
+            <p className="mt-5 text-xs text-fg-muted">
               {history.length} policy versions in history. Editing creates a new
               version effective immediately - past and in-progress conversations
               keep using the policy that was active when they began.
@@ -624,7 +622,7 @@ export function SlaPolicySettings() {
           )}
 
           {canEdit && (
-            <div className="mt-5 flex justify-end border-t border-[#e6ebe7] pt-5 dark:border-dark-border">
+            <div className="mt-5 flex justify-end border-t border-line pt-5">
               <Button
                 type="button"
                 variant="outline"
@@ -650,7 +648,7 @@ export function SlaPolicySettings() {
         )}
       >
         <div className="space-y-6">
-          <p className="text-xs text-[#65736d] dark:text-dark-text-secondary">
+          <p className="text-xs text-fg-muted">
             {t(
               "sla.editIntro",
               "Direct and group chats share the same timezone, business hours, and holidays below, but have their own response and resolution targets. Group SLA is measured for the whole group conversation, not per member - one team reply acknowledges the inbound burst from any participant.",
@@ -658,8 +656,8 @@ export function SlaPolicySettings() {
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <fieldset className="rounded-xl border border-[#e6ebe7] p-4 dark:border-dark-border">
-              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-[#829089]">
+            <fieldset className="rounded-xl border border-line p-4">
+              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-fg-muted">
                 {t("sla.directChats", "Direct chats")}
               </legend>
               <div className="space-y-4">
@@ -694,8 +692,8 @@ export function SlaPolicySettings() {
                 </label>
               </div>
             </fieldset>
-            <fieldset className="rounded-xl border border-[#e6ebe7] p-4 dark:border-dark-border">
-              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-[#829089]">
+            <fieldset className="rounded-xl border border-line p-4">
+              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-fg-muted">
                 {t("sla.groupChats", "Group chats")}
               </legend>
               <div className="space-y-4">
@@ -759,7 +757,7 @@ export function SlaPolicySettings() {
             <p className="mb-2 text-sm font-medium">
               {t("sla.weeklyHours", "Weekly hours")}
             </p>
-            <p className="mb-3 text-xs text-[#87928c] dark:text-dark-text-secondary">
+            <p className="mb-3 text-xs text-fg-muted">
               {t(
                 "sla.weeklyHoursHint",
                 "A day can have multiple intervals (e.g. a lunch break split shift).",
@@ -769,7 +767,7 @@ export function SlaPolicySettings() {
               {days.map((day) => (
                 <div
                   key={day.weekday}
-                  className="rounded-xl border border-[#e6ebe7] bg-[#f8faf8] px-3 py-2.5 dark:border-dark-border dark:bg-dark-tertiary/30"
+                  className="rounded-xl border border-line bg-subtle px-3 py-2.5"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <label className="flex items-center gap-2 text-sm font-medium">
@@ -810,9 +808,9 @@ export function SlaPolicySettings() {
                                 start: event.target.value,
                               })
                             }
-                            className="h-8 rounded-md border border-gray-300 bg-white px-2 text-sm dark:border-dark-border dark:bg-dark-tertiary"
+                            className="h-8 rounded-md border border-line-strong bg-surface px-2 text-sm"
                           />
-                          <span className="text-[#87928c]">to</span>
+                          <span className="text-fg-muted">to</span>
                           <input
                             type="time"
                             value={interval.end}
@@ -822,9 +820,9 @@ export function SlaPolicySettings() {
                                 end: event.target.value,
                               })
                             }
-                            className="h-8 rounded-md border border-gray-300 bg-white px-2 text-sm disabled:opacity-50 dark:border-dark-border dark:bg-dark-tertiary"
+                            className="h-8 rounded-md border border-line-strong bg-surface px-2 text-sm disabled:opacity-50"
                           />
-                          <label className="flex items-center gap-1.5 text-xs text-[#65736d] dark:text-dark-text-secondary">
+                          <label className="flex items-center gap-1.5 text-xs text-fg-muted">
                             <input
                               type="checkbox"
                               checked={interval.untilMidnight}
@@ -844,7 +842,7 @@ export function SlaPolicySettings() {
                               onClick={() =>
                                 removeDayInterval(day.weekday, interval.key)
                               }
-                              className="gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-300"
+                              className="gap-1.5 text-danger hover:bg-danger-soft hover:text-danger"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
@@ -853,9 +851,7 @@ export function SlaPolicySettings() {
                       ))}
                     </div>
                   ) : (
-                    <span className="text-sm text-[#87928c] dark:text-dark-text-secondary">
-                      Closed
-                    </span>
+                    <span className="text-sm text-fg-muted">Closed</span>
                   )}
                 </div>
               ))}
@@ -878,7 +874,7 @@ export function SlaPolicySettings() {
               </Button>
             </div>
             {exceptions.length === 0 ? (
-              <p className="text-sm text-[#87928c] dark:text-dark-text-secondary">
+              <p className="text-sm text-fg-muted">
                 {t(
                   "sla.noExceptions",
                   "No holidays or custom-hours dates yet.",
@@ -889,7 +885,7 @@ export function SlaPolicySettings() {
                 {exceptions.map((exception) => (
                   <div
                     key={exception.key}
-                    className="space-y-2 rounded-xl border border-[#e6ebe7] bg-[#f8faf8] p-3 dark:border-dark-border dark:bg-dark-tertiary/30"
+                    className="space-y-2 rounded-xl border border-line bg-subtle p-3"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <input
@@ -900,7 +896,7 @@ export function SlaPolicySettings() {
                             date: event.target.value,
                           })
                         }
-                        className="h-8 rounded-md border border-gray-300 bg-white px-2 text-sm dark:border-dark-border dark:bg-dark-tertiary"
+                        className="h-8 rounded-md border border-line-strong bg-surface px-2 text-sm"
                       />
                       <Input
                         placeholder={t(
@@ -942,7 +938,7 @@ export function SlaPolicySettings() {
                         variant="ghost"
                         size="sm"
                         onClick={() => removeException(exception.key)}
-                        className="ms-auto gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-300"
+                        className="ms-auto gap-1.5 text-danger hover:bg-danger-soft hover:text-danger"
                       >
                         <Trash2 className="h-3.5 w-3.5" />{" "}
                         {t("sla.remove", "Remove")}
@@ -965,9 +961,9 @@ export function SlaPolicySettings() {
                                   { start: event.target.value },
                                 )
                               }
-                              className="h-8 rounded-md border border-gray-300 bg-white px-2 text-sm dark:border-dark-border dark:bg-dark-tertiary"
+                              className="h-8 rounded-md border border-line-strong bg-surface px-2 text-sm"
                             />
-                            <span className="text-[#87928c]">to</span>
+                            <span className="text-fg-muted">to</span>
                             <input
                               type="time"
                               value={interval.end}
@@ -979,9 +975,9 @@ export function SlaPolicySettings() {
                                   { end: event.target.value },
                                 )
                               }
-                              className="h-8 rounded-md border border-gray-300 bg-white px-2 text-sm disabled:opacity-50 dark:border-dark-border dark:bg-dark-tertiary"
+                              className="h-8 rounded-md border border-line-strong bg-surface px-2 text-sm disabled:opacity-50"
                             />
-                            <label className="flex items-center gap-1.5 text-xs text-[#65736d] dark:text-dark-text-secondary">
+                            <label className="flex items-center gap-1.5 text-xs text-fg-muted">
                               <input
                                 type="checkbox"
                                 checked={interval.untilMidnight}
@@ -1006,7 +1002,7 @@ export function SlaPolicySettings() {
                                     interval.key,
                                   )
                                 }
-                                className="gap-1.5 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-300"
+                                className="gap-1.5 text-danger hover:bg-danger-soft hover:text-danger"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
@@ -1034,14 +1030,14 @@ export function SlaPolicySettings() {
           {error && (
             <p
               role="alert"
-              className="flex items-start gap-1.5 text-xs font-medium text-red-600 dark:text-red-400"
+              className="flex items-start gap-1.5 text-xs font-medium text-danger"
             >
               <CircleAlert className="mt-px h-3.5 w-3.5 shrink-0" />
               {error}
             </p>
           )}
 
-          <div className="flex justify-end gap-2 border-t border-[#e6ebe7] pt-5 dark:border-dark-border">
+          <div className="flex justify-end gap-2 border-t border-line pt-5">
             <Button
               type="button"
               variant="outline"
@@ -1054,7 +1050,7 @@ export function SlaPolicySettings() {
               type="button"
               onClick={() => void save()}
               disabled={createPolicy.isPending}
-              className="gap-2 bg-[#0b7a55] text-white hover:bg-[#096747]"
+              className="gap-2 bg-primary text-on-primary hover:bg-primary-hover"
             >
               {createPolicy.isPending ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />

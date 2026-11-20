@@ -46,10 +46,10 @@ export function GroupInviteLinkSection({ group }: GroupInviteLinkSectionProps) {
     <RightPanelSection title={t("groups.inviteLink", "Invite link")}>
       {group.inviteLink ? (
         <div className="space-y-2">
-          <p className="break-all rounded-lg bg-gray-50 p-2.5 font-mono text-xs text-gray-700 dark:bg-dark-elevated dark:text-dark-text-primary">
+          <p className="break-all rounded-lg bg-subtle p-2.5 font-mono text-xs text-fg">
             {group.inviteLink}
           </p>
-          <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+          <p className="text-xs text-fg-muted">
             {t(
               "groups.inviteLinkHint",
               "Anyone with this link can request to join. Treat it like a password.",
@@ -57,9 +57,9 @@ export function GroupInviteLinkSection({ group }: GroupInviteLinkSectionProps) {
           </p>
         </div>
       ) : (
-        <div className="flex gap-3 rounded-lg bg-gray-50 p-3 dark:bg-dark-elevated">
-          <Link2 className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
-          <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
+        <div className="flex gap-3 rounded-lg bg-subtle p-3">
+          <Link2 className="mt-0.5 h-5 w-5 shrink-0 text-fg-subtle" />
+          <p className="text-sm leading-5 text-fg-muted">
             {t(
               "groups.inviteLinkFetchHint",
               "WhatsApp hands out the invite link on request. Fetch it to see it here.",

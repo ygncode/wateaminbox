@@ -79,7 +79,7 @@ export function SingleConnectionPanel({
     return (
       <div
         className={cn(
-          "rounded-lg border border-gray-200 bg-white p-6 dark:border-dark-border dark:bg-dark-elevated",
+          "rounded-lg border border-line bg-surface p-6",
           className,
         )}
       >
@@ -108,7 +108,7 @@ export function SingleConnectionPanel({
     return (
       <div className={cn("flex items-center gap-2", className)}>
         <StatusIndicator state={state} />
-        <span className="text-sm text-gray-600">
+        <span className="text-sm text-fg-muted">
           {state === "connected"
             ? formatPhoneNumber(phoneNumber) || "Connected"
             : getStateLabel(state, t)}
@@ -133,22 +133,19 @@ export function SingleConnectionPanel({
 
   return (
     <div
-      className={cn(
-        "bg-white dark:bg-dark-elevated rounded-lg border border-gray-200 dark:border-dark-border p-6",
-        className,
-      )}
+      className={cn("bg-surface rounded-lg border border-line p-6", className)}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-whatsapp-teal-green/10 flex items-center justify-center">
-            <Smartphone className="h-5 w-5 text-whatsapp-teal-green" />
+          <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center">
+            <Smartphone className="h-5 w-5 text-accent" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-dark-text-primary">
+            <h2 className="text-lg font-semibold text-fg">
               {t("connections.singleTitle", "WhatsApp Connection")}
             </h2>
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary">
+            <p className="text-sm text-fg-muted">
               {t(
                 "connections.singleHint",
                 "Link your WhatsApp Business account",
@@ -161,9 +158,9 @@ export function SingleConnectionPanel({
 
       {/* Error message */}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-2">
-          <AlertCircle className="h-5 w-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+        <div className="mb-4 p-3 bg-danger-soft border border-danger/30 rounded-lg flex items-start gap-2">
+          <AlertCircle className="h-5 w-5 text-danger flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-danger">{error}</p>
         </div>
       )}
 

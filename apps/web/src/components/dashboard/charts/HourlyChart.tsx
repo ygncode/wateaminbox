@@ -15,7 +15,7 @@ export function HourlyChart({ data }: HourlyChartProps) {
 
   if (data.length === 0) {
     return (
-      <div className="grid h-[236px] place-items-center rounded-xl border border-dashed border-[#dce3de] bg-[#fafcfb] text-sm text-[#718078] dark:border-dark-border dark:bg-dark-secondary/40 dark:text-dark-text-secondary">
+      <div className="grid h-[236px] place-items-center rounded-xl border border-dashed border-line bg-subtle text-sm text-fg-muted">
         {t(
           "dashboard.charts.noHourlyActivity",
           "No hourly activity in this period",
@@ -43,24 +43,24 @@ export function HourlyChart({ data }: HourlyChartProps) {
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-end gap-5">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
               Volume
             </p>
-            <p className="text-xl font-semibold tabular-nums text-[#203b32] dark:text-dark-text-primary">
+            <p className="text-xl font-semibold tabular-nums text-fg">
               {formatNumber(totalMessages)}
             </p>
           </div>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
               {t("dashboard.charts.peakHour", "Peak hour")}
             </p>
-            <p className="text-sm font-semibold tabular-nums text-[#0b7a55] dark:text-emerald-300">
+            <p className="text-sm font-semibold tabular-nums text-accent">
               {formatHour(peak.hour)}
             </p>
           </div>
         </div>
         {selectedHour === null ? (
-          <span className="flex items-center gap-1.5 rounded-full border border-[#dce3de] bg-[#fafcfb] px-2.5 py-1 text-[10px] font-medium text-[#718078] dark:border-dark-border dark:bg-dark-secondary dark:text-dark-text-secondary">
+          <span className="flex items-center gap-1.5 rounded-full border border-line bg-subtle px-2.5 py-1 text-[10px] font-medium text-fg-muted">
             <MousePointer2 className="h-3 w-3" />
             {t("dashboard.charts.hoverHint", "Hover or click a bar")}
           </span>
@@ -68,7 +68,7 @@ export function HourlyChart({ data }: HourlyChartProps) {
           <button
             type="button"
             onClick={() => setSelectedHour(null)}
-            className="flex items-center gap-1.5 rounded-full border border-[#b9d7ca] bg-[#edf6f2] px-2.5 py-1 text-[10px] font-semibold text-[#0b7a55] transition-colors hover:bg-[#e1f0e9] dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
+            className="flex items-center gap-1.5 rounded-full border border-line-strong bg-subtle px-2.5 py-1 text-[10px] font-semibold text-accent transition-colors hover:bg-accent-soft"
             aria-label={t(
               "dashboard.charts.clearPinnedHour",
               "Clear pinned hour",
@@ -96,14 +96,14 @@ export function HourlyChart({ data }: HourlyChartProps) {
           {Array.from({ length: 5 }, (_, index) => (
             <span
               key={index}
-              className="block w-full border-t border-dashed border-[#e4eae6] dark:border-dark-border"
+              className="block w-full border-t border-dashed border-line"
             />
           ))}
         </div>
 
         {activeData && (
           <div
-            className="pointer-events-none absolute z-20 w-40 -translate-x-1/2 rounded-xl border border-[#cfdad4] bg-[#173c31] px-3 py-2.5 text-white shadow-[0_12px_30px_rgba(16,44,36,0.24)]"
+            className="pointer-events-none absolute z-20 w-40 -translate-x-1/2 rounded-xl border border-line-strong bg-primary px-3 py-2.5 text-on-primary shadow-lg"
             style={{
               left: `${Math.min(92, Math.max(8, ((activeIndex + 0.5) / data.length) * 100))}%`,
               bottom: `${40 + activePercent * 160}px`,
@@ -115,24 +115,24 @@ export function HourlyChart({ data }: HourlyChartProps) {
                 {formatHour(activeData.hour)}
               </span>
               {activeData.hour === peak.hour && (
-                <span className="rounded-full bg-[#d18b35] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide">
+                <span className="rounded-full bg-warning px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide">
                   Peak
                 </span>
               )}
             </div>
             <p className="mt-1 text-lg font-semibold tabular-nums">
               {formatNumber(activeData.count)}
-              <span className="ms-1 text-[10px] font-normal text-emerald-100/70">
+              <span className="ms-1 text-[10px] font-normal text-white/70">
                 messages
               </span>
             </p>
-            <p className="mt-0.5 text-[10px] text-emerald-100/70">
+            <p className="mt-0.5 text-[10px] text-white/70">
               {totalMessages > 0
                 ? ((activeData.count / totalMessages) * 100).toFixed(1)
                 : "0"}
               % of activity
             </p>
-            <span className="absolute start-1/2 top-full h-2.5 w-2.5 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 rotate-45 bg-[#173c31]" />
+            <span className="absolute start-1/2 top-full h-2.5 w-2.5 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 rotate-45 bg-primary" />
           </div>
         )}
 
@@ -146,7 +146,7 @@ export function HourlyChart({ data }: HourlyChartProps) {
               <button
                 key={hour.hour}
                 type="button"
-                className="group relative flex h-full min-w-0 items-end justify-center rounded-lg outline-none transition-colors hover:bg-[#edf6f2]/70 focus-visible:bg-[#edf6f2] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#67ae90] dark:hover:bg-emerald-950/20 dark:focus-visible:bg-emerald-950/30"
+                className="group relative flex h-full min-w-0 items-end justify-center rounded-lg outline-none transition-colors hover:bg-muted/70 focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 aria-label={`${formatHour(hour.hour)}: ${hour.count} messages`}
                 aria-pressed={selectedHour === hour.hour}
                 onMouseEnter={() => setHoveredHour(hour.hour)}
@@ -158,20 +158,20 @@ export function HourlyChart({ data }: HourlyChartProps) {
                 <span
                   className={`block w-[42%] min-w-1 max-w-5 rounded-t-full transition-[height,opacity,filter] ${
                     isPeak
-                      ? "bg-gradient-to-b from-[#e5a352] to-[#c87827]"
-                      : "bg-gradient-to-b from-[#36b98a] to-[#0b7a55]"
+                      ? "bg-gradient-to-b from-warning to-warning"
+                      : "bg-gradient-to-b from-primary to-primary"
                   } ${
                     activeHour !== null && !isActive
                       ? "opacity-40"
                       : "opacity-100"
-                  } ${isActive ? "drop-shadow-[0_5px_8px_rgba(11,122,85,0.2)]" : ""}`}
+                  } ${isActive ? "drop-shadow-md" : ""}`}
                   style={{
                     height: `${Math.max(height, hour.count > 0 ? 2 : 1)}%`,
                   }}
                   aria-hidden="true"
                 />
                 {(hour.hour % 6 === 0 || hour.hour === 23) && (
-                  <span className="absolute top-[calc(100%+7px)] text-[10px] tabular-nums text-[#8a9690] dark:text-dark-text-tertiary">
+                  <span className="absolute top-[calc(100%+7px)] text-[10px] tabular-nums text-fg-muted">
                     {String(hour.hour).padStart(2, "0")}
                   </span>
                 )}

@@ -119,9 +119,9 @@ export function MessageChart({ data }: MessageChartProps) {
             color="blue"
           />
         </div>
-        <div className="flex items-center gap-1 text-[11px] font-medium text-[#718078] dark:text-dark-text-secondary">
+        <div className="flex items-center gap-1 text-[11px] font-medium text-fg-muted">
           <LegendDot
-            color="bg-[#0b7a55]"
+            color="bg-primary"
             label={t("dashboard.charts.outbound", "Outbound")}
             active={visibleSeries.outbound}
             onToggle={() =>
@@ -132,7 +132,7 @@ export function MessageChart({ data }: MessageChartProps) {
             }
           />
           <LegendDot
-            color="bg-[#4185c5]"
+            color="bg-info"
             label={t("dashboard.charts.inbound", "Inbound")}
             active={visibleSeries.inbound}
             onToggle={() =>
@@ -159,8 +159,8 @@ export function MessageChart({ data }: MessageChartProps) {
         >
           <defs>
             <linearGradient id="message-sent-area" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#0b7a55" stopOpacity="0.2" />
-              <stop offset="100%" stopColor="#0b7a55" stopOpacity="0" />
+              <stop offset="0%" stopColor="var(--chart-1)" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="var(--chart-1)" stopOpacity="0" />
             </linearGradient>
             <linearGradient
               id="message-received-area"
@@ -169,8 +169,8 @@ export function MessageChart({ data }: MessageChartProps) {
               y1="0"
               y2="1"
             >
-              <stop offset="0%" stopColor="#4185c5" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="#4185c5" stopOpacity="0" />
+              <stop offset="0%" stopColor="var(--chart-2)" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="var(--chart-2)" stopOpacity="0" />
             </linearGradient>
           </defs>
 
@@ -184,14 +184,14 @@ export function MessageChart({ data }: MessageChartProps) {
                   y1={y}
                   y2={y}
                   stroke="currentColor"
-                  className="text-[#e4eae6] dark:text-dark-border"
+                  className="text-fg-subtle"
                   strokeDasharray="3 5"
                 />
                 <text
                   x={responsiveChartBox.left - 10}
                   y={y + 4}
                   textAnchor="end"
-                  className="fill-[#8a9690] text-[10px] dark:fill-dark-text-tertiary"
+                  className="fill-fg-muted text-[10px]"
                 >
                   {formatAxisNumber(tick)}
                 </text>
@@ -208,7 +208,7 @@ export function MessageChart({ data }: MessageChartProps) {
               <path
                 d={getSmoothPath(sentPoints)}
                 fill="none"
-                stroke="#0b7a55"
+                stroke="var(--chart-1)"
                 strokeWidth="3"
                 strokeLinecap="round"
               />
@@ -223,7 +223,7 @@ export function MessageChart({ data }: MessageChartProps) {
               <path
                 d={getSmoothPath(receivedPoints)}
                 fill="none"
-                stroke="#4185c5"
+                stroke="var(--chart-2)"
                 strokeWidth="3"
                 strokeLinecap="round"
               />
@@ -243,7 +243,7 @@ export function MessageChart({ data }: MessageChartProps) {
                       ? "end"
                       : "middle"
                 }
-                className="fill-[#8a9690] text-[10px] dark:fill-dark-text-tertiary"
+                className="fill-fg-muted text-[10px]"
               >
                 {formatDate(day.date)}
               </text>
@@ -258,7 +258,7 @@ export function MessageChart({ data }: MessageChartProps) {
                 y1={responsiveChartBox.top}
                 y2={chartBaseline}
                 stroke="currentColor"
-                className="text-[#aab5af] dark:text-dark-text-tertiary"
+                className="text-fg-subtle"
                 strokeWidth="1"
                 strokeDasharray="3 4"
               />
@@ -267,7 +267,7 @@ export function MessageChart({ data }: MessageChartProps) {
                   cx={hoveredX}
                   cy={sentPoints[hoveredIndex].y}
                   r="5"
-                  fill="#0b7a55"
+                  fill="var(--chart-1)"
                   stroke="white"
                   strokeWidth="2"
                 />
@@ -277,7 +277,7 @@ export function MessageChart({ data }: MessageChartProps) {
                   cx={hoveredX}
                   cy={receivedPoints[hoveredIndex].y}
                   r="5"
-                  fill="#4185c5"
+                  fill="var(--chart-2)"
                   stroke="white"
                   strokeWidth="2"
                 />
@@ -296,7 +296,7 @@ export function MessageChart({ data }: MessageChartProps) {
 
         {hoveredDay && (visibleSeries.outbound || visibleSeries.inbound) && (
           <div
-            className="pointer-events-none absolute top-0 z-10 min-w-40 -translate-x-1/2 rounded-lg border border-[#dce3de] bg-white/95 px-3 py-2 text-[11px] shadow-lg backdrop-blur-sm dark:border-dark-border dark:bg-dark-secondary/95"
+            className="pointer-events-none absolute top-0 z-10 min-w-40 -translate-x-1/2 rounded-lg border border-line bg-surface/95 px-3 py-2 text-[11px] shadow-lg backdrop-blur-sm"
             style={{
               left: Math.min(
                 Math.max(88, hoveredX),
@@ -305,35 +305,35 @@ export function MessageChart({ data }: MessageChartProps) {
             }}
             role="status"
           >
-            <p className="mb-1.5 font-semibold text-[#31463e] dark:text-dark-text-primary">
+            <p className="mb-1.5 font-semibold text-fg">
               {formatDate(hoveredDay.date)}
             </p>
             {visibleSeries.outbound && (
-              <p className="flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
+              <p className="flex items-center justify-between gap-4 text-fg-muted">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-[#0b7a55]" />
+                  <span className="h-2 w-2 rounded-full bg-primary" />
                   Outbound
                 </span>
-                <strong className="tabular-nums text-[#075c41] dark:text-emerald-300">
+                <strong className="tabular-nums text-accent">
                   {formatNumber(hoveredDay.sent)}
                 </strong>
               </p>
             )}
             {visibleSeries.inbound && (
-              <p className="mt-1 flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
+              <p className="mt-1 flex items-center justify-between gap-4 text-fg-muted">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-[#4185c5]" />
+                  <span className="h-2 w-2 rounded-full bg-info" />
                   Inbound
                 </span>
-                <strong className="tabular-nums text-[#326fa8] dark:text-blue-300">
+                <strong className="tabular-nums text-info">
                   {formatNumber(hoveredDay.received)}
                 </strong>
               </p>
             )}
-            <div className="mt-1.5 border-t border-[#e3e9e5] pt-1.5 dark:border-dark-border">
-              <p className="flex items-center justify-between gap-4 text-[#617169] dark:text-dark-text-secondary">
+            <div className="mt-1.5 border-t border-line pt-1.5">
+              <p className="flex items-center justify-between gap-4 text-fg-muted">
                 <span>{t("dashboard.charts.total", "Total")}</span>
-                <strong className="tabular-nums text-[#31463e] dark:text-dark-text-primary">
+                <strong className="tabular-nums text-fg">
                   {formatNumber(hoveredDay.sent + hoveredDay.received)}
                 </strong>
               </p>
@@ -356,14 +356,14 @@ function Metric({
 }) {
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
         {label}
       </p>
       <p
         className={
           color === "emerald"
-            ? "text-xl font-semibold tabular-nums text-[#075c41] dark:text-emerald-300"
-            : "text-xl font-semibold tabular-nums text-[#326fa8] dark:text-blue-300"
+            ? "text-xl font-semibold tabular-nums text-accent"
+            : "text-xl font-semibold tabular-nums text-info"
         }
       >
         {formatNumber(value)}
@@ -387,7 +387,7 @@ function LegendDot({
   return (
     <button
       type="button"
-      className={`flex items-center gap-1.5 rounded-md px-2 py-1.5 transition-colors hover:bg-[#f0f4f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b7a55]/40 dark:hover:bg-dark-tertiary ${
+      className={`flex items-center gap-1.5 rounded-md px-2 py-1.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40  ${
         active ? "opacity-100" : "opacity-40"
       }`}
       aria-pressed={active}
@@ -405,7 +405,7 @@ function LegendDot({
 
 function ChartEmptyState({ message }: { message: string }) {
   return (
-    <div className="grid h-[276px] place-items-center rounded-xl border border-dashed border-[#dce3de] bg-[#fafcfb] text-sm text-[#718078] dark:border-dark-border dark:bg-dark-secondary/40 dark:text-dark-text-secondary">
+    <div className="grid h-[276px] place-items-center rounded-xl border border-dashed border-line bg-subtle text-sm text-fg-muted">
       {message}
     </div>
   );

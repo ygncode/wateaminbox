@@ -67,7 +67,7 @@ export function GoogleSignInButton({ redirect }: GoogleSignInButtonProps) {
         href={googleSignInUrl(redirect)}
         onClick={() => setNavigating(true)}
         aria-disabled={navigating}
-        className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-800 shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 aria-disabled:pointer-events-none aria-disabled:opacity-70 dark:border-dark-border dark:bg-dark-tertiary dark:text-dark-text-primary dark:hover:bg-dark-tertiary/80 dark:focus-visible:ring-offset-dark-elevated"
+        className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-line-strong bg-surface px-4 text-sm font-semibold text-fg shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-disabled:pointer-events-none aria-disabled:opacity-70"
       >
         {navigating ? (
           <LoaderCircle aria-hidden="true" className="h-5 w-5 animate-spin" />
@@ -77,11 +77,11 @@ export function GoogleSignInButton({ redirect }: GoogleSignInButtonProps) {
         {t("auth.continueWithGoogle", "Continue with Google")}
       </a>
       <div className="mt-6 flex items-center gap-3" aria-hidden="true">
-        <span className="h-px flex-1 bg-slate-200 dark:bg-dark-border" />
-        <span className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400 dark:text-dark-text-secondary">
+        <span className="h-px flex-1 bg-muted-strong" />
+        <span className="text-xs font-medium uppercase tracking-[0.14em] text-fg-subtle">
           {t("auth.orUseEmail", "or use email")}
         </span>
-        <span className="h-px flex-1 bg-slate-200 dark:bg-dark-border" />
+        <span className="h-px flex-1 bg-muted-strong" />
       </div>
     </div>
   );

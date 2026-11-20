@@ -46,9 +46,9 @@ export function ResetPasswordPage() {
   };
 
   return (
-    <main className="min-h-dvh grid place-items-center bg-gray-100 dark:bg-dark-primary px-4">
-      <section className="w-full max-w-md rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-elevated p-8 shadow-xl">
-        <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-full bg-whatsapp-green text-white shadow-lg shadow-green-500/20">
+    <main className="min-h-dvh grid place-items-center bg-muted px-4">
+      <section className="w-full max-w-md rounded-xl border border-line bg-surface p-8 shadow-xl">
+        <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-full bg-primary text-on-primary shadow-lg">
           {status === "success" ? (
             <CheckCircle2 size={32} />
           ) : (
@@ -58,19 +58,16 @@ export function ResetPasswordPage() {
 
         {status === "success" ? (
           <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
+            <h1 className="text-2xl font-bold text-fg">
               {t("auth.passwordUpdatedTitle", "Password updated")}
             </h1>
-            <p className="mt-3 text-gray-600 dark:text-dark-text-secondary">
+            <p className="mt-3 text-fg-muted">
               {t(
                 "auth.passwordUpdatedHint",
                 "Every previous session has been signed out. You can now continue with your new password.",
               )}
             </p>
-            <Button
-              asChild
-              className="mt-7 w-full bg-whatsapp-green-a11y-button text-white"
-            >
+            <Button asChild className="mt-7 w-full bg-primary text-on-primary">
               <Link to="/login">
                 {t("auth.returnToSignIn", "Return to sign in")}
               </Link>
@@ -79,10 +76,10 @@ export function ResetPasswordPage() {
         ) : (
           <>
             <div className="mb-7 text-center">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-dark-text-primary">
+              <h1 className="text-2xl font-bold text-fg">
                 {t("auth.chooseNewPassword", "Choose a new password")}
               </h1>
-              <p className="mt-2 text-gray-600 dark:text-dark-text-secondary">
+              <p className="mt-2 text-fg-muted">
                 {t(
                   "auth.chooseNewPasswordHint",
                   "Use at least eight characters. This link can only be used once.",
@@ -93,7 +90,7 @@ export function ResetPasswordPage() {
             {!token && (
               <div
                 role="alert"
-                className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300"
+                className="mb-5 rounded-lg border border-danger/30 bg-danger-soft p-3 text-sm text-danger"
               >
                 {t(
                   "auth.resetLinkIncomplete",
@@ -104,7 +101,7 @@ export function ResetPasswordPage() {
             {serverError && (
               <div
                 role="alert"
-                className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300"
+                className="mb-5 rounded-lg border border-danger/30 bg-danger-soft p-3 text-sm text-danger"
               >
                 {serverError}
               </div>
@@ -131,7 +128,7 @@ export function ResetPasswordPage() {
               />
               <Button
                 type="submit"
-                className="w-full bg-whatsapp-green-a11y-button text-white hover:bg-whatsapp-green-a11y-button/90"
+                className="w-full bg-primary text-on-primary hover:bg-accent/90"
                 disabled={!token || status === "saving"}
               >
                 {status === "saving"

@@ -31,17 +31,17 @@ export function TeamManagement({
   const invitations = usePendingInvitations(canInvite ? companyId : null);
 
   return (
-    <div className="flex h-full flex-col bg-[#f5f7f4] dark:bg-dark-primary">
-      <header className="border-b border-[#dce3de] bg-white px-4 py-4 dark:border-dark-border dark:bg-dark-secondary sm:px-6">
+    <div className="flex h-full flex-col bg-subtle">
+      <header className="border-b border-line bg-surface px-4 py-4 sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold text-[#0b7a55]">
+            <p className="text-xs font-semibold text-accent">
               {t("team.workspace", "Workspace")}
             </p>
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-dark-text-primary">
+            <h1 className="text-xl font-semibold text-fg">
               {t("team.title", "Team")}
             </h1>
-            <p className="mt-1 text-xs text-[#65736d] dark:text-dark-text-secondary">
+            <p className="mt-1 text-xs text-fg-muted">
               {t("team.memberInvitationCounts", {
                 defaultValue:
                   "{{members}} members · {{invitations}} pending invitations",
@@ -53,7 +53,7 @@ export function TeamManagement({
           {canInvite && (
             <Button
               onClick={() => setShowInviteForm(true)}
-              className="bg-[#0b7a55] text-white hover:bg-[#096747]"
+              className="bg-primary text-on-primary hover:bg-primary-hover"
             >
               <UserPlus className="me-2 h-4 w-4" /> Invite member
             </Button>
@@ -61,7 +61,7 @@ export function TeamManagement({
         </div>
       </header>
 
-      <div className="flex border-b border-[#dce3de] bg-white dark:border-dark-border dark:bg-dark-secondary">
+      <div className="flex border-b border-line bg-surface">
         {canManageTeam && (
           <Tab
             active={activeTab === "members"}
@@ -129,13 +129,13 @@ function Tab({
       className={cn(
         "flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-colors",
         active
-          ? "border-[#0b7a55] text-[#0b7a55]"
-          : "border-transparent text-[#65736d] hover:text-[#10211b] dark:text-dark-text-secondary dark:hover:text-white",
+          ? "border-accent text-accent"
+          : "border-transparent text-fg-muted hover:text-fg",
       )}
     >
       <Icon className="h-4 w-4" /> {label}
       {count !== undefined && (
-        <span className="rounded-full bg-[#edf1ed] px-1.5 py-0.5 text-[10px] dark:bg-dark-tertiary">
+        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px]">
           {count}
         </span>
       )}

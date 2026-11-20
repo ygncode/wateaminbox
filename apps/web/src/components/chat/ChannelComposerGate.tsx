@@ -27,7 +27,7 @@ export function ChannelComposerGate({
   if (isLoading) {
     return (
       <div
-        className="h-12 animate-pulse border-t border-gray-100 bg-gray-50 dark:border-dark-border dark:bg-dark-tertiary"
+        className="h-12 animate-pulse border-t border-line bg-subtle"
         role="status"
         aria-label={t("chat.channelCapabilitiesLoading")}
       />
@@ -37,7 +37,7 @@ export function ChannelComposerGate({
   const features = capabilities ? resolveComposerFeatures(capabilities) : null;
   if (!features?.canComposeText) {
     return (
-      <div className="flex items-center gap-2 border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600 dark:border-dark-border dark:bg-dark-tertiary/50 dark:text-dark-text-secondary">
+      <div className="flex items-center gap-2 border-t border-line bg-subtle px-4 py-3 text-sm text-fg-muted">
         <Lock className="size-4 shrink-0" aria-hidden="true" />
         <span>{t("chat.channelMessagingUnavailable")}</span>
       </div>

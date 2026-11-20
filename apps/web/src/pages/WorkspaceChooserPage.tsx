@@ -30,8 +30,7 @@ export function WorkspaceChooserPage() {
   };
 
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-[#f5f7f4] px-5 py-10 text-[#10211b] dark:bg-dark-primary dark:text-dark-text-primary">
-      <div className="pointer-events-none absolute -end-32 -top-32 h-96 w-96 rounded-full bg-[#dcefe7] blur-3xl dark:bg-emerald-500/10" />
+    <main className="relative min-h-dvh overflow-hidden bg-subtle px-5 py-10 text-fg">
       <div className="relative mx-auto max-w-2xl">
         <div className="mb-10 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -43,19 +42,19 @@ export function WorkspaceChooserPage() {
           <button
             type="button"
             onClick={() => void logout()}
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-[#65736d] hover:bg-white hover:text-[#10211b] dark:hover:bg-dark-tertiary dark:hover:text-white"
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-fg-muted hover:bg-surface hover:text-fg"
           >
             <LogOut className="h-4 w-4" /> {t("nav.signOut")}
           </button>
         </div>
 
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#0b7a55]">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-accent">
           {t("workspaces.yourWorkspaces", "Your workspaces")}
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">
           {t("workspaces.whereWorking", "Where are you working today?")}
         </h1>
-        <p className="mt-3 max-w-lg text-[#65736d] dark:text-dark-text-secondary">
+        <p className="mt-3 max-w-lg text-fg-muted">
           {t(
             "workspaces.separateHint",
             "Each workspace keeps its conversations, team, and settings separate.",
@@ -69,7 +68,7 @@ export function WorkspaceChooserPage() {
               type="button"
               disabled={isSwitching || workspace.status !== "active"}
               onClick={() => void choose(workspace.id)}
-              className="group flex items-center gap-4 rounded-2xl border border-[#dce3de] bg-white p-4 text-start shadow-[0_1px_2px_rgba(16,33,27,.03)] transition-all hover:-translate-y-0.5 hover:border-[#9bcab8] hover:shadow-[0_12px_30px_rgba(16,33,27,.08)] disabled:opacity-60 dark:border-dark-border dark:bg-dark-elevated"
+              className="group flex items-center gap-4 rounded-2xl border border-line bg-surface p-4 text-start shadow-xs transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-lg disabled:opacity-60"
             >
               <WorkspaceAvatar
                 workspace={workspace}
@@ -81,12 +80,12 @@ export function WorkspaceChooserPage() {
                     ? t("workspaces.opening", { name: workspace.name })
                     : workspace.name}
                 </span>
-                <span className="mt-0.5 block text-sm capitalize text-[#65736d] dark:text-dark-text-secondary">
+                <span className="mt-0.5 block text-sm capitalize text-fg-muted">
                   {workspace.role}
                   {workspace.status !== "active" && " · suspended"}
                 </span>
               </span>
-              <ArrowRight className="h-5 w-5 text-[#9aaba4] transition-transform group-hover:translate-x-1 rtl:group-hover:-translate-x-1 group-hover:text-[#0b7a55] rtl:-scale-x-100" />
+              <ArrowRight className="h-5 w-5 text-fg-subtle transition-transform group-hover:translate-x-1 rtl:group-hover:-translate-x-1 group-hover:text-accent rtl:-scale-x-100" />
             </button>
           ))}
         </div>

@@ -133,9 +133,9 @@ export function CreateGroupDialog({
         </DialogHeader>
 
         {connectedAccounts.length === 0 ? (
-          <div className="flex gap-3 rounded-lg bg-gray-50 p-3 dark:bg-dark-elevated">
-            <Users className="mt-0.5 h-5 w-5 shrink-0 text-gray-400" />
-            <p className="text-sm leading-5 text-gray-600 dark:text-dark-text-secondary">
+          <div className="flex gap-3 rounded-lg bg-subtle p-3">
+            <Users className="mt-0.5 h-5 w-5 shrink-0 text-fg-subtle" />
+            <p className="text-sm leading-5 text-fg-muted">
               {t(
                 "groups.noAccountConnected",
                 "No WhatsApp account is connected. Connect one before creating a group.",
@@ -181,7 +181,7 @@ export function CreateGroupDialog({
                   "e.g. Support escalations",
                 )}
               />
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+              <p className="text-xs text-fg-muted">
                 {trimmedName.length}/{GROUP_NAME_MAX_LENGTH} characters ·
                 WhatsApp rejects longer names.
               </p>
@@ -203,7 +203,7 @@ export function CreateGroupDialog({
                 searchInputId="create-group-members"
                 labelledBy="create-group-members-label"
               />
-              <p className="text-xs text-gray-500 dark:text-dark-text-tertiary">
+              <p className="text-xs text-fg-muted">
                 {t(
                   "groups.ownerJoinsHint",
                   "This account joins the group automatically. WhatsApp may refuse individual members whose privacy settings block group invites.",

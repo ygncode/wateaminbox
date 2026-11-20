@@ -46,18 +46,18 @@ export function NewContactsChart({ data }: NewContactsChartProps) {
     <div>
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
             {t("dashboard.charts.newInPeriod", "New in period")}
           </p>
-          <p className="text-xl font-semibold tabular-nums text-[#075c41] dark:text-emerald-300">
+          <p className="text-xl font-semibold tabular-nums text-accent">
             +{formatNumber(totalNew)}
           </p>
         </div>
         <div className="text-end">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#7c8983] dark:text-dark-text-secondary">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
             {t("dashboard.charts.contactBase", "Contact base")}
           </p>
-          <p className="text-sm font-semibold tabular-nums text-[#31463e] dark:text-dark-text-primary">
+          <p className="text-sm font-semibold tabular-nums text-fg">
             {formatNumber(latestCumulative)}
           </p>
         </div>
@@ -71,8 +71,8 @@ export function NewContactsChart({ data }: NewContactsChartProps) {
       >
         <defs>
           <linearGradient id="contact-bar-fill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#23a576" />
-            <stop offset="100%" stopColor="#0b7a55" />
+            <stop offset="0%" stopColor="var(--chart-1)" />
+            <stop offset="100%" stopColor="var(--chart-1)" />
           </linearGradient>
         </defs>
 
@@ -86,7 +86,7 @@ export function NewContactsChart({ data }: NewContactsChartProps) {
               y1={y}
               y2={y}
               stroke="currentColor"
-              className="text-[#e4eae6] dark:text-dark-border"
+              className="text-fg-subtle"
               strokeDasharray="3 5"
             />
           );
@@ -105,7 +105,9 @@ export function NewContactsChart({ data }: NewContactsChartProps) {
                 width={barWidth}
                 height={Math.max(height, day.count > 0 ? 3 : 0)}
                 rx={barWidth / 2}
-                fill={day.count > 0 ? "url(#contact-bar-fill)" : "#e8eeea"}
+                fill={
+                  day.count > 0 ? "url(#contact-bar-fill)" : "var(--chart-grid)"
+                }
                 className="transition-opacity hover:opacity-75"
               >
                 <title>{`${formatDate(day.date)}: ${day.count} new contacts, ${day.cumulativeTotal} total`}</title>
@@ -121,7 +123,7 @@ export function NewContactsChart({ data }: NewContactsChartProps) {
                         ? "end"
                         : "middle"
                   }
-                  className="fill-[#8a9690] text-[10px] dark:fill-dark-text-tertiary"
+                  className="fill-fg-muted text-[10px]"
                 >
                   {formatDate(day.date)}
                 </text>
@@ -133,7 +135,7 @@ export function NewContactsChart({ data }: NewContactsChartProps) {
         <path
           d={getSmoothPath(cumulativePoints)}
           fill="none"
-          stroke="#d18b35"
+          stroke="var(--chart-3)"
           strokeWidth="2.5"
           strokeLinecap="round"
           strokeDasharray="5 4"
@@ -142,15 +144,15 @@ export function NewContactsChart({ data }: NewContactsChartProps) {
           cx={cumulativePoints[cumulativePoints.length - 1].x}
           cy={cumulativePoints[cumulativePoints.length - 1].y}
           r="4"
-          fill="#fff"
-          stroke="#d18b35"
+          fill="var(--surface)"
+          stroke="var(--chart-3)"
           strokeWidth="3"
         />
       </svg>
 
       <div className="-mt-1 flex justify-end">
-        <span className="flex items-center gap-1.5 text-[10px] font-medium text-[#7c8983] dark:text-dark-text-secondary">
-          <span className="h-0.5 w-4 border-t-2 border-dashed border-[#d18b35]" />
+        <span className="flex items-center gap-1.5 text-[10px] font-medium text-fg-muted">
+          <span className="h-0.5 w-4 border-t-2 border-dashed border-warning" />
           {t("dashboard.charts.cumulativeGrowth", "Cumulative growth")}
         </span>
       </div>
@@ -162,7 +164,7 @@ function ChartEmptyState() {
   const { t } = useTranslation();
 
   return (
-    <div className="grid h-[276px] place-items-center rounded-xl border border-dashed border-[#dce3de] bg-[#fafcfb] text-sm text-[#718078] dark:border-dark-border dark:bg-dark-secondary/40 dark:text-dark-text-secondary">
+    <div className="grid h-[276px] place-items-center rounded-xl border border-dashed border-line bg-subtle text-sm text-fg-muted">
       {t("dashboard.charts.noNewContacts", "No new contacts in this period")}
     </div>
   );

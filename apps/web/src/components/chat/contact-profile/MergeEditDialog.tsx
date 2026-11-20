@@ -222,7 +222,7 @@ export function MergeEditDialog({
               {plan.toMerge.map((id) => (
                 <li key={id} className="flex items-center gap-2">
                   <Plus
-                    className="size-4 shrink-0 text-whatsapp-teal-green"
+                    className="size-4 shrink-0 text-accent"
                     aria-hidden="true"
                   />
                   <span className="truncate">
@@ -239,7 +239,7 @@ export function MergeEditDialog({
                   className="flex items-center gap-2"
                 >
                   <span
-                    className="size-4 shrink-0 text-center text-red-600 dark:text-red-400"
+                    className="size-4 shrink-0 text-center text-danger"
                     aria-hidden="true"
                   >
                     −
@@ -388,7 +388,7 @@ function PickerRow({
       aria-pressed={checked}
       className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-start text-sm hover:bg-accent"
     >
-      <span className="size-9 shrink-0 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-tertiary">
+      <span className="size-9 shrink-0 overflow-hidden rounded-full bg-muted">
         {contact?.avatarUrl ? (
           <img
             src={contact.avatarUrl}
@@ -419,8 +419,8 @@ function PickerRow({
         className={cn(
           "flex size-5 shrink-0 items-center justify-center rounded-full border",
           checked
-            ? "border-whatsapp-teal-green bg-whatsapp-teal-green text-white"
-            : "border-gray-300 text-transparent dark:border-dark-border",
+            ? "border-primary bg-primary text-on-primary"
+            : "border-line-strong text-transparent",
         )}
         aria-hidden="true"
       >

@@ -176,13 +176,13 @@ export function LoginPage() {
   return (
     <AuthPageShell variant="login">
       <div className="mx-auto w-full max-w-[30rem]">
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0a7c43] dark:text-[#52df83]">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent">
           {t("auth.welcomeBack", "Welcome back")}
         </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-slate-950 text-balance sm:text-4xl dark:text-dark-text-primary">
+        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-fg text-balance sm:text-4xl">
           {t("auth.loginTitle", "Sign in to your team inbox")}
         </h1>
-        <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-dark-text-secondary">
+        <p className="mt-3 text-sm leading-6 text-fg-muted">
           {t(
             "auth.loginSubtitle",
             "Continue managing conversations, assignments, and customer context with your team.",
@@ -192,7 +192,7 @@ export function LoginPage() {
         {googleErrorMessage && (
           <div
             role="alert"
-            className="mt-6 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-5 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300"
+            className="mt-6 flex items-start gap-2.5 rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm leading-5 text-danger"
           >
             <CircleAlert
               aria-hidden="true"
@@ -207,14 +207,14 @@ export function LoginPage() {
         <form
           onSubmit={handleSubmit(onSubmit)}
           onChange={clearLoginFeedback}
-          className="mt-6 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-slate-300 [&_input]:bg-white [&_input]:px-3.5 dark:[&_input]:border-dark-border dark:[&_input]:bg-dark-tertiary"
+          className="mt-6 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-line-strong [&_input]:bg-surface [&_input]:px-3.5"
           aria-busy={isLoading}
           noValidate
         >
           {error && (
             <div
               role="alert"
-              className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-5 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300"
+              className="flex items-start gap-2.5 rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm leading-5 text-danger"
             >
               <CircleAlert
                 aria-hidden="true"
@@ -227,7 +227,7 @@ export function LoginPage() {
                     type="button"
                     onClick={resendVerificationEmail}
                     disabled={isResending || Boolean(resendMessage)}
-                    className="mt-2 inline-flex items-center gap-1.5 rounded-sm font-semibold underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mt-2 inline-flex items-center gap-1.5 rounded-sm font-semibold underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isResending ? (
                       <LoaderCircle
@@ -246,7 +246,7 @@ export function LoginPage() {
                   </button>
                 )}
                 {resendMessage && (
-                  <p className="mt-2 font-medium text-emerald-700 dark:text-emerald-300">
+                  <p className="mt-2 font-medium text-accent">
                     {resendMessage}
                   </p>
                 )}
@@ -280,7 +280,7 @@ export function LoginPage() {
             <div className="mt-2 flex justify-end">
               <Link
                 to={buildAuthUrl("/forgot-password", redirectTo, currentEmail)}
-                className="rounded-sm text-sm font-semibold text-[#0a7c43] underline-offset-4 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
+                className="rounded-sm text-sm font-semibold text-accent underline-offset-4 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
                 {t("auth.forgotPasswordLink", "Forgot password?")}
               </Link>
@@ -290,7 +290,7 @@ export function LoginPage() {
           <Button
             type="submit"
             size="lg"
-            className="h-12 w-full rounded-xl bg-[#075e54] text-white shadow-lg shadow-[#075e54]/15 hover:bg-[#064b43] dark:bg-whatsapp-green-a11y-button dark:hover:bg-whatsapp-green-a11y-button/90"
+            className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-primary-hover"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -307,12 +307,12 @@ export function LoginPage() {
           </Button>
         </form>
 
-        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-dark-border dark:bg-dark-tertiary/50">
+        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-line bg-subtle/80 p-4">
           <ShieldCheck
             aria-hidden="true"
-            className="mt-0.5 h-5 w-5 shrink-0 text-[#0a7c43] dark:text-[#52df83]"
+            className="mt-0.5 h-5 w-5 shrink-0 text-accent"
           />
-          <p className="text-xs leading-5 text-slate-500 dark:text-dark-text-secondary">
+          <p className="text-xs leading-5 text-fg-muted">
             {t(
               "auth.loginPrivacyNote",
               "Your sign-in is protected, and workspace access stays private to approved team members.",
@@ -320,11 +320,11 @@ export function LoginPage() {
           </p>
         </div>
 
-        <p className="mt-6 text-center text-sm text-slate-600 dark:text-dark-text-secondary">
+        <p className="mt-6 text-center text-sm text-fg-muted">
           {t("auth.newToApp", "New to WATeamInbox?")}{" "}
           <Link
             to={buildAuthUrl("/register", redirectTo, currentEmail)}
-            className="rounded-sm font-semibold text-[#0a7c43] underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#075e54] focus-visible:ring-offset-2 dark:text-[#52df83] dark:focus-visible:ring-offset-dark-elevated"
+            className="rounded-sm font-semibold text-accent underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             {t("auth.createAccountLink", "Create an account")}
           </Link>
