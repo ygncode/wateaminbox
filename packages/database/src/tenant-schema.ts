@@ -137,6 +137,8 @@ export const TENANT_SCHEMA_CONTRACT = {
     "created_by",
     "created_at",
     "revoked_at",
+    "expires_at",
+    "revoked_by",
   ],
   conversations: [
     "id",

@@ -67,12 +67,20 @@ const tenantState: {
    * matched and then asserts the predicates that would have produced it.
    */
   updatedRows: ContactRow[];
+  /** Updates to `contacts` only; suppression writes are recorded apart. */
   updates: Array<{ set: Record<string, unknown>; where: WhereClause[] }>;
+  /** Dual-written customer suppression changes (phase 1 of contact blocking). */
+  suppressionWrites: Array<{
+    kind: "revoke" | "insert";
+    values: Record<string, unknown>;
+    where: WhereClause[];
+  }>;
   outboxLookups: string[];
 } = {
   outboxRow: undefined,
   updatedRows: [],
   updates: [],
+  suppressionWrites: [],
   outboxLookups: [],
 };
 
@@ -92,7 +100,51 @@ function fakeTenantDb() {
         },
       };
     },
-    updateTable(_table: string) {
+    insertInto(table: string) {
+      if (table !== "contact_suppressions") {
+        throw new Error(`unexpected insert into ${table}`);
+      }
+      const write = {
+        kind: "insert" as const,
+        values: {} as Record<string, unknown>,
+        where: [] as WhereClause[],
+      };
+      tenantState.suppressionWrites.push(write);
+      return {
+        values(values: Record<string, unknown>) {
+          write.values = values;
+          return this;
+        },
+        onConflict() {
+          return this;
+        },
+        execute() {
+          return Promise.resolve([]);
+        },
+      };
+    },
+    updateTable(table: string) {
+      if (table === "contact_suppressions") {
+        const write = {
+          kind: "revoke" as const,
+          values: {} as Record<string, unknown>,
+          where: [] as WhereClause[],
+        };
+        tenantState.suppressionWrites.push(write);
+        return {
+          set(values: Record<string, unknown>) {
+            write.values = values;
+            return this;
+          },
+          where(column: string, op: string, value: unknown) {
+            write.where.push([column, op, value]);
+            return this;
+          },
+          execute() {
+            return Promise.resolve([]);
+          },
+        };
+      }
       const update: { set: Record<string, unknown>; where: WhereClause[] } = {
         set: {},
         where: [],
@@ -284,6 +336,7 @@ function resetTenantState(rows: ContactRow[] = []) {
   };
   tenantState.updatedRows = rows;
   tenantState.updates = [];
+  tenantState.suppressionWrites = [];
   tenantState.outboxLookups = [];
 }
 
@@ -296,6 +349,19 @@ describe("optimistic block state after a failed command", () => {
 
     expect(tenantState.updates).toHaveLength(1);
     expect(tenantState.updates[0].set.is_blocked).toBe(false);
+    // The suppression the same PATCH wrote is revoked, fenced on queue time.
+    expect(tenantState.suppressionWrites).toHaveLength(1);
+    expect(tenantState.suppressionWrites[0].kind).toBe("revoke");
+    expect(tenantState.suppressionWrites[0].where).toContainEqual([
+      "created_at",
+      "<=",
+      COMMAND_QUEUED_AT,
+    ]);
+    expect(tenantState.suppressionWrites[0].where).toContainEqual([
+      "contact_id",
+      "=",
+      row.id,
+    ]);
     const viewerEvent = contactBroadcasts.find(
       (entry) => entry.event === "contact:updated",
     );
@@ -311,6 +377,18 @@ describe("optimistic block state after a failed command", () => {
     await handleCommandResultEvent(blocklistEvent("unblock_contact"));
 
     expect(tenantState.updates[0].set.is_blocked).toBe(true);
+    expect(tenantState.suppressionWrites).toEqual([
+      {
+        kind: "insert",
+        values: {
+          contact_id: row.id,
+          scope: "block",
+          reason: "manual",
+          created_by: "00000000-0000-0000-0000-000000000000",
+        },
+        where: [],
+      },
+    ]);
     const viewerEvent = contactBroadcasts.find(
       (entry) => entry.event === "contact:updated",
     );

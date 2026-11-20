@@ -81,6 +81,16 @@ export function linkedDeviceCapabilities(): ResolvedCapabilities {
       remoteHistory: true,
     },
     attachment: { enabled: true, maxCount: 30 },
+    // The phone's own blocklist refuses delivery, and blocklist changes made
+    // on the phone are reported back. The block itself still travels through
+    // the legacy `block_contact` command until the neutral transport wires
+    // `endpoint.block`.
+    blocking: {
+      provider: true,
+      providerStopsInbound: true,
+      reportsRemoteBlock: true,
+    },
+    inboundVolumeClass: "chat",
     constraints: {
       providerSideEditing: false,
       deliverySummary: "monotonic_single_recipient",

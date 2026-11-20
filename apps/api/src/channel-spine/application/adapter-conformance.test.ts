@@ -94,6 +94,15 @@ function expectCapabilityContract(capabilities: ResolvedCapabilities) {
       expect(capabilities.unavailableReasons[flag]?.code).toBeTruthy();
     }
   }
+  // Every provider takes an explicit position on blocking, so a new adapter
+  // cannot ship without saying whether the workspace is the only defense.
+  expect(typeof capabilities.blocking.provider).toBe("boolean");
+  expect(typeof capabilities.blocking.providerStopsInbound).toBe("boolean");
+  expect(typeof capabilities.blocking.reportsRemoteBlock).toBe("boolean");
+  if (capabilities.blocking.providerStopsInbound) {
+    expect(capabilities.blocking.provider).toBe(true);
+  }
+  expect(["chat", "email"]).toContain(capabilities.inboundVolumeClass);
 }
 
 describe("channel adapter conformance", () => {
@@ -146,6 +155,35 @@ describe("channel adapter conformance", () => {
         "confirmed",
         "accepted",
       ]).toContain(action.outcome);
+    }
+  });
+
+  test("endpoint block actions resolve to a result, never a throw", async () => {
+    for (const adapter of adapters) {
+      const capabilities = await adapter.resolveCapabilities(context);
+      for (const operation of ["endpoint.block", "endpoint.unblock"]) {
+        const action = await adapter.perform({
+          companyId: context.companyId,
+          channelAccountId: context.channelAccountId,
+          conversationId: sendIntent().conversationId,
+          operation,
+          idempotencyKey: `${operation}-1`,
+          payload: {
+            endpoint: {
+              externalId: "42",
+              identityScope: "user",
+              endpointKind: "person",
+            },
+          },
+        });
+        if (!capabilities.blocking.provider) {
+          expect(action.outcome).not.toBe("confirmed");
+          expect(action.outcome).not.toBe("accepted");
+        }
+        if ("errorCode" in action) {
+          expect(action.errorCode.length).toBeGreaterThan(0);
+        }
+      }
     }
   });
 
