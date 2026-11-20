@@ -361,8 +361,19 @@ Phase 5 answers "too many messages" even without anyone clicking Block.
 2. ~~Ban in Telegram groups?~~ **Decided (2026-11-20, owner):** no. A
    person-level block never leaves or bans in groups. Group moderation is a
    separate feature.
-3. Default per-sender thresholds per channel kind (chat vs. email). Still open;
-   explanation requested before deciding.
+3. ~~Per-sender thresholds.~~ **Decided (2026-11-20, owner):** defaults per
+   sender per channel account, adjustable per workspace later:
+
+   | Channel kind | Silence after | Silence window | Auto `mute_inbound` (off by default) |
+   |---|---|---|---|
+   | Chat (WhatsApp, Telegram, LINE, Viber, Messenger, Instagram) | 30 msgs / 1 min | 10 min | 200 msgs / 10 min → 1 h |
+   | Email | 10 msgs / 1 min | 30 min | 50 msgs / 10 min → 1 h |
+
+   Silenced messages are still stored (no unread, notification or auto-reply).
+   One debounced `contact.inbound_throttled` audit/realtime event is raised per
+   window. Never auto-`block`. The channel-account ingress tier (section 4.4.1)
+   is an internal safeguard with a high default and is not exposed to
+   workspaces.
 4. ~~`mute_inbound` timing.~~ **Decided (2026-11-20, owner):** ships in the
    first round with `block` (phases 2–3), including the UI control.
 
