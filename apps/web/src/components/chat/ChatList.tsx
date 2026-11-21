@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   Check,
-  Inbox,
+  ListFilter,
   Smartphone,
   Tags,
   UserPlus,
@@ -62,6 +62,17 @@ import { resolveInboxConnectionState } from "./inbox-connection-state";
 import { VirtualizedChatRows } from "./VirtualizedChatRows";
 
 const MAX_TAG_FILTERS = 50;
+
+const ASSIGNMENT_OPTIONS = [
+  { value: "all", labelKey: "chat.allConversations", label: "All conversations" },
+  { value: "unread", labelKey: "chat.unread", label: "Unread" },
+  { value: "assignedToMe", labelKey: "chat.assignedToMe", label: "Assigned to me" },
+  { value: "unassigned", labelKey: "chat.unassigned", label: "Unassigned" },
+] as const satisfies ReadonlyArray<{
+  value: AssignmentFilter;
+  labelKey: string;
+  label: string;
+}>;
 
 /**
  * Main chat list sidebar component
@@ -316,6 +327,11 @@ export const ChatList = memo(function ChatList({
     !hasPreviousPage &&
     visibleChats.length === 0;
   const isFirstRun = connectionState === "no-connections" && isEmpty;
+  const activeFilterCount =
+    (assignmentFilter !== "all" ? 1 : 0) + selectedTags.length;
+  // Name the account on each row only when there is more than one to tell
+  // apart and the list is not already scoped to one.
+  const showRowAccount = inboxAccounts.length > 1 && accountFilter === "all";
 
   return (
     <div
@@ -323,128 +339,137 @@ export const ChatList = memo(function ChatList({
       role="navigation"
       aria-label={t("chat.chatListAria", "Chat list")}
     >
-      {/* Search */}
+      {/* Search, the account scope (multi-account inboxes only) and new
+          contact share one row, so the first conversation sits high. */}
       <div
         className={
-          isFirstRun ? "hidden" : "border-b border-line bg-panel px-3 py-2"
+          isFirstRun ? "hidden" : "flex items-center gap-2 bg-panel px-3 pt-3 pb-2"
         }
       >
-        <ChatListSearch
-          value={searchQuery}
-          onChange={handleSearchChange}
-          onClear={handleSearchClear}
-        />
-      </div>
-
-      {/* Account scope makes the destination number explicit in multi-account inboxes. */}
-      {inboxAccounts.length > 1 && (
-        <div className="flex items-center gap-2 border-b border-line bg-panel px-3 py-2">
-          <Inbox
-            className="h-4 w-4 shrink-0 text-fg-subtle"
-            aria-hidden="true"
+        <div className="min-w-0 flex-1">
+          <ChatListSearch
+            value={searchQuery}
+            onChange={handleSearchChange}
+            onClear={handleSearchClear}
           />
-          <span className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
-            {t("chat.inbox", "Inbox")}
-          </span>
-          <Select value={accountFilter} onValueChange={setAccountFilter}>
-            <SelectTrigger
-              className="ms-auto h-8 min-w-0 max-w-[190px] text-xs"
-              aria-label={t("chat.filterByAccount", "Filter by account")}
-            >
-              <SelectValue
-                placeholder={t("chat.allAccounts", "All accounts")}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" hideIndicator>
-                <span className="flex items-center gap-2">
-                  <BrandMark className="size-4 shrink-0 rounded-[0.25rem] object-contain" />
-                  {t("chat.allAccounts", "All accounts")}
-                </span>
-              </SelectItem>
-              {inboxAccounts.map((account) => (
-                <SelectItem key={account.id} value={account.id} hideIndicator>
-                  <span className="flex min-w-0 items-center gap-2">
-                    {account.entry ? (
-                      <span
-                        className={cn(
-                          "grid size-4 shrink-0 place-items-center rounded-[0.25rem]",
-                          account.entry.tileClassName,
-                        )}
-                      >
-                        <account.entry.Mark className="size-3" />
-                      </span>
-                    ) : null}
-                    <span className="truncate">
-                      {account.label}
-                      {account.offline
-                        ? ` · ${t("chat.offline", "Offline").toLowerCase()}`
-                        : ""}
-                    </span>
+        </div>
+        {inboxAccounts.length > 1 && (
+            <Select value={accountFilter} onValueChange={setAccountFilter}>
+              <SelectTrigger
+                className="h-9 w-auto max-w-[10.5rem] text-xs"
+                aria-label={t("chat.filterByAccount", "Filter by account")}
+              >
+                <SelectValue
+                  placeholder={t("chat.allAccounts", "All accounts")}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" hideIndicator>
+                  <span className="flex items-center gap-2">
+                    <BrandMark className="size-4 shrink-0 rounded-[0.25rem] object-contain" />
+                    {t("chat.allAccounts", "All accounts")}
                   </span>
                 </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+                {inboxAccounts.map((account) => (
+                  <SelectItem key={account.id} value={account.id} hideIndicator>
+                    <span className="flex min-w-0 items-center gap-2">
+                      {account.entry ? (
+                        <span
+                          className={cn(
+                            "grid size-4 shrink-0 place-items-center rounded-[0.25rem]",
+                            account.entry.tileClassName,
+                          )}
+                        >
+                          <account.entry.Mark className="size-3" />
+                        </span>
+                      ) : null}
+                      <span className="truncate">
+                        {account.label}
+                        {account.offline
+                          ? ` · ${t("chat.offline", "Offline").toLowerCase()}`
+                          : ""}
+                      </span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+        )}
+        {connectionState !== "no-connections" && (
+          <button
+            type="button"
+            onClick={() => setIsAddContactOpen(true)}
+            className="grid size-9 shrink-0 place-items-center rounded-lg text-fg-muted transition-colors hover:bg-muted hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            aria-label={t("contacts.addNew", "Add new contact")}
+            title={t("contacts.addNew", "Add new contact")}
+            data-testid="add-contact-button"
+          >
+            <UserPlus className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
+      </div>
 
-      {/* Conversation lifecycle filters - All leads and is where a first-time
-          user starts, then the lifecycle narrows through Open/Pending/Resolved
-          (see chat-list-filters.ts). Resolved chats stay browsable. */}
+      {/* Lifecycle as one quiet segmented control; assignment and tags live
+          behind a single Filter menu (see chat-list-filters.ts). */}
       <div
         className={
           isFirstRun
             ? "hidden"
-            : "flex items-center border-b border-line bg-panel"
+            : "flex items-center gap-2 border-b border-line bg-panel px-3 pb-2.5"
         }
       >
         <div
-          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain px-2 py-1.5 [scrollbar-width:thin]"
+          role="radiogroup"
           aria-label={t("chat.statusFilters", "Conversation status filters")}
+          className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto rounded-lg bg-chip p-0.5 [scrollbar-width:none]"
           onWheel={handleFilterWheel}
         >
-          {CONVERSATION_STATUS_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setConversationStatusFilter(option.value)}
-              aria-pressed={conversationStatusFilter === option.value}
-              className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                conversationStatusFilter === option.value
-                  ? "bg-chip-on text-on-chip-on"
-                  : "border border-chip-line bg-chip text-fg-muted hover:bg-muted-strong"
-              }`}
-            >
-              {t(option.labelKey, option.label)}
-            </button>
-          ))}
+          {CONVERSATION_STATUS_OPTIONS.map((option) => {
+            const active = conversationStatusFilter === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setConversationStatusFilter(option.value)}
+                className={cn(
+                  "h-7 min-w-0 flex-1 whitespace-nowrap rounded-md px-2 text-[12.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                  active
+                    ? "bg-chip-on text-on-chip-on shadow-xs"
+                    : "text-fg-muted hover:text-fg",
+                )}
+              >
+                {t(option.labelKey, option.label)}
+              </button>
+            );
+          })}
         </div>
 
         <Popover onOpenChange={(open) => !open && setTagSearch("")}>
           <PopoverTrigger asChild>
             <button
               type="button"
-              className={`me-1 inline-flex h-8 flex-shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 ${
-                selectedTags.length > 0
-                  ? "border-accent/40 bg-accent/10 text-accent hover:bg-accent/15"
-                  : "border-line bg-raised text-fg-muted hover:bg-muted"
-              }`}
+              className={cn(
+                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[12.5px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                activeFilterCount > 0
+                  ? "bg-chip-on text-on-chip-on shadow-xs ring-1 ring-line"
+                  : "text-fg-muted hover:bg-muted hover:text-fg",
+              )}
               aria-label={
-                selectedTags.length > 0
-                  ? t("chat.filterByTagSelected", {
-                      defaultValue:
-                        "Filter conversations by tag, {{count}} selected",
-                      count: selectedTags.length,
+                activeFilterCount > 0
+                  ? t("chat.filtersActive", {
+                      defaultValue: "Filters, {{count}} active",
+                      count: activeFilterCount,
                     })
-                  : t("chat.filterByTag", "Filter conversations by tag")
+                  : t("chat.filters", "Filters")
               }
             >
-              <Tags className="h-3.5 w-3.5" aria-hidden="true" />
+              <ListFilter className="h-3.5 w-3.5" aria-hidden="true" />
               <span>{t("chat.filter", "Filter")}</span>
-              {selectedTags.length > 0 && (
-                <span className="grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] leading-4 text-on-primary tabular-nums">
-                  {selectedTags.length}
+              {activeFilterCount > 0 && (
+                <span className="grid min-w-4 place-items-center rounded-full bg-unread px-1 text-[10px] leading-4 text-on-unread tabular-nums">
+                  {activeFilterCount}
                 </span>
               )}
             </button>
@@ -454,8 +479,36 @@ export const ChatList = memo(function ChatList({
             sideOffset={8}
             className="w-[min(21rem,calc(100vw-1rem))] overflow-hidden rounded-xl border-line p-0 shadow-lg"
           >
+            <div className="border-b border-line p-1.5">
+              <p className="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-fg-subtle">
+                {t("chat.show", "Show")}
+              </p>
+              {ASSIGNMENT_OPTIONS.map((option) => {
+                const active = assignmentFilter === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={active}
+                    onClick={() => setAssignmentFilter(option.value)}
+                    className={cn(
+                      "flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-start text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40",
+                      active ? "bg-muted text-fg" : "text-fg hover:bg-muted",
+                    )}
+                  >
+                    <span className="min-w-0 flex-1">
+                      {t(option.labelKey, option.label)}
+                    </span>
+                    {active && (
+                      <Check className="h-4 w-4 shrink-0 text-fg" aria-hidden="true" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
             <div className="flex items-center gap-2.5 px-3 pt-3 pb-2.5">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-muted text-fg-muted">
                 <Tags className="h-4 w-4" aria-hidden="true" />
               </span>
               <div className="min-w-0 flex-1">
@@ -606,79 +659,6 @@ export const ChatList = memo(function ChatList({
             </div>
           </PopoverContent>
         </Popover>
-      </div>
-
-      {/* Assignment filters remain horizontally reachable at narrow widths. */}
-      <div
-        className={
-          isFirstRun
-            ? "hidden"
-            : "flex items-center border-b border-line bg-panel"
-        }
-      >
-        <div
-          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto overscroll-x-contain px-2 py-1.5 [scrollbar-width:thin]"
-          aria-label={t("chat.conversationFilters", "Conversation filters")}
-          onWheel={handleFilterWheel}
-        >
-          <button
-            type="button"
-            onClick={() => setAssignmentFilter("all")}
-            className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              assignmentFilter === "all"
-                ? "bg-chip-on text-on-chip-on"
-                : "border border-chip-line bg-chip text-fg-muted hover:bg-muted-strong"
-            }`}
-          >
-            {t("chat.all", "All")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setAssignmentFilter("unread")}
-            className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              assignmentFilter === "unread"
-                ? "bg-chip-on text-on-chip-on"
-                : "border border-chip-line bg-chip text-fg-muted hover:bg-muted-strong"
-            }`}
-          >
-            {t("chat.unread", "Unread")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setAssignmentFilter("assignedToMe")}
-            className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              assignmentFilter === "assignedToMe"
-                ? "bg-chip-on text-on-chip-on"
-                : "border border-chip-line bg-chip text-fg-muted hover:bg-muted-strong"
-            }`}
-          >
-            {t("chat.assignedToMe", "Assigned to Me")}
-          </button>
-          <button
-            type="button"
-            onClick={() => setAssignmentFilter("unassigned")}
-            className={`flex-shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              assignmentFilter === "unassigned"
-                ? "bg-chip-on text-on-chip-on"
-                : "border border-chip-line bg-chip text-fg-muted hover:bg-muted-strong"
-            }`}
-          >
-            {t("chat.unassigned", "Unassigned")}
-          </button>
-        </div>
-
-        {/* Keep the primary action visible while the filters scroll. */}
-        {connectionState !== "no-connections" && (
-          <button
-            type="button"
-            onClick={() => setIsAddContactOpen(true)}
-            className="me-1 flex-shrink-0 rounded-full p-1.5 text-accent transition-colors hover:bg-accent/10"
-            aria-label={t("contacts.addNew", "Add new contact")}
-            data-testid="add-contact-button"
-          >
-            <UserPlus className="h-4 w-4" aria-hidden="true" />
-          </button>
-        )}
       </div>
 
       {/* Add Contact Dialog */}
@@ -991,6 +971,7 @@ export const ChatList = memo(function ChatList({
             onChatSelect={handleChatClick}
             onPrefetch={prefetchContact}
             hasPreviousPage={hasPreviousPage}
+            showAccount={showRowAccount}
           />
         )}
 

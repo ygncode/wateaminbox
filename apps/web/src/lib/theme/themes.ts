@@ -19,7 +19,7 @@ export const THEMES = {
   },
   whatsapp: {
     appearance: "dark",
-    metaColor: "#111b21",
+    metaColor: "#161717",
   },
 } as const satisfies Record<
   string,

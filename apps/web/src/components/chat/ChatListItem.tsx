@@ -35,6 +35,7 @@ export const ChatListItem = memo(function ChatListItem({
   isSelected,
   onClick,
   onPrefetch,
+  showAccount = false,
 }: ChatListItemProps) {
   const { t } = useTranslation();
 
@@ -161,7 +162,7 @@ export const ChatListItem = memo(function ChatListItem({
                   list-row transition-colors duration-150 border-b border-row-line
                   touch-manipulation active:bg-muted-strong
                   ${isSelected ? "bg-selected list-row-selected" : "hover:bg-row-hover"}
-                  py-3 md:py-3 min-h-[72px] md:min-h-0`}
+                  py-2.5 min-h-[68px]`}
       aria-selected={isSelected}
       aria-current={isSelected ? "true" : undefined}
       aria-label={accessibleLabel}
@@ -169,19 +170,19 @@ export const ChatListItem = memo(function ChatListItem({
     >
       {/* Avatar with Online Indicator */}
       <div className="relative flex-shrink-0">
-        <div className="w-12 h-12 rounded-full overflow-hidden bg-muted">
+        <div className="size-11 rounded-full overflow-hidden bg-muted">
           {contact.avatarUrl ? (
             <img
               src={contact.avatarUrl}
               alt={displayName}
-              width={48}
-              height={48}
+              width={44}
+              height={44}
               className="w-full h-full object-cover"
               loading="lazy"
             />
           ) : contact.isGroup ? (
             // Group avatar - show group icon
-            <div className="w-full h-full flex items-center justify-center bg-fg-subtle text-white">
+            <div className="w-full h-full flex items-center justify-center bg-muted-strong text-fg-muted">
               <svg
                 className="w-6 h-6"
                 fill="currentColor"
@@ -195,7 +196,7 @@ export const ChatListItem = memo(function ChatListItem({
             <IdentityAvatarFallback
               displayName={displayName}
               identity={contact.jid || contact.phoneNumber || contact.id}
-              className="text-lg"
+              className="text-[15px]"
             />
           )}
         </div>
@@ -237,15 +238,15 @@ export const ChatListItem = memo(function ChatListItem({
         {/* Top Row: Name and Time */}
         <div className="flex items-center justify-between gap-2">
           <span
-            className={`text-base truncate ${
-              unreadCount > 0 ? "font-semibold text-fg" : "text-fg"
+            className={`text-[14.5px] leading-5 truncate tracking-[-0.005em] ${
+              unreadCount > 0 ? "font-semibold text-fg" : "font-medium text-fg"
             }`}
           >
             {displayName}
           </span>
           <span
-            className={`text-xs flex-shrink-0 ${
-              unreadCount > 0 ? "text-accent font-medium" : "text-fg-muted"
+            className={`text-[11.5px] flex-shrink-0 tabular-nums ${
+              unreadCount > 0 ? "text-unread font-semibold" : "text-fg-subtle"
             }`}
           >
             {formattedTime}
@@ -255,10 +256,10 @@ export const ChatListItem = memo(function ChatListItem({
         {/* Bottom Row: Message Preview and Unread Badge */}
         <div className="flex items-center justify-between gap-2 mt-0.5">
           <div className="flex items-center gap-1 min-w-0 flex-1">
-            {chat.conversationStatus !== "open" && (
-              <ConversationStatusBadge status={chat.conversationStatus} />
+            {chat.conversationStatus === "pending" && (
+              <ConversationStatusBadge status="pending" />
             )}
-            {contact.connection && (
+            {showAccount && contact.connection && (
               <ConnectionBadge
                 connection={contact.connection}
                 compact
@@ -318,9 +319,9 @@ export const ChatListItem = memo(function ChatListItem({
               </span>
             )}
             <span
-              className={`text-sm truncate ${
+              className={`text-[13px] leading-5 truncate ${
                 unreadCount > 0 ? "text-fg" : "text-fg-muted"
-              }`}
+              } ${chat.conversationStatus === "resolved" ? "opacity-75" : ""}`}
             >
               {messagePreview}
             </span>
@@ -367,8 +368,8 @@ export const ChatListItem = memo(function ChatListItem({
             {/* Unread Badge */}
             {unreadCount > 0 && (
               <span
-                className="flex items-center justify-center min-w-[20px] h-5 px-1.5
-                           text-xs font-medium text-on-unread bg-unread rounded-full tabular-nums"
+                className="flex items-center justify-center min-w-[18px] h-[18px] px-1.5
+                           text-[11px] font-semibold text-on-unread bg-unread rounded-full tabular-nums"
               >
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>

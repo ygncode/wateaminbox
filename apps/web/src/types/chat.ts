@@ -104,6 +104,8 @@ export interface ChatListItemProps {
   onClick: () => void;
   /** Optional callback to prefetch chat data on hover */
   onPrefetch?: (chatId: string) => void;
+  /** Show which account received the conversation (multi-account inboxes). */
+  showAccount?: boolean;
 }
 
 export interface ChatListSearchProps {

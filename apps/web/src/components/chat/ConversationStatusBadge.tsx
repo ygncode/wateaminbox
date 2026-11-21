@@ -8,9 +8,9 @@ const STATUS_LABEL: Record<ConversationLifecycleStatus, string> = {
 };
 
 const STATUS_CLASSES: Record<ConversationLifecycleStatus, string> = {
-  open: "bg-accent/10 text-accent",
+  open: "text-fg-muted ring-1 ring-inset ring-line-strong",
   pending: "bg-warning-soft text-warning",
-  resolved: "bg-muted text-fg-muted",
+  resolved: "text-fg-subtle ring-1 ring-inset ring-line",
 };
 
 export function ConversationStatusBadge({
@@ -23,7 +23,7 @@ export function ConversationStatusBadge({
   return (
     <span
       className={cn(
-        "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none",
+        "shrink-0 rounded-[5px] px-1.5 py-[3px] text-[10.5px] font-medium leading-none",
         STATUS_CLASSES[status],
         className,
       )}
