@@ -17,7 +17,7 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <!-- PWA theme color - updated dynamically by ThemeProvider -->
-    <meta name="theme-color" content="#efefea" />
+    <meta name="theme-color" content="#111b21" />
     <!-- iOS specific -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -34,7 +34,7 @@
           dark: ['dark', '#08090b'],
           whatsapp: ['dark', '#111b21']
         };
-        var pref = 'light';
+        var pref = 'whatsapp';
         try {
           var stored = localStorage.getItem('wateaminbox-theme');
           if (stored === 'system' || THEMES.hasOwnProperty(stored)) pref = stored;

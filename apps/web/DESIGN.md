@@ -55,7 +55,7 @@ The theme owns colour.
 against the last build before the design system (`cbf7de7b`) and must keep
 matching it. Do not "improve" WhatsApp; improve Light and Dark instead.
 
-**`light` is the default for everyone** (`DEFAULT_THEME_PREFERENCE`): signed-out
+**`whatsapp` is the default for everyone** (`DEFAULT_THEME_PREFERENCE`): signed-out
 pages and every account without a saved choice. A user may pick `system`
 (follows the OS between `light` and `dark`) or any theme id; the choice is
 saved on their account (`users.theme_preference`) and follows them across
