@@ -128,7 +128,7 @@ export function ResetPasswordPage() {
               />
               <Button
                 type="submit"
-                className="w-full bg-primary text-on-primary hover:bg-accent/90"
+                className="w-full bg-primary text-on-primary hover:bg-primary-hover"
                 disabled={!token || status === "saving"}
               >
                 {status === "saving"

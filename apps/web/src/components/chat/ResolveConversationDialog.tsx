@@ -200,7 +200,7 @@ export function ResolveConversationDialog({
             type="button"
             onClick={handleConfirm}
             disabled={confirmDisabled}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:bg-accent/90 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary transition-colors hover:bg-primary-hover disabled:opacity-50"
           >
             {isSubmitting ? (
               <>

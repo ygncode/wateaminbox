@@ -22,14 +22,14 @@ const STATUS_CONFIG: Record<
     labelKey: "broadcasts.status.running",
     label: "Sending",
     className: "border-accent/30 bg-accent-soft text-accent",
-    dotClassName: "bg-primary",
+    dotClassName: "bg-signal",
     pulse: true,
   },
   completed: {
     labelKey: "broadcasts.status.completed",
     label: "Completed",
     className: "border-accent/30 bg-accent-soft text-accent",
-    dotClassName: "bg-primary",
+    dotClassName: "bg-signal",
   },
   completed_with_errors: {
     labelKey: "broadcasts.status.partiallySent",

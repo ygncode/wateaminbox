@@ -19,7 +19,7 @@ export function MessageSelectionToolbar({
       <div className="flex items-center gap-4">
         <button
           onClick={onExit}
-          className="p-1 hover:bg-white/10 rounded-full transition-colors"
+          className="p-1 hover:bg-on-primary/10 rounded-full transition-colors"
           aria-label={t("chat.exitSelectionMode", "Exit selection mode")}
         >
           <svg

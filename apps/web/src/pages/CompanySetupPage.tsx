@@ -139,7 +139,7 @@ export function CompanySetupPage() {
 
   return (
     <main className="relative min-h-dvh overflow-hidden bg-canvas px-3 py-3 text-fg sm:px-6 sm:py-6">
-      <section className="relative mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-line/80 bg-surface shadow-lg sm:min-h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(0,1.06fr)_minmax(22rem,0.94fr)]">
+      <section className="relative mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-lg sm:min-h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(0,1.06fr)_minmax(22rem,0.94fr)]">
         <div className="flex min-w-0 flex-col p-6 sm:p-9 lg:p-12">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -392,7 +392,7 @@ export function CompanySetupPage() {
               <Button
                 type="submit"
                 size="lg"
-                className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-accent-soft"
+                className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-primary-hover"
                 disabled={isBusy}
               >
                 {createCompany.isPending ? (

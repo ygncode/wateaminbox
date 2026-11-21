@@ -63,7 +63,7 @@ export function ContactMultiSelect({
           onChange={(event) => setSearchQuery(event.target.value)}
           placeholder={t("chat.searchContactsEllipsis", "Search contacts…")}
           aria-label={t("chat.searchContactsAria", "Search contacts")}
-          className="w-full rounded-lg border border-line/[0.1] bg-raised py-2 ps-9 pe-9 text-sm text-fg outline-none placeholder:text-fg-subtle focus:border-accent focus:ring-1 focus:ring-ring/40"
+          className="w-full rounded-lg border border-line bg-raised py-2 ps-9 pe-9 text-sm text-fg outline-none placeholder:text-fg-subtle focus:border-accent focus:ring-1 focus:ring-ring/40"
         />
         {searchQuery && (
           <button
@@ -77,7 +77,7 @@ export function ContactMultiSelect({
         )}
       </div>
 
-      <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-line/[0.06]">
+      <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-line">
         {isLoading ? (
           <p className="px-4 py-6 text-center text-sm text-fg-muted">
             {t("broadcasts.loadingContacts", "Loading contacts…")}
@@ -92,7 +92,7 @@ export function ContactMultiSelect({
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-line/[0.04]">
+          <ul className="divide-y divide-line">
             {availableContacts.map((chat) => {
               const { contact } = chat;
               const displayName = formatPhoneLikeText(
@@ -112,8 +112,8 @@ export function ContactMultiSelect({
                       className={cn(
                         "grid size-5 shrink-0 place-items-center rounded-md border transition-colors",
                         isSelected
-                          ? "border-accent bg-primary text-on-primary"
-                          : "border-line/[0.15]",
+                          ? "border-primary bg-primary text-on-primary"
+                          : "border-line",
                       )}
                       aria-hidden="true"
                     >

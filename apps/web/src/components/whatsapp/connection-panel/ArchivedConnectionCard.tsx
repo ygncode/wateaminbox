@@ -31,7 +31,7 @@ export function ArchivedConnectionCard({
   const [purgeOpen, setPurgeOpen] = useState(false);
 
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-line/90 bg-subtle/70 p-4">
+    <div className="group relative overflow-hidden rounded-xl border border-line bg-subtle/70 p-4">
       <div className="absolute inset-y-0 start-0 w-1 bg-fg-subtle transition-colors group-hover:bg-primary-hover" />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3 ps-1">
@@ -92,7 +92,7 @@ export function ArchivedConnectionCard({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-2 border-t border-line/70 pt-3 text-xs text-fg-muted">
+      <div className="mt-3 flex items-center gap-2 border-t border-line pt-3 text-xs text-fg-muted">
         <ShieldCheck className="h-3.5 w-3.5 text-accent" />
         {t(
           "connections.dataRetained",

@@ -81,9 +81,9 @@ export function RightPanelHeader({
       className={cn(
         "flex shrink-0 items-center gap-4 px-4",
         surface === "sheet"
-          ? "h-14 touch-none border-b border-line/[0.07] bg-surface text-fg"
+          ? "h-14 touch-none border-b border-line bg-surface text-fg"
           : [
-              "bg-primary text-on-primary",
+              "border-b border-bar-line bg-bar text-on-bar",
               // Responsive height, with the notch inset added on top of the
               // row rather than subtracted from it.
               "h-[calc(3.5rem+env(safe-area-inset-top))] md:h-[calc(3.75rem+env(safe-area-inset-top))]",
@@ -100,7 +100,7 @@ export function RightPanelHeader({
             "flex h-10 w-10 touch-manipulation items-center justify-center rounded-full transition-colors",
             surface === "sheet"
               ? "text-fg-muted hover:bg-fg/[0.055] active:bg-fg/10"
-              : "hover:bg-white/10",
+              : "hover:bg-bar-hover",
           )}
           aria-label={t("common.closePanel", "Close panel")}
         >
@@ -158,7 +158,7 @@ export function RightPanelSection({
       {(title || titleAction) && (
         <div className="mb-2 flex items-center justify-between gap-2">
           {title && (
-            <h3 className="text-sm font-medium text-accent">{title}</h3>
+            <h3 className="text-[13px] font-semibold tracking-[-0.005em] text-section">{title}</h3>
           )}
           {titleAction}
         </div>

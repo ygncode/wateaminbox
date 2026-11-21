@@ -114,7 +114,7 @@ export function QuickReplyForm({
             </div>
             <div className="relative">
               <span
-                className="absolute inset-y-0 start-0 grid w-9 place-items-center border-e border-line/[0.06] font-mono text-base font-bold text-accent"
+                className="absolute inset-y-0 start-0 grid w-9 place-items-center border-e border-line font-mono text-base font-bold text-accent"
                 aria-hidden="true"
               >
                 /
@@ -244,7 +244,7 @@ export function QuickReplyForm({
 
         {hasPreview && (
           <div className="overflow-hidden rounded-xl border border-line bg-muted">
-            <div className="flex items-center justify-between gap-3 border-b border-line/[0.05] bg-subtle/70 px-3 py-2">
+            <div className="flex items-center justify-between gap-3 border-b border-line bg-subtle/70 px-3 py-2">
               <div className="flex min-w-0 items-center gap-2">
                 <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-fg-subtle">
                   {t("quickReplies.preview", "Composer preview")}
@@ -268,7 +268,7 @@ export function QuickReplyForm({
         )}
 
         {/* Action Buttons */}
-        <div className="-mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-2xl border-t border-line/[0.06] bg-subtle px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
+        <div className="-mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-2xl border-t border-line bg-subtle px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
           <Button
             type="button"
             variant="ghost"

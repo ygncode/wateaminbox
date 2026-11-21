@@ -305,7 +305,7 @@ export function MultiConnectionPanel({
           <div
             className={cn(
               "w-2 h-2 rounded-full",
-              connectedCount > 0 ? "bg-primary" : "bg-fg-subtle",
+              connectedCount > 0 ? "bg-signal" : "bg-fg-subtle",
             )}
           />
           <span className="text-sm text-fg-muted">
@@ -371,7 +371,7 @@ export function MultiConnectionPanel({
               <span
                 className={cn(
                   "absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-line",
-                  connectedCount > 0 ? "bg-primary" : "bg-fg-subtle",
+                  connectedCount > 0 ? "bg-signal" : "bg-fg-subtle",
                 )}
               />
             </div>
@@ -580,7 +580,7 @@ export function MultiConnectionPanel({
       )}
 
       {archivedConnections.length > 0 && (
-        <section className="mt-7 border-t border-line/80 pt-5">
+        <section className="mt-7 border-t border-line pt-5">
           <div className="mb-3">
             <h3 className="text-sm font-semibold text-fg">
               {t("connections.archivedAccounts", "Archived accounts")}

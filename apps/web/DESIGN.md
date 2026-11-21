@@ -145,6 +145,14 @@ with the solid token as text: `bg-warning-soft text-warning`.
 | `tab-on` | Active tab underline and label. |
 | `row-hover` | Hover on list rows. |
 | `monogram`, `on-monogram` | Workspace monogram avatar. |
+| `section` | Section headings inside panels (Contact Info, settings groups). Ink in Light/Dark, green in WhatsApp. |
+| `bar`, `on-bar`, `bar-line`, `bar-hover` | Title bar of right panels and mobile sheets. Surface-coloured in Light/Dark, teal in WhatsApp. Never use `bg-primary` for chrome. |
+
+**Rules that keep it premium**
+
+- A filled `bg-primary` control hovers to `bg-primary-hover`, nothing else. Never hover a primary fill to `accent-soft` or `accent/90`.
+- Lines use `border-line` / `border-line-strong` at full strength. No opacity modifiers on line tokens (`border-line/[0.06]`): they vanish on dark themes.
+- Live/connected dots use `bg-signal`, never `bg-primary`.
 
 ### Navigation rail
 

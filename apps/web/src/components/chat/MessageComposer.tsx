@@ -831,7 +831,7 @@ function AcknowledgedMessageComposer({
             which account, and what can be done with the conversation. The
             operator's own name used to lead this row, which is the one thing
             they already know. */}
-        <div className="flex min-h-8 min-w-0 items-center gap-2 border-b border-line/[0.055] bg-subtle/55 px-3 py-1">
+        <div className="flex min-h-8 min-w-0 items-center gap-2 border-b border-line bg-subtle/55 px-3 py-1">
           {/* Only rendered for a merged customer, who has a second thread to
               switch to. It moves between conversations; it never redirects
               this one's messages onto another. */}
@@ -869,7 +869,7 @@ function AcknowledgedMessageComposer({
         {/* Reply preview */}
         {replyToMessage && (
           <div className="px-3 pt-2">
-            <div className="flex items-center overflow-hidden rounded-xl border border-line/[0.06] bg-surface shadow-sm">
+            <div className="flex items-center overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
               <span
                 className="w-1 self-stretch bg-primary"
                 aria-hidden="true"
@@ -991,7 +991,7 @@ function AcknowledgedMessageComposer({
                 {showAttachmentMenu && (
                   <div
                     id="message-attachment-menu"
-                    className="absolute bottom-full start-0 z-30 mb-3 w-52 origin-bottom-left animate-in rounded-2xl border border-line/[0.07] bg-surface p-2 shadow-lg fade-in-0 zoom-in-95 duration-150"
+                    className="absolute bottom-full start-0 z-30 mb-3 w-52 origin-bottom-left animate-in rounded-2xl border border-line bg-surface p-2 shadow-lg fade-in-0 zoom-in-95 duration-150"
                   >
                     {(features.attachmentTypes.includes("image") ||
                       features.attachmentTypes.includes("video")) && (

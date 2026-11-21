@@ -14,7 +14,7 @@ export function StatusIndicator({ state }: { state: WhatsAppConnectionState }) {
     connecting: "bg-warning animate-pulse",
     waiting_qr: "bg-warning animate-pulse",
     scanning: "bg-info animate-pulse",
-    connected: "bg-primary",
+    connected: "bg-signal",
     error: "bg-danger",
   };
 

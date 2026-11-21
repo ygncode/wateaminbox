@@ -35,13 +35,13 @@
   --muted: #f2f2ee;
   --muted-strong: #e8e8e3;
   --selected: #ffffff;
-  --selected-ring: #e2e2dc;
+  --selected-ring: #d6d6cf;
   --field: #ffffff;
   --overlay: #ffffff;
   --scrim: rgb(17 17 15 / 0.36);
 
-  --line: #ebebe6;
-  --line-strong: #d9d9d2;
+  --line: #e4e4de;
+  --line-strong: #d0d0c8;
 
   --fg: #111110;
   --fg-muted: #5d5d56;
@@ -123,19 +123,25 @@
   /* Content frame: one white workspace floating on the canvas (desktop) */
   --frame-gap: 8px;
   --frame-radius: 14px;
-  --frame-border: #e3e3dd;
+  --frame-border: #dfdfd8;
 
   --chip: #ffffff;
-  --chip-line: #e2e2dc;
+  --chip-line: #dcdcd5;
   --chip-on: #111110;
   --on-chip-on: #ffffff;
   --tab-on: #111110;
   --row-hover: rgb(17 17 15 / 0.035);
-  --row-selected-ring: #e2e2dc;
+  --row-selected-ring: #d6d6cf;
 
-  --row-line: transparent;
+  --row-line: #ebebe5;
   --row-inset: 6px;
   --row-radius: 10px;
+  --section: #111110;
+  /* Panel title bars (contact/group info, mobile sheets) */
+  --bar: #ffffff;
+  --on-bar: #111110;
+  --bar-line: #ebebe6;
+  --bar-hover: rgb(17 17 15 / 0.06);
   --shadow-color: 24 24 20;
 }
 
@@ -148,7 +154,7 @@
   --page: #000000;
   --surface: #000000;
   --raised: #16181c;
-  --subtle: #080808;
+  --subtle: #0c0d0f;
   --muted: #16181c;
   --muted-strong: #202327;
   --selected: #16181c;
@@ -181,8 +187,8 @@
 
   --success: #00ba7c;
   --success-soft: #00281a;
-  --warning: #ffd400;
-  --warning-soft: #2b2400;
+  --warning: #f5c451;
+  --warning-soft: #1f1806;
   --danger: #f4212e;
   --danger-hover: #f6505a;
   --danger-soft: #2c0a0d;
@@ -247,12 +253,18 @@
   --chip-on: #eff3f4;
   --on-chip-on: #0f1419;
   --tab-on: #1d9bf0;
-  --row-hover: #080808;
+  --row-hover: #0c0d0f;
   --row-selected-ring: transparent;
 
   --row-line: #2f3336;
   --row-inset: 0px;
   --row-radius: 0px;
+  --section: #e7e9ea;
+  /* Panel title bars (contact/group info, mobile sheets) */
+  --bar: #000000;
+  --on-bar: #e7e9ea;
+  --bar-line: #2f3336;
+  --bar-hover: rgb(231 233 234 / 0.1);
   --shadow-color: 0 0 0;
 }
 
@@ -371,5 +383,11 @@
   --row-line: #2f3b43;
   --row-inset: 0px;
   --row-radius: 0px;
+  --section: #00a884;
+  /* Panel title bars (contact/group info, mobile sheets) */
+  --bar: #075e54;
+  --on-bar: #ffffff;
+  --bar-line: transparent;
+  --bar-hover: rgb(255 255 255 / 0.1);
   --shadow-color: 0 0 0;
 }

@@ -34,7 +34,7 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
 
   return (
     <main className="relative h-dvh overflow-hidden bg-canvas px-3 py-3 text-fg sm:px-6 sm:py-6">
-      <section className="relative mx-auto grid h-full min-h-0 w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-line/80 bg-surface shadow-lg lg:grid-cols-[minmax(0,1.08fr)_minmax(23rem,0.92fr)]">
+      <section className="relative mx-auto grid h-full min-h-0 w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-lg lg:grid-cols-[minmax(0,1.08fr)_minmax(23rem,0.92fr)]">
         <div className="scrollbar-hide flex min-h-0 min-w-0 flex-col overflow-y-auto p-6 sm:p-9 lg:p-12">
           <div className="mb-10 flex items-center gap-3 sm:mb-12">
             <BrandMark className="h-10 w-10 shrink-0 rounded-[0.9rem] object-contain shadow-sm" />
@@ -69,10 +69,6 @@ export function AuthPageShell({ children, variant }: AuthPageShellProps) {
                 "radial-gradient(circle at center, rgba(255,255,255,0.5) 1px, transparent 1.5px)",
               backgroundSize: "24px 24px",
             }}
-          />
-          <div
-            className="pointer-events-none absolute -end-32 -top-24 h-80 w-80 rounded-full border-[72px] border-nav-line"
-            aria-hidden="true"
           />
 
           <div className="relative">

@@ -73,6 +73,15 @@
   --color-on-nav-badge: var(--on-nav-badge);
   --color-nav-line: var(--nav-line);
 
+  /* Section headings inside panels */
+  --color-section: var(--section);
+
+  /* Panel title bars */
+  --color-bar: var(--bar);
+  --color-on-bar: var(--on-bar);
+  --color-bar-line: var(--bar-line);
+  --color-bar-hover: var(--bar-hover);
+
   /* Filter chips, tabs and list rows */
   --color-chip: var(--chip);
   --color-chip-line: var(--chip-line);

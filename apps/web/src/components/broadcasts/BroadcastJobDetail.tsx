@@ -92,7 +92,7 @@ const RECIPIENT_STATUS_CONFIG: Record<
 > = {
   sent: {
     className: "border-accent/30 bg-accent-soft text-accent",
-    dotClassName: "bg-primary",
+    dotClassName: "bg-signal",
   },
   failed: {
     className: "border-danger/30 bg-danger-soft text-danger",
@@ -112,7 +112,7 @@ const RECIPIENT_STATUS_CONFIG: Record<
   },
   processing: {
     className: "border-accent/30 bg-accent-soft text-accent",
-    dotClassName: "animate-pulse bg-primary",
+    dotClassName: "animate-pulse bg-signal",
   },
 };
 

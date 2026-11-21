@@ -581,16 +581,16 @@ function ContactCardMessage({
     <section
       className={cn(
         "min-w-[15rem] max-w-[19rem] overflow-hidden rounded-xl border",
-        isOwn ? "border-line bg-bubble-in/50" : "border-line/[0.07] bg-subtle",
+        isOwn ? "border-line bg-bubble-in/50" : "border-line bg-subtle",
       )}
       aria-label={heading}
     >
-      <div className="flex items-center gap-1.5 border-b border-line/[0.06] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">
+      <div className="flex items-center gap-1.5 border-b border-line px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-subtle">
         <UserRound className="size-3.5" aria-hidden="true" />
         <span>{heading}</span>
       </div>
 
-      <div className="divide-y divide-line/[0.06]">
+      <div className="divide-y divide-line">
         {cards.length > 0 ? (
           cards.map((card, cardIndex) => {
             const primaryPhone = card.phoneNumbers[0]?.value;
@@ -656,7 +656,7 @@ function ContactCardMessage({
                       event.stopPropagation();
                       onMessageSharedContact(card);
                     }}
-                    className="flex min-h-10 w-full items-center justify-center gap-2 border-t border-line/[0.06] px-3 text-sm font-semibold text-accent outline-none transition-colors hover:bg-fg/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40"
+                    className="flex min-h-10 w-full items-center justify-center gap-2 border-t border-line px-3 text-sm font-semibold text-accent outline-none transition-colors hover:bg-fg/[0.035] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/40"
                   >
                     <MessageCircle className="size-4" aria-hidden="true" />
                     {t("chat.messageContact", "Message")}
