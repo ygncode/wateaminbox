@@ -5,14 +5,15 @@
  */
 import { getContactDisplayName } from "@wateaminbox/shared";
 import { Hono } from "hono";
+import { loadAlbumQuoteRows, pickAlbumQuote } from "../../lib/album-quotes.js";
 import { badRequest, notFound } from "../../lib/errors.js";
+import { hydrateGroupSenderAvatars } from "../../lib/group-sender-avatars.js";
 import {
   authorizeMessageMedia,
   formatMessagesForFetch,
   type MessageDbRow,
   type QuotedMessageSimple,
 } from "../../lib/message-formatters.js";
-import { hydrateGroupSenderAvatars } from "../../lib/group-sender-avatars.js";
 import { loadMessageReactions } from "../../lib/message-reactions.js";
 import { extractPaginationParams } from "../../lib/route-helpers.js";
 import { getRouteContext } from "../../middleware/context.js";
@@ -92,6 +93,26 @@ fetchRoutes.get("/", async (c) => {
         .filter((q) => q.message_id !== null)
         .map((q) => [q.message_id as string, q]),
     );
+
+    // Album replies quote the album parent id; use the album's first item.
+    const albumRows = await loadAlbumQuoteRows(
+      tenantDb,
+      messages as MessageDbRow[],
+      new Set(quotedMessages.keys()),
+    );
+    for (const message of messages as MessageDbRow[]) {
+      const key = message.quoted_message_id;
+      if (!key || quotedMessages.has(key)) continue;
+      const album = pickAlbumQuote(albumRows, message);
+      if (album) {
+        quotedMessages.set(key, {
+          message_id: key,
+          content: album.content,
+          message_type: album.message_type,
+          sender_jid: album.sender_jid,
+        });
+      }
+    }
   }
 
   const reactionsMap = await loadMessageReactions(

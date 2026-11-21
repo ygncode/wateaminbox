@@ -1,7 +1,9 @@
 import { REMOTE_HISTORY_RESPONSE_TIMEOUT_MS } from "@wateaminbox/shared";
 import { Hono } from "hono";
 import { z } from "zod";
+import { loadAlbumQuoteRows, pickAlbumQuote } from "../../lib/album-quotes.js";
 import { badRequest, notFound } from "../../lib/errors.js";
+import { hydrateGroupSenderAvatars } from "../../lib/group-sender-avatars.js";
 import {
   authorizeMessageMedia,
   buildQuotedMessageData,
@@ -9,7 +11,6 @@ import {
   type MessageDbRow,
   type QuotedMessageData,
 } from "../../lib/message-formatters.js";
-import { hydrateGroupSenderAvatars } from "../../lib/group-sender-avatars.js";
 import { loadMessageReactions } from "../../lib/message-reactions.js";
 import { successData } from "../../lib/response.js";
 import { zValidator } from "../../lib/validator.js";
@@ -191,11 +192,26 @@ async function loadThreadScopedQuotes(
           ? candidate.message_id === message.quoted_message_id
           : false),
     );
-    if (!match) continue;
-    if ((match.conversation_id ?? null) !== (message.conversation_id ?? null)) {
-      continue;
+    if (
+      match &&
+      (match.conversation_id ?? null) === (message.conversation_id ?? null)
+    ) {
+      quotes.set(message.id, buildQuotedMessageData(match, userNames));
     }
-    quotes.set(message.id, buildQuotedMessageData(match, userNames));
+  }
+
+  // A reply to a photo album quotes the album's parent id, which is never
+  // stored as a row; resolve it to the album's first item in the same thread.
+  const albumReplies = messages.filter(
+    (message) => message.quoted_message_id && !quotes.has(message.id),
+  );
+  const albumRows = await loadAlbumQuoteRows(tenantDb, albumReplies, new Set());
+  for (const message of albumReplies) {
+    const album = pickAlbumQuote(albumRows, {
+      ...message,
+      conversation_id: message.conversation_id ?? null,
+    });
+    if (album) quotes.set(message.id, buildQuotedMessageData(album, userNames));
   }
   return quotes;
 }
