@@ -1054,7 +1054,7 @@
     "downloadConversation": "以 CSV 或 JSON 格式下载该会话",
     "noCustomName": "尚未设置自定义名称",
     "customNameVisible": "自定义名称对所有团队成员可见",
-    "muteHint": "静音仅影响桌面与推送提醒。",
+    "muteHint": "静音会关闭桌面与推送提醒以及应用内提示音。",
     "errorsLabel": "错误",
     "groupInfo": "群组信息",
     "contactInfo": "联系人信息",

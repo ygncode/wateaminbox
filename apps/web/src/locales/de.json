@@ -1067,7 +1067,7 @@
     "downloadConversation": "Diese Unterhaltung als CSV oder JSON herunterladen",
     "noCustomName": "Kein eigener Name festgelegt",
     "customNameVisible": "Der eigene Name ist für alle Teammitglieder sichtbar",
-    "muteHint": "Die Stummschaltung betrifft nur Desktop- und Push-Benachrichtigungen.",
+    "muteHint": "Die Stummschaltung unterdrückt Desktop- und Push-Benachrichtigungen sowie den App-Ton.",
     "errorsLabel": "Fehler",
     "groupInfo": "Gruppeninfo",
     "contactInfo": "Kontaktinfo",

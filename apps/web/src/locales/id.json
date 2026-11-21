@@ -1054,7 +1054,7 @@
     "downloadConversation": "Unduh percakapan ini sebagai CSV atau JSON",
     "noCustomName": "Belum ada nama kustom",
     "customNameVisible": "Nama kustom terlihat oleh semua anggota tim",
-    "muteHint": "Membisukan hanya memengaruhi peringatan desktop dan push.",
+    "muteHint": "Membisukan mematikan peringatan desktop dan push serta suara di aplikasi.",
     "errorsLabel": "Kesalahan",
     "groupInfo": "Info grup",
     "contactInfo": "Info kontak",

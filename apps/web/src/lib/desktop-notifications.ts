@@ -7,6 +7,12 @@ export interface DesktopNotificationDecisionInput {
   permission: NotificationPermission;
   senderType?: string;
   senderJid?: string | null;
+  /**
+   * Every identity of the chat the message arrived in: the chat's own JID, its
+   * contact id and its conversation ids. A mute stored against any of them
+   * silences the chat, matching how the server filters push recipients.
+   */
+  chatKeys?: readonly (string | null | undefined)[];
   isHistorySync?: boolean;
   documentVisible: boolean;
   documentFocused: boolean;
@@ -32,6 +38,37 @@ export function isQuietHoursAt(
     : current >= start && current < end;
 }
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Same comparison the API uses for mute tokens (notification-recipient). */
+function muteTokenMatches(stored: string, key: string): boolean {
+  if (UUID_PATTERN.test(stored) || UUID_PATTERN.test(key)) {
+    return stored.toLowerCase() === key.toLowerCase();
+  }
+  return (normalizeJid(stored) ?? stored) === (normalizeJid(key) ?? key);
+}
+
+/**
+ * Whether the message's chat (or, as before, its sender) is muted. Matching
+ * only the sender left a muted group ringing: its messages carry the
+ * participant's JID, while the mute is stored against the group.
+ */
+export function isMutedChat(
+  input: Pick<
+    DesktopNotificationDecisionInput,
+    "settings" | "senderJid" | "chatKeys"
+  >,
+): boolean {
+  const keys = [input.senderJid, ...(input.chatKeys ?? [])].filter(
+    (key): key is string => Boolean(key),
+  );
+  if (keys.length === 0) return false;
+  return input.settings.mutedContacts.some((muted) =>
+    keys.some((key) => muteTokenMatches(muted, key)),
+  );
+}
+
 export function shouldShowDesktopNotification(
   input: DesktopNotificationDecisionInput,
 ): boolean {
@@ -40,14 +77,7 @@ export function shouldShowDesktopNotification(
   if (input.hasActivePushSubscription) return false;
   if (!input.settings.enabled || input.permission !== "granted") return false;
   if (isQuietHoursAt(input.settings, input.now)) return false;
-  const senderJid = normalizeJid(input.senderJid) ?? input.senderJid;
-  if (
-    senderJid &&
-    input.settings.mutedContacts.some(
-      (jid) => (normalizeJid(jid) ?? jid) === senderJid,
-    )
-  )
-    return false;
+  if (isMutedChat(input)) return false;
   return true;
 }
 
@@ -69,14 +99,8 @@ export interface IncomingAlertInput extends DesktopNotificationDecisionInput {
 export function decideIncomingAlert(input: IncomingAlertInput): IncomingAlert {
   if (input.senderType === "user" || input.isHistorySync) return "none";
   if (isQuietHoursAt(input.settings, input.now)) return "none";
-  const senderJid = normalizeJid(input.senderJid) ?? input.senderJid;
-  if (
-    senderJid &&
-    input.settings.mutedContacts.some(
-      (jid) => (normalizeJid(jid) ?? jid) === senderJid,
-    )
-  )
-    return "none";
+  // Muted means silent: no system notification and no in-app sound.
+  if (isMutedChat(input)) return "none";
 
   if (input.documentVisible && input.documentFocused) {
     // Reading that very chat: the message is already on screen.

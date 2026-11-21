@@ -1054,7 +1054,7 @@
     "downloadConversation": "Muat turun perbualan ini sebagai CSV atau JSON",
     "noCustomName": "Tiada nama tersuai ditetapkan",
     "customNameVisible": "Nama tersuai kelihatan kepada semua ahli pasukan",
-    "muteHint": "Penyenyapan hanya menjejaskan makluman desktop dan tolak.",
+    "muteHint": "Penyenyapan mematikan makluman desktop dan tolak serta bunyi dalam aplikasi.",
     "errorsLabel": "Ralat",
     "groupInfo": "Maklumat kumpulan",
     "contactInfo": "Maklumat kenalan",

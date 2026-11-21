@@ -1080,7 +1080,7 @@
     "downloadConversation": "Télécharger cette conversation au format CSV ou JSON",
     "noCustomName": "Aucun nom personnalisé défini",
     "customNameVisible": "Le nom personnalisé est visible par tous les membres de l’équipe",
-    "muteHint": "La sourdine n’affecte que les alertes de bureau et les notifications push.",
+    "muteHint": "La sourdine coupe les alertes de bureau et push, ainsi que le son de l’application.",
     "errorsLabel": "Erreurs",
     "groupInfo": "Infos du groupe",
     "contactInfo": "Infos du contact",
