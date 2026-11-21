@@ -12,6 +12,10 @@ import { isChannel, isChannelProvider } from "@wateaminbox/shared";
 import type { Transaction } from "kysely";
 import { sql } from "kysely";
 import { resolveAdapterCapabilities } from "../channel-spine/application/adapter-registry.js";
+import {
+  isSuppressionEnforced,
+  resolveContactOutboundPolicy,
+} from "../channel-spine/application/contact-policy.js";
 import { channelAdapterRegistry } from "../channel-spine/registry.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import {
@@ -429,6 +433,18 @@ async function isClaimStillAuthorized(claim: ClaimedIntent): Promise<boolean> {
       .where("id", "=", conversation.legacy_contact_id)
       .executeTakeFirst();
     if (!contact || contact.is_blocked) return false;
+    // Re-checked at dispatch: a customer blocked after this send was queued
+    // must not receive it.
+    if (
+      (await isSuppressionEnforced(tenantDb)) &&
+      !(
+        await resolveContactOutboundPolicy(tenantDb, {
+          contactId: conversation.legacy_contact_id,
+        })
+      ).allowed
+    ) {
+      return false;
+    }
   }
   const assignment = await tenantDb
     .selectFrom("contact_assignments")

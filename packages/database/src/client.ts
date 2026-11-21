@@ -358,6 +358,8 @@ export interface TenantDatabase {
   endpoint_account_states: EndpointAccountStatesTable;
   endpoint_presence: EndpointPresenceTable;
   contact_suppressions: ContactSuppressionsTable;
+  contact_policy_settings: ContactPolicySettingsTable;
+  contact_suppression_drops: ContactSuppressionDropsTable;
   conversations: ConversationsTable;
   conversation_notes: ConversationNotesTable;
   conversation_sync_states: ConversationSyncStatesTable;
@@ -505,6 +507,21 @@ export interface ContactSuppressionsTable {
   revoked_at: Date | null;
   expires_at: Date | null;
   revoked_by: string | null;
+}
+
+export interface ContactPolicySettingsTable {
+  id: Generated<number>;
+  enforcement_enabled: Generated<boolean>;
+  updated_by: string | null;
+  updated_at: Generated<Date>;
+}
+
+export interface ContactSuppressionDropsTable {
+  contact_id: string;
+  channel: string;
+  day: string;
+  dropped_count: Generated<number>;
+  last_dropped_at: Generated<Date>;
 }
 
 export interface ConversationsTable {

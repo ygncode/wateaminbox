@@ -3,7 +3,7 @@ import {
   SYSTEM_SUPPRESSION_ACTOR,
   type TenantDatabase,
 } from "@wateaminbox/database";
-import type { Kysely, Transaction } from "kysely";
+import { type Kysely, sql, type Transaction } from "kysely";
 
 /**
  * Customer suppression: the workspace's own decision about a person, applied
@@ -144,6 +144,8 @@ export type InboundPolicy =
       action: "drop" | "silence";
       reason: "suppressed" | "provider_blocked";
       suppressionId?: string;
+      /** The sender's customer, when the endpoint belongs to one. */
+      contactId: string | null;
     };
 
 /**
@@ -185,16 +187,27 @@ export async function resolveInboundPolicy(
   const suppressions = endpoint.contact_id
     ? await activeSuppressions(db, endpoint.contact_id, input.now)
     : [];
+  const contactId = endpoint.contact_id;
   const block = suppressions.find((row) => row.scope === "block");
   if (block) {
-    return { action: "drop", reason: "suppressed", suppressionId: block.id };
+    return {
+      action: "drop",
+      reason: "suppressed",
+      suppressionId: block.id,
+      contactId,
+    };
   }
   if (endpoint.provider_block_state === "blocked") {
-    return { action: "drop", reason: "provider_blocked" };
+    return { action: "drop", reason: "provider_blocked", contactId };
   }
   const mute = suppressions.find((row) => row.scope === "mute_inbound");
   if (mute) {
-    return { action: "silence", reason: "suppressed", suppressionId: mute.id };
+    return {
+      action: "silence",
+      reason: "suppressed",
+      suppressionId: mute.id,
+      contactId,
+    };
   }
   return { action: "accept" };
 }
@@ -214,6 +227,72 @@ export type OutboundPolicy =
  * does not replace until that path is neutral.
  */
 export async function resolveOutboundPolicy(
+  db: PolicyDb,
+  input: { conversationId: string; now?: Date },
+): Promise<OutboundPolicy> {
+  return resolveConversationOutboundPolicy(db, input);
+}
+
+/**
+ * Outbound policy for a customer contact, by its own ID (the legacy send
+ * paths are contact-keyed). Same rule as the conversation form.
+ */
+export async function resolveContactOutboundPolicy(
+  db: PolicyDb,
+  input: { contactId: string; now?: Date },
+): Promise<OutboundPolicy> {
+  const suppressions = await activeSuppressions(db, input.contactId, input.now);
+  if (suppressions.some((row) => row.scope === "block")) {
+    return { allowed: false, reasonCode: "contact_blocked" };
+  }
+  if (suppressions.some((row) => row.scope === "do_not_contact")) {
+    return { allowed: false, reasonCode: "contact_do_not_contact" };
+  }
+  return { allowed: true };
+}
+
+/**
+ * Whether this workspace enforces customer suppression. Off unless an
+ * operator turned it on; a missing row (a schema not yet migrated) is off.
+ */
+export async function isSuppressionEnforced(db: PolicyDb): Promise<boolean> {
+  const row = await db
+    .selectFrom("contact_policy_settings")
+    .select("enforcement_enabled")
+    .where("id", "=", 1)
+    .executeTakeFirst();
+  return row?.enforcement_enabled === true;
+}
+
+/**
+ * Count one inbound message dropped because its sender is blocked. Only a
+ * counter per person, channel and UTC day is kept - never the content.
+ */
+export async function recordSuppressedInbound(
+  db: PolicyDb,
+  input: { contactId: string; channel: string; at?: Date },
+): Promise<void> {
+  const at = input.at ?? new Date();
+  const day = at.toISOString().slice(0, 10);
+  await db
+    .insertInto("contact_suppression_drops")
+    .values({
+      contact_id: input.contactId,
+      channel: input.channel,
+      day,
+      dropped_count: 1,
+      last_dropped_at: at,
+    })
+    .onConflict((conflict) =>
+      conflict.columns(["contact_id", "channel", "day"]).doUpdateSet((eb) => ({
+        dropped_count: sql<number>`LEAST(${eb.ref("contact_suppression_drops.dropped_count")} + 1, 2147483647)`,
+        last_dropped_at: at,
+      })),
+    )
+    .execute();
+}
+
+async function resolveConversationOutboundPolicy(
   db: PolicyDb,
   input: { conversationId: string; now?: Date },
 ): Promise<OutboundPolicy> {

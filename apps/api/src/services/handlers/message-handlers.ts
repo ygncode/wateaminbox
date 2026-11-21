@@ -9,6 +9,11 @@ import {
   toDbDate,
 } from "@wateaminbox/shared";
 import { sql } from "kysely";
+import {
+  activeSuppressions,
+  isSuppressionEnforced,
+  recordSuppressedInbound,
+} from "../../channel-spine/application/contact-policy.js";
 import { normalizeLinkedDeviceMessageEvent } from "../../channel-spine/providers/whatsapp-linked-device/normalize.js";
 import { shadowLinkedDeviceLegacyMutation } from "../../channel-spine/providers/whatsapp-linked-device/shadow.js";
 import { compareLinkedDeviceMessageShadow } from "../../channel-spine/providers/whatsapp-linked-device/shadow-compare.js";
@@ -317,13 +322,35 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
     // versa) would corrupt the SLA clock. See conversation-case.service.ts
     // for why the case-open step itself is additionally safe under retries
     // and concurrent events (partial unique index + ON CONFLICT DO NOTHING).
-    const { insertResult } = await tenantDb
+    const { insertResult, suppressed } = await tenantDb
       .transaction()
       .execute(async (trx) => {
         if (!(await lockActiveConnectionForEvent(trx, connection.id))) {
           throw new PermanentEventError(
             `Message event references inactive connection ${connection.id}`,
           );
+        }
+        // Customer suppression gate (contact blocking, phase 2). The phone's
+        // own blocklist already stops a contact blocked on WhatsApp; this
+        // covers a merged customer blocked through another channel, and a
+        // mute. Only live inbound direct messages are gated - history sync
+        // is the past, and a person block never silences a group.
+        let silenced = false;
+        if (
+          !payload.fromMe &&
+          !payload.isHistorySync &&
+          !isGroupMessage &&
+          (await isSuppressionEnforced(trx))
+        ) {
+          const suppressions = await activeSuppressions(trx, contact.id);
+          if (suppressions.some((row) => row.scope === "block")) {
+            await recordSuppressedInbound(trx, {
+              contactId: contact.id,
+              channel: "whatsapp",
+            });
+            return { insertResult: null, caseResult: null, suppressed: true };
+          }
+          silenced = suppressions.some((row) => row.scope === "mute_inbound");
         }
         // Linked-device outbound messages use the same contact lock as API and
         // automatic sends, so an auto reply cannot pass its unanswered check
@@ -440,7 +467,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         // processing - including opening/reopening a case, which must never
         // happen for a message that was already processed.
         if (!insertResult) {
-          return { insertResult: null, caseResult: null };
+          return { insertResult: null, caseResult: null, suppressed: false };
         }
 
         // Open/reopen the contact's conversation case FIRST, before any
@@ -456,7 +483,7 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         let caseResult: Awaited<
           ReturnType<typeof openOrReopenCaseForInboundMessage>
         > = null;
-        if (!payload.fromMe && !payload.isHistorySync) {
+        if (!payload.fromMe && !payload.isHistorySync && !silenced) {
           caseResult = await openOrReopenCaseForInboundMessage(
             trx,
             companyId,
@@ -528,12 +555,14 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
         }
 
         if (!payload.isHistorySync) {
+          // A muted person's message still refreshes open screens (the
+          // realtime lane) but raises no push notification.
           await enqueueMessageDelivery(
             trx,
             companyId,
             connection.id,
             insertResult.id,
-            !payload.fromMe,
+            !payload.fromMe && !silenced,
             caseResult,
           );
           if (caseResult?.unassignedPreviousAssignee) {
@@ -562,8 +591,16 @@ export async function handleMessageEvent(event: MessageEvent): Promise<void> {
             insertResult.id,
           );
         }
-        return { insertResult, caseResult };
+        return { insertResult, caseResult, suppressed: false };
       });
+
+    if (suppressed) {
+      logger.debug(
+        { companyId, connectionId },
+        "Dropped inbound message from a blocked customer",
+      );
+      return;
+    }
 
     // If insert was skipped due to duplicate, skip all downstream processing.
     if (!insertResult) {
