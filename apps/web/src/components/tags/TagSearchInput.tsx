@@ -30,7 +30,7 @@ export function TagSearchInput({
         placeholder={t("tags.searchPlaceholder", "Search tags…")}
         aria-label={t("tags.search", "Search tags")}
         autoFocus={autoFocus}
-        className="h-8 w-full rounded-lg border border-line bg-subtle py-1.5 ps-8 pe-8 text-xs text-fg outline-none placeholder:text-fg-subtle focus:border-primary focus:bg-surface focus:ring-1 focus:ring-ring/30"
+        className="h-8 w-full rounded-lg border border-line bg-muted py-1.5 ps-8 pe-8 text-xs text-fg outline-none placeholder:text-fg-subtle focus:border-primary focus:bg-surface focus:ring-1 focus:ring-ring/30"
       />
       {value && (
         <button

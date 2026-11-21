@@ -35,7 +35,7 @@ export function ArchivedConnectionCard({
       <div className="absolute inset-y-0 start-0 w-1 bg-fg-subtle transition-colors group-hover:bg-primary-hover" />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3 ps-1">
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface text-fg-muted shadow-sm ring-1 ring-line-strong">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-raised text-fg-muted shadow-sm ring-1 ring-line-strong">
             <Smartphone className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
@@ -57,7 +57,7 @@ export function ArchivedConnectionCard({
           <Button
             variant="outline"
             size="sm"
-            className="gap-2 border-accent/30 bg-surface text-accent hover:border-accent hover:bg-accent-soft"
+            className="gap-2 border-accent/30 bg-accent-soft text-accent hover:border-accent hover:bg-accent-soft"
             disabled={isRelinking || isPurging}
             onClick={() => void onRelink()}
           >

@@ -7,8 +7,8 @@ function OnboardingFrame({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
 
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-muted px-3 py-3 text-fg sm:px-6 sm:py-6">
-      <section className="relative mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-lg sm:min-h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(0,1.08fr)_minmax(23rem,0.92fr)]">
+    <main className="relative min-h-dvh overflow-hidden bg-canvas px-3 py-3 text-fg sm:px-6 sm:py-6">
+      <section className="relative mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-line/80 bg-surface shadow-lg sm:min-h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(0,1.08fr)_minmax(23rem,0.92fr)]">
         <div className="flex min-w-0 flex-col p-6 sm:p-9 lg:p-12">
           <div className="flex items-center gap-3">
             <BrandMark className="h-10 w-10 shrink-0 rounded-[0.9rem] object-contain shadow-sm" />
@@ -16,7 +16,7 @@ function OnboardingFrame({ children }: { children: React.ReactNode }) {
               <p className="text-[1.05rem] font-bold tracking-[-0.03em] text-fg">
                 WATeamInbox
               </p>
-              <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-fg-muted">
+              <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-fg-subtle">
                 {t("setup.whatsappForTeams", "WhatsApp for teams")}
               </p>
             </div>
@@ -43,10 +43,10 @@ function OnboardingFrame({ children }: { children: React.ReactNode }) {
             }}
           />
           <div
-            className="absolute -end-32 -top-24 h-80 w-80 rounded-full border-[72px] border-nav-fg/10"
+            className="absolute -end-32 -top-24 h-80 w-80 rounded-full border-[72px] border-nav-line"
             aria-hidden="true"
           />
-          <div className="absolute inset-x-12 bottom-12 rounded-2xl border border-nav-fg/10 bg-nav-hover p-5">
+          <div className="absolute inset-x-12 bottom-12 rounded-2xl border border-nav-line bg-nav-hover p-5">
             <div className="h-2 w-24 rounded-full bg-nav-active" />
             <div className="mt-4 h-2 w-full rounded-full bg-nav-hover" />
             <div className="mt-2 h-2 w-4/5 rounded-full bg-nav-hover" />

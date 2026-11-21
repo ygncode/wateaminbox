@@ -365,7 +365,7 @@ function CatalogSection({
           className={cn(
             "inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full px-2 text-xs font-semibold tabular-nums",
             archived
-              ? "bg-warning-soft text-fg-muted"
+              ? "bg-warning-soft text-warning"
               : "bg-accent-soft text-accent",
           )}
         >
@@ -411,7 +411,7 @@ function CatalogCard({
       className={cn(
         "relative overflow-visible rounded-2xl border p-4 transition-all duration-200 sm:p-5",
         isArchived
-          ? "border-line bg-subtle"
+          ? "border-line bg-warning-soft"
           : "border-line bg-subtle shadow-xs hover:-translate-y-px hover:border-line-strong hover:shadow-lg",
       )}
       data-testid={`catalog-item-${catalog.catalogId}`}
@@ -419,7 +419,7 @@ function CatalogCard({
       {isArchived && (
         <span
           aria-hidden="true"
-          className="absolute inset-y-4 start-0 w-1 rounded-e-full bg-warning"
+          className="absolute inset-y-4 start-0 w-1 rounded-e-full bg-warning-soft"
         />
       )}
 
@@ -480,7 +480,7 @@ function CatalogCard({
               size="sm"
               onClick={onRestore}
               disabled={isRestoring || isArchiving}
-              className="flex-1 gap-1.5 border-line-strong bg-subtle text-accent shadow-none hover:border-line-strong hover:bg-accent-soft hover:text-accent sm:flex-none"
+              className="flex-1 gap-1.5 border-line-strong bg-accent-soft text-accent shadow-none hover:border-line-strong hover:bg-accent-soft hover:text-accent sm:flex-none"
               data-testid={`restore-catalog-${catalog.catalogId}`}
             >
               {isRestoring && isPending ? (
@@ -500,7 +500,7 @@ function CatalogCard({
               "flex-1 gap-1.5 sm:flex-none",
               isArchived
                 ? "text-fg-muted hover:bg-warning-soft"
-                : "border-line bg-surface text-accent shadow-none hover:border-line-strong hover:bg-muted hover:text-accent",
+                : "border-line bg-subtle text-fg shadow-none hover:border-line-strong hover:bg-muted hover:text-accent",
             )}
             data-testid={`view-products-${catalog.catalogId}`}
           >
@@ -609,7 +609,7 @@ function ProductsDialog({
               size="sm"
               onClick={handleSyncProducts}
               disabled={syncMutation.isPending || !connectionId}
-              className="ms-14 shrink-0 gap-2 self-start border-line-strong bg-surface text-accent shadow-sm hover:border-line-strong hover:bg-muted hover:text-accent sm:ms-0 sm:self-center"
+              className="ms-14 shrink-0 gap-2 self-start border-line-strong bg-raised text-accent shadow-sm hover:border-line-strong hover:bg-accent-soft hover:text-accent sm:ms-0 sm:self-center"
               data-testid="sync-products-button"
             >
               {syncMutation.isPending ? (
@@ -636,11 +636,11 @@ function ProductsDialog({
             </div>
           ) : isLoading ? (
             <div className="flex min-h-44 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-fg-muted" />
+              <Loader2 className="h-6 w-6 animate-spin text-fg-subtle" />
             </div>
           ) : products.length === 0 ? (
             <div className="flex min-h-56 flex-col items-center justify-center rounded-2xl border border-dashed border-line bg-subtle px-5 py-10 text-center text-fg-muted">
-              <div className="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-surface text-fg-subtle shadow-sm">
+              <div className="mb-3 grid h-12 w-12 place-items-center rounded-xl bg-raised text-fg-subtle shadow-sm">
                 <Package className="h-5 w-5" />
               </div>
               <p className="font-semibold text-fg">
@@ -721,7 +721,7 @@ function ProductItem({
   return (
     <div
       className={cn(
-        "group flex items-center gap-3.5 rounded-xl border border-line bg-surface p-3 transition-all hover:border-line-strong hover:shadow-md",
+        "group flex items-center gap-3.5 rounded-xl border border-line bg-subtle p-3 transition-all hover:border-line-strong hover:shadow-md",
         product.visibility === "hidden" && "bg-subtle opacity-75",
       )}
       data-testid={`product-item-${product.productId}`}
@@ -743,11 +743,11 @@ function ProductItem({
       <div className="flex-1 min-w-0">
         <p className="truncate text-sm font-semibold text-fg">{product.name}</p>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-muted">
-          <span className="font-semibold text-accent">
+          <span className="font-semibold text-fg">
             {formatCurrency(product.price, product.currency)}
           </span>
           {product.sku && (
-            <span className="font-mono text-[11px] text-fg-muted">
+            <span className="font-mono text-[11px] text-fg-subtle">
               {t("catalogs.sku", "SKU")} {product.sku}
             </span>
           )}
@@ -770,7 +770,7 @@ function ProductItem({
           "h-8 shrink-0 gap-1.5 rounded-full border px-2.5 text-xs shadow-none",
           product.visibility === "hidden"
             ? "border-line bg-subtle text-fg-muted hover:bg-muted"
-            : "border-accent/30 bg-subtle text-accent hover:bg-accent-soft hover:text-accent",
+            : "border-accent/30 bg-accent-soft text-accent hover:bg-accent-soft hover:text-accent",
         )}
         aria-label={`${nextVisibility === "visible" ? "Show" : "Hide"} ${product.name}`}
       >

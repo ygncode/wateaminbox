@@ -6,186 +6,228 @@
  * Tailwind utilities declared in tokens.css (`bg-surface`, `text-fg-muted`,
  * `border-line`, ...). See apps/web/DESIGN.md.
  *
+ * Surfaces, back to front:
+ *   canvas  the app background behind panels (and page backgrounds)
+ *   panel   navigation and list columns (inbox list, settings nav)
+ *   surface main content: cards, thread header, tables, dialogs
+ *   raised  controls that sit on a surface: inputs, chips, secondary buttons
+ *   subtle  quiet bands inside a surface (table headers, footers)
+ *   muted   hover / filled-but-quiet areas
+ *
  * Adding a theme:
  *   1. Add a `[data-theme="<id>"]` block below that defines every variable.
  *   2. Register it in src/lib/theme/themes.ts (appearance, meta colour, label).
  *   3. Add the label to the locale files (settings.themePanel.<id>).
- * The theme-tokens test fails if a block is missing a variable.
- *
- * `appearance` (light | dark) is separate from the theme id: the `.dark` class
- * and `color-scheme` follow appearance, so native controls, scrollbars and any
- * remaining `dark:` variants keep working for every dark theme.
+ * The design-system test fails if a block is missing a variable.
  */
 
 /* ---------------------------------------------------------------- Light -- */
+/* Intercom-inspired: a soft putty canvas, warm off-white panels, white
+ * content, near-black actions, one blue for links and outgoing messages. */
 :root,
 [data-theme="light"] {
-  /* Surfaces, from back to front */
-  --canvas: #f7f7f5;
+  --canvas: #efefea;
+  --panel: #fafaf8;
+  --page: #f7f7f5;
   --surface: #ffffff;
-  --subtle: #fafaf9;
-  --muted: #f2f2f0;
-  --muted-strong: #e6e6e3;
-  --selected: #ececea;
+  --raised: #ffffff;
+  --subtle: #f7f7f5;
+  --muted: #f1f1ee;
+  --muted-strong: #e7e7e3;
+  --selected: #ffffff;
+  --selected-ring: #e3e3de;
   --field: #ffffff;
   --overlay: #ffffff;
-  --scrim: rgb(9 9 11 / 0.4);
+  --scrim: rgb(20 20 18 / 0.32);
 
-  /* Lines */
-  --line: #e8e8e5;
-  --line-strong: #d4d4d0;
+  --line: #ebebe7;
+  --line-strong: #dcdcd6;
 
-  /* Text */
-  --fg: #0b0b0c;
-  --fg-muted: #5d5d64;
-  --fg-subtle: #8c8c93;
+  --fg: #1a1a19;
+  --fg-muted: #66665f;
+  --fg-subtle: #94948c;
 
-  /* Actions */
-  --primary: #0b0b0c;
-  --primary-hover: #2a2a2e;
+  --primary: #1a1a19;
+  --primary-hover: #34342f;
   --on-primary: #ffffff;
-  --ring: #0b0b0c;
+  --ring: #2f6ae1;
 
-  /* Brand accent - live, connected, success, brand links */
-  --accent: #17734d;
-  --accent-hover: #115c3d;
-  --accent-soft: #e8f2ec;
+  --accent: #2f6ae1;
+  --accent-hover: #2457c2;
+  --accent-soft: #edf2fd;
   --on-accent: #ffffff;
 
-  /* Status */
-  --success: #17734d;
-  --success-soft: #e8f2ec;
-  --warning: #9a5b00;
-  --warning-soft: #fbf1e1;
-  --danger: #c0352b;
-  --danger-hover: #a12a21;
-  --danger-soft: #fbecea;
+  --signal: #1f8a5b;
+  --on-signal: #ffffff;
+  --unread: #2f6ae1;
+  --on-unread: #ffffff;
+
+  --success: #1f7a50;
+  --success-soft: #e8f4ed;
+  --warning: #9a5a00;
+  --warning-soft: #fbf1df;
+  --danger: #c93a2e;
+  --danger-hover: #ad2f24;
+  --danger-soft: #fcecea;
   --on-danger: #ffffff;
-  --info: #2c62a8;
-  --info-soft: #ebf1f9;
+  --info: #2f6ae1;
+  --info-soft: #edf2fd;
 
-  /* Navigation rail (always dark: anchors the layout) */
-  --nav: #111113;
-  --nav-fg: #f4f4f5;
-  --nav-fg-muted: #9a9aa2;
-  --nav-hover: rgb(255 255 255 / 0.07);
-  --nav-active: rgb(255 255 255 / 0.12);
-  --nav-active-fg: #ffffff;
-  --nav-badge: #3ddc84;
-  --on-nav-badge: #06210f;
+  --nav: #efefea;
+  --nav-fg: #1a1a19;
+  --nav-fg-muted: #66665f;
+  --nav-fg-subtle: #94948c;
+  --nav-hover: rgb(20 20 18 / 0.05);
+  --nav-active: #ffffff;
+  --nav-active-fg: #1a1a19;
+  --nav-badge: #1a1a19;
+  --on-nav-badge: #ffffff;
+  --nav-line: rgb(20 20 18 / 0.08);
+  --nav-card: rgb(20 20 18 / 0.035);
+  --monogram: #1a1a19;
+  --on-monogram: #ffffff;
 
-  /* Conversation */
-  --chat: #f3f3f1;
+  --chat: #ffffff;
   --chat-pattern: #000000;
   --chat-pattern-opacity: 0;
-  --bubble-in: #ffffff;
-  --bubble-out: #e3eee7;
-  --bubble-fg: #0b0b0c;
-  --bubble-shadow: 0 1px 1px rgb(9 9 11 / 0.06);
-  --note: #f6f0e1;
-  --note-fg: #6e5718;
-  --note-line: #e7dbbd;
-  --highlight: #fff2bf;
+  --bubble-in: #f4f4f1;
+  --bubble-out: #e8effd;
+  --bubble-fg: #1a1a19;
+  --bubble-shadow: none;
+  --note: #fdf3d4;
+  --note-fg: #6b5410;
+  --note-line: #f2e2ad;
+  --highlight: #fff1b8;
 
-  /* Charts - ordered series colours */
-  --chart-1: #17734d;
-  --chart-2: #2c62a8;
-  --chart-3: #b8771c;
-  --chart-4: #c0352b;
+  --chart-1: #2f6ae1;
+  --chart-2: #1f8a5b;
+  --chart-3: #c47f17;
+  --chart-4: #c93a2e;
   --chart-grid: #ececea;
 
-  /* Identity - distinguishes people/accounts. Never carries status meaning. */
-  --id-1: #1f6f8b;
-  --id-1-soft: #e6f1f5;
+  --id-1: #2563a8;
+  --id-1-soft: #e9f1fa;
   --id-2: #8a5a00;
   --id-2-soft: #f8efdc;
   --id-3: #6b3fa0;
-  --id-3-soft: #f0e9f7;
+  --id-3-soft: #f1ebf8;
   --id-4: #a63a5e;
-  --id-4-soft: #f8e8ee;
+  --id-4-soft: #f9eaf0;
   --id-5: #9a5215;
-  --id-5-soft: #f8ebdf;
-  --id-6: #17734d;
-  --id-6-soft: #e6f2eb;
+  --id-5-soft: #f9ede2;
+  --id-6: #1f7a50;
+  --id-6-soft: #e8f4ed;
   --id-7: #3f56b0;
-  --id-7-soft: #e9ecf8;
+  --id-7-soft: #ebeef9;
 
-  --shadow-color: 9 9 11;
+  /* Content frame: inset panel floating on the canvas (desktop) */
+  --frame-gap: 8px;
+  --frame-radius: 12px;
+  --frame-border: #e6e6e1;
+
+  --chip: transparent;
+  --chip-line: #e2e2dd;
+  --chip-on: #1a1a19;
+  --on-chip-on: #ffffff;
+  --tab-on: #1a1a19;
+  --row-hover: rgb(20 20 18 / 0.035);
+  --row-selected-ring: #e4e4df;
+
+  --row-line: transparent;
+  --row-inset: 6px;
+  --row-radius: 10px;
+  --shadow-color: 24 24 20;
 }
 
 /* ----------------------------------------------------------------- Dark -- */
+/* Intercom-inspired graphite: black canvas, layered cool greys, white
+ * actions, blue accent. */
 [data-theme="dark"] {
-  --canvas: #0b0b0c;
-  --surface: #141416;
-  --subtle: #18181a;
-  --muted: #1f1f22;
-  --muted-strong: #2a2a2e;
-  --selected: #252529;
-  --field: #18181a;
-  --overlay: #1a1a1d;
-  --scrim: rgb(0 0 0 / 0.6);
+  --canvas: #08090b;
+  --panel: #131519;
+  --page: #141619;
+  --surface: #1b1d22;
+  --raised: #24272d;
+  --subtle: #17191d;
+  --muted: #24272d;
+  --muted-strong: #2e3138;
+  --selected: #24272d;
+  --selected-ring: #30333a;
+  --field: #24272d;
+  --overlay: #212429;
+  --scrim: rgb(0 0 0 / 0.62);
 
-  --line: #252528;
-  --line-strong: #34343a;
+  --line: #2a2d33;
+  --line-strong: #383b42;
 
-  --fg: #ededee;
-  --fg-muted: #a1a1a9;
-  --fg-subtle: #6f6f78;
+  --fg: #ececee;
+  --fg-muted: #a0a3ab;
+  --fg-subtle: #6d7079;
 
-  --primary: #ededee;
-  --primary-hover: #d4d4d8;
-  --on-primary: #0b0b0c;
-  --ring: #ededee;
+  --primary: #ececee;
+  --primary-hover: #ffffff;
+  --on-primary: #111216;
+  --ring: #6e9cff;
 
-  --accent: #4cc38a;
-  --accent-hover: #6fd3a3;
-  --accent-soft: #15291f;
-  --on-accent: #06210f;
+  --accent: #7ba6ff;
+  --accent-hover: #9bbcff;
+  --accent-soft: #1b2741;
+  --on-accent: #0b1220;
+
+  --signal: #3ecf8e;
+  --on-signal: #062316;
+  --unread: #7ba6ff;
+  --on-unread: #0b1220;
 
   --success: #4cc38a;
-  --success-soft: #15291f;
-  --warning: #e0a23b;
-  --warning-soft: #2b2112;
-  --danger: #ff6b5a;
-  --danger-hover: #ff8576;
-  --danger-soft: #2d1513;
-  --on-danger: #1f0705;
-  --info: #6aa5ef;
-  --info-soft: #14202f;
+  --success-soft: #142a1f;
+  --warning: #e5a948;
+  --warning-soft: #2c2210;
+  --danger: #ff7062;
+  --danger-hover: #ff8a7e;
+  --danger-soft: #2e1714;
+  --on-danger: #1d0605;
+  --info: #7ba6ff;
+  --info-soft: #1b2741;
 
-  --nav: #0b0b0c;
-  --nav-fg: #ededee;
-  --nav-fg-muted: #8a8a93;
+  --nav: #08090b;
+  --nav-fg: #ececee;
+  --nav-fg-muted: #9a9da5;
+  --nav-fg-subtle: #6f727b;
   --nav-hover: rgb(255 255 255 / 0.06);
-  --nav-active: rgb(255 255 255 / 0.1);
+  --nav-active: #1b1d22;
   --nav-active-fg: #ffffff;
-  --nav-badge: #4cc38a;
-  --on-nav-badge: #06210f;
+  --nav-badge: #ececee;
+  --on-nav-badge: #111216;
+  --nav-line: rgb(255 255 255 / 0.07);
+  --nav-card: rgb(255 255 255 / 0.035);
+  --monogram: #ececee;
+  --on-monogram: #111216;
 
-  --chat: #0f0f10;
+  --chat: #1b1d22;
   --chat-pattern: #ffffff;
   --chat-pattern-opacity: 0;
-  --bubble-in: #1c1c1f;
-  --bubble-out: #1d2b24;
-  --bubble-fg: #ededee;
+  --bubble-in: #2a2d33;
+  --bubble-out: #23324f;
+  --bubble-fg: #ececee;
   --bubble-shadow: none;
-  --note: #2a2417;
-  --note-fg: #e3cf91;
-  --note-line: #403520;
-  --highlight: #3b3416;
+  --note: #322a14;
+  --note-fg: #f1d27a;
+  --note-line: #4a3e1d;
+  --highlight: #4a3e1d;
 
-  --chart-1: #4cc38a;
-  --chart-2: #6aa5ef;
-  --chart-3: #e0a23b;
-  --chart-4: #ff6b5a;
-  --chart-grid: #232326;
+  --chart-1: #7ba6ff;
+  --chart-2: #4cc38a;
+  --chart-3: #e5a948;
+  --chart-4: #ff7062;
+  --chart-grid: #2a2d33;
 
-  --id-1: #8fd4ea;
-  --id-1-soft: #142a32;
+  --id-1: #8fc4f0;
+  --id-1-soft: #172636;
   --id-2: #f1cf7a;
   --id-2-soft: #2d2410;
-  --id-3: #cdb3f2;
-  --id-3-soft: #241a33;
+  --id-3: #c9b2f2;
+  --id-3-soft: #251c35;
   --id-4: #f5a9c3;
   --id-4-soft: #331a24;
   --id-5: #f2bb8a;
@@ -195,58 +237,88 @@
   --id-7: #aebdf5;
   --id-7-soft: #1a2038;
 
+  --frame-gap: 8px;
+  --frame-radius: 12px;
+  --frame-border: #23262c;
+
+  --chip: transparent;
+  --chip-line: #31343b;
+  --chip-on: #ececee;
+  --on-chip-on: #111216;
+  --tab-on: #ececee;
+  --row-hover: rgb(255 255 255 / 0.035);
+  --row-selected-ring: #30333a;
+
+  --row-line: transparent;
+  --row-inset: 6px;
+  --row-radius: 10px;
   --shadow-color: 0 0 0;
 }
 
 /* ------------------------------------------------------------- WhatsApp -- */
-/* The original WATeamInbox dark palette, modelled on WhatsApp Web (dark). */
+/* The original WATeamInbox dark theme, value for value. Measured against the
+ * pre-design-system build; keep it that way (see DESIGN.md). */
 [data-theme="whatsapp"] {
   --canvas: #111b21;
+  --panel: #1f2c33;
+  --page: #111b21;
   --surface: #202c33;
-  --subtle: #1f2c33;
+  --raised: #2a3942;
+  --subtle: rgb(255 255 255 / 0.025);
   --muted: #2a3942;
   --muted-strong: #2f3b43;
   --selected: #2a3942;
+  --selected-ring: transparent;
   --field: #2a3942;
-  --overlay: #233138;
-  --scrim: rgb(11 20 26 / 0.7);
+  --overlay: #202c33;
+  --scrim: rgb(0 0 0 / 0.8);
 
   --line: #2f3b43;
-  --line-strong: #3b4a54;
+  --line-strong: #2f3b43;
 
   --fg: #e9edef;
   --fg-muted: #8696a0;
   --fg-subtle: #667781;
 
-  --primary: #00a884;
-  --primary-hover: #06cf9c;
-  --on-primary: #111b21;
+  --primary: #075e54;
+  --primary-hover: #128c7e;
+  --on-primary: #ffffff;
   --ring: #00a884;
 
-  --accent: #00a884;
-  --accent-hover: #06cf9c;
-  --accent-soft: #0b2e27;
-  --on-accent: #111b21;
+  --accent: #5ee9b5;
+  --accent-hover: #a4f4cf;
+  --accent-soft: rgb(0 212 146 / 0.1);
+  --on-accent: #062b1a;
 
-  --success: #00a884;
-  --success-soft: #0b2e27;
-  --warning: #ffd279;
-  --warning-soft: #3b3525;
-  --danger: #f15c6d;
-  --danger-hover: #f47c8a;
-  --danger-soft: #3d1f24;
-  --on-danger: #111b21;
-  --info: #53bdeb;
-  --info-soft: #11303f;
+  --signal: #25d366;
+  --on-signal: #ffffff;
+  --unread: #25d366;
+  --on-unread: #ffffff;
 
-  --nav: #202c33;
-  --nav-fg: #e9edef;
-  --nav-fg-muted: #aebac1;
-  --nav-hover: rgb(255 255 255 / 0.06);
-  --nav-active: rgb(255 255 255 / 0.1);
-  --nav-active-fg: #e9edef;
-  --nav-badge: #00a884;
-  --on-nav-badge: #111b21;
+  --success: #5ee9b5;
+  --success-soft: rgb(0 212 146 / 0.1);
+  --warning: #ffd230;
+  --warning-soft: rgb(123 51 6 / 0.3);
+  --danger: #ff6467;
+  --danger-hover: #ffa2a2;
+  --danger-soft: rgb(130 24 26 / 0.3);
+  --on-danger: #ffffff;
+  --info: #50a2ff;
+  --info-soft: rgb(28 57 142 / 0.3);
+
+  --nav: #102c24;
+  --nav-fg: #ffffff;
+  --nav-fg-muted: #b8c9c2;
+  --nav-fg-subtle: #91a8a0;
+  --nav-hover: rgb(255 255 255 / 0.07);
+  --nav-active: #dcefe7;
+  --nav-active-fg: #075c41;
+  --nav-badge: #25d366;
+  --on-nav-badge: #073b2a;
+  --nav-line: rgb(255 255 255 / 0.1);
+  --nav-card: rgb(0 0 0 / 0.1);
+  --monogram: #dcefe7;
+  --on-monogram: #075c41;
 
   --chat: #111b21;
   --chat-pattern: #1a2730;
@@ -260,26 +332,41 @@
   --note-line: #4d4530;
   --highlight: #4d4530;
 
-  --chart-1: #00a884;
-  --chart-2: #53bdeb;
-  --chart-3: #ffd279;
-  --chart-4: #f15c6d;
+  --chart-1: #0b7a55;
+  --chart-2: #4185c5;
+  --chart-3: #d18b35;
+  --chart-4: #cf5a5a;
   --chart-grid: #2a3942;
 
-  --id-1: #53bdeb;
-  --id-1-soft: #11303f;
-  --id-2: #ffd279;
-  --id-2-soft: #3b3525;
-  --id-3: #d0a4ff;
-  --id-3-soft: #2d2140;
-  --id-4: #ff8fa8;
-  --id-4-soft: #3d1f2a;
-  --id-5: #ffb27a;
-  --id-5-soft: #3c2a1a;
-  --id-6: #4dd1af;
-  --id-6-soft: #0b2e27;
-  --id-7: #a5b4ff;
-  --id-7-soft: #232a45;
+  --id-1: #74d4ff;
+  --id-1-soft: #052f4a;
+  --id-2: #ffd230;
+  --id-2-soft: #461901;
+  --id-3: #c4b4ff;
+  --id-3-soft: #2f0d68;
+  --id-4: #ffa1ad;
+  --id-4-soft: rgb(77 2 24 / 0.4);
+  --id-5: #ffb86a;
+  --id-5-soft: #441306;
+  --id-6: #5ee9b5;
+  --id-6-soft: #002c22;
+  --id-7: #53eafd;
+  --id-7-soft: #053345;
 
-  --shadow-color: 11 20 26;
+  --frame-gap: 0px;
+  --frame-radius: 0px;
+  --frame-border: transparent;
+
+  --chip: #2a3942;
+  --chip-line: #2f3b43;
+  --chip-on: #075e54;
+  --on-chip-on: #ffffff;
+  --tab-on: #00a884;
+  --row-hover: #202c33;
+  --row-selected-ring: transparent;
+
+  --row-line: #2f3b43;
+  --row-inset: 0px;
+  --row-radius: 0px;
+  --shadow-color: 0 0 0;
 }

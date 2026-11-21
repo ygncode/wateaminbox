@@ -33,7 +33,7 @@ export function CompleteStep({ result }: CompleteStepProps) {
           </div>
           <div className="text-sm text-info">{t("contacts.updatedCount")}</div>
         </div>
-        <div className="bg-subtle rounded-lg p-4 text-center">
+        <div className="bg-muted rounded-lg p-4 text-center">
           <div className="text-2xl font-bold text-fg-muted">
             {result.summary.skipped}
           </div>

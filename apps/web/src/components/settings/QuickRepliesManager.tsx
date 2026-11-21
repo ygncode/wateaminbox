@@ -148,13 +148,13 @@ export function QuickRepliesManager() {
     <div className="space-y-4">
       <AutoReplySettingsCard />
 
-      <div className="relative overflow-hidden rounded-2xl border border-line bg-subtle p-4">
+      <div className="relative overflow-hidden rounded-2xl border border-line bg-accent-soft p-4">
         <div
           className="absolute -end-6 -top-8 size-24 rounded-full bg-accent/10 blur-2xl"
           aria-hidden="true"
         />
         <div className="relative flex items-start gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-surface text-accent shadow-sm ring-1 ring-fg/[0.045]">
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-raised text-accent shadow-sm ring-1 ring-fg/[0.045]">
             <Zap className="size-5" fill="currentColor" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">

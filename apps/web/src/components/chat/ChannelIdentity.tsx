@@ -161,7 +161,7 @@ export function MergedCustomerAvatarBadge({
   return (
     <span
       className={cn(
-        "grid size-[18px] shrink-0 place-items-center rounded-full bg-primary text-on-primary ring-2 ring-white",
+        "grid size-[18px] shrink-0 place-items-center rounded-full bg-signal text-on-signal ring-2 ring-surface",
         className,
       )}
       title={`Reachable on ${channelCount} channels`}
@@ -228,7 +228,7 @@ export function ChannelAccountBadge({
   return (
     <span
       className={cn(
-        "inline-flex min-w-0 items-center rounded-full bg-subtle text-fg ring-1 ring-inset ring-line-strong",
+        "inline-flex min-w-0 items-center rounded-full bg-muted text-fg ring-1 ring-inset ring-line-strong",
         compact
           ? "gap-1 px-1.5 py-0.5 text-[10px]"
           : "gap-1.5 px-2 py-1 text-xs",

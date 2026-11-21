@@ -163,7 +163,7 @@ export function TelegramConnectDialog({
                     i18nKey="connections.telegram.groupsBody"
                     components={{
                       code: (
-                        <code className="rounded bg-warning/10 px-1 py-0.5 font-mono text-xs" />
+                        <code className="rounded bg-warning-soft/10 px-1 py-0.5 font-mono text-xs" />
                       ),
                       strong: <strong className="font-semibold" />,
                     }}

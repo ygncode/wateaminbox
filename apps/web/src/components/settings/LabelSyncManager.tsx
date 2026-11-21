@@ -406,7 +406,7 @@ export function LabelSyncManager() {
 
           <div className="py-4">
             {selectedLabel && (
-              <div className="flex items-center gap-2 mb-4 p-2 bg-subtle rounded-lg">
+              <div className="flex items-center gap-2 mb-4 p-2 bg-muted rounded-lg">
                 <div
                   className="w-4 h-4 rounded-full"
                   style={{

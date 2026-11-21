@@ -15,7 +15,7 @@ export function HourlyChart({ data }: HourlyChartProps) {
 
   if (data.length === 0) {
     return (
-      <div className="grid h-[236px] place-items-center rounded-xl border border-dashed border-line bg-subtle text-sm text-fg-muted">
+      <div className="grid h-[236px] place-items-center rounded-xl border border-dashed border-line bg-surface/40 text-sm text-fg-muted">
         {t(
           "dashboard.charts.noHourlyActivity",
           "No hourly activity in this period",
@@ -60,7 +60,7 @@ export function HourlyChart({ data }: HourlyChartProps) {
           </div>
         </div>
         {selectedHour === null ? (
-          <span className="flex items-center gap-1.5 rounded-full border border-line bg-subtle px-2.5 py-1 text-[10px] font-medium text-fg-muted">
+          <span className="flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-[10px] font-medium text-fg-muted">
             <MousePointer2 className="h-3 w-3" />
             {t("dashboard.charts.hoverHint", "Hover or click a bar")}
           </span>
@@ -68,7 +68,7 @@ export function HourlyChart({ data }: HourlyChartProps) {
           <button
             type="button"
             onClick={() => setSelectedHour(null)}
-            className="flex items-center gap-1.5 rounded-full border border-line-strong bg-subtle px-2.5 py-1 text-[10px] font-semibold text-accent transition-colors hover:bg-accent-soft"
+            className="flex items-center gap-1.5 rounded-full border border-line-strong bg-accent-soft px-2.5 py-1 text-[10px] font-semibold text-accent transition-colors hover:bg-accent-soft"
             aria-label={t(
               "dashboard.charts.clearPinnedHour",
               "Clear pinned hour",
@@ -146,7 +146,7 @@ export function HourlyChart({ data }: HourlyChartProps) {
               <button
                 key={hour.hour}
                 type="button"
-                className="group relative flex h-full min-w-0 items-end justify-center rounded-lg outline-none transition-colors hover:bg-muted/70 focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                className="group relative flex h-full min-w-0 items-end justify-center rounded-lg outline-none transition-colors hover:bg-accent-soft/70 focus-visible:bg-accent-soft focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 aria-label={`${formatHour(hour.hour)}: ${hour.count} messages`}
                 aria-pressed={selectedHour === hour.hour}
                 onMouseEnter={() => setHoveredHour(hour.hour)}
@@ -171,7 +171,7 @@ export function HourlyChart({ data }: HourlyChartProps) {
                   aria-hidden="true"
                 />
                 {(hour.hour % 6 === 0 || hour.hour === 23) && (
-                  <span className="absolute top-[calc(100%+7px)] text-[10px] tabular-nums text-fg-muted">
+                  <span className="absolute top-[calc(100%+7px)] text-[10px] tabular-nums text-fg-subtle">
                     {String(hour.hour).padStart(2, "0")}
                   </span>
                 )}

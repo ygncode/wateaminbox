@@ -47,7 +47,7 @@ export function ContactInfoSection({
                         defaultValue: "Chat",
                       }))}
                 </p>
-                <p className="truncate text-xs text-fg-muted">
+                <p className="truncate text-xs text-fg-subtle">
                   {[channelLabel(chat.channel), chat.accountName]
                     .filter(Boolean)
                     .join(" · ")}
@@ -70,7 +70,7 @@ export function ContactInfoSection({
               <p dir="ltr" className="text-sm font-medium text-fg text-end">
                 {formatPhoneNumber(contact.phoneNumber)}
               </p>
-              <p className="text-xs text-fg-muted">Phone</p>
+              <p className="text-xs text-fg-subtle">Phone</p>
             </div>
           </div>
         )}
@@ -79,7 +79,7 @@ export function ContactInfoSection({
             <Smartphone className="h-5 w-5 text-fg-subtle" />
             <div className="min-w-0">
               <ConnectionBadge connection={contact.connection} />
-              <p className="mt-1 truncate text-xs text-fg-muted">
+              <p className="mt-1 truncate text-xs text-fg-subtle">
                 Receives on{" "}
                 {getConnectionPhone(contact.connection) || "this account"}
               </p>
@@ -91,7 +91,7 @@ export function ContactInfoSection({
             <AtSign className="h-5 w-5 text-fg-subtle" />
             <div>
               <p className="text-sm font-medium text-fg">@{contact.username}</p>
-              <p className="text-xs text-fg-muted">
+              <p className="text-xs text-fg-subtle">
                 {network
                   ? t("contacts.channelUsername", {
                       channel: network,
@@ -107,7 +107,7 @@ export function ContactInfoSection({
             <User className="h-5 w-5 text-fg-subtle" />
             <div>
               <p className="text-sm font-medium text-fg">{contact.pushName}</p>
-              <p className="text-xs text-fg-muted">
+              <p className="text-xs text-fg-subtle">
                 {network
                   ? t("contacts.channelProfileName", {
                       channel: network,

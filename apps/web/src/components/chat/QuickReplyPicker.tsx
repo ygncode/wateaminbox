@@ -48,19 +48,19 @@ export function QuickReplyPicker({
             <p className="text-xs font-semibold text-fg">
               {t("quickReplies.pickerTitle", "Quick replies")}
             </p>
-            <p className="truncate text-[11px] text-fg-muted">
+            <p className="truncate text-[11px] text-fg-subtle">
               {query
                 ? t("chat.matchingShortcut", { query })
                 : t("chat.chooseSavedResponse")}
             </p>
           </div>
         </div>
-        <span className="hidden shrink-0 items-center gap-1 text-[10px] text-fg-muted sm:flex">
-          <span className="rounded border border-line/10 bg-surface px-1 py-0.5 font-mono">
+        <span className="hidden shrink-0 items-center gap-1 text-[10px] text-fg-subtle sm:flex">
+          <span className="rounded border border-line/10 bg-raised px-1 py-0.5 font-mono">
             ↑↓
           </span>
           navigate
-          <span className="ms-1 rounded border border-line/10 bg-surface px-1 py-0.5 font-mono">
+          <span className="ms-1 rounded border border-line/10 bg-raised px-1 py-0.5 font-mono">
             ↵
           </span>
           insert
@@ -114,7 +114,7 @@ export function QuickReplyPicker({
                 <span
                   className={`mt-0.5 shrink-0 rounded-md px-2 py-1 font-mono text-[11px] font-semibold ${
                     isSelected
-                      ? "bg-surface text-accent shadow-sm"
+                      ? "bg-raised text-accent shadow-sm"
                       : "bg-muted text-fg-muted"
                   }`}
                 >

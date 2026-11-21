@@ -109,7 +109,7 @@ export function EmojiInputPicker({
           placeholder={t("chat.searchEmoji", "Search emoji…")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full px-3 py-1.5 text-sm bg-muted text-fg placeholder-fg-muted rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
+          className="w-full px-3 py-1.5 text-sm bg-muted text-fg placeholder-fg-subtle rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
         />
       </div>
 
@@ -149,7 +149,7 @@ export function EmojiInputPicker({
             ))}
           </div>
         ) : (
-          <div className="flex items-center justify-center h-full text-fg-muted text-sm">
+          <div className="flex items-center justify-center h-full text-fg-subtle text-sm">
             {searchQuery ? "No emojis found" : "No recent emojis"}
           </div>
         )}

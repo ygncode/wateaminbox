@@ -133,7 +133,7 @@ export function CreateGroupDialog({
         </DialogHeader>
 
         {connectedAccounts.length === 0 ? (
-          <div className="flex gap-3 rounded-lg bg-subtle p-3">
+          <div className="flex gap-3 rounded-lg bg-surface p-3">
             <Users className="mt-0.5 h-5 w-5 shrink-0 text-fg-subtle" />
             <p className="text-sm leading-5 text-fg-muted">
               {t(
@@ -181,7 +181,7 @@ export function CreateGroupDialog({
                   "e.g. Support escalations",
                 )}
               />
-              <p className="text-xs text-fg-muted">
+              <p className="text-xs text-fg-subtle">
                 {trimmedName.length}/{GROUP_NAME_MAX_LENGTH} characters ·
                 WhatsApp rejects longer names.
               </p>
@@ -203,7 +203,7 @@ export function CreateGroupDialog({
                 searchInputId="create-group-members"
                 labelledBy="create-group-members-label"
               />
-              <p className="text-xs text-fg-muted">
+              <p className="text-xs text-fg-subtle">
                 {t(
                   "groups.ownerJoinsHint",
                   "This account joins the group automatically. WhatsApp may refuse individual members whose privacy settings block group invites.",

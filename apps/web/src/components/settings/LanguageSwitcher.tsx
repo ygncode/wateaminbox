@@ -55,7 +55,7 @@ export function LanguageSwitcher({
   return (
     <div className={`flex items-center gap-3 ${className || ""}`}>
       {showLabel && (
-        <div className="flex items-center gap-2 text-sm text-fg">
+        <div className="flex items-center gap-2 text-sm text-fg-muted">
           <Globe className="h-4 w-4" />
           <span>{t("settings.language")}</span>
         </div>

@@ -158,9 +158,9 @@ export const ChatListItem = memo(function ChatListItem({
       onClick={onClick}
       onMouseEnter={handlePrefetch}
       className={`w-full flex items-center gap-3 px-3 text-start
-                  transition-colors duration-150 border-b border-line
-                  touch-manipulation active:bg-muted
-                  ${isSelected ? "bg-selected" : "hover:bg-subtle"}
+                  list-row transition-colors duration-150 border-b border-row-line
+                  touch-manipulation active:bg-muted-strong
+                  ${isSelected ? "bg-selected list-row-selected" : "hover:bg-row-hover"}
                   py-3 md:py-3 min-h-[72px] md:min-h-0`}
       aria-selected={isSelected}
       aria-current={isSelected ? "true" : undefined}
@@ -169,7 +169,7 @@ export const ChatListItem = memo(function ChatListItem({
     >
       {/* Avatar with Online Indicator */}
       <div className="relative flex-shrink-0">
-        <div className="w-12 h-12 rounded-full overflow-hidden bg-muted-strong">
+        <div className="w-12 h-12 rounded-full overflow-hidden bg-muted">
           {contact.avatarUrl ? (
             <img
               src={contact.avatarUrl}
@@ -225,7 +225,7 @@ export const ChatListItem = memo(function ChatListItem({
         {/* Online Indicator - only for individual contacts */}
         {!contact.isGroup && contact.isOnline && (
           <span
-            className="absolute top-0 end-0 w-3 h-3 bg-primary
+            className="absolute top-0 end-0 w-3 h-3 bg-signal
                        border-2 border-surface rounded-full"
             aria-label={t("chat.online", "Online")}
           />
@@ -368,7 +368,7 @@ export const ChatListItem = memo(function ChatListItem({
             {unreadCount > 0 && (
               <span
                 className="flex items-center justify-center min-w-[20px] h-5 px-1.5
-                           text-xs font-medium text-on-primary bg-primary rounded-full tabular-nums"
+                           text-xs font-medium text-on-unread bg-unread rounded-full tabular-nums"
               >
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
@@ -387,15 +387,15 @@ export function ChatListItemSkeleton() {
   return (
     <div className="flex items-center gap-3 px-3 py-3 border-b border-line animate-pulse">
       {/* Avatar Skeleton */}
-      <div className="w-12 h-12 rounded-full bg-muted-strong flex-shrink-0" />
+      <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0" />
 
       {/* Content Skeleton */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <div className="h-4 bg-muted-strong rounded w-32" />
-          <div className="h-3 bg-muted-strong rounded w-12" />
+          <div className="h-4 bg-muted rounded w-32" />
+          <div className="h-3 bg-muted rounded w-12" />
         </div>
-        <div className="mt-2 h-3 bg-muted-strong rounded w-48" />
+        <div className="mt-2 h-3 bg-muted rounded w-48" />
       </div>
     </div>
   );

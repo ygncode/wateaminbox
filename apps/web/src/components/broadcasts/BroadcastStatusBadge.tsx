@@ -28,7 +28,7 @@ const STATUS_CONFIG: Record<
   completed: {
     labelKey: "broadcasts.status.completed",
     label: "Completed",
-    className: "border-accent/30 bg-subtle text-accent",
+    className: "border-accent/30 bg-accent-soft text-accent",
     dotClassName: "bg-primary",
   },
   completed_with_errors: {
@@ -40,7 +40,7 @@ const STATUS_CONFIG: Record<
   canceled: {
     labelKey: "broadcasts.status.canceled",
     label: "Canceled",
-    className: "border-line bg-subtle text-fg-muted",
+    className: "border-line bg-muted text-fg-muted",
     dotClassName: "bg-fg-subtle",
   },
 };

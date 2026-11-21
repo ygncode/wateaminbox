@@ -108,7 +108,7 @@ export function QuickReplyForm({
                   *
                 </span>
               </Label>
-              <span className="text-[11px] text-fg-muted">
+              <span className="text-[11px] text-fg-subtle">
                 {t("quickReplies.shortcutMicrocopy", "What teammates type")}
               </span>
             </div>
@@ -145,7 +145,7 @@ export function QuickReplyForm({
                 {errors.shortcut.message}
               </p>
             ) : (
-              <p id="shortcut-hint" className="text-xs text-fg-muted">
+              <p id="shortcut-hint" className="text-xs text-fg-subtle">
                 {t(
                   "quickReplies.shortcutHelpCompact",
                   "Letters, numbers, _ and -",
@@ -163,7 +163,7 @@ export function QuickReplyForm({
                   *
                 </span>
               </Label>
-              <span className="text-[11px] text-fg-muted">
+              <span className="text-[11px] text-fg-subtle">
                 {t("quickReplies.titleMicrocopy", "Only your team sees this")}
               </span>
             </div>
@@ -184,7 +184,7 @@ export function QuickReplyForm({
                 {errors.title.message}
               </p>
             ) : (
-              <p className="text-xs text-fg-muted">
+              <p className="text-xs text-fg-subtle">
                 {t(
                   "quickReplies.titleHelpCompact",
                   "Use a name that is easy to scan",
@@ -204,7 +204,7 @@ export function QuickReplyForm({
               </span>
             </Label>
             <span
-              className="font-mono text-[11px] tabular-nums text-fg-muted"
+              className="font-mono text-[11px] tabular-nums text-fg-subtle"
               aria-live="polite"
             >
               {content.length.toLocaleString()} / 5,000
@@ -231,7 +231,7 @@ export function QuickReplyForm({
           ) : (
             <p
               id="content-hint"
-              className="flex items-center gap-1.5 text-xs text-fg-muted"
+              className="flex items-center gap-1.5 text-xs text-fg-subtle"
             >
               <MessageSquareText className="size-3.5" aria-hidden="true" />
               {t(
@@ -244,12 +244,12 @@ export function QuickReplyForm({
 
         {hasPreview && (
           <div className="overflow-hidden rounded-xl border border-line bg-muted">
-            <div className="flex items-center justify-between gap-3 border-b border-line/[0.05] bg-surface/70 px-3 py-2">
+            <div className="flex items-center justify-between gap-3 border-b border-line/[0.05] bg-subtle/70 px-3 py-2">
               <div className="flex min-w-0 items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-fg-muted">
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-fg-subtle">
                   {t("quickReplies.preview", "Composer preview")}
                 </span>
-                <span className="truncate text-xs font-medium text-fg">
+                <span className="truncate text-xs font-medium text-fg-muted">
                   {title}
                 </span>
               </div>
@@ -258,7 +258,7 @@ export function QuickReplyForm({
               </span>
             </div>
             <div className="p-3">
-              <div className="ms-auto max-w-[88%] rounded-lg rounded-se-sm bg-accent-soft px-3 py-2 shadow-sm">
+              <div className="ms-auto max-w-[88%] rounded-lg rounded-se-sm bg-bubble-out px-3 py-2 shadow-sm">
                 <p className="whitespace-pre-wrap break-words text-sm leading-5 text-fg">
                   {content}
                 </p>
@@ -281,7 +281,7 @@ export function QuickReplyForm({
           <Button
             type="submit"
             disabled={isSubmitting || !isValid}
-            className="min-w-32 bg-primary text-on-primary shadow-sm hover:bg-primary-hover disabled:bg-muted-strong disabled:text-fg-muted disabled:opacity-100"
+            className="min-w-32 bg-primary text-on-primary shadow-sm hover:bg-primary-hover disabled:bg-muted-strong disabled:text-fg-subtle disabled:opacity-100"
             data-testid="save-quick-reply-button"
           >
             {isSubmitting ? (

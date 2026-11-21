@@ -10,11 +10,15 @@
 @theme inline {
   /* Surfaces */
   --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-page: var(--page);
   --color-surface: var(--surface);
+  --color-raised: var(--raised);
   --color-subtle: var(--subtle);
   --color-muted: var(--muted);
   --color-muted-strong: var(--muted-strong);
   --color-selected: var(--selected);
+  --color-selected-ring: var(--selected-ring);
   --color-field: var(--field);
   --color-overlay: var(--overlay);
   --color-scrim: var(--scrim);
@@ -39,6 +43,12 @@
   --color-accent-soft: var(--accent-soft);
   --color-on-accent: var(--on-accent);
 
+  /* Signal - unread counts, online/live dots. Never an action colour. */
+  --color-signal: var(--signal);
+  --color-on-signal: var(--on-signal);
+  --color-unread: var(--unread);
+  --color-on-unread: var(--on-unread);
+
   /* Status */
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
@@ -55,11 +65,25 @@
   --color-nav: var(--nav);
   --color-nav-fg: var(--nav-fg);
   --color-nav-fg-muted: var(--nav-fg-muted);
+  --color-nav-fg-subtle: var(--nav-fg-subtle);
   --color-nav-hover: var(--nav-hover);
   --color-nav-active: var(--nav-active);
   --color-nav-active-fg: var(--nav-active-fg);
   --color-nav-badge: var(--nav-badge);
   --color-on-nav-badge: var(--on-nav-badge);
+  --color-nav-line: var(--nav-line);
+
+  /* Filter chips, tabs and list rows */
+  --color-chip: var(--chip);
+  --color-chip-line: var(--chip-line);
+  --color-chip-on: var(--chip-on);
+  --color-on-chip-on: var(--on-chip-on);
+  --color-tab-on: var(--tab-on);
+  --color-row-hover: var(--row-hover);
+  --color-row-line: var(--row-line);
+  --color-nav-card: var(--nav-card);
+  --color-monogram: var(--monogram);
+  --color-on-monogram: var(--on-monogram);
 
   /* Conversation */
   --color-chat: var(--chat);

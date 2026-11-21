@@ -113,7 +113,7 @@ export function ErrorFallback({
   };
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-muted p-4">
+    <div className="min-h-dvh flex items-center justify-center bg-canvas p-4">
       <div className="max-w-md w-full bg-surface rounded-lg shadow-lg p-8 text-center">
         {/* Error Icon */}
         <div className="w-16 h-16 bg-danger-soft rounded-full flex items-center justify-center mx-auto mb-6">
@@ -147,8 +147,8 @@ export function ErrorFallback({
 
         {/* Error Details (dev only) */}
         {process.env.NODE_ENV === "development" && error && (
-          <details className="text-start mb-6 bg-subtle rounded-lg p-4">
-            <summary className="cursor-pointer text-sm font-medium text-fg mb-2">
+          <details className="text-start mb-6 bg-surface rounded-lg p-4">
+            <summary className="cursor-pointer text-sm font-medium text-fg-muted mb-2">
               {t("errors.errorDetails", "Error Details")}
             </summary>
             <div className="mt-2 text-xs">
@@ -156,7 +156,7 @@ export function ErrorFallback({
                 {error.message}
               </p>
               {errorInfo && (
-                <pre className="font-mono text-fg-muted whitespace-pre-wrap break-all max-h-40 overflow-auto">
+                <pre className="font-mono text-fg-subtle whitespace-pre-wrap break-all max-h-40 overflow-auto">
                   {errorInfo.componentStack}
                 </pre>
               )}

@@ -70,6 +70,28 @@
   }
 }
 
+/* Inset content frame (desktop). Themes control gap/radius/border via
+   --frame-*; WhatsApp sets them to 0 so the layout matches WhatsApp Web. */
+@media (min-width: 64rem) {
+  .app-frame {
+    margin: var(--frame-gap) var(--frame-gap) var(--frame-gap) 0;
+    border-radius: var(--frame-radius);
+    border: 1px solid var(--frame-border);
+    overflow: hidden;
+    background: var(--surface);
+  }
+}
+
+/* Selected conversation row: inset ring in themes that want it. */
+.list-row {
+  margin-inline: var(--row-inset);
+  width: calc(100% - 2 * var(--row-inset));
+  border-radius: var(--row-radius);
+}
+.list-row-selected {
+  box-shadow: inset 0 0 0 1px var(--row-selected-ring), 0 1px 2px rgb(var(--shadow-color) / 0.05);
+}
+
 /* Safe area utilities for mobile devices with notches/home indicators */
 @layer utilities {
   /* Safe area insets */

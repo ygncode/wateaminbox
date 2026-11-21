@@ -17,7 +17,7 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <!-- PWA theme color - updated dynamically by ThemeProvider -->
-    <meta name="theme-color" content="#f7f7f5" />
+    <meta name="theme-color" content="#111b21" />
     <!-- iOS specific -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -30,11 +30,11 @@
     <script>
       (function() {
         var THEMES = {
-          light: ['light', '#f7f7f5'],
-          dark: ['dark', '#0b0b0c'],
+          light: ['light', '#efefea'],
+          dark: ['dark', '#08090b'],
           whatsapp: ['dark', '#111b21']
         };
-        var pref = 'system';
+        var pref = 'whatsapp';
         try {
           var stored = localStorage.getItem('wateaminbox-theme');
           if (stored === 'system' || THEMES.hasOwnProperty(stored)) pref = stored;
@@ -59,8 +59,8 @@
          The --splash-bg follows the theme the FOUC script resolved above, so
          there is no white flash in dark mode. -->
     <style>
-      :root { --splash-bg: #f7f7f5; --splash-fg: #0b0b0c; }
-      html[data-theme="dark"] { --splash-bg: #0b0b0c; --splash-fg: #ededee; }
+      :root { --splash-bg: #efefea; --splash-fg: #1a1a19; }
+      html[data-theme="dark"] { --splash-bg: #08090b; --splash-fg: #ececee; }
       html[data-theme="whatsapp"] { --splash-bg: #111b21; --splash-fg: #00a884; }
       html, body { margin: 0; height: 100%; background: var(--splash-bg); }
       #app-splash {

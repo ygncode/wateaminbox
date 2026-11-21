@@ -120,7 +120,7 @@ export function ChatSwitcher({
                     )}
                   </span>
                   {chat.unreadCount > 0 && !isCurrent && (
-                    <span className="shrink-0 rounded-full bg-primary px-1.5 text-[10px] font-semibold text-on-primary">
+                    <span className="shrink-0 rounded-full bg-signal px-1.5 text-[10px] font-semibold text-on-signal">
                       {chat.unreadCount}
                     </span>
                   )}

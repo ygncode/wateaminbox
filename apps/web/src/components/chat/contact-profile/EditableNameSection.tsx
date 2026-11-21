@@ -92,7 +92,7 @@ export function EditableNameSection({ contact }: EditableNameSectionProps) {
           </Button>
         </div>
       )}
-      <p className="mt-1 text-xs text-fg-muted">
+      <p className="mt-1 text-xs text-fg-subtle">
         {t(
           "contacts.customNameVisible",
           "Custom name is visible to all team members",

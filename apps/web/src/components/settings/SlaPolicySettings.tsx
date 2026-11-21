@@ -808,7 +808,7 @@ export function SlaPolicySettings() {
                                 start: event.target.value,
                               })
                             }
-                            className="h-8 rounded-md border border-line-strong bg-surface px-2 text-sm"
+                            className="h-8 rounded-md border border-line-strong bg-raised px-2 text-sm"
                           />
                           <span className="text-fg-muted">to</span>
                           <input
@@ -820,7 +820,7 @@ export function SlaPolicySettings() {
                                 end: event.target.value,
                               })
                             }
-                            className="h-8 rounded-md border border-line-strong bg-surface px-2 text-sm disabled:opacity-50"
+                            className="h-8 rounded-md border border-line-strong bg-raised px-2 text-sm disabled:opacity-50"
                           />
                           <label className="flex items-center gap-1.5 text-xs text-fg-muted">
                             <input
@@ -896,7 +896,7 @@ export function SlaPolicySettings() {
                             date: event.target.value,
                           })
                         }
-                        className="h-8 rounded-md border border-line-strong bg-surface px-2 text-sm"
+                        className="h-8 rounded-md border border-line-strong bg-raised px-2 text-sm"
                       />
                       <Input
                         placeholder={t(
@@ -961,7 +961,7 @@ export function SlaPolicySettings() {
                                   { start: event.target.value },
                                 )
                               }
-                              className="h-8 rounded-md border border-line-strong bg-surface px-2 text-sm"
+                              className="h-8 rounded-md border border-line-strong bg-raised px-2 text-sm"
                             />
                             <span className="text-fg-muted">to</span>
                             <input
@@ -975,7 +975,7 @@ export function SlaPolicySettings() {
                                   { end: event.target.value },
                                 )
                               }
-                              className="h-8 rounded-md border border-line-strong bg-surface px-2 text-sm disabled:opacity-50"
+                              className="h-8 rounded-md border border-line-strong bg-raised px-2 text-sm disabled:opacity-50"
                             />
                             <label className="flex items-center gap-1.5 text-xs text-fg-muted">
                               <input

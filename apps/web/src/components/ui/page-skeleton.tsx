@@ -106,7 +106,7 @@ function AppShellSkeleton({ children }: { children: React.ReactNode }) {
   const shellChrome = resolveAppShellChrome(pathname);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-subtle">
+    <div className="flex h-dvh w-full overflow-hidden bg-canvas">
       <aside
         className={cn(
           "relative hidden h-full shrink-0 flex-col bg-nav py-3 lg:flex",
@@ -243,7 +243,7 @@ function AppShellSkeleton({ children }: { children: React.ReactNode }) {
                 key={index}
                 className={cn(
                   "flex h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl",
-                  index === 0 && "bg-accent-soft",
+                  index === 0 && "bg-muted",
                 )}
               >
                 <Skeleton className="size-5 rounded-md" />
@@ -272,7 +272,7 @@ function ChatPageSkeleton({ className }: { className?: string }) {
 
   return (
     <div
-      className={cn("flex min-h-0 flex-1 overflow-hidden bg-subtle", className)}
+      className={cn("flex min-h-0 flex-1 overflow-hidden bg-page", className)}
     >
       <div
         className={cn(
@@ -285,7 +285,7 @@ function ChatPageSkeleton({ className }: { className?: string }) {
           } as React.CSSProperties
         }
       >
-        <div className="flex h-14 shrink-0 items-stretch border-b border-line bg-muted md:h-[60px]">
+        <div className="flex h-14 shrink-0 items-stretch border-b border-line bg-surface md:h-[60px]">
           {[0, 1].map((index) => (
             <div
               key={index}
@@ -310,7 +310,7 @@ function ChatPageSkeleton({ className }: { className?: string }) {
         ].map((widths, row) => (
           <div
             key={row}
-            className="flex shrink-0 items-center gap-2 border-b border-line bg-subtle px-3 py-2"
+            className="flex shrink-0 items-center gap-2 border-b border-line bg-surface px-3 py-2"
           >
             {widths.map((width, index) => (
               <Skeleton
@@ -351,7 +351,7 @@ function ChatPageSkeleton({ className }: { className?: string }) {
 
       {isConversation ? (
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex h-16 shrink-0 items-center gap-3 border-b border-line bg-muted px-4">
+          <div className="flex h-16 shrink-0 items-center gap-3 border-b border-line bg-surface px-4">
             <Skeleton className="size-10 shrink-0 rounded-full" />
             <div className="min-w-0 flex-1 space-y-2">
               <Skeleton className="h-3.5 w-36 max-w-[42%]" />
@@ -366,25 +366,25 @@ function ChatPageSkeleton({ className }: { className?: string }) {
               <div className="flex justify-center pb-2">
                 <Skeleton className="h-5 w-20 rounded-full bg-fg/10" />
               </div>
-              <Skeleton className="h-12 w-[58%] max-w-md rounded-2xl rounded-es-sm bg-bubble-in/80" />
-              <Skeleton className="h-16 w-[46%] max-w-sm rounded-2xl rounded-es-sm bg-bubble-in/80" />
+              <Skeleton className="h-12 w-[58%] max-w-md rounded-2xl rounded-es-sm bg-muted/75" />
+              <Skeleton className="h-16 w-[46%] max-w-sm rounded-2xl rounded-es-sm bg-muted/75" />
               <div className="flex justify-end">
-                <Skeleton className="h-12 w-[52%] max-w-md rounded-2xl rounded-ee-sm bg-bubble-out/80" />
+                <Skeleton className="h-12 w-[52%] max-w-md rounded-2xl rounded-ee-sm bg-bubble-out/70" />
               </div>
-              <Skeleton className="h-10 w-[36%] max-w-xs rounded-2xl rounded-es-sm bg-bubble-in/80" />
+              <Skeleton className="h-10 w-[36%] max-w-xs rounded-2xl rounded-es-sm bg-muted/75" />
               <div className="flex justify-end">
-                <Skeleton className="h-16 w-[44%] max-w-sm rounded-2xl rounded-ee-sm bg-bubble-out/80" />
+                <Skeleton className="h-16 w-[44%] max-w-sm rounded-2xl rounded-ee-sm bg-bubble-out/70" />
               </div>
             </div>
           </div>
-          <div className="flex min-h-[64px] shrink-0 items-center gap-3 border-t border-line bg-muted px-3 py-2.5">
+          <div className="flex min-h-[64px] shrink-0 items-center gap-3 border-t border-line bg-surface px-3 py-2.5">
             <Skeleton className="size-9 shrink-0 rounded-full" />
-            <Skeleton className="h-10 flex-1 rounded-[1.35rem] bg-surface" />
+            <Skeleton className="h-10 flex-1 rounded-[1.35rem] bg-raised" />
             <Skeleton className="size-10 shrink-0 rounded-full bg-accent/30" />
           </div>
         </div>
       ) : (
-        <div className="hidden min-w-0 flex-1 items-center justify-center bg-subtle md:flex">
+        <div className="hidden min-w-0 flex-1 items-center justify-center bg-chat md:flex">
           <div className="flex flex-col items-center px-8">
             <Skeleton className="size-20 rounded-[1.65rem]" />
             <Skeleton className="mt-7 h-3 w-32 rounded-full" />
@@ -405,11 +405,11 @@ function SettingsPageSkeleton({ className }: { className?: string }) {
 
   return (
     <div
-      className={cn("flex h-full min-h-0 w-full bg-subtle", className)}
+      className={cn("flex h-full min-h-0 w-full bg-page", className)}
       role="status"
       aria-label={t("layout.loadingSettings", "Loading workspace settings")}
     >
-      <aside className="hidden w-64 shrink-0 overflow-hidden border-e border-line bg-muted px-4 py-6 md:block">
+      <aside className="hidden w-64 shrink-0 overflow-hidden border-e border-line bg-surface px-4 py-6 md:block">
         <Skeleton className="mx-2 h-3 w-16" />
         <Skeleton className="mx-2 mt-3 h-6 w-36" />
 
@@ -425,7 +425,7 @@ function SettingsPageSkeleton({ className }: { className?: string }) {
                       "flex h-9 items-center gap-3 rounded-lg px-2.5",
                       groupIndex === 0 &&
                         itemIndex === 0 &&
-                        "bg-surface shadow-sm",
+                        "bg-raised shadow-sm",
                     )}
                   >
                     <Skeleton className="h-4 w-4 shrink-0 rounded" />
@@ -518,7 +518,7 @@ function DashboardPageSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-subtle",
+        "flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-page",
         className,
       )}
     >
@@ -544,7 +544,7 @@ function DashboardPageSkeleton({ className }: { className?: string }) {
       </header>
 
       <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
-        <div className="h-full overflow-hidden rounded-xl border border-line bg-subtle shadow-sm">
+        <div className="h-full overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
           <div className="space-y-6 p-4 sm:p-5 lg:p-6">
             <section className="min-h-[501px] xl:min-h-[187px]">
               <div className="mb-3 flex items-center justify-between">
@@ -623,7 +623,7 @@ function WorkspaceChooserSkeleton({ className }: { className?: string }) {
   return (
     <main
       className={cn(
-        "relative min-h-dvh overflow-hidden bg-subtle px-5 py-10 text-fg",
+        "relative min-h-dvh overflow-hidden bg-canvas px-5 py-10 text-fg",
         className,
       )}
       role="status"
@@ -673,7 +673,7 @@ function AuthPageSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "min-h-dvh flex items-center justify-center bg-muted",
+        "min-h-dvh flex items-center justify-center bg-canvas",
         className,
       )}
     >
@@ -714,7 +714,7 @@ function TeamPageSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex h-full w-full flex-col overflow-hidden bg-subtle",
+        "flex h-full w-full flex-col overflow-hidden bg-page",
         className,
       )}
     >
@@ -750,7 +750,7 @@ function TeamPageSkeleton({ className }: { className?: string }) {
       {/* Searchable, paginated members table */}
       <div className="min-h-0 flex-1 overflow-hidden p-4 sm:p-6">
         <section className="flex h-full min-h-[24rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-lg">
-          <div className="flex shrink-0 flex-col gap-2.5 border-b border-line bg-subtle p-3 sm:flex-row sm:items-center">
+          <div className="flex shrink-0 flex-col gap-2.5 border-b border-line bg-surface/40 p-3 sm:flex-row sm:items-center">
             <Skeleton className="h-9 w-full sm:max-w-md" />
             <Skeleton className="h-9 w-28 self-end rounded-lg sm:ms-auto sm:self-auto" />
           </div>
@@ -788,7 +788,7 @@ function TeamPageSkeleton({ className }: { className?: string }) {
             </div>
           </div>
 
-          <footer className="flex shrink-0 flex-col gap-3 border-t border-line bg-subtle px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <footer className="flex shrink-0 flex-col gap-3 border-t border-line bg-surface/40 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <Skeleton className="h-3 w-20" />
               <Skeleton className="h-3 w-16" />
@@ -812,7 +812,7 @@ function DataPageSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 w-full flex-col overflow-hidden bg-subtle",
+        "flex h-full min-h-0 w-full flex-col overflow-hidden bg-page",
         className,
       )}
     >
@@ -857,7 +857,7 @@ function DataPageSkeleton({ className }: { className?: string }) {
               </div>
             ))}
           </div>
-          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-line bg-subtle px-3 py-2.5">
+          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-line bg-surface/40 px-3 py-2.5">
             <Skeleton className="h-3 w-24" />
             <div className="flex gap-2">
               <Skeleton className="size-8 rounded-md" />
@@ -877,7 +877,7 @@ function DefaultPageSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "min-h-dvh flex items-center justify-center bg-muted",
+        "min-h-dvh flex items-center justify-center bg-canvas",
         className,
       )}
     >

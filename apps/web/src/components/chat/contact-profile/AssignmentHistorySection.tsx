@@ -59,7 +59,7 @@ export function AssignmentHistorySection({
                       "flex items-start gap-3 rounded-lg p-2 text-sm",
                       entry.isActive
                         ? "bg-accent-soft border border-accent/30"
-                        : "bg-subtle",
+                        : "bg-surface",
                     )}
                   >
                     <div className="mt-0.5">

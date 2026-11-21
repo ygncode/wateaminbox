@@ -92,7 +92,7 @@ export function ForgotPasswordPage() {
             />
           </p>
 
-          <div className="mt-7 w-full rounded-2xl border border-line bg-subtle p-4 text-start">
+          <div className="mt-7 w-full rounded-2xl border border-line bg-muted/60 p-4 text-start">
             <p className="text-sm font-semibold text-fg">
               {t("auth.nothingYet", "Nothing yet?")}
             </p>
@@ -154,7 +154,7 @@ export function ForgotPasswordPage() {
 
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="mt-8 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-line-strong [&_input]:bg-surface [&_input]:px-3.5"
+          className="mt-8 space-y-5 [&_input]:h-11 [&_input]:rounded-xl [&_input]:border-line-strong [&_input]:bg-raised [&_input]:px-3.5"
           aria-busy={forgotPasswordMutation.isPending}
           noValidate
         >
@@ -172,7 +172,7 @@ export function ForgotPasswordPage() {
           <Button
             type="submit"
             size="lg"
-            className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-primary-hover"
+            className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-accent-soft"
             disabled={forgotPasswordMutation.isPending}
           >
             {forgotPasswordMutation.isPending ? (

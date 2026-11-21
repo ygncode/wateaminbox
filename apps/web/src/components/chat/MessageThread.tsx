@@ -299,13 +299,13 @@ export function MessageThread({
   // Empty state when no chat selected
   if (!conversationId) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-subtle">
+      <div className="flex-1 flex items-center justify-center bg-page">
         <div className="text-center max-w-md px-4">
           <BrandMark className="mx-auto mb-4 h-24 w-24 rounded-[1.75rem] object-contain shadow-sm" />
           <h2 className="text-xl font-semibold text-fg-muted mb-2">
             WATeamInbox
           </h2>
-          <p className="text-fg-muted">
+          <p className="text-fg-subtle">
             {t(
               "chat.selectConversationToStart",
               "Select a conversation to start messaging",
@@ -325,7 +325,7 @@ export function MessageThread({
   // Error state
   if (isError) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-subtle">
+      <div className="flex-1 flex items-center justify-center bg-page">
         <div className="text-center max-w-md px-4">
           <div className="mb-4">
             <svg
@@ -363,7 +363,7 @@ export function MessageThread({
 
         <div className="relative flex max-w-sm flex-col items-center px-6 text-center">
           <div className="relative mb-5">
-            <div className="grid size-20 place-items-center rounded-2xl border border-line bg-surface/70 shadow-sm backdrop-blur-sm">
+            <div className="grid size-20 place-items-center rounded-2xl border border-line/80 bg-surface/70 shadow-sm backdrop-blur-sm">
               <MessageCircle
                 className="size-9 text-fg-muted"
                 strokeWidth={1.6}

@@ -11,11 +11,11 @@ export const THEMES = {
   light: {
     appearance: "light",
     /** Browser chrome colour (meta theme-color); matches --canvas. */
-    metaColor: "#f7f7f5",
+    metaColor: "#efefea",
   },
   dark: {
     appearance: "dark",
-    metaColor: "#0b0b0c",
+    metaColor: "#08090b",
   },
   whatsapp: {
     appearance: "dark",
@@ -36,7 +36,9 @@ export const THEME_IDS = Object.keys(THEMES) as ThemeId[];
 export const THEME_PREFERENCES: ThemePreference[] = ["system", ...THEME_IDS];
 
 export const THEME_STORAGE_KEY = "wateaminbox-theme";
-export const DEFAULT_THEME_PREFERENCE: ThemePreference = "system";
+/** Applied when the user has not chosen a theme (signed out, or no saved
+ * account preference). `system` remains selectable in Settings. */
+export const DEFAULT_THEME_PREFERENCE: ThemePreference = "whatsapp";
 
 export function isThemePreference(value: unknown): value is ThemePreference {
   return (

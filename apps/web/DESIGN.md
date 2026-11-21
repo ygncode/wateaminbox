@@ -11,8 +11,9 @@ people keep open all day, so it should feel calm.
 
 1. **Monochrome first.** Neutral surfaces, hairline borders and a near-black
    (or near-white) primary action. Colour is information, not decoration.
-2. **One accent with a job.** The brand green (`accent`) means *live, connected,
-   success or brand link*. Don't use it for decoration, large fills or glows.
+2. **One accent with a job.** `accent` marks links and the active place;
+   `signal` marks live/online. Neither is used for decoration, large fills or
+   glows.
 3. **Show exceptions only.** Status colours (`warning`, `danger`, `info`)
    appear only when something needs attention. Healthy rows stay quiet.
 4. **Depth is restrained.** Use borders before shadows, and only the four
@@ -46,12 +47,19 @@ The theme owns colour.
 
 | id         | Appearance | Character |
 | ---------- | ---------- | --------- |
-| `light`    | light      | Default. Warm-neutral greys, near-black primary, green accent. |
-| `dark`     | dark       | True neutral dark. Near-black canvas, near-white primary. |
-| `whatsapp` | dark       | The original WhatsApp Web-style dark palette (teal greys, `#00a884` primary, doodle canvas). |
+| `light`    | light      | Default. Intercom-inspired: putty canvas, warm off-white panels, white content, near-black actions, one blue accent. |
+| `dark`     | dark       | Intercom-inspired graphite: black canvas, layered cool greys, near-white actions, blue accent. |
+| `whatsapp` | dark       | The original WATeamInbox dark theme, value for value (green rail, teal greys, `#075e54` actions, doodle canvas). |
 
-The user's preference is `system` (follows the OS between `light` and `dark`)
-or an explicit theme id. It is stored in `localStorage["wateaminbox-theme"]`.
+**WhatsApp is a fidelity theme.** Its values were measured element by element
+against the last build before the design system (`cbf7de7b`) and must keep
+matching it. Do not "improve" WhatsApp; improve Light and Dark instead.
+
+**`whatsapp` is the default for everyone** (`DEFAULT_THEME_PREFERENCE`): signed-out
+pages and every account without a saved choice. A user may pick `system`
+(follows the OS between `light` and `dark`) or any theme id; the choice is
+saved on their account (`users.theme_preference`) and follows them across
+devices. `localStorage["wateaminbox-theme"]` is only a paint cache.
 
 ### Adding a theme
 
@@ -77,12 +85,15 @@ them as `bg-*`, `text-*`, `border-*`, `ring-*`, `fill-*` or `stroke-*`.
 
 | Token | Use |
 | ----- | --- |
-| `canvas` | App background behind everything. |
-| `surface` | Cards, panels, lists, sheets: the default container. |
+| `canvas` | App background behind everything (the rail sits on it). |
+| `page` | Background of a page *inside* the content frame (dashboard, team, settings). |
+| `panel` | Navigation and list columns (conversation list, settings nav). |
+| `surface` | Cards, thread header, tables, dialogs: the default container. |
+| `raised` | Controls that sit on a surface: secondary chips and buttons. |
 | `subtle` | Quiet bands inside a surface: table headers, footers, read-only fields, hover on surface rows. |
 | `muted` | Chips, segmented controls, secondary buttons, skeletons, hover on interactive items. |
 | `muted-strong` | Pressed/hover state of `muted`, progress tracks. |
-| `selected` | The currently open row in a list (conversation, group). |
+| `selected` | The currently open row in a list (conversation, group). Add `list-row-selected` for the theme's inset ring. |
 | `field` | Input, select and textarea backgrounds. |
 | `overlay` | Popovers, menus, dialogs, toasts: anything floating. |
 | `scrim` | Backdrop behind modals and sheets. |
@@ -108,7 +119,9 @@ them as `bg-*`, `text-*`, `border-*`, `ring-*`, `fill-*` or `stroke-*`.
 | ----- | --- |
 | `primary` / `primary-hover` / `on-primary` | The main call to action. One per view. Near-black in `light`, near-white in `dark`, teal in `whatsapp`. |
 | `ring` | Focus ring colour (`ring-ring/40`). |
-| `accent` / `accent-hover` / `accent-soft` / `on-accent` | Brand green: live, connected, success, brand links, unread emphasis. |
+| `accent` / `accent-hover` / `accent-soft` / `on-accent` | Links, active nav/settings items, emphasised numbers. Blue in `light`/`dark`, green in `whatsapp`. |
+| `signal` / `on-signal` | Online and live dots, sync indicators. **Never an action colour.** |
+| `unread` / `on-unread` | Unread count pills in conversation lists. |
 | `success`, `success-soft` | Completed or positive state. |
 | `warning`, `warning-soft` | At risk: SLA about to breach, needs review. |
 | `danger`, `danger-hover`, `danger-soft`, `on-danger` | Errors, failed delivery, destructive actions, overdue. |
@@ -117,12 +130,24 @@ them as `bg-*`, `text-*`, `border-*`, `ring-*`, `fill-*` or `stroke-*`.
 Soft variants are for backgrounds of badges, banners and icon tiles. Pair them
 with the solid token as text: `bg-warning-soft text-warning`.
 
+### Layout chrome
+
+| Token / class | Use |
+| ------------- | --- |
+| `.app-frame` | The content column. On desktop it floats on the canvas with `--frame-gap`, `--frame-radius`, `--frame-border` (Light/Dark: 8px inset, 12px radius; WhatsApp: 0, flush like WhatsApp Web). |
+| `.list-row` | Conversation/group rows. Inset and rounded via `--row-inset`, `--row-radius`; divider via `border-row-line` (transparent in Light/Dark). |
+| `chip`, `chip-line`, `chip-on`, `on-chip-on` | Filter chips (status/assignment filters). |
+| `tab-on` | Active tab underline and label. |
+| `row-hover` | Hover on list rows. |
+| `monogram`, `on-monogram` | Workspace monogram avatar. |
+
 ### Navigation rail
 
-The app rail and the auth/onboarding side panel are always dark: they anchor
-the layout in every theme. Use only `nav`, `nav-fg`, `nav-fg-muted`,
-`nav-hover`, `nav-active`, `nav-active-fg`, `nav-badge` and `on-nav-badge`
-there, never surface tokens.
+The app rail and the auth/onboarding side panel use their own tokens. Use only `nav`, `nav-fg`, `nav-fg-muted`,
+`nav-hover`, `nav-active`, `nav-active-fg`, `nav-badge`, `on-nav-badge`,
+`nav-fg-subtle`, `nav-line` and `nav-card` there, never surface tokens. In
+Light the rail blends into the canvas (Intercom); in Dark it is the black
+canvas; in WhatsApp it is the original deep green.
 
 ### Conversation
 
@@ -259,7 +284,8 @@ brand tiles and SVG icons. Google's logo colours are allow-listed in the test.
 ## Checklist for UI changes
 
 1. Use semantic tokens and shared primitives; no new colour values.
-2. Check the change in **Light, Dark and WhatsApp** (Settings → Appearance,
+2. Check the change in **Light, Dark and WhatsApp** (WhatsApp must still match
+   the original build; see "WhatsApp is a fidelity theme") (Settings → Appearance,
    or the theme menu in the rail), on desktop and at 390px wide.
 3. Text contrast is at least 4.5:1 (3:1 for large text and icons) in every theme.
 4. Run from `apps/web`: `bun test src/styles/design-system.test.ts

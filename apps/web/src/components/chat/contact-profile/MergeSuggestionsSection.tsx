@@ -128,7 +128,7 @@ export function MergeSuggestionsSection({
                   "View all these chats together",
                 )}
               </span>
-              <span className="block truncate text-[11px] text-fg-muted">
+              <span className="block truncate text-[11px] text-fg-subtle">
                 {suggestion.matchedAddress} · {suggestion.channels.join(", ")}
                 {suggestion.sameChannel
                   ? ` · ${t("contacts.mergeSameChannel", "same channel")}`

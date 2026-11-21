@@ -91,7 +91,7 @@ export function PreviewStep({
       {/* Preview table */}
       <div className="border border-line rounded-lg overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-subtle">
+          <thead className="bg-muted">
             <tr>
               <th className="px-4 py-2 text-start font-medium text-fg-muted">
                 #
@@ -110,7 +110,7 @@ export function PreviewStep({
           <tbody className="divide-y divide-line">
             {preview.preview.slice(0, 10).map((row) => (
               <tr key={row.row} className="hover:bg-muted">
-                <td className="px-4 py-2 text-fg-muted">{row.row}</td>
+                <td className="px-4 py-2 text-fg-subtle">{row.row}</td>
                 <td className="px-4 py-2 text-fg">
                   {formatPhoneNumber(row.phoneNumber)}
                 </td>
@@ -133,7 +133,7 @@ export function PreviewStep({
           </tbody>
         </table>
         {preview.total > 10 && (
-          <div className="px-4 py-2 bg-subtle text-sm text-fg-muted text-center">
+          <div className="px-4 py-2 bg-muted text-sm text-fg-muted text-center">
             {t("contacts.andMore", { count: preview.total - 10 })}
           </div>
         )}

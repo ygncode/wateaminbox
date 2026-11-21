@@ -46,9 +46,9 @@ export function ResetPasswordPage() {
   };
 
   return (
-    <main className="min-h-dvh grid place-items-center bg-muted px-4">
+    <main className="min-h-dvh grid place-items-center bg-canvas px-4">
       <section className="w-full max-w-md rounded-xl border border-line bg-surface p-8 shadow-xl">
-        <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-full bg-primary text-on-primary shadow-lg">
+        <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-full bg-accent-soft text-accent">
           {status === "success" ? (
             <CheckCircle2 size={32} />
           ) : (

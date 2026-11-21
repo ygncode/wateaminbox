@@ -37,7 +37,7 @@ export function SidebarHeader({
   return (
     <header
       className={cn(
-        "flex items-center justify-between border-b border-line bg-muted px-4",
+        "flex items-center justify-between border-b border-line bg-surface px-4",
         // Responsive height with safe area support
         "h-14 min-h-[56px] md:h-[60px] md:min-h-[60px]",
         // Safe area inset for notch

@@ -41,7 +41,7 @@ export function HighlightedText({
   }
 
   const parts = text.split(new RegExp(`(${escapeRegExp(query)})`, "gi"));
-  const defaultHighlightClass = "bg-warning-soft text-fg rounded px-0.5";
+  const defaultHighlightClass = "bg-warning-soft text-warning rounded px-0.5";
 
   return (
     <>

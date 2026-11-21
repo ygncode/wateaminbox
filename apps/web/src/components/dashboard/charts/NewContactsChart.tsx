@@ -164,7 +164,7 @@ function ChartEmptyState() {
   const { t } = useTranslation();
 
   return (
-    <div className="grid h-[276px] place-items-center rounded-xl border border-dashed border-line bg-subtle text-sm text-fg-muted">
+    <div className="grid h-[276px] place-items-center rounded-xl border border-dashed border-line bg-surface/40 text-sm text-fg-muted">
       {t("dashboard.charts.noNewContacts", "No new contacts in this period")}
     </div>
   );

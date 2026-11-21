@@ -85,7 +85,7 @@ export function NotesList({
     <RightPanelSection title={title}>
       <div className="flex items-center gap-2 mb-2">
         <Icon className="h-4 w-4 text-fg-subtle" />
-        <span className="text-xs text-fg-muted">{subtitle}</span>
+        <span className="text-xs text-fg-subtle">{subtitle}</span>
         {notes.length > 0 && (
           <button
             type="button"
@@ -154,7 +154,7 @@ export function NotesList({
             <button
               type="button"
               onClick={() => setShowAddForm(true)}
-              className="flex items-center gap-2 w-full p-2 rounded-lg border border-dashed border-line-strong text-sm text-fg-muted hover:border-line-strong hover:text-fg-muted transition-colors"
+              className="flex items-center gap-2 w-full p-2 rounded-lg border border-dashed border-line-strong text-sm text-fg-muted hover:border-line-strong hover:text-fg transition-colors"
             >
               <Plus className="h-4 w-4" />
               {addButtonText}

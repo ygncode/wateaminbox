@@ -267,7 +267,7 @@ function NotificationPanel({
       {/* Footer. Always present: the full inbox holds read notifications the
           sheet's short list does not, so it stays reachable from an empty or
           failed sheet too. */}
-      <div className="shrink-0 pb-[env(safe-area-inset-bottom)] border-t border-line bg-subtle">
+      <div className="shrink-0 pb-[env(safe-area-inset-bottom)] border-t border-line bg-muted">
         <Button
           variant="ghost"
           size="sm"

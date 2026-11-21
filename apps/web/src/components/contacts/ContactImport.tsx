@@ -209,7 +209,7 @@ export function ContactImport({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between px-6 py-4 border-t border-line bg-subtle">
+      <div className="flex items-center justify-between px-6 py-4 border-t border-line bg-surface">
         {step === "upload" && (
           <div className="flex items-center gap-2 text-sm text-fg-muted">
             <FileText className="h-4 w-4" />

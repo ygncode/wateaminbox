@@ -617,7 +617,7 @@ function ConversationLoadingState() {
           height when the contact resolves. */}
       <div
         className={cn(
-          "flex items-center gap-3 border-b border-line bg-muted px-4",
+          "flex items-center gap-3 border-b border-line bg-surface px-4",
           CONVERSATION_HEADER_INSET_CLASS,
         )}
         aria-hidden="true"
@@ -634,11 +634,11 @@ function ConversationLoadingState() {
       <ConversationMessagesSkeleton decorative />
 
       <div
-        className="flex min-h-[64px] items-center gap-3 border-t border-line bg-muted px-3 py-2.5"
+        className="flex min-h-[64px] items-center gap-3 border-t border-line bg-surface px-3 py-2.5"
         aria-hidden="true"
       >
         <Skeleton className="size-9 shrink-0 rounded-full" />
-        <Skeleton className="h-10 flex-1 rounded-[1.35rem] bg-surface" />
+        <Skeleton className="h-10 flex-1 rounded-[1.35rem] bg-raised" />
         <Skeleton className="size-10 shrink-0 rounded-full bg-accent/30" />
       </div>
     </div>
@@ -657,7 +657,7 @@ function ConversationLoadError({
   const { t } = useTranslation();
 
   return (
-    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-subtle px-6">
+    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-chat px-6">
       <div
         className="absolute inset-0 opacity-[0.035] dark:opacity-[0.09]"
         style={{
@@ -693,7 +693,7 @@ function ConversationLoadError({
           <button
             type="button"
             onClick={onBackToInbox}
-            className="inline-flex h-10 items-center rounded-full border border-line bg-surface px-4 text-sm font-semibold text-fg-muted transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex h-10 items-center rounded-full border border-line bg-raised px-4 text-sm font-semibold text-fg-muted transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             {t("chat.backToInbox", "Back to inbox")}
           </button>
@@ -708,7 +708,7 @@ function InboxConnectionLoadingState() {
 
   return (
     <div
-      className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-subtle"
+      className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-chat"
       role="status"
       aria-label={t("chat.checkingChannels", "Checking connected channels")}
       aria-busy="true"
@@ -742,7 +742,7 @@ function InboxFirstRunState({
   const { t } = useTranslation();
 
   return (
-    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-y-auto bg-subtle px-5 py-8 sm:px-8">
+    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-y-auto bg-chat px-5 py-8 sm:px-8">
       <div
         className="absolute inset-0 opacity-[0.035] dark:opacity-[0.085]"
         style={{
@@ -755,7 +755,7 @@ function InboxFirstRunState({
 
       <section className="relative grid w-full max-w-4xl overflow-hidden rounded-[2rem] border border-line bg-overlay/90 shadow-lg backdrop-blur-sm lg:grid-cols-[1.05fr_0.95fr]">
         <div className="flex flex-col justify-center px-7 py-9 sm:px-10 sm:py-12 lg:px-12">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-line bg-subtle px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.15em] text-accent">
+          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-line bg-accent-soft px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.15em] text-accent">
             <span className="relative flex size-2">
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-40" />
               <span className="relative inline-flex size-2 rounded-full bg-primary" />
@@ -794,7 +794,7 @@ function InboxFirstRunState({
             </button>
           )}
 
-          <div className="mt-8 flex items-start gap-2.5 border-t border-line pt-5 text-xs leading-5 text-fg-muted">
+          <div className="mt-8 flex items-start gap-2.5 border-t border-line pt-5 text-xs leading-5 text-fg-subtle">
             <CheckCheck className="mt-0.5 size-4 shrink-0 text-accent" />
             <span>
               {t(
@@ -878,7 +878,7 @@ function InboxFirstRunState({
             </div>
           </div>
 
-          <div className="mt-auto flex items-center gap-3 rounded-2xl border border-dashed border-line-strong bg-subtle px-4 py-3">
+          <div className="mt-auto flex items-center gap-3 rounded-2xl border border-dashed border-line-strong bg-subtle/35 px-4 py-3">
             <span
               className="flex -space-x-1.5 rtl:space-x-reverse"
               aria-hidden="true"
@@ -912,7 +912,7 @@ function InboxEmptyState({
   const isGroupView = activeView === "groups";
 
   return (
-    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-subtle">
+    <div className="relative isolate flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-chat">
       <div
         className="absolute inset-0 opacity-[0.035] dark:opacity-[0.09]"
         style={{
@@ -936,11 +936,11 @@ function InboxEmptyState({
           </div>
 
           <div className="absolute end-1 top-3 h-28 w-36 rotate-6 rounded-2xl border border-line bg-overlay/80 p-4 shadow-sm backdrop-blur-sm">
-            <span className="ms-auto block h-8 w-20 rounded-xl rounded-ee-sm bg-accent-soft" />
+            <span className="ms-auto block h-8 w-20 rounded-xl rounded-ee-sm bg-bubble-out" />
             <span className="mt-3 block h-8 w-24 rounded-xl rounded-es-sm bg-muted" />
           </div>
 
-          <div className="absolute start-1/2 top-1/2 grid size-20 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 place-items-center rounded-[1.65rem] border border-surface bg-primary text-on-primary shadow-lg">
+          <div className="absolute start-1/2 top-1/2 grid size-20 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 place-items-center rounded-[1.65rem] border border-line bg-primary text-on-primary shadow-lg">
             <MessagesSquare className="size-9" strokeWidth={1.65} />
           </div>
 
@@ -949,7 +949,7 @@ function InboxEmptyState({
               className={cn(
                 "absolute bottom-2 end-4 grid size-9 place-items-center rounded-full border-4 border-line shadow-sm",
                 connectionState === "connected"
-                  ? "bg-accent-soft text-accent"
+                  ? "bg-bubble-out text-accent"
                   : "bg-warning-soft text-warning",
               )}
             >
@@ -1007,7 +1007,7 @@ function InboxEmptyState({
         </div>
       </div>
 
-      <div className="absolute bottom-8 start-1/2 hidden -translate-x-1/2 rtl:translate-x-1/2 items-center gap-2 text-xs text-fg-muted sm:flex">
+      <div className="absolute bottom-8 start-1/2 hidden -translate-x-1/2 rtl:translate-x-1/2 items-center gap-2 text-xs text-fg-subtle sm:flex">
         <ArrowLeft className="size-3.5 rtl:-scale-x-100" aria-hidden="true" />
         <span>
           {t("chat.selectChatHint", "Select a chat from the list to begin")}

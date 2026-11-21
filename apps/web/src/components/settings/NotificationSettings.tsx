@@ -38,7 +38,7 @@ export function NotificationSettings() {
 
   if (!isSupported) {
     return (
-      <div className="rounded-lg border border-line bg-subtle p-4">
+      <div className="rounded-lg border border-line bg-muted p-4">
         <div className="flex items-center gap-2 text-fg-muted">
           <BellOff className="h-5 w-5" />
           <p className="text-sm">

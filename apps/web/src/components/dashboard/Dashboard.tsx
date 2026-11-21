@@ -113,7 +113,7 @@ export function Dashboard({
   } = useNewContactsTrend(companyId, startDate, endDate);
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-subtle">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-page">
       <DashboardHeader
         workspaceName={workspaceName}
         dateRange={dateRange}
@@ -131,7 +131,7 @@ export function Dashboard({
       )}
 
       <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
-        <ScrollArea className="h-full rounded-xl border border-line bg-subtle shadow-sm">
+        <ScrollArea className="h-full rounded-xl border border-line bg-surface shadow-sm">
           <div className="space-y-6 p-4 sm:p-5 lg:p-6">
             <section aria-labelledby="operational-overview-title">
               <div className="mb-3 flex items-center justify-between">
@@ -243,7 +243,7 @@ export function Dashboard({
               <button
                 type="button"
                 onClick={() => setShowSecondary(true)}
-                className="w-full rounded-xl border border-dashed border-line-strong bg-surface/70 py-6 text-sm font-medium text-accent transition-colors hover:border-line-strong hover:bg-surface"
+                className="w-full rounded-xl border border-dashed border-line-strong bg-surface/50 py-6 text-sm font-medium text-accent transition-colors hover:border-line-strong hover:bg-surface"
               >
                 {t(
                   "dashboard.loadDetailedAnalytics",

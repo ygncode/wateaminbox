@@ -140,7 +140,7 @@ export function MediaPendingPlaceholder({
               className={`text-xs px-2 py-1 rounded ${
                 isOwn
                   ? "bg-white/20 hover:bg-white/30 text-white"
-                  : "bg-muted-strong hover:bg-muted-strong text-fg"
+                  : "bg-muted-strong hover:bg-muted text-fg"
               }`}
             >
               {t("chat.retryDownload")}

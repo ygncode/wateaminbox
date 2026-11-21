@@ -7,7 +7,7 @@ export function AuditPage() {
   if (!activeWorkspace) return null;
 
   return (
-    <div className="h-full w-full overflow-hidden bg-surface">
+    <div className="h-full w-full overflow-hidden bg-page">
       <AuditLog
         companyId={activeWorkspace.id}
         canExport={activeWorkspace.permissions.can_export}

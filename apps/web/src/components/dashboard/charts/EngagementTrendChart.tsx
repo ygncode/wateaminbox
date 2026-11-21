@@ -57,7 +57,7 @@ export function EngagementTrendChart({ data }: EngagementTrendChartProps) {
 
   if (data.length === 0) {
     return (
-      <div className="grid h-[240px] place-items-center rounded-xl border border-dashed border-line bg-subtle text-sm text-fg-muted">
+      <div className="grid h-[240px] place-items-center rounded-xl border border-dashed border-line bg-surface/40 text-sm text-fg-muted">
         {t(
           "dashboard.charts.noEngagementTrend",
           "No engagement trend in this period",

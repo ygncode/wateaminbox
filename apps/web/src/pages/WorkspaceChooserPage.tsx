@@ -30,7 +30,7 @@ export function WorkspaceChooserPage() {
   };
 
   return (
-    <main className="relative min-h-dvh overflow-hidden bg-subtle px-5 py-10 text-fg">
+    <main className="relative min-h-dvh overflow-hidden bg-canvas px-5 py-10 text-fg">
       <div className="relative mx-auto max-w-2xl">
         <div className="mb-10 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -42,7 +42,7 @@ export function WorkspaceChooserPage() {
           <button
             type="button"
             onClick={() => void logout()}
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-fg-muted hover:bg-surface hover:text-fg"
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-fg-muted hover:bg-raised hover:text-fg"
           >
             <LogOut className="h-4 w-4" /> {t("nav.signOut")}
           </button>

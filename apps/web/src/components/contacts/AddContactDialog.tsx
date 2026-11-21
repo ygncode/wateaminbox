@@ -240,7 +240,7 @@ export function AddContactDialog({
                   {errors.phoneNumber.message}
                 </p>
               ) : (
-                <p id="phoneNumber-hint" className="text-xs text-fg-muted">
+                <p id="phoneNumber-hint" className="text-xs text-fg-subtle">
                   {t(
                     "contacts.countryCodeHint",
                     "Include country code (e.g., +1 for US, +44 for UK, +95 for Myanmar)",
@@ -304,7 +304,7 @@ export function AddContactDialog({
                   {errors.notes.message}
                 </p>
               ) : (
-                <p id="notes-hint" className="text-xs text-fg-muted">
+                <p id="notes-hint" className="text-xs text-fg-subtle">
                   {t(
                     "contacts.notesVisibleHint",
                     "These notes will be visible to all team members",

@@ -132,7 +132,7 @@ export function TagsSection({ contact, conversationId }: TagsSectionProps) {
                 setShowTagPicker(!showTagPicker);
                 if (showTagPicker) setTagSearch("");
               }}
-              className="flex h-6 items-center gap-1 rounded-full border border-dashed border-line-strong px-2 text-xs text-fg-muted hover:border-line-strong hover:text-fg-muted"
+              className="flex h-6 items-center gap-1 rounded-full border border-dashed border-line-strong px-2 text-xs text-fg-muted hover:border-line-strong hover:text-fg"
             >
               <Plus className="h-3 w-3" />
               {t("tags.addTag", "Add Tag")}

@@ -225,7 +225,7 @@ export function MobileHeader({
   return (
     <header
       className={cn(
-        "flex h-14 min-h-[56px] items-center gap-2 border-b border-line bg-muted px-2 safe-area-top",
+        "flex h-14 min-h-[56px] items-center gap-2 border-b border-line bg-surface px-2 safe-area-top",
         className,
       )}
       {...props}

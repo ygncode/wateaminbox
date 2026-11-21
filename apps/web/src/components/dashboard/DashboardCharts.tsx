@@ -264,7 +264,7 @@ export function StatsCardsRow({
           </p>
         ) : contactStats ? (
           <div>
-            <div className="mb-5 rounded-xl bg-subtle px-4 py-3">
+            <div className="mb-5 rounded-xl bg-muted/60 px-4 py-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">
                 {t("dashboard.charts.totalContacts", "Total contacts")}
               </p>
@@ -305,7 +305,7 @@ export function StatsCardsRow({
       {/* Message Types */}
       <div className="rounded-xl border border-line bg-surface p-5 shadow-xs">
         <div className="mb-5 flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-muted text-info">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-info-soft text-info">
             <BarChart3 className="h-4 w-4" />
           </span>
           <div>
@@ -392,7 +392,7 @@ export function StatsCardsRow({
               {teamStats.slice(0, 5).map((member, index) => (
                 <div
                   key={member.userId}
-                  className="flex items-center justify-between gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-muted"
+                  className="flex items-center justify-between gap-3 rounded-xl px-2 py-2.5 transition-colors hover:bg-muted/60"
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2.5">
                     <span className="w-4 text-[10px] font-semibold tabular-nums text-fg-subtle">
@@ -409,7 +409,7 @@ export function StatsCardsRow({
                   </div>
                   <Badge
                     variant="outline"
-                    className="border-line bg-subtle text-[10px] tabular-nums"
+                    className="border-line bg-surface text-[10px] tabular-nums"
                   >
                     {formatNumber(member.messagesSent)} sent
                   </Badge>

@@ -72,7 +72,7 @@ export function FeedbackForm({
         />
         <p
           id={counterId}
-          className="text-end text-xs tabular-nums text-fg-muted"
+          className="text-end text-xs tabular-nums text-fg-subtle"
         >
           {t("feedback.counter", "{{current}}/{{max}}", {
             current: form.draft.message.length,
@@ -99,7 +99,7 @@ export function FeedbackForm({
         {!emailInvalid && (
           <p
             id={`${idPrefix}-email-hint`}
-            className="text-xs leading-4 text-fg-muted"
+            className="text-xs leading-4 text-fg-subtle"
           >
             {t(
               "feedback.emailHint",

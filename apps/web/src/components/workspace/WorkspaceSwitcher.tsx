@@ -148,7 +148,7 @@ export function WorkspaceSwitcher({
                 ? "h-11 w-full justify-center p-1 hover:bg-nav-hover"
                 : compact
                   ? "h-10 max-w-[210px] gap-2 px-2 hover:bg-nav-hover"
-                  : "w-full gap-3 border border-nav-fg/10 bg-nav-hover p-2.5 hover:bg-nav-active",
+                  : "w-full gap-3 border border-nav-line bg-nav-hover p-2.5 hover:bg-nav-active",
             )}
             aria-label={t("workspaces.activeAria", {
               name: activeWorkspace.name,

@@ -283,7 +283,7 @@ export function MultiConnectionPanel({
           {Array.from({ length: 2 }).map((_, index) => (
             <div
               key={index}
-              className="flex min-h-24 items-center gap-3 rounded-xl border border-line bg-surface p-4"
+              className="flex min-h-24 items-center gap-3 rounded-xl border border-line bg-subtle p-4"
             >
               <Skeleton className="size-10 shrink-0 rounded-xl" />
               <div className="min-w-0 flex-1">
@@ -366,7 +366,7 @@ export function MultiConnectionPanel({
       {hideHeader && totalAccounts > 0 && (
         <div className="mb-4 flex flex-col gap-3 rounded-xl border border-line bg-subtle p-3.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface text-accent shadow-sm ring-1 ring-line-strong">
+            <div className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-raised text-accent shadow-sm ring-1 ring-line-strong">
               <Smartphone className="h-5 w-5" aria-hidden="true" />
               <span
                 className={cn(

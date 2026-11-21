@@ -133,7 +133,7 @@ export function NotificationsPage() {
   // rail actually widens the inbox instead of opening dead gutters beside a
   // fixed-width column.
   return (
-    <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-subtle">
+    <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-page">
       <header className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6">
         <div className="flex w-full flex-wrap items-center gap-3">
           <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">

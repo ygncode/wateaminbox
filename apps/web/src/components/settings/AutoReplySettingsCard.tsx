@@ -93,7 +93,7 @@ export function AutoReplySettingsCard() {
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-line-strong bg-surface shadow-xs">
+    <section className="overflow-hidden rounded-2xl border border-line-strong bg-subtle shadow-xs">
       <div className="flex flex-col gap-4 border-b border-line bg-subtle p-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3.5">
           <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent ring-1 ring-ring">
@@ -109,7 +109,7 @@ export function AutoReplySettingsCard() {
                   "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em]",
                   enabled
                     ? "bg-accent-soft text-accent"
-                    : "bg-muted text-fg-muted",
+                    : "bg-muted text-fg-subtle",
                 )}
               >
                 {enabled
@@ -125,7 +125,7 @@ export function AutoReplySettingsCard() {
             </p>
           </div>
         </div>
-        <label className="flex cursor-pointer items-center gap-3 self-start rounded-full bg-surface px-3 py-2 text-sm font-semibold text-info shadow-sm ring-1 ring-fg/[0.07]">
+        <label className="flex cursor-pointer items-center gap-3 self-start rounded-full bg-raised px-3 py-2 text-sm font-semibold text-fg shadow-sm ring-1 ring-fg/[0.07]">
           <span>{t("quickReplies.autoReply.enable", "Enable")}</span>
           <input
             type="checkbox"
@@ -204,7 +204,7 @@ export function AutoReplySettingsCard() {
                 {t("quickReplies.autoReply.minutes", "minutes")}
               </span>
             </div>
-            <p className="text-xs text-fg-muted">
+            <p className="text-xs text-fg-subtle">
               {t(
                 "quickReplies.autoReply.waitHint",
                 "The reply is canceled if a teammate sends a message first.",
@@ -291,16 +291,14 @@ function ModeOption({
       className={cn(
         "flex w-full items-start gap-3 rounded-xl border p-3 text-start transition-colors",
         active
-          ? "border-accent bg-subtle ring-1 ring-ring/30"
-          : "border-line hover:bg-muted",
+          ? "border-accent bg-accent-soft ring-1 ring-ring/30"
+          : "border-line hover:bg-subtle",
       )}
     >
       <span
         className={cn(
           "mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg",
-          active
-            ? "bg-surface text-accent shadow-sm"
-            : "bg-muted text-fg-muted",
+          active ? "bg-raised text-accent shadow-sm" : "bg-muted text-fg-muted",
         )}
       >
         <Icon className="size-4" />

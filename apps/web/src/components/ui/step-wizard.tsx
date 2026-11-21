@@ -39,7 +39,7 @@ export function StepProgress({
                     ? "bg-primary border-accent"
                     : isCurrent
                       ? "border-info bg-info"
-                      : "border-line-strong bg-surface"
+                      : "border-line-strong bg-raised"
                 }`}
               >
                 {isCompleted ? (
@@ -69,7 +69,7 @@ export function StepProgress({
             {!isLast && (
               <div
                 className={`w-12 h-0.5 mx-2 ${
-                  isCompleted ? "bg-primary" : "bg-fg-subtle"
+                  isCompleted ? "bg-primary" : "bg-muted-strong"
                 }`}
               />
             )}

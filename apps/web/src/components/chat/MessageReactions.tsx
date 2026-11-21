@@ -199,7 +199,7 @@ function ReactionTab({
       <span className={isEmoji ? "text-base" : "text-sm"}>{label}</span>
       <span className="text-xs tabular-nums opacity-70">{count}</span>
       {selected && (
-        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-t-full bg-primary" />
+        <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-t-full bg-signal" />
       )}
     </button>
   );
@@ -261,7 +261,7 @@ function ReactorRow({
       <button
         type="button"
         onClick={onRemove}
-        className="flex min-h-16 w-full items-center gap-3 px-5 py-2.5 text-start transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="flex min-h-16 w-full items-center gap-3 px-5 py-2.5 text-start transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         aria-label={t("chat.removeReaction", { emoji: reaction.emoji })}
       >
         {content}
@@ -270,7 +270,7 @@ function ReactorRow({
   }
 
   return (
-    <div className="flex min-h-16 items-center gap-3 px-5 py-2.5 transition-colors hover:bg-muted">
+    <div className="flex min-h-16 items-center gap-3 px-5 py-2.5 transition-colors hover:bg-muted/60">
       {content}
     </div>
   );

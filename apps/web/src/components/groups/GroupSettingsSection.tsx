@@ -92,7 +92,7 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
           "waiting" from "the control is broken". */}
       {updateSettings.isPending && (
         <p
-          className="mb-3 flex items-center gap-2 text-xs text-fg-muted"
+          className="mb-3 flex items-center gap-2 text-xs text-fg-subtle"
           role="status"
         >
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -115,7 +115,7 @@ export function GroupSettingsSection({ group }: GroupSettingsSectionProps) {
             disabled={disabled}
             onChange={(event) => setName(event.target.value)}
           />
-          <p className="text-xs text-fg-muted">
+          <p className="text-xs text-fg-subtle">
             {trimmedName.length}/{GROUP_NAME_MAX_LENGTH} characters. This is the
             name every member sees on WhatsApp.
           </p>
@@ -247,7 +247,7 @@ function PermissionToggle({
         <Label htmlFor={id} className="text-sm font-medium">
           {label}
         </Label>
-        <p className="mt-0.5 text-xs text-fg-muted">{description}</p>
+        <p className="mt-0.5 text-xs text-fg-subtle">{description}</p>
       </div>
       <input
         id={id}

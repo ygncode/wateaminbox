@@ -9,7 +9,7 @@ export function TeamPage() {
   if (!activeWorkspace || !user) return null;
 
   return (
-    <div className="h-full w-full overflow-hidden bg-surface">
+    <div className="h-full w-full overflow-hidden bg-page">
       <TeamManagement
         companyId={activeWorkspace.id}
         currentUserId={user.id}

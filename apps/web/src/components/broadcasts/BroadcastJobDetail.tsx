@@ -103,7 +103,7 @@ const RECIPIENT_STATUS_CONFIG: Record<
     dotClassName: "bg-warning",
   },
   canceled: {
-    className: "border-line bg-subtle text-fg-muted",
+    className: "border-line bg-muted text-fg-muted",
     dotClassName: "bg-fg-subtle",
   },
   scheduled: {
@@ -135,7 +135,7 @@ function RecipientStatus({ status }: { status: string }) {
   const { t } = useTranslation();
 
   const config = RECIPIENT_STATUS_CONFIG[status] ?? {
-    className: "border-line bg-subtle text-fg-muted",
+    className: "border-line bg-muted text-fg-muted",
     dotClassName: "bg-fg-subtle",
   };
   return (
@@ -225,11 +225,11 @@ function MetaItem({
   return (
     <div className="flex min-w-0 items-start gap-2.5">
       <Icon
-        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fg-muted"
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-fg-subtle"
         aria-hidden="true"
       />
       <div className="min-w-0">
-        <dt className="text-[10px] font-bold uppercase tracking-[0.1em] text-fg-muted">
+        <dt className="text-[10px] font-bold uppercase tracking-[0.1em] text-fg-subtle">
           {label}
         </dt>
         <dd className="mt-0.5 truncate text-[12px] font-medium text-fg">
@@ -406,7 +406,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           <p
             className={cn(
               "truncate text-xs",
-              hasIssue ? "text-fg-muted" : "text-fg-muted",
+              hasIssue ? "text-fg-muted" : "text-fg-subtle",
             )}
             title={detail}
           >
@@ -523,7 +523,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
         aria-labelledby="broadcast-campaign-title"
         className="shrink-0 overflow-hidden rounded-2xl border border-line bg-surface shadow-lg"
       >
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-subtle px-4 py-3 sm:px-5">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface/45 px-4 py-3 sm:px-5">
           <div className="flex min-w-0 items-center gap-2.5">
             <h2
               id="broadcast-campaign-title"
@@ -539,7 +539,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="min-w-0 gap-2 border-line-strong text-accent shadow-none hover:border-line-strong hover:bg-muted hover:text-accent"
+                  className="min-w-0 gap-2 border-line-strong text-accent shadow-none hover:border-line-strong hover:bg-accent-soft hover:text-accent"
                   onClick={() => setRescheduleOpen(true)}
                 >
                   <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -647,12 +647,12 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
                   {t("broadcasts.messagePreview", "Message preview")}
                 </h3>
               </div>
-              <span className="hidden text-[10px] font-bold uppercase tracking-[0.1em] text-fg-muted sm:inline">
+              <span className="hidden text-[10px] font-bold uppercase tracking-[0.1em] text-fg-subtle sm:inline">
                 {t("broadcasts.tokensHint", "Tokens personalize per contact")}
               </span>
             </div>
 
-            <div className="mt-3 rounded-xl border border-line bg-subtle p-3 sm:p-4">
+            <div className="mt-3 rounded-xl border border-line bg-surface/55 p-3 sm:p-4">
               <div className="max-h-52 overflow-y-auto rounded-xl rounded-ss-sm bg-accent-soft px-3.5 py-3 text-[13px] leading-5 text-fg shadow-xs">
                 {media && (
                   <span className="mb-2 flex w-fit max-w-full items-center gap-1.5 rounded-md bg-surface/65 px-2 py-1 text-[10px] font-semibold text-fg-muted">
@@ -679,7 +679,7 @@ export function BroadcastJobDetail({ jobId }: BroadcastJobDetailProps) {
           </article>
 
           <aside
-            className="border-t border-line bg-subtle p-4 sm:p-5 lg:border-s lg:border-t-0"
+            className="border-t border-line bg-surface/35 p-4 sm:p-5 lg:border-s lg:border-t-0"
             aria-labelledby="delivery-summary-title"
           >
             <div className="flex items-start justify-between gap-3">

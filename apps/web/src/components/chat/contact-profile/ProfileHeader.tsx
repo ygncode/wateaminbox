@@ -34,7 +34,7 @@ export function ProfileHeader({
         : null;
 
   return (
-    <div className="flex flex-col items-center gap-2 bg-subtle py-5">
+    <div className="flex flex-col items-center gap-2 bg-surface py-5">
       <Avatar className="h-20 w-20 border-2 border-surface shadow-sm">
         <AvatarImage
           src={contact.profilePictureUrl || undefined}

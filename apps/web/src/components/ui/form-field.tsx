@@ -83,7 +83,7 @@ export function FormField({
       <label
         htmlFor={id}
         className={cn(
-          "mb-1.5 block text-sm font-semibold text-fg transition-colors duration-200 group-focus-within:text-accent",
+          "mb-1.5 block text-sm font-semibold text-fg-muted transition-colors duration-200 group-focus-within:text-accent",
           error && "text-danger group-focus-within:text-danger",
         )}
       >
@@ -124,7 +124,10 @@ export function FormField({
         )}
       </div>
       {hint && !error && (
-        <p id={`${id}-hint`} className="mt-1.5 text-xs leading-4 text-fg-muted">
+        <p
+          id={`${id}-hint`}
+          className="mt-1.5 text-xs leading-4 text-fg-subtle"
+        >
           {hint}
         </p>
       )}

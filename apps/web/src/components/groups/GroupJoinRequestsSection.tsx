@@ -42,7 +42,7 @@ export function GroupJoinRequestsSection({
       title={`Join requests${requests.length > 0 ? ` · ${requests.length}` : ""}`}
     >
       {!group.settings.isJoinApprovalRequired && (
-        <p className="mb-3 text-xs text-fg-muted">
+        <p className="mb-3 text-xs text-fg-subtle">
           {t(
             "groups.approvalOffHint",
             "Approval is currently off, so people who use the invite link join straight away. Requests made before it was turned off still appear here.",
@@ -55,7 +55,7 @@ export function GroupJoinRequestsSection({
           {t("groups.loadingJoinRequests", "Loading join requests…")}
         </p>
       ) : requests.length === 0 ? (
-        <div className="flex gap-3 rounded-lg bg-subtle p-3">
+        <div className="flex gap-3 rounded-lg bg-surface p-3">
           <UserPlus className="mt-0.5 h-5 w-5 shrink-0 text-fg-subtle" />
           <p className="text-sm leading-5 text-fg-muted">
             {/* "Never asked" and "asked, nobody waiting" are different facts,
@@ -76,14 +76,14 @@ export function GroupJoinRequestsSection({
           {requests.map((request) => (
             <li
               key={request.jid}
-              className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 hover:bg-muted"
+              className="flex min-w-0 items-center gap-2 rounded-lg px-2 py-2 hover:bg-surface"
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-fg">
                   {formatPhoneLikeText(request.jid)}
                 </p>
                 {request.requestedAt && (
-                  <p className="truncate text-xs text-fg-muted">
+                  <p className="truncate text-xs text-fg-subtle">
                     Requested {new Date(request.requestedAt).toLocaleString()}
                   </p>
                 )}

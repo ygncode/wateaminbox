@@ -67,7 +67,7 @@ export function EmptyConnectionsView({
             return (
               <li
                 key={step.label}
-                className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3 py-3"
+                className="flex items-center gap-3 rounded-xl border border-line bg-subtle px-3 py-3"
               >
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-muted text-accent">
                   <Icon className="h-4 w-4" aria-hidden="true" />
@@ -82,7 +82,7 @@ export function EmptyConnectionsView({
         </ol>
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-line bg-surface px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="flex flex-col gap-3 border-t border-line bg-subtle px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p className="text-xs text-fg-muted">
           {t(
             "connections.keepPhoneNearby",

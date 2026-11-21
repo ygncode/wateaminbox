@@ -405,7 +405,7 @@ function LegendDot({
 
 function ChartEmptyState({ message }: { message: string }) {
   return (
-    <div className="grid h-[276px] place-items-center rounded-xl border border-dashed border-line bg-subtle text-sm text-fg-muted">
+    <div className="grid h-[276px] place-items-center rounded-xl border border-dashed border-line bg-surface/40 text-sm text-fg-muted">
       {message}
     </div>
   );

@@ -85,7 +85,7 @@ export function MemberCard({
   ]);
 
   return (
-    <div className="relative grid gap-3 p-4 transition-colors hover:bg-muted md:grid-cols-[minmax(0,1.4fr)_8rem_9rem_8rem_3rem] md:items-center md:gap-4">
+    <div className="relative grid gap-3 p-4 transition-colors hover:bg-subtle md:grid-cols-[minmax(0,1.4fr)_8rem_9rem_8rem_3rem] md:items-center md:gap-4">
       <div className="flex min-w-0 items-center gap-3">
         <Avatar className="h-10 w-10">
           <AvatarFallback className="bg-accent-soft font-semibold text-accent">

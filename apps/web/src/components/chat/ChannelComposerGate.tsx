@@ -27,7 +27,7 @@ export function ChannelComposerGate({
   if (isLoading) {
     return (
       <div
-        className="h-12 animate-pulse border-t border-line bg-subtle"
+        className="h-12 animate-pulse border-t border-line bg-muted"
         role="status"
         aria-label={t("chat.channelCapabilitiesLoading")}
       />
