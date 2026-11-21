@@ -12,6 +12,7 @@ import {
   type MessageDbRow,
   type QuotedMessageSimple,
 } from "../../lib/message-formatters.js";
+import { hydrateGroupSenderAvatars } from "../../lib/group-sender-avatars.js";
 import { loadMessageReactions } from "../../lib/message-reactions.js";
 import { extractPaginationParams } from "../../lib/route-helpers.js";
 import { getRouteContext } from "../../middleware/context.js";
@@ -103,7 +104,7 @@ fetchRoutes.get("/", async (c) => {
 
   // Format messages using shared formatter
   const authorizedMessages = await authorizeMessageMedia(
-    sortedMessages as MessageDbRow[],
+    await hydrateGroupSenderAvatars(tenantDb, sortedMessages as MessageDbRow[]),
     companyId,
   );
   const formattedMessages = formatMessagesForFetch(
