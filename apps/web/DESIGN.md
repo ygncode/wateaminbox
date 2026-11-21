@@ -55,8 +55,11 @@ The theme owns colour.
 against the last build before the design system (`cbf7de7b`) and must keep
 matching it. Do not "improve" WhatsApp; improve Light and Dark instead.
 
-The user's preference is `system` (follows the OS between `light` and `dark`)
-or an explicit theme id. It is stored in `localStorage["wateaminbox-theme"]`.
+**`light` is the default for everyone** (`DEFAULT_THEME_PREFERENCE`): signed-out
+pages and every account without a saved choice. A user may pick `system`
+(follows the OS between `light` and `dark`) or any theme id; the choice is
+saved on their account (`users.theme_preference`) and follows them across
+devices. `localStorage["wateaminbox-theme"]` is only a paint cache.
 
 ### Adding a theme
 

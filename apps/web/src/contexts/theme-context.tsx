@@ -123,26 +123,19 @@ export function ThemeProvider({
   const themeRef = useRef(theme);
   themeRef.current = theme;
   const userId = user?.id ?? null;
-  const migratedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!isAuthenticated || !userId) return;
-    if (accountTheme) {
-      if (accountTheme !== themeRef.current) adopt(accountTheme);
-      return;
-    }
-    // Nothing saved yet: keep what this device shows and save it once, so
-    // choices made before themes were account-backed are not lost.
-    if (migratedFor.current === userId) return;
-    migratedFor.current = userId;
-    updateProfile({ themePreference: themeRef.current }).catch(() => {});
-  }, [isAuthenticated, userId, accountTheme, adopt, updateProfile]);
+    // No saved choice: everyone gets the product default.
+    const next = accountTheme ?? defaultTheme;
+    if (next !== themeRef.current) adopt(next);
+  }, [isAuthenticated, userId, accountTheme, adopt, defaultTheme]);
 
-  // Signed out: follow the device, not the previous user's choice.
+  // Signed out: back to the product default, not the previous user's choice.
   const wasAuthenticated = useRef(isAuthenticated);
   useEffect(() => {
-    if (wasAuthenticated.current && !isAuthenticated) adopt("system");
+    if (wasAuthenticated.current && !isAuthenticated) adopt(defaultTheme);
     wasAuthenticated.current = isAuthenticated;
-  }, [isAuthenticated, adopt]);
+  }, [isAuthenticated, adopt, defaultTheme]);
 
   const setTheme = useCallback(
     (next: Theme) => {
