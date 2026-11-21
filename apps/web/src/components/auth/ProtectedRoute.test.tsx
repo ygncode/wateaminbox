@@ -25,6 +25,15 @@ let auth: AuthStub = {
   refreshSession: async () => {},
 };
 
+// The guard reads a "was signed in" hint from storage; bun has none.
+const storage = new Map<string, string>();
+const localStorage = {
+  getItem: (key: string) => storage.get(key) ?? null,
+  setItem: (key: string, value: string) => void storage.set(key, value),
+  removeItem: (key: string) => void storage.delete(key),
+};
+Object.assign(globalThis, { localStorage });
+
 const navigateTargets: string[] = [];
 let pathname = "/inbox";
 
@@ -110,7 +119,20 @@ describe("ProtectedRoute session handling", () => {
     expect(markup).toContain("protected content");
   });
 
+  test("does not paint the signed-in shell for a browser without a session", () => {
+    localStorage.removeItem("wateaminbox-session");
+    pathname = "/chat";
+    auth = { ...auth, isAuthenticated: false, isLoading: true };
+    const markup = render();
+
+    expect(navigateTargets).toEqual([]);
+    expect(markup).toContain('aria-label="Loading…"');
+    expect(markup).not.toContain("<nav");
+    expect(markup).not.toContain("<aside");
+  });
+
   test("keeps the workspace chooser visible while the session restores", () => {
+    localStorage.setItem("wateaminbox-session", "1");
     pathname = "/workspaces";
     auth = { ...auth, isLoading: true };
     const markup = render("chooser");

@@ -30,8 +30,8 @@
     <script>
       (function() {
         var THEMES = {
-          light: ['light', '#efefea'],
-          dark: ['dark', '#08090b'],
+          light: ['light', '#f0f0eb'],
+          dark: ['dark', '#000000'],
           whatsapp: ['dark', '#111b21']
         };
         var pref = 'whatsapp';
@@ -59,8 +59,8 @@
          The --splash-bg follows the theme the FOUC script resolved above, so
          there is no white flash in dark mode. -->
     <style>
-      :root { --splash-bg: #efefea; --splash-fg: #1a1a19; }
-      html[data-theme="dark"] { --splash-bg: #08090b; --splash-fg: #ececee; }
+      :root { --splash-bg: #f0f0eb; --splash-fg: #111110; }
+      html[data-theme="dark"] { --splash-bg: #000000; --splash-fg: #e7e9ea; }
       html[data-theme="whatsapp"] { --splash-bg: #111b21; --splash-fg: #00a884; }
       html, body { margin: 0; height: 100%; background: var(--splash-bg); }
       #app-splash {

@@ -44,7 +44,8 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
  * Source of truth is the signed-in user's account (`themePreference`), so the
  * theme follows them across browsers and devices. localStorage is only a
  * paint cache: index.html reads it before React loads so a reload does not
- * flash the wrong theme. Signed out, the app follows the device.
+ * flash the wrong theme. Signed out (login, register), the last theme used in
+ * this browser stays; a browser that never had one gets the product default.
  */
 
 function readCache(): Theme | null {
@@ -130,12 +131,8 @@ export function ThemeProvider({
     if (next !== themeRef.current) adopt(next);
   }, [isAuthenticated, userId, accountTheme, adopt, defaultTheme]);
 
-  // Signed out: back to the product default, not the previous user's choice.
-  const wasAuthenticated = useRef(isAuthenticated);
-  useEffect(() => {
-    if (wasAuthenticated.current && !isAuthenticated) adopt(defaultTheme);
-    wasAuthenticated.current = isAuthenticated;
-  }, [isAuthenticated, adopt, defaultTheme]);
+  // Signing out keeps the theme: /login and /register stay in the look the
+  // user chose (the cache above), rather than snapping back to the default.
 
   const setTheme = useCallback(
     (next: Theme) => {

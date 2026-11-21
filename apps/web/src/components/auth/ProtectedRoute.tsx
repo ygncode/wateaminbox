@@ -7,6 +7,7 @@ import {
   resolveWorkspaceAccessRedirect,
   type WorkspaceAccessMode,
 } from "../../lib/workspace-access";
+import { hasSessionHint } from "../../lib/session-hint";
 import { workspacePath } from "../../lib/workspace-routes";
 import { PageSkeleton, workspaceLoadingVariant } from "../ui";
 import {
@@ -48,6 +49,13 @@ export function ProtectedRoute({
   const location = useLocation();
 
   if (isAuthLoading || (isAuthenticated && isWorkspaceLoading)) {
+    // Restoring a session this browser never had (a first visit, or after
+    // sign-out): the visitor is almost certainly on the way to /login, so
+    // paint nothing app-shaped. The shell skeleton here was the signed-in
+    // layout flashing before the redirect.
+    if (!isAuthenticated && !hasSessionHint()) {
+      return <SessionSplash label={t("common.loading", "Loading…")} />;
+    }
     if (workspaceMode === "required") {
       return (
         <PageSkeleton
@@ -123,4 +131,17 @@ export function ProtectedRoute({
   }
 
   return <>{children}</>;
+}
+
+/** Neutral first paint, identical to the pre-React splash in index.html. */
+function SessionSplash({ label }: { label: string }) {
+  return (
+    <div
+      role="status"
+      aria-label={label}
+      className="fixed inset-0 grid place-items-center bg-canvas"
+    >
+      <span className="size-[38px] animate-spin rounded-full border-[3px] border-line border-t-fg-subtle" />
+    </div>
+  );
 }
