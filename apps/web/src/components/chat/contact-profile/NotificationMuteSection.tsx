@@ -49,7 +49,7 @@ export function NotificationMuteSection({ contact }: { contact: ContactData }) {
             <p className="text-xs text-fg-muted">
               {t(
                 "contacts.muteHint",
-                "Muting affects desktop and push alerts only.",
+                "Muting silences desktop and push alerts and the in-app sound.",
               )}
             </p>
           </div>

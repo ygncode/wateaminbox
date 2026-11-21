@@ -165,3 +165,52 @@ describe("incoming alert decision", () => {
     );
   });
 });
+
+describe("muted chats are silent", () => {
+  const groupJid = "120363000000000001@g.us";
+  const contactId = "3f0c8d4e-1b2a-4c5d-8e9f-0a1b2c3d4e5f";
+  const looking = {
+    settings,
+    permission: "granted" as const,
+    senderType: "contact",
+    // A group message carries the participant, not the group.
+    senderJid: "15550000001@s.whatsapp.net",
+    chatKeys: [groupJid, contactId],
+    documentVisible: true,
+    documentFocused: true,
+    hasActivePushSubscription: false,
+    isOpenConversation: false,
+  };
+  const away = { ...looking, documentVisible: false, documentFocused: false };
+
+  test("rings for an unmuted group", () => {
+    expect(decideIncomingAlert(looking)).toBe("sound");
+    expect(decideIncomingAlert(away)).toBe("notify");
+  });
+
+  test("a muted group plays no sound and shows no notification", () => {
+    const muted = { ...settings, mutedContacts: [groupJid] };
+    expect(decideIncomingAlert({ ...looking, settings: muted })).toBe("none");
+    expect(decideIncomingAlert({ ...away, settings: muted })).toBe("none");
+  });
+
+  test("a chat muted by its id (no JID, e.g. Telegram) is silent", () => {
+    const muted = { ...settings, mutedContacts: [contactId.toUpperCase()] };
+    expect(decideIncomingAlert({ ...looking, settings: muted })).toBe("none");
+  });
+
+  test("a device-suffixed mute still matches the chat", () => {
+    const muted = {
+      ...settings,
+      mutedContacts: ["15550000002:7@s.whatsapp.net"],
+    };
+    expect(
+      decideIncomingAlert({
+        ...looking,
+        senderJid: null,
+        chatKeys: ["15550000002@s.whatsapp.net"],
+        settings: muted,
+      }),
+    ).toBe("none");
+  });
+});

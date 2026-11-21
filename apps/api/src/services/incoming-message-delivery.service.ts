@@ -129,6 +129,7 @@ export async function deliverIncomingMessage(
         },
         conversationId: contact.id,
         channelConversationId: message.conversation_id,
+        contactJid: contactJid || null,
       },
       { connectionId, requireDelivery: true },
     );

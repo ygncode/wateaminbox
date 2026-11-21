@@ -318,6 +318,8 @@ export function NotificationProvider({
       senderJid?: string | null;
       /** Every chat id this message belongs to (thread and inbox row). */
       chatIds: string[];
+      /** The chat's own WhatsApp JID, which group mutes are stored under. */
+      chatJid?: string | null;
       title: string;
       body: string;
       avatarUrl?: string;
@@ -331,6 +333,7 @@ export function NotificationProvider({
         permission,
         senderType: input.senderType,
         senderJid: input.senderJid,
+        chatKeys: [input.chatJid, ...input.chatIds],
         documentVisible: document.visibilityState === "visible",
         documentFocused: document.hasFocus(),
         hasActivePushSubscription,
@@ -366,12 +369,15 @@ export function NotificationProvider({
     // recipient is not authorized to open.
     const unsubscribeLegacy = subscribeUser<NewMessagePayload>(
       "message:new",
-      ({ message, conversationId }) => {
+      ({ message, conversationId, contactJid }) => {
+        const threadId = (message as { channelConversationId?: string | null })
+          .channelConversationId;
         alert({
           messageId: message.id,
           senderType: message.senderType,
           senderJid: message.senderJid,
-          chatIds: [conversationId],
+          chatIds: threadId ? [conversationId, threadId] : [conversationId],
+          chatJid: contactJid,
           title: getDesktopSenderName(message),
           body: getMessagePreview(message),
           avatarUrl: message.senderAvatarUrl || undefined,

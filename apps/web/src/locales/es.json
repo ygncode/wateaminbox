@@ -1080,7 +1080,7 @@
     "downloadConversation": "Descargar esta conversación como CSV o JSON",
     "noCustomName": "Sin nombre personalizado",
     "customNameVisible": "El nombre personalizado es visible para todos los miembros del equipo",
-    "muteHint": "Silenciar solo afecta a las alertas de escritorio y push.",
+    "muteHint": "Silenciar desactiva las alertas de escritorio y push, y el sonido de la aplicación.",
     "errorsLabel": "Errores",
     "groupInfo": "Información del grupo",
     "contactInfo": "Información del contacto",

@@ -1067,7 +1067,7 @@
     "downloadConversation": "Download this conversation as CSV or JSON",
     "noCustomName": "No custom name set",
     "customNameVisible": "Custom name is visible to all team members",
-    "muteHint": "Muting affects desktop and push alerts only.",
+    "muteHint": "Muting silences desktop and push alerts and the in-app sound.",
     "errorsLabel": "Errors",
     "groupInfo": "Group Info",
     "contactInfo": "Contact Info",

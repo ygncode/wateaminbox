@@ -191,6 +191,11 @@ export interface WorkerConnectionStatusPayload {
 export interface NewMessagePayload {
   message: Message;
   conversationId: string;
+  /**
+   * WhatsApp JID of the chat itself (the group, or the direct counterpart).
+   * Mutes are stored against it, so clients need it to silence a muted group.
+   */
+  contactJid?: string | null;
 }
 
 /**
