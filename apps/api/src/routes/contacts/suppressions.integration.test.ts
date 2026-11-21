@@ -98,7 +98,8 @@ describe("contact suppression routes", () => {
         expect(blocked.status).toBe(200);
         const afterBlock = await status();
         expect(afterBlock.blocked).toBe(true);
-        expect(afterBlock.enforced).toBe(false);
+        // On by default: no settings row means the workspace enforces.
+        expect(afterBlock.enforced).toBe(true);
         expect(afterBlock.channels).toEqual([
           {
             channel: "telegram",

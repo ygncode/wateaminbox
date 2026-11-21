@@ -55,10 +55,13 @@ function message(
   };
 }
 
-async function enforce(tenantDb: Kysely<TenantDatabase>) {
+async function enforce(tenantDb: Kysely<TenantDatabase>, on = true) {
   await tenantDb
     .insertInto("contact_policy_settings")
-    .values({ id: 1, enforcement_enabled: true })
+    .values({ id: 1, enforcement_enabled: on })
+    .onConflict((conflict) =>
+      conflict.column("id").doUpdateSet({ enforcement_enabled: on }),
+    )
     .execute();
 }
 
@@ -145,11 +148,12 @@ describe("inbound flood limits", () => {
   );
 
   integration(
-    "a provider retry does not count twice, and enforcement off means no counting at all",
+    "a provider retry does not count twice, and enforcement switched off means no counting at all",
     async () => {
       const tenant = await createSpineTestTenant("flood-retry");
       try {
         const { tenantDb } = tenant;
+        await enforce(tenantDb, false);
         const event = message(tenant, 1);
         await applyNormalizedChannelEvent(tenantDb, event);
         expect(

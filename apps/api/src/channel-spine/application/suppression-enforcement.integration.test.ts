@@ -218,11 +218,13 @@ describe("customer suppression enforcement on neutral ingress", () => {
   );
 
   integration(
-    "with enforcement off, a blocked sender is still stored exactly as before",
+    "with enforcement switched off, a blocked sender is still stored exactly as before",
     async () => {
       const tenant = await createSpineTestTenant("enforce-off");
       try {
         const { tenantDb } = tenant;
+        // The emergency switch: only an explicit false turns it off.
+        await enforce(tenantDb, false);
         await applyNormalizedChannelEvent(
           tenantDb,
           inbound(tenant, { updateId: 1, text: "first" }),
@@ -240,6 +242,32 @@ describe("customer suppression enforcement on neutral ingress", () => {
       }
     },
   );
+
+  integration("a workspace with no setting enforces by default", async () => {
+    const tenant = await createSpineTestTenant("enforce-default");
+    try {
+      const { tenantDb } = tenant;
+      expect(
+        await tenantDb
+          .selectFrom("contact_policy_settings")
+          .selectAll()
+          .execute(),
+      ).toEqual([]);
+      await applyNormalizedChannelEvent(
+        tenantDb,
+        inbound(tenant, { updateId: 1, text: "first" }),
+      );
+      await block(tenant, "block");
+      const result = await applyNormalizedChannelEvent(
+        tenantDb,
+        inbound(tenant, { updateId: 2, text: "dropped by default" }),
+      );
+      expect(result.suppressed).toBe(true);
+    } finally {
+      await cleanOutbox(tenant.companyId);
+      await tenant.drop();
+    }
+  });
 
   integration(
     "a person block never drops their messages in a group",
