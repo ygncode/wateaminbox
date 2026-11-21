@@ -23,15 +23,6 @@ const colorClasses: Record<StatCardColor, string> = {
   default: "text-fg-muted bg-muted",
 };
 
-const accentClasses: Record<StatCardColor, string> = {
-  green: "bg-primary",
-  blue: "bg-info",
-  orange: "bg-warning",
-  yellow: "bg-warning",
-  purple: "bg-fg-subtle",
-  default: "bg-fg-subtle",
-};
-
 /**
  * Props for the overview variant (icon above label, with border)
  */
@@ -84,22 +75,10 @@ function OverviewStatCard({
   label,
   value,
   isLoading,
-  color = "default",
 }: StatCardOverviewProps) {
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-xs transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lg">
-      <span
-        className={cn(
-          "absolute inset-x-0 top-0 h-0.5 opacity-80",
-          accentClasses[color],
-        )}
-      />
-      <div
-        className={cn(
-          "mb-4 flex h-9 w-9 items-center justify-center rounded-xl",
-          colorClasses[color],
-        )}
-      >
+    <div className="group relative overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-xs transition-[border-color,box-shadow,transform] hover:border-line-strong">
+      <div className="mb-4 flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-fg-muted">
         {icon}
       </div>
       <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-fg-muted">

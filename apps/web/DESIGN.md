@@ -49,14 +49,17 @@ The theme owns colour.
 | ---------- | ---------- | --------- |
 | `light`    | light      | Intercom: putty canvas, one floating white workspace, ink-black actions, one confident blue (`#2453ec`) for links, unread and outgoing. |
 | `dark`     | dark       | X "Lights out": true black, no floating cards, `#2f3336` hairlines between columns, white pill actions, X blue (`#1d9bf0`) accent. |
-| `whatsapp` | dark       | The original WATeamInbox dark theme (green rail, teal greys, doodle canvas) with WhatsApp Web's `#00a884` actions. |
+| `whatsapp` | dark       | Today's WhatsApp Web dark: neutral charcoal `#161717`, rounded inset selection, deep-green outgoing bubbles, `#21c063` actions and unread. |
 
-**WhatsApp is a fidelity theme.** Its surfaces, text and rail were measured
-element by element against the last build before the design system
-(`cbf7de7b`) and must keep matching it. The one deliberate departure is the
-action colour: buttons use WhatsApp Web's own `#00a884` with dark ink, and an
-active chip is a green tint with green text, because the original deep teal
-`#075e54` read as disabled on the dark ground. Keep everything else as is.
+**WhatsApp follows current WhatsApp Web**, not the 2020s teal original
+(`cbf7de7b`, retired on 2026-11-21). Keep it recognisably WhatsApp: neutral
+charcoal, green only for actions, unread and the active filter.
+
+**Inbox list.** One row of search + account scope + new contact, one
+segmented lifecycle control, and one Filter menu holding assignment and tags.
+Rows name the receiving account only when the inbox has more than one account
+and is not already scoped to one; status shows only for Pending. Stat cards
+are neutral: no per-card colours.
 
 **`whatsapp` is the default for everyone** (`DEFAULT_THEME_PREFERENCE`): a
 browser that has never chosen a theme, and every account without a saved
@@ -122,7 +125,7 @@ them as `bg-*`, `text-*`, `border-*`, `ring-*`, `fill-*` or `stroke-*`.
 
 | Token | Use |
 | ----- | --- |
-| `primary` / `primary-hover` / `on-primary` | The main call to action. One per view. Near-black in `light`, near-white in `dark`, teal in `whatsapp`. |
+| `primary` / `primary-hover` / `on-primary` | The main call to action. One per view. Near-black in `light`, near-white in `dark`, WhatsApp green in `whatsapp`. |
 | `ring` | Focus ring colour (`ring-ring/40`). |
 | `accent` / `accent-hover` / `accent-soft` / `on-accent` | Links, active nav/settings items, emphasised numbers. Blue in `light`/`dark`, green in `whatsapp`. |
 | `signal` / `on-signal` | Online and live dots, sync indicators. **Never an action colour.** |
@@ -145,8 +148,8 @@ with the solid token as text: `bg-warning-soft text-warning`.
 | `tab-on` | Active tab underline and label. |
 | `row-hover` | Hover on list rows. |
 | `monogram`, `on-monogram` | Workspace monogram avatar. |
-| `section` | Section headings inside panels (Contact Info, settings groups). Ink in Light/Dark, green in WhatsApp. |
-| `bar`, `on-bar`, `bar-line`, `bar-hover` | Title bar of right panels and mobile sheets. Surface-coloured in Light/Dark, teal in WhatsApp. Never use `bg-primary` for chrome. |
+| `section` | Section headings inside panels (Contact Info, settings groups). Ink in every theme. |
+| `bar`, `on-bar`, `bar-line`, `bar-hover` | Title bar of right panels and mobile sheets. Surface-coloured in every theme. Never use `bg-primary` for chrome. |
 
 **Rules that keep it premium**
 
@@ -298,8 +301,7 @@ brand tiles and SVG icons. Google's logo colours are allow-listed in the test.
 ## Checklist for UI changes
 
 1. Use semantic tokens and shared primitives; no new colour values.
-2. Check the change in **Light, Dark and WhatsApp** (WhatsApp must still match
-   the original build; see "WhatsApp is a fidelity theme") (Settings → Appearance,
+2. Check the change in **Light, Dark and WhatsApp** (Settings → Appearance,
    or the theme menu in the rail), on desktop and at 390px wide.
 3. Text contrast is at least 4.5:1 (3:1 for large text and icons) in every theme.
 4. Run from `apps/web`: `bun test src/styles/design-system.test.ts

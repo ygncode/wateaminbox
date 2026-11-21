@@ -84,11 +84,10 @@ export function ConnectionBadge({
   return (
     <span
       className={cn(
-        "inline-flex min-w-0 items-center rounded-full ring-1 ring-inset",
-        color.tint,
+        "inline-flex min-w-0 items-center",
         compact
-          ? "gap-1 px-1.5 py-0.5 text-[10px]"
-          : "gap-1.5 px-2 py-1 text-xs",
+          ? "gap-1 text-[11.5px] text-fg-subtle"
+          : "gap-1.5 rounded-full px-2 py-1 text-xs ring-1 ring-inset " + color.tint,
         className,
       )}
       title={title}
@@ -110,7 +109,9 @@ export function ConnectionBadge({
           )}
         />
       </span>
-      <span className="truncate font-semibold">{label}</span>
+      <span className={cn("truncate", compact ? "font-medium" : "font-semibold")}>
+        {label}
+      </span>
       {!compact && phone && phone !== label && (
         <span dir="ltr" className="hidden truncate opacity-70 xl:inline">
           {phone}

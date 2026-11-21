@@ -10,7 +10,7 @@ import type { Chat, ChatListItemProps } from "../../types/chat";
 import { ChatListItem } from "./ChatListItem";
 import { anchoredChatScrollTop } from "./chat-list-anchor";
 
-const CHAT_ITEM_HEIGHT = 76;
+const CHAT_ITEM_HEIGHT = 68;
 interface Props {
   chats: Chat[];
   scrollContainerRef: RefObject<HTMLDivElement | null>;
@@ -24,6 +24,8 @@ interface Props {
   onChatSelect: (id: string) => void;
   onPrefetch: ChatListItemProps["onPrefetch"];
   hasPreviousPage: boolean;
+  /** Name the receiving account on each row (multi-account, unscoped). */
+  showAccount?: boolean;
 }
 
 // Stable row props keep the expensive avatar/preview subtree out of scroll-only
@@ -33,7 +35,8 @@ const SelectableRow = memo(function SelectableRow({
   selectedChatId,
   onChatSelect,
   onPrefetch,
-}: Pick<Props, "selectedChatId" | "onChatSelect" | "onPrefetch"> & {
+  showAccount,
+}: Pick<Props, "selectedChatId" | "onChatSelect" | "onPrefetch" | "showAccount"> & {
   chat: Chat;
 }) {
   return (
@@ -46,6 +49,7 @@ const SelectableRow = memo(function SelectableRow({
       }
       onClick={() => onChatSelect(chat.contact.conversationId ?? chat.id)}
       onPrefetch={onPrefetch}
+      showAccount={showAccount}
     />
   );
 });
@@ -59,6 +63,7 @@ export const VirtualizedChatRows = memo(function VirtualizedChatRows({
   onChatSelect,
   onPrefetch,
   hasPreviousPage,
+  showAccount = false,
 }: Props) {
   const previous = useRef({ chats, hasPreviousPage });
   // Capture before the DOM commit can clamp scrollTop to a shorter window.
@@ -119,6 +124,7 @@ export const VirtualizedChatRows = memo(function VirtualizedChatRows({
             selectedChatId={selectedChatId}
             onChatSelect={onChatSelect}
             onPrefetch={onPrefetch}
+            showAccount={showAccount}
           />
         </div>
       ))}

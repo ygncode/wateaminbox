@@ -125,10 +125,10 @@
   --frame-radius: 14px;
   --frame-border: #dfdfd8;
 
-  --chip: #ffffff;
+  --chip: #ecece7;
   --chip-line: #dcdcd5;
-  --chip-on: #111110;
-  --on-chip-on: #ffffff;
+  --chip-on: #ffffff;
+  --on-chip-on: #111110;
   --tab-on: #111110;
   --row-hover: rgb(17 17 15 / 0.035);
   --row-selected-ring: #d6d6cf;
@@ -213,7 +213,7 @@
   --chat: #000000;
   --chat-pattern: #ffffff;
   --chat-pattern-opacity: 0;
-  --bubble-in: #2f3336;
+  --bubble-in: #202327;
   --bubble-out: #0b2c45;
   --bubble-fg: #e7e9ea;
   --bubble-shadow: none;
@@ -248,10 +248,10 @@
   --frame-radius: 0px;
   --frame-border: transparent;
 
-  --chip: #000000;
+  --chip: #16181c;
   --chip-line: #2f3336;
-  --chip-on: #eff3f4;
-  --on-chip-on: #0f1419;
+  --chip-on: #2f3336;
+  --on-chip-on: #e7e9ea;
   --tab-on: #1d9bf0;
   --row-hover: #0c0d0f;
   --row-selected-ring: transparent;
@@ -269,125 +269,124 @@
 }
 
 /* ------------------------------------------------------------- WhatsApp -- */
-/* The original WATeamInbox dark theme, value for value. Measured against the
- * pre-design-system build; keep it that way (see DESIGN.md). */
+/* Today's WhatsApp Web dark: neutral charcoal (no teal cast), one flat
+ * surface, rounded inset selection, deep-green outgoing bubbles, and
+ * WhatsApp green for actions, unread and the active filter. */
 [data-theme="whatsapp"] {
-  --canvas: #111b21;
-  --panel: #1f2c33;
-  --page: #111b21;
-  --surface: #202c33;
-  --raised: #2a3942;
-  --subtle: rgb(255 255 255 / 0.025);
-  --muted: #2a3942;
-  --muted-strong: #2f3b43;
-  --selected: #2a3942;
+  --canvas: #161717;
+  --panel: #161717;
+  --page: #161717;
+  --surface: #161717;
+  --raised: #242626;
+  --subtle: #1d1f1f;
+  --muted: #242626;
+  --muted-strong: #2e2f2f;
+  --selected: #2e2f2f;
   --selected-ring: transparent;
-  --field: #2a3942;
-  --overlay: #202c33;
-  --scrim: rgb(0 0 0 / 0.8);
+  --field: #242626;
+  --overlay: #1d1f1f;
+  --scrim: rgb(0 0 0 / 0.7);
 
-  --line: #2f3b43;
-  --line-strong: #2f3b43;
+  --line: #2a2c2c;
+  --line-strong: #3b3d3d;
 
   --fg: #e9edef;
-  --fg-muted: #8696a0;
-  --fg-subtle: #667781;
+  --fg-muted: #a5a8a8;
+  --fg-subtle: #7c8080;
 
-  /* Actions use WhatsApp Web's own green with dark ink, as WhatsApp does;
-   * the deep teal (#075e54) read as disabled on this dark ground. */
-  --primary: #00a884;
-  --primary-hover: #06cf9c;
-  --on-primary: #111b21;
-  --ring: #00a884;
+  --primary: #21c063;
+  --primary-hover: #1dab58;
+  --on-primary: #0a1014;
+  --ring: #21c063;
 
-  --accent: #5ee9b5;
-  --accent-hover: #a4f4cf;
-  --accent-soft: rgb(0 212 146 / 0.1);
-  --on-accent: #062b1a;
+  --accent: #21c063;
+  --accent-hover: #3fd27c;
+  --accent-soft: #103529;
+  --on-accent: #0a1014;
 
   --signal: #25d366;
-  --on-signal: #ffffff;
-  --unread: #25d366;
-  --on-unread: #ffffff;
+  --on-signal: #0a1014;
+  --unread: #21c063;
+  --on-unread: #0a1014;
 
-  --success: #5ee9b5;
-  --success-soft: rgb(0 212 146 / 0.1);
-  --warning: #ffd230;
-  --warning-soft: rgb(123 51 6 / 0.3);
-  --danger: #ff6467;
-  --danger-hover: #ffa2a2;
-  --danger-soft: rgb(130 24 26 / 0.3);
+  --success: #21c063;
+  --success-soft: #103529;
+  --warning: #ffd279;
+  --warning-soft: #2e2715;
+  --danger: #f15c6d;
+  --danger-hover: #f47b88;
+  --danger-soft: #3a1d21;
   --on-danger: #ffffff;
-  --info: #50a2ff;
-  --info-soft: rgb(28 57 142 / 0.3);
+  --info: #53bdeb;
+  --info-soft: #0f2d3a;
 
-  --nav: #102c24;
-  --nav-fg: #ffffff;
-  --nav-fg-muted: #b8c9c2;
-  --nav-fg-subtle: #91a8a0;
-  --nav-hover: rgb(255 255 255 / 0.07);
-  --nav-active: #dcefe7;
-  --nav-active-fg: #075c41;
-  --nav-badge: #25d366;
-  --on-nav-badge: #073b2a;
-  --nav-line: rgb(255 255 255 / 0.1);
-  --nav-card: rgb(0 0 0 / 0.1);
-  --monogram: #dcefe7;
-  --on-monogram: #075c41;
+  --nav: #1d1f1f;
+  --nav-fg: #e9edef;
+  --nav-fg-muted: #a5a8a8;
+  --nav-fg-subtle: #7c8080;
+  --nav-hover: rgb(255 255 255 / 0.06);
+  --nav-active: #2e2f2f;
+  --nav-active-fg: #ffffff;
+  --nav-badge: #21c063;
+  --on-nav-badge: #0a1014;
+  --nav-line: #2a2c2c;
+  --nav-card: rgb(255 255 255 / 0.03);
+  --monogram: #21c063;
+  --on-monogram: #0a1014;
 
-  --chat: #111b21;
-  --chat-pattern: #1a2730;
-  --chat-pattern-opacity: 0.36;
-  --bubble-in: #202c33;
-  --bubble-out: #005c4b;
+  --chat: #161717;
+  --chat-pattern: #ffffff;
+  --chat-pattern-opacity: 0.045;
+  --bubble-in: #242626;
+  --bubble-out: #144d37;
   --bubble-fg: #e9edef;
-  --bubble-shadow: 0 1px 0.5px rgb(11 20 26 / 0.13);
-  --note: #3b3525;
+  --bubble-shadow: none;
+  --note: #2e2a1c;
   --note-fg: #ffd279;
-  --note-line: #4d4530;
-  --highlight: #4d4530;
+  --note-line: #453e29;
+  --highlight: #453e29;
 
-  --chart-1: #0b7a55;
-  --chart-2: #4185c5;
-  --chart-3: #d18b35;
-  --chart-4: #cf5a5a;
-  --chart-grid: #2a3942;
+  --chart-1: #21c063;
+  --chart-2: #53bdeb;
+  --chart-3: #ffd279;
+  --chart-4: #f15c6d;
+  --chart-grid: #2a2c2c;
 
-  --id-1: #74d4ff;
-  --id-1-soft: #052f4a;
-  --id-2: #ffd230;
-  --id-2-soft: #461901;
-  --id-3: #c4b4ff;
-  --id-3-soft: #2f0d68;
-  --id-4: #ffa1ad;
-  --id-4-soft: rgb(77 2 24 / 0.4);
-  --id-5: #ffb86a;
-  --id-5-soft: #441306;
-  --id-6: #5ee9b5;
-  --id-6-soft: #002c22;
-  --id-7: #53eafd;
-  --id-7-soft: #053345;
+  --id-1: #8fc4f0;
+  --id-1-soft: #0b1d2b;
+  --id-2: #f1cf7a;
+  --id-2-soft: #241c08;
+  --id-3: #c9b2f2;
+  --id-3-soft: #1d1529;
+  --id-4: #f5a9c3;
+  --id-4-soft: #2a131c;
+  --id-5: #f2bb8a;
+  --id-5-soft: #27190b;
+  --id-6: #8edcb4;
+  --id-6-soft: #0c2117;
+  --id-7: #aebdf5;
+  --id-7-soft: #13182c;
 
   --frame-gap: 0px;
   --frame-radius: 0px;
   --frame-border: transparent;
 
-  --chip: #2a3942;
+  --chip: #1d1f1f;
   --chip-line: transparent;
-  --chip-on: #0a332c;
-  --on-chip-on: #00d9a6;
-  --tab-on: #00a884;
-  --row-hover: #202c33;
+  --chip-on: #103529;
+  --on-chip-on: #d9fdd3;
+  --tab-on: #21c063;
+  --row-hover: #1d1f1f;
   --row-selected-ring: transparent;
 
-  --row-line: #2f3b43;
-  --row-inset: 0px;
-  --row-radius: 0px;
-  --section: #00a884;
+  --row-line: transparent;
+  --row-inset: 8px;
+  --row-radius: 12px;
+  --section: #e9edef;
   /* Panel title bars (contact/group info, mobile sheets) */
-  --bar: #075e54;
-  --on-bar: #ffffff;
-  --bar-line: transparent;
-  --bar-hover: rgb(255 255 255 / 0.1);
+  --bar: #161717;
+  --on-bar: #e9edef;
+  --bar-line: #2a2c2c;
+  --bar-hover: rgb(255 255 255 / 0.06);
   --shadow-color: 0 0 0;
 }
