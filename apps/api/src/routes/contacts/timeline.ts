@@ -9,6 +9,7 @@ import {
   type MessageDbRow,
   type QuotedMessageData,
 } from "../../lib/message-formatters.js";
+import { hydrateGroupSenderAvatars } from "../../lib/group-sender-avatars.js";
 import { loadMessageReactions } from "../../lib/message-reactions.js";
 import { successData } from "../../lib/response.js";
 import { zValidator } from "../../lib/validator.js";
@@ -99,7 +100,7 @@ timelineRoutes.get(
       : page.messages;
 
     const authorized = await authorizeMessageMedia(
-      kept as MessageDbRow[],
+      await hydrateGroupSenderAvatars(tenantDb, kept as MessageDbRow[]),
       companyId,
     );
     const quotes = await loadThreadScopedQuotes(tenantDb, authorized);
