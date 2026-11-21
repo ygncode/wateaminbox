@@ -413,3 +413,103 @@ describe("POST /api/conversations/:id/messages - media message cross-field valid
     },
   );
 });
+
+describe("Replies to a photo album", () => {
+  integrationTest(
+    "resolve to the album's first photo instead of 'unavailable'",
+    async () => {
+      await withTenantFixture(async ({ headers, tenantDb }) => {
+        const connectionId = crypto.randomUUID();
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: connectionId,
+            name: "Album test",
+            jid: "15550000001@s.whatsapp.net",
+            status: "connected",
+          })
+          .execute();
+        const contactId = await insertContact(tenantDb);
+        // WhatsApp's album parent id: quoted by replies, never stored as a row.
+        const albumId = `album_${crypto.randomUUID()}`;
+        const sender = "15550000002@s.whatsapp.net";
+        const base = Date.parse("2026-11-21T08:52:50Z");
+        const firstPhoto = await insertMessage(
+          tenantDb,
+          contactId,
+          new Date(base),
+          {
+            whatsapp_connection_id: connectionId,
+            message_type: "image",
+            content: null,
+            sender_jid: sender,
+            sender_name: "Sophie Vu",
+            metadata: {
+              mediaAlbumId: albumId,
+              mediaAlbumIndex: 0,
+              mediaAlbumCount: 3,
+            },
+          },
+        );
+        for (const offset of [1_000, 2_000]) {
+          await insertMessage(tenantDb, contactId, new Date(base + offset), {
+            whatsapp_connection_id: connectionId,
+            message_type: "image",
+            content: offset === 2_000 ? "The three of them" : null,
+            sender_jid: sender,
+            sender_name: "Sophie Vu",
+            metadata: {
+              mediaAlbumId: albumId,
+              mediaAlbumIndex: 0,
+              mediaAlbumCount: 3,
+            },
+          });
+        }
+        const reply = await insertMessage(
+          tenantDb,
+          contactId,
+          new Date(base + 60 * 60 * 1000),
+          {
+            whatsapp_connection_id: connectionId,
+            content: "Everyone looking good!",
+            quoted_message_id: albumId,
+          },
+        );
+        // A reply whose original is genuinely missing stays unresolved.
+        const missing = await insertMessage(
+          tenantDb,
+          contactId,
+          new Date(base + 2 * 60 * 60 * 1000),
+          {
+            whatsapp_connection_id: connectionId,
+            quoted_message_id: `gone_${crypto.randomUUID()}`,
+          },
+        );
+
+        const res = await getMessages(headers, contactId, { limit: "20" });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as {
+          data: {
+            messages: {
+              id: string;
+              replyToMessage?: {
+                id: string;
+                messageType: string;
+                senderName: string | null;
+                content: string;
+              } | null;
+            }[];
+          };
+        };
+        const byId = new Map(body.data.messages.map((m) => [m.id, m]));
+        expect(byId.get(reply)?.replyToMessage).toMatchObject({
+          id: firstPhoto,
+          messageType: "image",
+          senderName: "Sophie Vu",
+          content: "The three of them",
+        });
+        expect(byId.get(missing)?.replyToMessage ?? null).toBeNull();
+      });
+    },
+  );
+});

@@ -3,6 +3,7 @@ import {
   formatPhoneLikeText,
   getContactDisplayName,
 } from "@wateaminbox/shared";
+import { loadAlbumQuoteRows, pickAlbumQuote } from "../lib/album-quotes.js";
 import {
   buildQuotedMessageData,
   type MessageDbRow,
@@ -75,6 +76,19 @@ export async function deliverIncomingMessage(
       .executeTakeFirst();
     if (quotedMessage) {
       replyToMessage = buildQuotedMessageData(quotedMessage as MessageDbRow);
+    } else {
+      // A reply to a photo album quotes the album's parent id.
+      const reply = {
+        contact_id: contact.id,
+        whatsapp_connection_id: connection.id,
+        quoted_message_id: payload.quotedMessageId,
+        timestamp: message.timestamp,
+      };
+      const album = pickAlbumQuote(
+        await loadAlbumQuoteRows(tenantDb, [reply], new Set()),
+        reply,
+      );
+      if (album) replyToMessage = buildQuotedMessageData(album);
     }
   }
 

@@ -10,7 +10,9 @@ import { Hono } from "hono";
 import type { Kysely } from "kysely";
 import { resolveAdapterCapabilities } from "../../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../../channel-spine/registry.js";
+import { loadAlbumQuoteRows, pickAlbumQuote } from "../../lib/album-quotes.js";
 import { badRequest, conflict, notFound } from "../../lib/errors.js";
+import { hydrateGroupSenderAvatars } from "../../lib/group-sender-avatars.js";
 import {
   authorizeMessageMedia,
   buildOutboundMediaColumns,
@@ -19,7 +21,6 @@ import {
   type MessageDbRow,
 } from "../../lib/message-formatters.js";
 import { isConfirmedQuote } from "../../lib/message-quote.js";
-import { hydrateGroupSenderAvatars } from "../../lib/group-sender-avatars.js";
 import { loadMessageReactions } from "../../lib/message-reactions.js";
 import {
   buildCommandSubject,
@@ -266,6 +267,22 @@ messageRoutes.get(
             buildQuotedMessageData(q as MessageDbRow, userNames),
           ]),
       );
+
+      // A reply to a photo album quotes the album's parent id, which is never
+      // stored as a row; resolve it to the album's first item instead.
+      const albumRows = await loadAlbumQuoteRows(
+        tenantDb,
+        messages as MessageDbRow[],
+        new Set(quotedMessagesMap.keys()),
+      );
+      for (const message of messages as MessageDbRow[]) {
+        const key = message.quoted_message_id;
+        if (!key || quotedMessagesMap.has(key)) continue;
+        const album = pickAlbumQuote(albumRows, message);
+        if (album) {
+          quotedMessagesMap.set(key, buildQuotedMessageData(album, userNames));
+        }
+      }
     }
 
     // Channel-neutral replies reference the quoted row by its own id, not by

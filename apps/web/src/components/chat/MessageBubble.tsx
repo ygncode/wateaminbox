@@ -600,6 +600,27 @@ function SelectionCheckbox({
   );
 }
 
+/** A caption-less media quote (e.g. a photo album) still says what it is. */
+function quotedMediaLabel(
+  t: (key: string, fallback: string) => string,
+  messageType: string | undefined,
+): string | null {
+  switch (messageType) {
+    case "image":
+      return t("chat.mediaTypes.image", "Photo");
+    case "video":
+      return t("chat.mediaTypes.video", "Video");
+    case "audio":
+      return t("chat.mediaTypes.audio", "Audio");
+    case "document":
+      return t("chat.mediaTypes.document", "Document");
+    case "sticker":
+      return t("chat.mediaTypes.sticker", "Sticker");
+    default:
+      return null;
+  }
+}
+
 /**
  * Reply preview component
  */
@@ -632,7 +653,9 @@ function ReplyPreview({
     ? t("chat.quotedMessageUnavailable")
     : replyToMessage.isDeleted
       ? t("chat.messageDeleted")
-      : replyToMessage.content;
+      : replyToMessage.content?.trim() ||
+        quotedMediaLabel(t, replyToMessage.messageType) ||
+        replyToMessage.content;
 
   const navigationTarget = getReplyNavigationTarget(
     replyToMessage,
