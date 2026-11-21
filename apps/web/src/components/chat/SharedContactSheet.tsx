@@ -70,7 +70,7 @@ export function SharedContactSheet({
                 <a
                   key={`${phone.value}-${index}`}
                   href={`tel:${phone.value}`}
-                  className="flex min-h-14 items-center gap-3 border-b border-line/[0.06] px-1 text-fg outline-none last:border-b-0 hover:text-accent focus-visible:ring-2 focus-visible:ring-ring/40"
+                  className="flex min-h-14 items-center gap-3 border-b border-line px-1 text-fg outline-none last:border-b-0 hover:text-accent focus-visible:ring-2 focus-visible:ring-ring/40"
                 >
                   <Phone
                     className="size-5 shrink-0 text-accent"

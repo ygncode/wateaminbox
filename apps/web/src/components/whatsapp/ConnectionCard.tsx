@@ -105,7 +105,7 @@ export function ConnectionCard({
               className={cn(
                 "absolute -bottom-0.5 -end-0.5 h-3 w-3 rounded-full border-2 border-surface",
                 connection.status === "connected"
-                  ? "bg-primary"
+                  ? "bg-signal"
                   : connection.status === "pending"
                     ? "bg-warning"
                     : connection.status === "banned" ||
@@ -221,7 +221,7 @@ export function ConnectionCard({
 
         {/* Quick Actions + Menu */}
         {!isEditing && (
-          <div className="flex w-full items-center justify-end gap-2 border-t border-line/80 pt-3 sm:w-auto sm:border-0 sm:pt-0">
+          <div className="flex w-full items-center justify-end gap-2 border-t border-line pt-3 sm:w-auto sm:border-0 sm:pt-0">
             {/* Keep routine actions visible; destructive disconnect stays in More. */}
             {connection.status === "disconnected" ? (
               <Button

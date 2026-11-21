@@ -162,7 +162,7 @@ function BroadcastStepProgress({ currentStep }: { currentStep: WizardStep }) {
                     isComplete &&
                       "border-line-strong bg-accent-soft text-accent",
                     isCurrent &&
-                      "border-accent bg-primary text-on-primary shadow-sm",
+                      "border-primary bg-primary text-on-primary shadow-sm",
                     !isComplete &&
                       !isCurrent &&
                       "border-line bg-surface text-fg-subtle",
@@ -620,7 +620,7 @@ export function CreateBroadcastWizard({
                                 "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-45",
                                 isSelected
                                   ? "border-accent bg-accent/10 text-accent"
-                                  : "border-line/[0.08] text-fg-muted hover:bg-muted",
+                                  : "border-line text-fg-muted hover:bg-muted",
                               )}
                             >
                               {isSelected && (
@@ -834,7 +834,7 @@ export function CreateBroadcastWizard({
                       tabIndex={-1}
                     />
                     {attachment ? (
-                      <div className="mt-2 flex items-center gap-3 rounded-xl border border-line/[0.06] p-3">
+                      <div className="mt-2 flex items-center gap-3 rounded-xl border border-line p-3">
                         {attachment.previewUrl ? (
                           <img
                             src={attachment.previewUrl}
@@ -986,11 +986,11 @@ export function CreateBroadcastWizard({
                     )}
 
                     {preview.perConnection.length > 0 && (
-                      <div className="rounded-xl border border-line/[0.06]">
-                        <p className="border-b border-line/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+                      <div className="rounded-xl border border-line">
+                        <p className="border-b border-line px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
                           {t("broadcasts.byAccount", "By account")}
                         </p>
-                        <ul className="divide-y divide-line/[0.04]">
+                        <ul className="divide-y divide-line">
                           {preview.perConnection.map((connection) => (
                             <li
                               key={connection.connectionId}
@@ -1013,13 +1013,13 @@ export function CreateBroadcastWizard({
                     )}
 
                     {preview.skippedCount > 0 && (
-                      <div className="rounded-xl border border-line/[0.06]">
-                        <p className="border-b border-line/[0.06] px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
+                      <div className="rounded-xl border border-line">
+                        <p className="border-b border-line px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-fg-subtle">
                           {t("broadcasts.skippedCount", {
                             count: preview.skippedCount,
                           })}
                         </p>
-                        <ul className="divide-y divide-line/[0.04]">
+                        <ul className="divide-y divide-line">
                           {Object.entries(preview.skippedByReason).map(
                             ([reason, count]) => (
                               <li
@@ -1076,7 +1076,7 @@ export function CreateBroadcastWizard({
                             );
                             setScheduleError(null);
                           }}
-                          className="rounded-full border border-line/[0.08] px-2.5 py-1 text-xs font-medium text-fg-muted transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
+                          className="rounded-full border border-line px-2.5 py-1 text-xs font-medium text-fg-muted transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35"
                         >
                           {t(preset.labelKey, preset.label)}
                         </button>
@@ -1098,7 +1098,7 @@ export function CreateBroadcastWizard({
                           setScheduleValue(event.target.value);
                           setScheduleError(null);
                         }}
-                        className="mt-1 block w-full rounded-lg border border-line/[0.1] bg-raised px-2.5 py-1.5 text-sm text-fg outline-none focus:border-accent focus:ring-1 focus:ring-ring/40"
+                        className="mt-1 block w-full rounded-lg border border-line bg-raised px-2.5 py-1.5 text-sm text-fg outline-none focus:border-accent focus:ring-1 focus:ring-ring/40"
                         aria-label={t(
                           "broadcasts.startTime",
                           "Broadcast start time",

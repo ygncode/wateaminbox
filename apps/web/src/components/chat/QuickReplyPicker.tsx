@@ -37,9 +37,9 @@ export function QuickReplyPicker({
   return (
     <div
       id="quick-reply-picker"
-      className="absolute bottom-full -start-11 z-40 mb-2 w-[calc(100vw-1rem)] max-w-xl overflow-hidden rounded-2xl border border-line/[0.08] bg-surface shadow-lg animate-in fade-in-0 slide-in-from-bottom-1 duration-150 sm:start-0 sm:w-full"
+      className="absolute bottom-full -start-11 z-40 mb-2 w-[calc(100vw-1rem)] max-w-xl overflow-hidden rounded-2xl border border-line bg-surface shadow-lg animate-in fade-in-0 slide-in-from-bottom-1 duration-150 sm:start-0 sm:w-full"
     >
-      <div className="flex items-center justify-between gap-3 border-b border-line/[0.06] bg-subtle px-3 py-2">
+      <div className="flex items-center justify-between gap-3 border-b border-line bg-subtle px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
           <span className="grid size-6 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
             <Zap className="size-3.5" fill="currentColor" aria-hidden="true" />
@@ -56,11 +56,11 @@ export function QuickReplyPicker({
           </div>
         </div>
         <span className="hidden shrink-0 items-center gap-1 text-[10px] text-fg-subtle sm:flex">
-          <span className="rounded border border-line/10 bg-raised px-1 py-0.5 font-mono">
+          <span className="rounded border border-line bg-raised px-1 py-0.5 font-mono">
             ↑↓
           </span>
           navigate
-          <span className="ms-1 rounded border border-line/10 bg-raised px-1 py-0.5 font-mono">
+          <span className="ms-1 rounded border border-line bg-raised px-1 py-0.5 font-mono">
             ↵
           </span>
           insert

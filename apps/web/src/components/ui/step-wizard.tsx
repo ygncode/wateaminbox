@@ -36,7 +36,7 @@ export function StepProgress({
               <div
                 className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors ${
                   isCompleted
-                    ? "bg-primary border-accent"
+                    ? "bg-primary border-primary"
                     : isCurrent
                       ? "border-info bg-info"
                       : "border-line-strong bg-raised"

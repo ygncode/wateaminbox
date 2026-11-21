@@ -171,7 +171,7 @@ export function ErrorFallback({
           </Button>
           <Button
             onClick={handleRefresh}
-            className="bg-primary hover:bg-accent/90 text-on-primary"
+            className="bg-primary hover:bg-primary-hover text-on-primary"
           >
             {t("errors.refreshPage", "Refresh Page")}
           </Button>

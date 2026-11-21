@@ -172,7 +172,7 @@ export function ForgotPasswordPage() {
           <Button
             type="submit"
             size="lg"
-            className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-accent-soft"
+            className="h-12 w-full rounded-xl bg-primary text-on-primary shadow-lg hover:bg-primary-hover"
             disabled={forgotPasswordMutation.isPending}
           >
             {forgotPasswordMutation.isPending ? (

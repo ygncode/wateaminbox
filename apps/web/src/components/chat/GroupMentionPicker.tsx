@@ -67,7 +67,7 @@ export function GroupMentionPicker({
   return (
     <div
       id="group-mention-picker"
-      className="absolute inset-x-0 bottom-full z-40 mb-2 min-w-0 overflow-hidden rounded-[1.15rem] border border-line/[0.07] bg-surface shadow-lg animate-in fade-in-0 slide-in-from-bottom-1 duration-150 sm:end-auto sm:w-[28rem]"
+      className="absolute inset-x-0 bottom-full z-40 mb-2 min-w-0 overflow-hidden rounded-[1.15rem] border border-line bg-surface shadow-lg animate-in fade-in-0 slide-in-from-bottom-1 duration-150 sm:end-auto sm:w-[28rem]"
     >
       <div
         ref={listRef}

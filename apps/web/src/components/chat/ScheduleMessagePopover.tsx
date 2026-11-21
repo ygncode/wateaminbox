@@ -172,7 +172,7 @@ export function ScheduleMessagePopover({
         aria-labelledby={titleId}
         tabIndex={-1}
         className={cn(
-          "fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-2xl border-t border-line/[0.07] bg-surface p-4 shadow-lg outline-none",
+          "fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-2xl border-t border-line bg-surface p-4 shadow-lg outline-none",
           // The home indicator sits under the confirm button on a sheet.
           "pb-[max(env(safe-area-inset-bottom),1rem)]",
           // From `sm` up, back to the anchored popover.
@@ -208,7 +208,7 @@ export function ScheduleMessagePopover({
                 setValue(toLocalInputValue(preset.value().second(0)));
                 setError(null);
               }}
-              className="min-h-11 touch-manipulation rounded-full border border-line/[0.08] px-4 text-sm font-medium text-fg-muted transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35 sm:min-h-0 sm:px-2.5 sm:py-1 sm:text-xs"
+              className="min-h-11 touch-manipulation rounded-full border border-line px-4 text-sm font-medium text-fg-muted transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35 sm:min-h-0 sm:px-2.5 sm:py-1 sm:text-xs"
             >
               {t(preset.labelKey, preset.label)}
             </button>
@@ -232,7 +232,7 @@ export function ScheduleMessagePopover({
               setValue(event.target.value);
               setError(null);
             }}
-            className="mt-1 block h-11 w-full rounded-lg border border-line/[0.1] bg-raised px-2.5 text-base text-fg outline-none focus:border-accent focus:ring-1 focus:ring-ring/40 sm:h-auto sm:py-1.5 sm:text-sm"
+            className="mt-1 block h-11 w-full rounded-lg border border-line bg-raised px-2.5 text-base text-fg outline-none focus:border-accent focus:ring-1 focus:ring-ring/40 sm:h-auto sm:py-1.5 sm:text-sm"
             aria-label={t("chat.scheduledSendTime", "Scheduled send time")}
           />
         </label>

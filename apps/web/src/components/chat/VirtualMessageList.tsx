@@ -130,7 +130,7 @@ export function VirtualMessageList({
         !hasNextPage &&
         remoteHistoryStatus === "requesting" && (
           <div
-            className="mx-auto my-3 flex w-fit items-center gap-2 rounded-full border border-line/[0.06] bg-overlay/75 px-3.5 py-2 text-xs font-medium text-fg-muted shadow-sm backdrop-blur"
+            className="mx-auto my-3 flex w-fit items-center gap-2 rounded-full border border-line bg-overlay/75 px-3.5 py-2 text-xs font-medium text-fg-muted shadow-sm backdrop-blur"
             role="status"
             aria-live="polite"
           >

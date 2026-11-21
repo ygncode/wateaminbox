@@ -363,7 +363,7 @@ export function MessageThread({
 
         <div className="relative flex max-w-sm flex-col items-center px-6 text-center">
           <div className="relative mb-5">
-            <div className="grid size-20 place-items-center rounded-2xl border border-line/80 bg-surface/70 shadow-sm backdrop-blur-sm">
+            <div className="grid size-20 place-items-center rounded-2xl border border-line bg-surface/70 shadow-sm backdrop-blur-sm">
               <MessageCircle
                 className="size-9 text-fg-muted"
                 strokeWidth={1.6}

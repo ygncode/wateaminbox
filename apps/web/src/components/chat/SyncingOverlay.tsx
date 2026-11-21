@@ -108,7 +108,7 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
         >
           <motion.div
             layout
-            className="relative overflow-hidden rounded-[22px] border border-line/10 bg-overlay/95 shadow-lg backdrop-blur-xl"
+            className="relative overflow-hidden rounded-[22px] border border-line bg-overlay/95 shadow-lg backdrop-blur-xl"
           >
             <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-transparent via-signal to-transparent" />
             <div
@@ -163,8 +163,8 @@ export const SyncingOverlay = React.memo(function SyncingOverlay() {
 
                   <TransferPath reduceMotion={reduceMotion} />
 
-                  <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line/80 bg-subtle/80">
-                    <div className="border-e border-line/80 px-3.5 py-3">
+                  <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-line bg-subtle/80">
+                    <div className="border-e border-line px-3.5 py-3">
                       <motion.p
                         key={totals.conversations}
                         initial={{ opacity: 0, y: 4 }}

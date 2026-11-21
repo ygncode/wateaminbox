@@ -8,7 +8,7 @@ function OnboardingFrame({ children }: { children: React.ReactNode }) {
 
   return (
     <main className="relative min-h-dvh overflow-hidden bg-canvas px-3 py-3 text-fg sm:px-6 sm:py-6">
-      <section className="relative mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-line/80 bg-surface shadow-lg sm:min-h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(0,1.08fr)_minmax(23rem,0.92fr)]">
+      <section className="relative mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-6xl overflow-hidden rounded-[1.75rem] border border-line bg-surface shadow-lg sm:min-h-[calc(100dvh-3rem)] lg:grid-cols-[minmax(0,1.08fr)_minmax(23rem,0.92fr)]">
         <div className="flex min-w-0 flex-col p-6 sm:p-9 lg:p-12">
           <div className="flex items-center gap-3">
             <BrandMark className="h-10 w-10 shrink-0 rounded-[0.9rem] object-contain shadow-sm" />
@@ -41,10 +41,6 @@ function OnboardingFrame({ children }: { children: React.ReactNode }) {
                 "radial-gradient(circle at center, rgba(255,255,255,0.5) 1px, transparent 1.5px)",
               backgroundSize: "24px 24px",
             }}
-          />
-          <div
-            className="absolute -end-32 -top-24 h-80 w-80 rounded-full border-[72px] border-nav-line"
-            aria-hidden="true"
           />
           <div className="absolute inset-x-12 bottom-12 rounded-2xl border border-nav-line bg-nav-hover p-5">
             <div className="h-2 w-24 rounded-full bg-nav-active" />

@@ -125,7 +125,7 @@ export function ParticipantPicker({
           placeholder={t("chat.searchContactsEllipsis", "Search contacts…")}
           aria-label={t("groups.searchContactsToAdd", "Search contacts to add")}
           disabled={!connectionId}
-          className="w-full rounded-lg border border-line/[0.1] bg-raised py-2 ps-9 pe-9 text-sm text-fg outline-none placeholder:text-fg-subtle focus:border-accent focus:ring-1 focus:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-lg border border-line bg-raised py-2 ps-9 pe-9 text-sm text-fg outline-none placeholder:text-fg-subtle focus:border-accent focus:ring-1 focus:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60"
         />
         {searchQuery && (
           <button
@@ -146,7 +146,7 @@ export function ParticipantPicker({
         {atLimit ? " · limit reached" : ""}
       </p>
 
-      <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-line/[0.06]">
+      <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-line">
         {!connectionId ? (
           <p className="px-4 py-6 text-center text-sm text-fg-muted">
             {t("groups.chooseAccountFirst", "Choose a WhatsApp account first.")}
@@ -166,7 +166,7 @@ export function ParticipantPicker({
           </div>
         ) : (
           <ul
-            className="divide-y divide-line/[0.04]"
+            className="divide-y divide-line"
             role="group"
             aria-label={labelledBy ? undefined : t("chat.contacts")}
             aria-labelledby={labelledBy}
@@ -199,8 +199,8 @@ export function ParticipantPicker({
                       className={cn(
                         "grid size-5 shrink-0 place-items-center rounded-md border transition-colors",
                         isSelected
-                          ? "border-accent bg-primary text-on-primary"
-                          : "border-line/[0.15]",
+                          ? "border-primary bg-primary text-on-primary"
+                          : "border-line",
                       )}
                       aria-hidden="true"
                     >

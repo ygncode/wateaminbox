@@ -89,7 +89,7 @@ function ScheduledMessageRow({
   };
 
   return (
-    <li className="flex items-start gap-3 rounded-xl border border-line/[0.06] bg-raised p-3">
+    <li className="flex items-start gap-3 rounded-xl border border-line bg-raised p-3">
       <span
         className={`grid size-8 shrink-0 place-items-center rounded-full ${
           isFailed ? "bg-danger-soft text-danger" : "bg-accent/10 text-accent"
@@ -191,7 +191,7 @@ export function ScheduledMessagesBar({ contactId }: ScheduledMessagesBarProps) {
 
   return (
     <>
-      <div className="flex min-h-8 items-center gap-1.5 border-b border-line/[0.055] bg-subtle/55 px-4 py-1">
+      <div className="flex min-h-8 items-center gap-1.5 border-b border-line bg-subtle/55 px-4 py-1">
         <CalendarClock
           className={`size-3.5 shrink-0 ${
             failedCount > 0 ? "text-danger" : "text-accent"

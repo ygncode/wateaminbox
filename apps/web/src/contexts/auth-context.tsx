@@ -20,6 +20,7 @@ import {
   updateCurrentUserProfile,
 } from "../lib/api";
 import { applyAccountLanguage } from "../lib/i18n";
+import { setSessionHint } from "../lib/session-hint";
 import { useChatStore } from "../stores/chat-store";
 import {
   restoreSession,
@@ -195,6 +196,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (verdict === "rejected") throw sessionExpiredError();
     if (verdict === "unverified") setState(UNAVAILABLE_STATE);
   }, []);
+
+  // Remember whether this browser is signed in, so the next cold load can
+  // paint the right loader before the session is confirmed.
+  React.useEffect(() => {
+    if (state.isAuthenticated) setSessionHint(true);
+    else if (!state.isLoading && !state.authUnavailable) setSessionHint(false);
+  }, [state.isAuthenticated, state.isLoading, state.authUnavailable]);
 
   React.useEffect(() => {
     initializeAuth();

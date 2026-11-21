@@ -47,16 +47,21 @@ The theme owns colour.
 
 | id         | Appearance | Character |
 | ---------- | ---------- | --------- |
-| `light`    | light      | Default. Intercom-inspired: putty canvas, warm off-white panels, white content, near-black actions, one blue accent. |
-| `dark`     | dark       | Intercom-inspired graphite: black canvas, layered cool greys, near-white actions, blue accent. |
-| `whatsapp` | dark       | The original WATeamInbox dark theme, value for value (green rail, teal greys, `#075e54` actions, doodle canvas). |
+| `light`    | light      | Intercom: putty canvas, one floating white workspace, ink-black actions, one confident blue (`#2453ec`) for links, unread and outgoing. |
+| `dark`     | dark       | X "Lights out": true black, no floating cards, `#2f3336` hairlines between columns, white pill actions, X blue (`#1d9bf0`) accent. |
+| `whatsapp` | dark       | The original WATeamInbox dark theme (green rail, teal greys, doodle canvas) with WhatsApp Web's `#00a884` actions. |
 
-**WhatsApp is a fidelity theme.** Its values were measured element by element
-against the last build before the design system (`cbf7de7b`) and must keep
-matching it. Do not "improve" WhatsApp; improve Light and Dark instead.
+**WhatsApp is a fidelity theme.** Its surfaces, text and rail were measured
+element by element against the last build before the design system
+(`cbf7de7b`) and must keep matching it. The one deliberate departure is the
+action colour: buttons use WhatsApp Web's own `#00a884` with dark ink, and an
+active chip is a green tint with green text, because the original deep teal
+`#075e54` read as disabled on the dark ground. Keep everything else as is.
 
-**`whatsapp` is the default for everyone** (`DEFAULT_THEME_PREFERENCE`): signed-out
-pages and every account without a saved choice. A user may pick `system`
+**`whatsapp` is the default for everyone** (`DEFAULT_THEME_PREFERENCE`): a
+browser that has never chosen a theme, and every account without a saved
+choice. Signing out keeps the last theme, so /login and /register stay in the
+look the user picked. A user may pick `system`
 (follows the OS between `light` and `dark`) or any theme id; the choice is
 saved on their account (`users.theme_preference`) and follows them across
 devices. `localStorage["wateaminbox-theme"]` is only a paint cache.
@@ -140,14 +145,23 @@ with the solid token as text: `bg-warning-soft text-warning`.
 | `tab-on` | Active tab underline and label. |
 | `row-hover` | Hover on list rows. |
 | `monogram`, `on-monogram` | Workspace monogram avatar. |
+| `section` | Section headings inside panels (Contact Info, settings groups). Ink in Light/Dark, green in WhatsApp. |
+| `bar`, `on-bar`, `bar-line`, `bar-hover` | Title bar of right panels and mobile sheets. Surface-coloured in Light/Dark, teal in WhatsApp. Never use `bg-primary` for chrome. |
+
+**Rules that keep it premium**
+
+- A filled `bg-primary` control hovers to `bg-primary-hover`, nothing else. Never hover a primary fill to `accent-soft` or `accent/90`.
+- Lines use `border-line` / `border-line-strong` at full strength. No opacity modifiers on line tokens (`border-line/[0.06]`): they vanish on dark themes.
+- Live/connected dots use `bg-signal`, never `bg-primary`.
 
 ### Navigation rail
 
 The app rail and the auth/onboarding side panel use their own tokens. Use only `nav`, `nav-fg`, `nav-fg-muted`,
 `nav-hover`, `nav-active`, `nav-active-fg`, `nav-badge`, `on-nav-badge`,
 `nav-fg-subtle`, `nav-line` and `nav-card` there, never surface tokens. In
-Light the rail blends into the canvas (Intercom); in Dark it is the black
-canvas; in WhatsApp it is the original deep green.
+Light the rail blends into the canvas (Intercom); in Dark it is the same black
+as everything else, split by a hairline (X); in WhatsApp it is the original
+deep green.
 
 ### Conversation
 

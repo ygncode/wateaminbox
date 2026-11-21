@@ -460,14 +460,14 @@ export function MobileSlideInPanel({
         {title && !titleId && (
           <header
             className={cn(
-              "flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-line bg-primary px-4 text-on-primary safe-area-top",
+              "flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-bar-line bg-bar px-4 text-on-bar safe-area-top",
               position === "bottom" && "touch-none",
             )}
           >
             {onClose && (
               <button
                 onClick={onClose}
-                className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-white/10 transition-colors touch-manipulation"
+                className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-bar-hover transition-colors touch-manipulation"
                 aria-label={t("common.closePanel", "Close panel")}
               >
                 <X className="h-5 w-5" />

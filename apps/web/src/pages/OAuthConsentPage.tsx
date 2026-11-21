@@ -225,7 +225,7 @@ export function OAuthConsentPage() {
                     <span
                       className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors ${
                         active
-                          ? "border-accent bg-primary text-on-primary"
+                          ? "border-primary bg-primary text-on-primary"
                           : "border-line-strong"
                       }`}
                       aria-hidden="true"
