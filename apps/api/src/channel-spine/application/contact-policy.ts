@@ -252,8 +252,13 @@ export async function resolveContactOutboundPolicy(
 }
 
 /**
- * Whether this workspace enforces customer suppression. Off unless an
- * operator turned it on; a missing row (a schema not yet migrated) is off.
+ * Whether this workspace enforces customer suppression.
+ *
+ * On by default (owner decision, 2026-11-21): a workspace without a settings
+ * row - every new workspace - enforces. Only an explicit
+ * `enforcement_enabled = false`, written by
+ * `set-contact-policy-enforcement --off`, turns it off, as a per-workspace
+ * emergency switch.
  */
 export async function isSuppressionEnforced(db: PolicyDb): Promise<boolean> {
   const row = await db
@@ -261,7 +266,7 @@ export async function isSuppressionEnforced(db: PolicyDb): Promise<boolean> {
     .select("enforcement_enabled")
     .where("id", "=", 1)
     .executeTakeFirst();
-  return row?.enforcement_enabled === true;
+  return row?.enforcement_enabled !== false;
 }
 
 /**

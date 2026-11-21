@@ -18,25 +18,27 @@ either half blocks the person, and unmerging returns each half its own state.
 Groups are never gated by a person block. History sync and messages already
 stored are never touched.
 
-## Enforcement is per workspace and off by default
+## Enforcement is on for every workspace
 
-Migrations 115 and 116 only add the data. Until a workspace is enabled, it
-behaves exactly as before: only WhatsApp's own `contacts.is_blocked` applies,
-and the Block button keeps dual-writing the suppression.
+Owner decision, 2026-11-21: enforcement is the normal state. A workspace
+without a `contact_policy_settings` row enforces, which covers every new
+workspace. Production's 44 active workspaces were also set explicitly with
+`--all --on` on 2026-11-21 at 04:24 UTC.
 
-Turn enforcement on or off for one workspace:
+The switch remains as a per-workspace emergency off:
 
 ```sh
 bun run apps/api/src/scripts/set-contact-policy-enforcement.ts \
-  --company <uuid> --on          # or --off; add --dry-run to preview
+  --company <uuid> --off         # or --on; add --dry-run to preview
 ```
 
-In a deployed image the script is
-`apps/api/dist/scripts/set-contact-policy-enforcement.js`. Run it through the
+While off, a workspace behaves as before this feature: only WhatsApp's own
+`contacts.is_blocked` applies, and the Block button keeps recording the
+suppression. In a deployed image the script is
+`apps/api/dist/scripts/set-contact-policy-enforcement.js`; run it through the
 secret entrypoint so it has `DATABASE_URL`. `--all` applies to every active
-workspace; enable a few first. Each change writes a
-`contact_policy.enforcement_enabled` / `..._disabled` audit entry in the
-workspace.
+workspace. Each change writes a `contact_policy.enforcement_enabled` /
+`..._disabled` audit entry in the workspace.
 
 Rollback is `--off`: the gate stops, suppressions stay recorded, and nothing
 already dropped comes back. Dropped content was never stored.
