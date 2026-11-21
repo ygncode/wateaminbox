@@ -33,5 +33,49 @@ export function buildIncomingMessageMetadata(
     }
   }
 
+  const quotedSnapshot = normalizeQuotedSnapshot(payload);
+  if (quotedSnapshot) metadata.quotedSnapshot = quotedSnapshot;
+
   return Object.keys(metadata).length > 0 ? metadata : null;
+}
+
+const QUOTED_TYPES = new Set([
+  "text",
+  "image",
+  "video",
+  "audio",
+  "document",
+  "sticker",
+  "location",
+  "contact",
+]);
+const MAX_QUOTED_CONTENT = 1024;
+
+/**
+ * WhatsApp's copy of the message a reply quotes, kept so the reply can show
+ * its quote when the original was never synced. Validated here because it
+ * crosses the worker boundary: only a known type, bounded text and a WhatsApp
+ * JID survive.
+ */
+function normalizeQuotedSnapshot(
+  payload: MessageEvent["payload"],
+): { senderJid?: string; messageType: string; content: string } | null {
+  const quoted = payload.quotedMessage;
+  if (!payload.quotedMessageId || !quoted) return null;
+  if (typeof quoted.messageType !== "string") return null;
+  if (!QUOTED_TYPES.has(quoted.messageType)) return null;
+  const content =
+    typeof quoted.content === "string"
+      ? quoted.content.trim().slice(0, MAX_QUOTED_CONTENT)
+      : "";
+  const senderJid =
+    typeof quoted.senderJid === "string" &&
+    /^[^\s@]+@(s\.whatsapp\.net|lid)$/.test(quoted.senderJid)
+      ? quoted.senderJid
+      : undefined;
+  return {
+    ...(senderJid ? { senderJid } : {}),
+    messageType: quoted.messageType,
+    content,
+  };
 }

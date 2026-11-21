@@ -509,6 +509,7 @@ func (h *Handler) processHistorySyncMessage(historyMsg *waHistorySync.HistorySyn
 		return false, false
 	}
 	msgEvent.QuotedMessageID = getQuotedMessageID(waMsg)
+	msgEvent.QuotedMessage = h.getQuotedMessageSnapshot(waMsg)
 	msgEvent.GroupMentions = getGroupMentions(waMsg)
 	h.applyMediaAlbumMetadata(jid, waMsg, &msgEvent)
 

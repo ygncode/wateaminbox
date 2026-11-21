@@ -12,6 +12,10 @@ import {
   type QuotedMessageData,
 } from "../../lib/message-formatters.js";
 import { loadMessageReactions } from "../../lib/message-reactions.js";
+import {
+  buildSnapshotQuote,
+  loadSnapshotSenders,
+} from "../../lib/quoted-snapshots.js";
 import { successData } from "../../lib/response.js";
 import { zValidator } from "../../lib/validator.js";
 import { getRouteContext } from "../../middleware/context.js";
@@ -212,6 +216,16 @@ async function loadThreadScopedQuotes(
       conversation_id: message.conversation_id ?? null,
     });
     if (album) quotes.set(message.id, buildQuotedMessageData(album, userNames));
+  }
+
+  // Last resort: WhatsApp's own copy of the quote, carried on the reply.
+  const snapshotReplies = albumReplies.filter(
+    (message) => !quotes.has(message.id),
+  );
+  const snapshotSenders = await loadSnapshotSenders(tenantDb, snapshotReplies);
+  for (const message of snapshotReplies) {
+    const snapshot = buildSnapshotQuote(message, snapshotSenders);
+    if (snapshot) quotes.set(message.id, snapshot);
   }
   return quotes;
 }
