@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { db } from "@wateaminbox/database";
 import { sql } from "kysely";
 import { getContactsWithLastMessage } from "./contact.service.js";
+import { getInboxPage } from "./inbox.service.js";
 import {
   clearTenantConnection,
   createTenantSchema,
@@ -134,6 +135,29 @@ describe("inbox last-message mentions", () => {
           { displayName: "Alice", mentionIds: [aliceLid] },
           { displayName: "Bob", mentionIds: [bobLid] },
         ]);
+
+        // The chat list reads the unified inbox, which must carry the same
+        // names (GET /api/inbox, not only GET /contacts).
+        const page = await getInboxPage(tenantDb, companyId, {
+          limit: 20,
+          includeGroups: true,
+          conversationStatus: "all",
+          userId: crypto.randomUUID(),
+          restrictToAssigned: false,
+          includeThreads: false,
+        });
+        const inboxRow = page.items.find(
+          (item) => item.kind === "contact" && item.contact.id === group.id,
+        );
+        const inboxMentions =
+          inboxRow?.kind === "contact"
+            ? (inboxRow.contact.last_message?.mentionParticipants ?? [])
+            : [];
+        expect(
+          inboxMentions
+            .map((mention) => mention.displayName)
+            .sort((a, b) => a.localeCompare(b)),
+        ).toEqual(["Alice", "Bob"]);
       } finally {
         await sql`
           DELETE FROM whatsapp_sessions.whatsmeow_lid_mappings
