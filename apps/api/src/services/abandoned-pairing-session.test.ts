@@ -158,7 +158,7 @@ describe("reaping an abandoned pairing session", () => {
     expect(recorded.outboxInserts[0].subject).toContain("session-1");
   });
 
-  test("claims only unscanned, unclosed, aged-out attempts", async () => {
+  test("claims only unclosed, not-live attempts quiet for long enough", async () => {
     reset();
     const { db, recorded } = fakeTenantDb([
       { id: "session-1", whatsapp_connection_id: "connection-1" },
@@ -166,10 +166,14 @@ describe("reaping an abandoned pairing session", () => {
 
     await reapAbandonedPairingSessions(db, "company-1");
 
+    // The unscanned-or-logged-out rule is an expression; its SQL is covered
+    // by abandoned-pairing-session.integration.test.ts.
     const [columns] = recorded.predicates;
-    expect(columns).toContain("connected_at");
     expect(columns).toContain("ended_at");
-    expect(columns).toContain("started_at");
+    expect(columns).toContain("status");
+    // `updated_at`, not `started_at`: a reconnect reuses the row and bumps it.
+    expect(columns).toContain("updated_at");
+    expect(columns).not.toContain("started_at");
   });
 
   test("refreshes an open page without raising an error toast", async () => {

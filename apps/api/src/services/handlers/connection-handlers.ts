@@ -354,28 +354,49 @@ export async function handleConnectedEvent(
 const QR_TIMEOUT_REASON = "qr_timeout";
 
 /**
- * A setup attempt whose QR expired unscanned is finished, and nothing else ends
- * it. The worker keeps running with no paired device, answering health checks
- * and holding a connection slot against the fleet cap until an operator
- * notices, while the session row keeps `ended_at` null and so still reads as
- * the connection's active session.
+ * A pairing attempt whose QR expired is finished, and nothing else ends it.
+ * The worker keeps running with no paired device, answering health checks
+ * and holding a connection slot, while the session row keeps `ended_at` null
+ * and so still reads as the connection's active session.
  *
- * Only an unscanned attempt qualifies. A session that ever reached `connected`
- * owns real credentials, so a late or replayed timeout must leave it alone, and
- * an already-ended session must not be stamped or killed twice -- JetStream
- * redelivers, and `updateSessionStatus(..., "ended")` deliberately does not
- * guard on `ended_at`.
+ * Two kinds of attempt qualify:
+ *
+ * - A first setup that was never scanned (`connected_at` null).
+ * - A re-pair after WhatsApp logged the number out. The session did connect
+ *   once, but `logged_out_at` records that whatsmeow deleted its credentials,
+ *   so the worker can only show QR codes. Reconnect reuses that session row,
+ *   and a worker restart (node drain, image roll) re-emits a QR batch that
+ *   nobody is watching; three production connections sat like this for weeks.
+ *
+ * Anything that is or may be serving traffic is left alone: a connected
+ * session, a connected account, and a disconnect that was not a logout (it can
+ * still recover with its credentials). An already-ended session is skipped too
+ * -- JetStream redelivers, and `updateSessionStatus(..., "ended")`
+ * deliberately does not guard on `ended_at`.
  */
-async function isUnscannedPairingAttempt(
+export async function expiredPairingAttempt(
   tenantDb: Kysely<TenantDatabase>,
   sessionId: string,
-): Promise<boolean> {
+): Promise<"unscanned" | "after_logout" | null> {
   const session = await tenantDb
     .selectFrom("whatsapp_connection_sessions")
-    .select(["connected_at", "ended_at"])
+    .select(["connected_at", "ended_at", "status", "whatsapp_connection_id"])
     .where("id", "=", sessionId)
     .executeTakeFirst();
-  return Boolean(session) && !session?.connected_at && !session?.ended_at;
+  if (!session || session.ended_at || session.status === "connected") {
+    return null;
+  }
+  if (!session.connected_at) return "unscanned";
+  const connection = await tenantDb
+    .selectFrom("whatsapp_connections")
+    .select(["status", "logged_out_at", "archived_at"])
+    .where("id", "=", session.whatsapp_connection_id)
+    .executeTakeFirst();
+  return connection?.logged_out_at &&
+    connection.status !== "connected" &&
+    !connection.archived_at
+    ? "after_logout"
+    : null;
 }
 
 export async function handleDisconnectedEvent(
@@ -391,24 +412,36 @@ export async function handleDisconnectedEvent(
 
   // A logged-out device had credentials and is handled below; only the
   // pairing-time timeout lands here.
-  if (
+  const expired =
     event.type === "disconnected" &&
     payload.reason === QR_TIMEOUT_REASON &&
-    sessionId &&
-    (await isUnscannedPairingAttempt(tenantDb, sessionId))
-  ) {
+    sessionId
+      ? await expiredPairingAttempt(tenantDb, sessionId)
+      : null;
+  if (expired && sessionId) {
     logger.info(
-      { companyId, connectionId, sessionId },
-      "Ending pairing session whose QR expired unscanned",
+      { companyId, connectionId, sessionId, kind: expired },
+      expired === "unscanned"
+        ? "Ending pairing session whose QR expired unscanned"
+        : "Ending re-pair attempt whose QR expired after a logout",
     );
     await stopSession({
       companyId,
       connectionId,
       sessionId,
-      reason: "The QR code expired before anyone scanned it.",
+      reason:
+        expired === "unscanned"
+          ? "The QR code expired before anyone scanned it."
+          : "The QR code to re-link this number expired. Reconnect to show a new one.",
       code: QR_TIMEOUT_REASON,
-      title: "WhatsApp setup expired",
-      commandReason: "QR pairing expired without a scan",
+      title:
+        expired === "unscanned"
+          ? "WhatsApp setup expired"
+          : "WhatsApp re-link expired",
+      commandReason:
+        expired === "unscanned"
+          ? "QR pairing expired without a scan"
+          : "QR re-pair after logout expired without a scan",
       policy: PAIRED_SESSION_STOP_POLICIES.qrExpired,
     });
     return;

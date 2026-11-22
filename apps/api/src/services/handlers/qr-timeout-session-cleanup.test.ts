@@ -26,7 +26,13 @@ function fakeTenantDb(
   session: {
     connected_at: Date | null;
     ended_at: Date | null;
+    status?: string;
   } | null,
+  connection: {
+    status?: string;
+    logged_out_at?: Date | null;
+    archived_at?: Date | null;
+  } = {},
 ) {
   return {
     selectFrom(table: string) {
@@ -40,8 +46,19 @@ function fakeTenantDb(
         executeTakeFirst: () =>
           Promise.resolve(
             table === "whatsapp_connection_sessions"
-              ? session
-              : { id: "connection-1", sync_status: "completed" },
+              ? session && {
+                  status: "disconnected",
+                  whatsapp_connection_id: "connection-1",
+                  ...session,
+                }
+              : {
+                  id: "connection-1",
+                  sync_status: "completed",
+                  status: "disconnected",
+                  logged_out_at: null,
+                  archived_at: null,
+                  ...connection,
+                },
           ),
       };
     },
@@ -140,6 +157,83 @@ describe("a pairing session whose QR expired unscanned", () => {
       stop.stop,
     );
 
+    expect(stop.calls).toHaveLength(0);
+  });
+});
+
+describe("a re-pair whose QR expired after WhatsApp logged the number out", () => {
+  // Reconnect reuses the logged-out session row, so `connected_at` is set from
+  // the first pairing even though whatsmeow deleted the credentials. Without
+  // this, the worker sat showing QR codes to nobody, holding a slot, for weeks.
+  const once = new Date("2026-10-29T06:35:42Z");
+  const loggedOut = new Date("2026-10-29T06:31:00Z");
+
+  test("is ended and its worker stopped, without unlinking or archiving", async () => {
+    const stop = recorder();
+    const event = disconnectEvent("qr_timeout");
+
+    await handleDisconnectedEvent(
+      event,
+      fakeTenantDb(
+        { connected_at: once, ended_at: null },
+        { logged_out_at: loggedOut },
+      ),
+      stop.stop,
+    );
+
+    expect(stop.calls).toHaveLength(1);
+    const [input] = stop.calls;
+    expect(input.sessionId).toBe(event.sessionId as string);
+    expect(input.policy).toBe(PAIRED_SESSION_STOP_POLICIES.qrExpired);
+    expect(input.policy.unlink).toBe(false);
+    expect(input.policy.archive).toBe(false);
+    expect(input.title).toBe("WhatsApp re-link expired");
+  });
+
+  test("is left alone while the session or the account is connected", async () => {
+    for (const [session, connection] of [
+      [
+        { connected_at: once, ended_at: null, status: "connected" },
+        { logged_out_at: loggedOut },
+      ],
+      [
+        { connected_at: once, ended_at: null },
+        { logged_out_at: loggedOut, status: "connected" },
+      ],
+    ] as const) {
+      const stop = recorder();
+      await handleDisconnectedEvent(
+        disconnectEvent("qr_timeout"),
+        fakeTenantDb(session, connection),
+        stop.stop,
+      );
+      expect(stop.calls).toHaveLength(0);
+    }
+  });
+
+  test("leaves a session that merely dropped (no logout) to recover", async () => {
+    const stop = recorder();
+    await handleDisconnectedEvent(
+      disconnectEvent("qr_timeout"),
+      fakeTenantDb(
+        { connected_at: once, ended_at: null },
+        { logged_out_at: null },
+      ),
+      stop.stop,
+    );
+    expect(stop.calls).toHaveLength(0);
+  });
+
+  test("leaves an archived account alone", async () => {
+    const stop = recorder();
+    await handleDisconnectedEvent(
+      disconnectEvent("qr_timeout"),
+      fakeTenantDb(
+        { connected_at: once, ended_at: null },
+        { logged_out_at: loggedOut, archived_at: new Date() },
+      ),
+      stop.stop,
+    );
     expect(stop.calls).toHaveLength(0);
   });
 });
