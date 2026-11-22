@@ -3,8 +3,8 @@ module github.com/ygncode-lab/whatsapp-web/services/shared
 go 1.26.11
 
 require (
-	github.com/nats-io/nats.go v1.55.0
-	hegel.dev/go/hegel v0.9.30
+	github.com/nats-io/nats.go v1.56.0
+	hegel.dev/go/hegel v0.9.38
 )
 
 require (
