@@ -29,11 +29,14 @@ import {
 import { MessageComposer } from "../components/chat/MessageComposer";
 import { MessageHeader } from "../components/chat/MessageHeader";
 import { MessageThread } from "../components/chat/MessageThread";
-import { ConversationMessagesSkeleton } from "../components/chat/ConversationMessagesSkeleton";
+import {
+  ComposerSkeleton,
+  ConversationMessagesSkeleton,
+  ThreadHeaderSkeleton,
+} from "../components/chat/ConversationMessagesSkeleton";
 import { SharedContactSheet } from "../components/chat/SharedContactSheet";
 import { channelDisplayName } from "../components/connections/channel-catalog";
 import { AppLayout, ResponsiveLayout } from "../components/layout/app-layout";
-import { CONVERSATION_HEADER_INSET_CLASS } from "../components/layout/conversation-chrome";
 import { MainContent } from "../components/layout/main-content";
 import { Sidebar } from "../components/layout/sidebar";
 import { Skeleton } from "../components/ui";
@@ -613,34 +616,9 @@ function ConversationLoadingState() {
         {t("chat.loadingConversation", "Loading conversation")}
       </span>
 
-      {/* Same inset utility as the real header, so the bar does not change
-          height when the contact resolves. */}
-      <div
-        className={cn(
-          "flex items-center gap-3 border-b border-line bg-surface px-4",
-          CONVERSATION_HEADER_INSET_CLASS,
-        )}
-        aria-hidden="true"
-      >
-        <Skeleton className="size-10 shrink-0 rounded-full" />
-        <div className="min-w-0 flex-1 space-y-2">
-          <Skeleton className="h-3.5 w-36 max-w-[42%]" />
-          <Skeleton className="h-2.5 w-24 max-w-[30%]" />
-        </div>
-        <Skeleton className="size-9 rounded-full" />
-        <Skeleton className="size-9 rounded-full" />
-      </div>
-
+      <ThreadHeaderSkeleton />
       <ConversationMessagesSkeleton decorative />
-
-      <div
-        className="flex min-h-[64px] items-center gap-3 border-t border-line bg-surface px-3 py-2.5"
-        aria-hidden="true"
-      >
-        <Skeleton className="size-9 shrink-0 rounded-full" />
-        <Skeleton className="h-10 flex-1 rounded-[1.35rem] bg-raised" />
-        <Skeleton className="size-10 shrink-0 rounded-full bg-accent/30" />
-      </div>
+      <ComposerSkeleton />
     </div>
   );
 }

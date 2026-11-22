@@ -23,6 +23,7 @@ import {
 } from "@/components/notifications/notification-presentation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { useNotificationCenter } from "@/hooks/notification";
 import type { InAppNotification } from "@/lib/api/types";
@@ -134,7 +135,10 @@ export function NotificationsPage() {
   // fixed-width column.
   return (
     <div className="@container flex h-full min-h-0 flex-col overflow-hidden bg-page">
-      <header className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6">
+      <header
+        data-sk="page-header"
+        className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6"
+      >
         <div className="flex w-full flex-wrap items-center gap-3">
           <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
             <Bell className="size-[18px]" aria-hidden="true" />
@@ -202,8 +206,14 @@ export function NotificationsPage() {
           one left edge at every width. */}
       <div className="min-h-0 flex-1 overflow-hidden px-4 py-3 sm:px-6 sm:py-4">
         <div className="flex h-full min-h-0 w-full gap-4">
-          <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2.5 sm:px-4">
+          <section
+            data-sk="card"
+            className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-sm"
+          >
+            <div
+              data-sk="toolbar"
+              className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line px-3 py-2.5 sm:px-4"
+            >
               <div
                 role="group"
                 aria-label={t("notifications.filter", "Filter notifications")}
@@ -268,7 +278,15 @@ export function NotificationsPage() {
 
             <div className="min-h-0 flex-1 overflow-y-auto">
               {showSkeleton ? (
-                <NotificationListSkeleton rows={6} />
+                <>
+                  <div
+                    aria-hidden="true"
+                    className="h-[30px] border-b border-line bg-subtle/95 px-4 py-2 sm:px-5"
+                  >
+                    <Skeleton className="h-2.5 w-14" />
+                  </div>
+                  <NotificationListSkeleton rows={8} />
+                </>
               ) : error ? (
                 <NotificationErrorState
                   onRetry={controller.refresh}

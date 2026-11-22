@@ -87,6 +87,7 @@ function NotificationRow({
 
   return (
     <li
+      data-sk="nrow"
       className={cn(
         "group relative border-s-2 transition-colors",
         isUnread
@@ -296,6 +297,7 @@ export function NotificationListSkeleton({
       {Array.from({ length: rows }, (_, index) => (
         <div
           key={index}
+          data-sk="nrow"
           className={cn(
             "flex items-start",
             isCompact ? "gap-3 px-3 py-3" : "gap-3.5 px-4 py-4 sm:px-5",
@@ -307,11 +309,31 @@ export function NotificationListSkeleton({
               isCompact ? "size-9" : "size-10",
             )}
           />
-          <div className="min-w-0 flex-1 space-y-2 py-0.5">
-            <Skeleton className="h-3.5 w-2/5 rounded" />
-            <Skeleton className="h-3 w-4/5 rounded" />
-            <Skeleton className="h-2.5 w-24 rounded" />
+          {/* Line boxes match NotificationRow: title (19px), message
+              (mt-1, one line compact / two lines comfortable), meta
+              (mt-2, 17px). */}
+          <div className="min-w-0 flex-1">
+            <div className="flex h-[19px] items-center">
+              <Skeleton className="h-3.5 w-2/5 rounded" />
+            </div>
+            {!isCompact && <div className="h-5 sm:hidden" />}
+            <div className="mt-1 flex h-[19px] items-center">
+              <Skeleton className="h-3 w-4/5 rounded" />
+            </div>
+            {!isCompact && (
+              <div className="flex h-[19px] items-center sm:hidden">
+                <Skeleton className="h-3 w-3/5 rounded" />
+              </div>
+            )}
+            <div className="mt-2 flex h-[17px] items-center">
+              <Skeleton className="h-2.5 w-24 rounded" />
+            </div>
           </div>
+          {/* Reserved control column + unread dot, as in the real row. */}
+          <span
+            className={isCompact ? "w-[60px] shrink-0" : "w-[66px] shrink-0"}
+          />
+          <span className="size-2 shrink-0" />
         </div>
       ))}
     </div>

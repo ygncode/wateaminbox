@@ -50,7 +50,10 @@ export function DashboardHeader({
   };
 
   return (
-    <header className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6">
+    <header
+      data-sk="page-header"
+      className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6"
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">

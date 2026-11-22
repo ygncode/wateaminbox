@@ -19,7 +19,10 @@ export function BroadcastsHeader({
   const { t } = useTranslation();
 
   return (
-    <header className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6">
+    <header
+      data-sk="page-header"
+      className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6"
+    >
       <div className="flex min-h-10 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           {showingDetail ? (

@@ -66,7 +66,10 @@ interface ComposerLifecycleAreaProps {
  */
 function ComposerFooter({ children }: { children: ReactNode }) {
   return (
-    <div className={`shrink-0 ${CONVERSATION_BOTTOM_INSET_CLASS}`}>
+    <div
+      data-sk="composer"
+      className={`shrink-0 ${CONVERSATION_BOTTOM_INSET_CLASS}`}
+    >
       {children}
     </div>
   );

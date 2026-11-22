@@ -141,6 +141,7 @@ export function WorkspaceSwitcher({
         <PopoverTrigger asChild>
           <button
             type="button"
+            data-sk={compact ? "ws-compact" : "ws-switcher"}
             disabled={isSwitching}
             className={cn(
               "group relative flex items-center rounded-xl text-start outline-none transition-colors focus-visible:ring-2 focus-visible:ring-nav-fg/40",

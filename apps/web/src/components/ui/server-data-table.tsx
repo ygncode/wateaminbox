@@ -86,6 +86,11 @@ export interface ServerDataTableProps<TData extends object> {
   tableClassName?: string;
   pageSizeOptions?: number[];
   density?: "default" | "compact";
+  /**
+   * Height in px of one loaded row, so loading rows hold the same space.
+   * Measure it from the page with real data (DESIGN.md → Loading skeletons).
+   */
+  loadingRowHeight?: number;
 }
 
 export function getVisibleRowRange(
@@ -129,6 +134,7 @@ export function ServerDataTable<TData extends object>({
   tableClassName,
   pageSizeOptions = [10, 20, 50],
   density = "default",
+  loadingRowHeight,
 }: ServerDataTableProps<TData>) {
   const { t } = useTranslation();
 
@@ -184,6 +190,7 @@ export function ServerDataTable<TData extends object>({
 
   return (
     <section
+      data-sk="card"
       className={cn(
         "relative flex h-full min-h-[24rem] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-lg",
         className,
@@ -198,6 +205,7 @@ export function ServerDataTable<TData extends object>({
 
       {(search || toolbarLeading || toolbarActions) && (
         <div
+          data-sk="toolbar"
           className={cn(
             "flex shrink-0 flex-col gap-2.5 border-b border-line bg-surface/40 sm:flex-row sm:items-center",
             density === "compact" ? "px-3 py-2.5" : "p-3",
@@ -251,7 +259,7 @@ export function ServerDataTable<TData extends object>({
           )}
         >
           <caption className="sr-only">{tableLabel}</caption>
-          <thead className="sticky top-0 z-20">
+          <thead data-sk="thead" className="sticky top-0 z-20">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
@@ -280,13 +288,23 @@ export function ServerDataTable<TData extends object>({
               Array.from({
                 length: Math.min(pagination.pageSize, 8),
               }).map((_, rowIndex) => (
-                <tr key={`loading-row-${rowIndex}`}>
+                <tr
+                  data-sk="trow"
+                  key={`loading-row-${rowIndex}`}
+                  style={
+                    loadingRowHeight ? { height: loadingRowHeight } : undefined
+                  }
+                >
                   {columns.map((_, columnIndex) => (
                     <td
                       key={`loading-cell-${rowIndex}-${columnIndex}`}
                       className={cn(
                         "border-b border-line px-4",
-                        density === "compact" ? "py-2.5" : "py-3.5",
+                        loadingRowHeight
+                          ? "py-0"
+                          : density === "compact"
+                            ? "py-2.5"
+                            : "py-3.5",
                       )}
                     >
                       <Skeleton
@@ -325,7 +343,10 @@ export function ServerDataTable<TData extends object>({
                 const subRow = renderSubRow?.(row.original);
                 return (
                   <Fragment key={row.id}>
-                    <tr className="group transition-colors hover:bg-subtle">
+                    <tr
+                      data-sk="trow"
+                      className="group transition-colors hover:bg-subtle"
+                    >
                       {row.getVisibleCells().map((cell) => (
                         <td
                           key={cell.id}
@@ -379,7 +400,10 @@ export function ServerDataTable<TData extends object>({
         </table>
       </div>
 
-      <footer className="flex shrink-0 flex-col gap-3 border-t border-line bg-surface/40 px-3 py-2.5 text-xs text-fg-muted sm:flex-row sm:items-center sm:justify-between">
+      <footer
+        data-sk="tfoot"
+        className="flex shrink-0 flex-col gap-3 border-t border-line bg-surface/40 px-3 py-2.5 text-xs text-fg-muted sm:flex-row sm:items-center sm:justify-between"
+      >
         <div className="flex items-center gap-2">
           <span>
             {visibleRange.start}–{visibleRange.end} of{" "}

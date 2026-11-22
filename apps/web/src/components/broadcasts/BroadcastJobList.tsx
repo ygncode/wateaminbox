@@ -224,6 +224,7 @@ export function BroadcastJobList({
       }
       pageSizeOptions={PAGE_SIZE_OPTIONS}
       density="compact"
+      loadingRowHeight={55}
       tableClassName="min-w-[68rem]"
       className="min-h-0"
     />

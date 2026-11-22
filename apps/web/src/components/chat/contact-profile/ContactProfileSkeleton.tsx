@@ -6,10 +6,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 export function ContactProfileSkeleton() {
   return (
     <div>
-      <div className="flex flex-col items-center gap-2 bg-surface py-5">
+      <div
+        data-sk="profile-head"
+        className="flex flex-col items-center gap-2 bg-surface py-5"
+      >
         <Skeleton className="size-20 rounded-full" />
-        <Skeleton className="h-5 w-40" />
-        <Skeleton className="h-3 w-28" />
+        {/* Name line only: the secondary identity line (username, merged
+            count) is usually empty and collapses to nothing. */}
+        <div className="flex h-6 items-center">
+          <Skeleton className="h-4 w-40" />
+        </div>
       </div>
       {Array.from({ length: 5 }).map((_, index) => (
         <section

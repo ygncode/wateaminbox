@@ -14,6 +14,10 @@ component patterns. Before any UI change:
   sites.
 - Check the result in Light, Dark and WhatsApp.
 - Add themes only as described in DESIGN.md ("Adding a theme").
+- **Changing a layout means changing its loading skeleton in the same
+  change.** Follow DESIGN.md → "Loading skeletons": copy the real classes,
+  keep `data-sk` landmarks on both sides, and run
+  `scripts/measure-skeletons.mjs` (desktop + mobile, all three themes).
 - `bun test src/styles/design-system.test.ts` enforces this in CI.
 
 ## Select

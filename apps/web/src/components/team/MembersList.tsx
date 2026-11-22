@@ -290,6 +290,7 @@ export function MembersList({
           </label>
         }
         isLoading={membersQuery.isLoading}
+        loadingRowHeight={65}
         isFetching={membersQuery.isFetching}
         error={membersQuery.error}
         getRowId={(member) => member.id}

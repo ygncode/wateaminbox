@@ -283,7 +283,10 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-page">
-      <header className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6">
+      <header
+        data-sk="page-header"
+        className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6"
+      >
         <div className="flex items-center gap-3">
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent">
             <ShieldCheck className="h-4.5 w-4.5" />
@@ -497,6 +500,7 @@ export function AuditLog({ companyId, canExport = false }: AuditLogProps) {
           }
           pageSizeOptions={[10, 20, 50]}
           density="compact"
+          loadingRowHeight={61}
           tableClassName="min-w-[68rem]"
           className="min-h-0"
         />

@@ -113,6 +113,7 @@ export function MessageHeader({
     // The workspace header is withdrawn on this route, so this bar is the top
     // of the screen and owns the notch inset (height included, not eaten).
     <header
+      data-sk="thread-header"
       className={cn(
         "flex shrink-0 items-center gap-0.5 border-b border-line bg-surface px-1 md:gap-2 md:px-3",
         CONVERSATION_HEADER_INSET_CLASS,

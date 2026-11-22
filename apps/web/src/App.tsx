@@ -13,7 +13,6 @@ import {
 import { ProtectedAppLayout } from "./components/layout/ProtectedAppLayout";
 import { KeyboardShortcutsModal } from "./components/settings";
 import { PageSkeleton, type PageSkeletonVariant } from "./components/ui";
-import { OnboardingLoadingScreen } from "./components/ui/onboarding-state";
 import { WorkspaceChooserPage } from "./pages/WorkspaceChooserPage";
 
 const LoginPage = lazy(() =>
@@ -84,15 +83,7 @@ function LazyPage({
   variant?: PageSkeletonVariant;
 }) {
   return (
-    <Suspense
-      fallback={
-        variant === "auth" ? (
-          <OnboardingLoadingScreen />
-        ) : (
-          <PageSkeleton variant={variant} />
-        )
-      }
-    >
+    <Suspense fallback={<PageSkeleton variant={variant} />}>
       {children}
     </Suspense>
   );
