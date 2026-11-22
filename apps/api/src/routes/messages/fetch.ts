@@ -15,6 +15,7 @@ import {
   type QuotedMessageSimple,
 } from "../../lib/message-formatters.js";
 import { loadMessageReactions } from "../../lib/message-reactions.js";
+import { readQuotedSnapshot } from "../../lib/quoted-snapshots.js";
 import { extractPaginationParams } from "../../lib/route-helpers.js";
 import { getRouteContext } from "../../middleware/context.js";
 import { hasContactVisibility } from "../../middleware/resource-visibility.js";
@@ -110,6 +111,17 @@ fetchRoutes.get("/", async (c) => {
           content: album.content,
           message_type: album.message_type,
           sender_jid: album.sender_jid,
+        });
+        continue;
+      }
+      // Last resort: WhatsApp's own copy of the quote, carried on the reply.
+      const snapshot = readQuotedSnapshot(message);
+      if (snapshot) {
+        quotedMessages.set(key, {
+          message_id: key,
+          content: snapshot.content,
+          message_type: snapshot.messageType,
+          sender_jid: snapshot.senderJid ?? null,
         });
       }
     }

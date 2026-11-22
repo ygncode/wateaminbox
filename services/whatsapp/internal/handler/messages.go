@@ -192,6 +192,7 @@ func (h *Handler) handleMessage(msg *events.Message) error {
 	}
 
 	msgEvent.QuotedMessageID = getQuotedMessageID(msg.Message)
+	msgEvent.QuotedMessage = h.getQuotedMessageSnapshot(msg.Message)
 	msgEvent.GroupMentions = getGroupMentions(msg.Message)
 	h.applyMediaAlbumMetadata(chatJID.String(), msg.Message, &msgEvent)
 

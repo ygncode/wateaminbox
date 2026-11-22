@@ -51,6 +51,11 @@ export interface Message {
   metadata?: MessageMetadata;
   replyToMessageId?: string;
   replyToMessage?: Message;
+  /**
+   * Set on a `replyToMessage` rebuilt from WhatsApp's copy of the quote
+   * because the original is not stored; its `id` is the WhatsApp message id.
+   */
+  isSnapshot?: boolean;
   isForwarded?: boolean;
   isDeleted?: boolean;
   isStarred?: boolean;
