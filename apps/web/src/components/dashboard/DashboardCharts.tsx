@@ -66,6 +66,8 @@ interface ChartPanelProps {
   isLoading: boolean;
   isError?: boolean;
   className?: string;
+  /** The chart draws an 11px legend under its plot (new contacts). */
+  hasLegend?: boolean;
   children: React.ReactNode;
 }
 
@@ -77,11 +79,13 @@ function ChartPanel({
   isError,
   className,
   children,
+  hasLegend = false,
 }: ChartPanelProps) {
   const { t } = useTranslation();
 
   return (
     <section
+      data-sk="chart"
       className={cn(
         "rounded-xl border border-line bg-surface p-4 shadow-xs sm:p-5",
         className,
@@ -97,12 +101,14 @@ function ChartPanel({
         </div>
       </div>
       {isLoading ? (
-        <div className="space-y-4">
-          <div className="flex gap-4">
-            <Skeleton className="h-9 w-24" />
-            <Skeleton className="h-9 w-24" />
+        // Summary row (43px + mb-4) and the 220px plot, as in the charts.
+        <div aria-hidden="true">
+          <div className="mb-4 flex h-[43px] items-end gap-5">
+            <Skeleton className="h-9 w-14" />
+            <Skeleton className="h-9 w-14" />
           </div>
           <Skeleton className="h-[220px] w-full rounded-xl" />
+          {hasLegend && <div className="h-[11px]" />}
         </div>
       ) : isError ? (
         <div className="grid h-[276px] place-items-center rounded-xl border border-danger/30 bg-danger-soft/60 text-sm text-danger">
@@ -170,6 +176,7 @@ export function TrendChartsRow({
         isLoading={isLoadingContactsTrend}
         isError={isContactsTrendError}
         className="xl:col-span-4"
+        hasLegend
       >
         <NewContactsChart data={contactsTrendData || []} />
       </ChartPanel>

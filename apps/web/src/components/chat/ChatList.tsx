@@ -45,8 +45,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { ChatListItemSkeleton } from "./ChatListItem";
 import { ChatListSearch } from "./ChatListSearch";
+import { ChatListRowsSkeleton } from "./ChatListSkeleton";
 import { getConnectionLabel } from "./ConnectionIdentity";
 import {
   CONVERSATION_STATUS_OPTIONS,
@@ -64,9 +64,17 @@ import { VirtualizedChatRows } from "./VirtualizedChatRows";
 const MAX_TAG_FILTERS = 50;
 
 const ASSIGNMENT_OPTIONS = [
-  { value: "all", labelKey: "chat.allConversations", label: "All conversations" },
+  {
+    value: "all",
+    labelKey: "chat.allConversations",
+    label: "All conversations",
+  },
   { value: "unread", labelKey: "chat.unread", label: "Unread" },
-  { value: "assignedToMe", labelKey: "chat.assignedToMe", label: "Assigned to me" },
+  {
+    value: "assignedToMe",
+    labelKey: "chat.assignedToMe",
+    label: "Assigned to me",
+  },
   { value: "unassigned", labelKey: "chat.unassigned", label: "Unassigned" },
 ] as const satisfies ReadonlyArray<{
   value: AssignmentFilter;
@@ -335,6 +343,7 @@ export const ChatList = memo(function ChatList({
 
   return (
     <div
+      data-sk="list-pane"
       className={`flex flex-col h-full bg-panel border-e border-line ${className}`}
       role="navigation"
       aria-label={t("chat.chatListAria", "Chat list")}
@@ -342,8 +351,11 @@ export const ChatList = memo(function ChatList({
       {/* Search, the account scope (multi-account inboxes only) and new
           contact share one row, so the first conversation sits high. */}
       <div
+        data-sk="list-search"
         className={
-          isFirstRun ? "hidden" : "flex items-center gap-2 bg-panel px-3 pt-3 pb-2"
+          isFirstRun
+            ? "hidden"
+            : "flex items-center gap-2 bg-panel px-3 pt-3 pb-2"
         }
       >
         <div className="min-w-0 flex-1">
@@ -354,46 +366,46 @@ export const ChatList = memo(function ChatList({
           />
         </div>
         {inboxAccounts.length > 1 && (
-            <Select value={accountFilter} onValueChange={setAccountFilter}>
-              <SelectTrigger
-                className="h-9 w-auto max-w-[10.5rem] text-xs"
-                aria-label={t("chat.filterByAccount", "Filter by account")}
-              >
-                <SelectValue
-                  placeholder={t("chat.allAccounts", "All accounts")}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" hideIndicator>
-                  <span className="flex items-center gap-2">
-                    <BrandMark className="size-4 shrink-0 rounded-[0.25rem] object-contain" />
-                    {t("chat.allAccounts", "All accounts")}
+          <Select value={accountFilter} onValueChange={setAccountFilter}>
+            <SelectTrigger
+              className="h-9 w-auto max-w-[10.5rem] text-xs"
+              aria-label={t("chat.filterByAccount", "Filter by account")}
+            >
+              <SelectValue
+                placeholder={t("chat.allAccounts", "All accounts")}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" hideIndicator>
+                <span className="flex items-center gap-2">
+                  <BrandMark className="size-4 shrink-0 rounded-[0.25rem] object-contain" />
+                  {t("chat.allAccounts", "All accounts")}
+                </span>
+              </SelectItem>
+              {inboxAccounts.map((account) => (
+                <SelectItem key={account.id} value={account.id} hideIndicator>
+                  <span className="flex min-w-0 items-center gap-2">
+                    {account.entry ? (
+                      <span
+                        className={cn(
+                          "grid size-4 shrink-0 place-items-center rounded-[0.25rem]",
+                          account.entry.tileClassName,
+                        )}
+                      >
+                        <account.entry.Mark className="size-3" />
+                      </span>
+                    ) : null}
+                    <span className="truncate">
+                      {account.label}
+                      {account.offline
+                        ? ` · ${t("chat.offline", "Offline").toLowerCase()}`
+                        : ""}
+                    </span>
                   </span>
                 </SelectItem>
-                {inboxAccounts.map((account) => (
-                  <SelectItem key={account.id} value={account.id} hideIndicator>
-                    <span className="flex min-w-0 items-center gap-2">
-                      {account.entry ? (
-                        <span
-                          className={cn(
-                            "grid size-4 shrink-0 place-items-center rounded-[0.25rem]",
-                            account.entry.tileClassName,
-                          )}
-                        >
-                          <account.entry.Mark className="size-3" />
-                        </span>
-                      ) : null}
-                      <span className="truncate">
-                        {account.label}
-                        {account.offline
-                          ? ` · ${t("chat.offline", "Offline").toLowerCase()}`
-                          : ""}
-                      </span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              ))}
+            </SelectContent>
+          </Select>
         )}
         {connectionState !== "no-connections" && (
           <button
@@ -412,6 +424,7 @@ export const ChatList = memo(function ChatList({
       {/* Lifecycle as one quiet segmented control; assignment and tags live
           behind a single Filter menu (see chat-list-filters.ts). */}
       <div
+        data-sk="list-filters"
         className={
           isFirstRun
             ? "hidden"
@@ -501,7 +514,10 @@ export const ChatList = memo(function ChatList({
                       {t(option.labelKey, option.label)}
                     </span>
                     {active && (
-                      <Check className="h-4 w-4 shrink-0 text-fg" aria-hidden="true" />
+                      <Check
+                        className="h-4 w-4 shrink-0 text-fg"
+                        aria-hidden="true"
+                      />
                     )}
                   </button>
                 );
@@ -710,10 +726,8 @@ export const ChatList = memo(function ChatList({
         {!isError &&
           visibleChats.length === 0 &&
           (isLoading || connectionState === "loading") && (
-            <div className="divide-y divide-line">
-              {Array.from({ length: 8 }).map((_, index) => (
-                <ChatListItemSkeleton key={index} />
-              ))}
+            <div aria-hidden="true">
+              <ChatListRowsSkeleton count={8} />
             </div>
           )}
 

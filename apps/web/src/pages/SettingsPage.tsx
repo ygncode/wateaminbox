@@ -259,7 +259,10 @@ export function SettingsPage() {
 
   return (
     <div className="flex h-full min-h-0 w-full bg-page">
-      <aside className="hidden w-64 shrink-0 overflow-y-auto border-e border-line bg-surface px-4 py-6 md:block">
+      <aside
+        data-sk="settings-nav"
+        className="hidden w-64 shrink-0 overflow-y-auto border-e border-line bg-surface px-4 py-6 md:block"
+      >
         <p className="px-2 text-xs font-bold uppercase tracking-[0.18em] text-accent">
           {t("settings.title", "Settings")}
         </p>
@@ -320,7 +323,10 @@ export function SettingsPage() {
               </SelectContent>
             </Select>
           </div>
-          <header className="mb-7 border-b border-line pb-5">
+          <header
+            data-sk="page-header"
+            className="mb-7 border-b border-line pb-5"
+          >
             <p className="text-xs font-semibold text-accent">
               {groupLabel(t, current.group)}
             </p>
@@ -1108,7 +1114,10 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-line bg-surface p-5 shadow-xs sm:p-6">
+    <section
+      data-sk="card"
+      className="rounded-2xl border border-line bg-surface p-5 shadow-xs sm:p-6"
+    >
       {title && <h3 className="font-semibold">{title}</h3>}
       {description && (
         <p className="mb-5 mt-1 text-sm leading-6 text-fg-muted">

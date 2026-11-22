@@ -131,7 +131,10 @@ export function Dashboard({
       )}
 
       <div className="min-h-0 flex-1 overflow-hidden p-3 sm:p-4">
-        <ScrollArea className="h-full rounded-xl border border-line bg-surface shadow-sm">
+        <ScrollArea
+          data-sk="card"
+          className="h-full rounded-xl border border-line bg-surface shadow-sm"
+        >
           <div className="space-y-6 p-4 sm:p-5 lg:p-6">
             <section aria-labelledby="operational-overview-title">
               <div className="mb-3 flex items-center justify-between">
@@ -149,7 +152,7 @@ export function Dashboard({
                     )}
                   </p>
                 </div>
-                <span className="rounded-full border border-line bg-surface px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
+                <span className="shrink-0 whitespace-nowrap rounded-full border border-line bg-surface px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-fg-muted">
                   {t("dashboard.allTime", "All time")}
                 </span>
               </div>

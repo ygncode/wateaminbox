@@ -70,6 +70,7 @@ export function MobileBottomNav({
       )}
     >
       <nav
+        data-sk="mobile-nav"
         className="pointer-events-auto flex w-full max-w-md items-stretch gap-1 rounded-[1.75rem] border border-line bg-surface p-1.5 shadow-lg"
         aria-label={t("nav.mobile", "Mobile navigation")}
       >

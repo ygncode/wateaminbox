@@ -32,16 +32,19 @@ export function TeamManagement({
 
   return (
     <div className="flex h-full flex-col bg-page">
-      <header className="border-b border-line bg-surface px-4 py-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+      <header
+        data-sk="page-header"
+        className="border-b border-line bg-surface px-4 py-4 sm:px-6"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
             <p className="text-xs font-semibold text-accent">
               {t("team.workspace", "Workspace")}
             </p>
             <h1 className="text-xl font-semibold text-fg">
               {t("team.title", "Team")}
             </h1>
-            <p className="mt-1 text-xs text-fg-muted">
+            <p className="mt-1 truncate text-xs text-fg-muted">
               {t("team.memberInvitationCounts", {
                 defaultValue:
                   "{{members}} members · {{invitations}} pending invitations",
@@ -61,7 +64,7 @@ export function TeamManagement({
         </div>
       </header>
 
-      <div className="flex border-b border-line bg-surface">
+      <div data-sk="tabs" className="flex border-b border-line bg-surface">
         {canManageTeam && (
           <Tab
             active={activeTab === "members"}

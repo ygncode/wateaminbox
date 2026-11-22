@@ -1,6 +1,10 @@
 import { useTranslation } from "react-i18next";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  CONVERSATION_BOTTOM_INSET_CLASS,
+  CONVERSATION_HEADER_INSET_CLASS,
+} from "@/components/layout/conversation-chrome";
+import {
   CONVERSATION_CANVAS_CLASS,
   ConversationCanvasPattern,
 } from "./ConversationCanvas";
@@ -67,6 +71,56 @@ export function ConversationMessagesSkeleton({
         <div className="flex justify-end">
           <Skeleton className="h-16 w-[44%] max-w-sm rounded-2xl rounded-ee-sm bg-bubble-out/70" />
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Conversation header placeholder: same inset class (height and notch) and
+ * padding as MessageHeader.
+ */
+export function ThreadHeaderSkeleton() {
+  return (
+    <div
+      data-sk="thread-header"
+      aria-hidden="true"
+      className={`flex shrink-0 items-center gap-0.5 border-b border-line bg-surface px-1 md:gap-2 md:px-3 ${CONVERSATION_HEADER_INSET_CLASS}`}
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-2.5 px-1 py-1 md:gap-3 md:px-2">
+        <Skeleton className="size-10 shrink-0 rounded-full" />
+        <div className="min-w-0 flex-1">
+          <Skeleton className="h-3.5 w-36 max-w-[42%]" />
+          <Skeleton className="mt-2 h-2.5 w-24 max-w-[30%]" />
+        </div>
+      </div>
+      <Skeleton className="size-11 shrink-0 rounded-full md:size-10" />
+    </div>
+  );
+}
+
+/**
+ * Composer placeholder for an open conversation: the route/actions bar, then
+ * the rounded field and send button (MessageComposer inside
+ * ComposerLifecycleArea).
+ */
+export function ComposerSkeleton() {
+  return (
+    <div
+      data-sk="composer"
+      aria-hidden="true"
+      className={`shrink-0 bg-surface ${CONVERSATION_BOTTOM_INSET_CLASS}`}
+    >
+      <div className="flex min-h-8 items-center gap-2 border-b border-line bg-subtle/55 px-3 py-1">
+        <Skeleton className="h-2.5 w-40 max-w-[45%]" />
+        <div className="ms-auto flex items-center gap-1.5">
+          <Skeleton className="h-9 w-[5.5rem] rounded-full" />
+          <Skeleton className="h-9 w-[5.5rem] rounded-full" />
+        </div>
+      </div>
+      <div className="flex items-end gap-1.5 px-2 pb-2 pt-1.5 sm:px-3">
+        <Skeleton className="h-11 min-w-0 flex-1 rounded-[1.5rem] bg-raised" />
+        <Skeleton className="size-11 shrink-0 rounded-full" />
       </div>
     </div>
   );

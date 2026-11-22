@@ -310,6 +310,7 @@ export function ProtectedAppLayout() {
         {t("nav.skipToMain", "Skip to main content")}
       </a>
       <aside
+        data-sk="rail"
         className={cn(
           "relative hidden h-full shrink-0 flex-col bg-nav py-3 transition-[width,padding] duration-200 ease-out lg:flex",
           sidebarCollapsed ? "w-[72px] px-2" : "w-[226px] px-3",
@@ -317,6 +318,7 @@ export function ProtectedAppLayout() {
       >
         <WorkspaceSwitcher collapsed={sidebarCollapsed} />
         <nav
+          data-sk="rail-nav"
           className="mt-5 space-y-1"
           aria-label={t("nav.primary", "Primary navigation")}
         >
@@ -399,7 +401,10 @@ export function ProtectedAppLayout() {
                 </button>
               </div>
             ) : (
-              <div className="mt-2 overflow-hidden rounded-xl border border-nav-line bg-nav-card">
+              <div
+                data-sk="rail-user"
+                className="mt-2 overflow-hidden rounded-xl border border-nav-line bg-nav-card"
+              >
                 <div className="flex items-center gap-3 p-2.5">
                   <Avatar className="h-10 w-10 rounded-xl bg-nav-hover">
                     <AvatarImage
@@ -436,7 +441,10 @@ export function ProtectedAppLayout() {
         </div>
       </aside>
 
-      <div className="app-frame relative flex min-w-0 flex-1 flex-col">
+      <div
+        data-sk="frame"
+        className="app-frame relative flex min-w-0 flex-1 flex-col"
+      >
         {/* The notch inset is added on top of the 3.5rem row, not eaten out
             of it: `box-sizing: border-box` is global and the viewport opts
             into `viewport-fit=cover`, so a plain `h-14` would leave roughly
@@ -446,6 +454,7 @@ export function ProtectedAppLayout() {
             conversation's own header takes over the top of the screen and
             inherits the notch inset - see conversation-chrome.ts. */}
         <header
+          data-sk="mobile-header"
           className={cn(
             "safe-area-top h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center justify-between border-b border-nav-line bg-nav px-2",
             shellChrome.workspaceHeaderClass,

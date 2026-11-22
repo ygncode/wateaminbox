@@ -77,7 +77,10 @@ function OverviewStatCard({
   isLoading,
 }: StatCardOverviewProps) {
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-xs transition-[border-color,box-shadow,transform] hover:border-line-strong">
+    <div
+      data-sk="stat"
+      className="group relative overflow-hidden rounded-xl border border-line bg-surface p-4 shadow-xs transition-[border-color,box-shadow,transform] hover:border-line-strong"
+    >
       <div className="mb-4 flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-fg-muted">
         {icon}
       </div>
@@ -85,7 +88,9 @@ function OverviewStatCard({
         {label}
       </p>
       {isLoading ? (
-        <Skeleton className="mt-1.5 h-8 w-16" />
+        <div className="mt-1 flex h-8 items-center">
+          <Skeleton className="h-6 w-12" />
+        </div>
       ) : (
         <p className="mt-1 text-2xl font-semibold tracking-[-0.02em] text-fg tabular-nums">
           {value !== undefined ? formatNumber(value) : "-"}

@@ -283,6 +283,7 @@ function GroupListItemComponent({
   return (
     <button
       type="button"
+      data-sk="group-row"
       onClick={onClick}
       className={cn(
         "w-full flex items-center gap-3 px-3 py-3 text-start",
@@ -367,7 +368,11 @@ function GroupListItemComponent({
  */
 function GroupListItemSkeleton() {
   return (
-    <div className="flex items-center gap-3 px-3 py-3 border-b border-line">
+    <div
+      data-sk="group-row"
+      aria-hidden="true"
+      className="list-row flex w-full items-center gap-3 border-b border-row-line px-3 py-3"
+    >
       <Skeleton className="w-12 h-12 rounded-full flex-shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">

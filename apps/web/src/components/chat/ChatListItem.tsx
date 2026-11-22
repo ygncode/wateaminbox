@@ -158,6 +158,7 @@ export const ChatListItem = memo(function ChatListItem({
       type="button"
       onClick={onClick}
       onMouseEnter={handlePrefetch}
+      data-sk="list-row"
       className={`w-full flex items-center gap-3 px-3 text-start
                   list-row transition-colors duration-150 border-b border-row-line
                   touch-manipulation active:bg-muted-strong
@@ -170,7 +171,10 @@ export const ChatListItem = memo(function ChatListItem({
     >
       {/* Avatar with Online Indicator */}
       <div className="relative flex-shrink-0">
-        <div className="size-11 rounded-full overflow-hidden bg-muted">
+        <div
+          data-sk="list-avatar"
+          className="size-11 rounded-full overflow-hidden bg-muted"
+        >
           {contact.avatarUrl ? (
             <img
               src={contact.avatarUrl}
@@ -380,24 +384,3 @@ export const ChatListItem = memo(function ChatListItem({
     </button>
   );
 });
-
-/**
- * Loading skeleton for chat list item
- */
-export function ChatListItemSkeleton() {
-  return (
-    <div className="flex items-center gap-3 px-3 py-3 border-b border-line animate-pulse">
-      {/* Avatar Skeleton */}
-      <div className="w-12 h-12 rounded-full bg-muted flex-shrink-0" />
-
-      {/* Content Skeleton */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <div className="h-4 bg-muted rounded w-32" />
-          <div className="h-3 bg-muted rounded w-12" />
-        </div>
-        <div className="mt-2 h-3 bg-muted rounded w-48" />
-      </div>
-    </div>
-  );
-}

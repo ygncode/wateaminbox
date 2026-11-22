@@ -262,7 +262,7 @@ visibility), not colour, radius, border or shadow.
 | `Checkbox` | Checked state uses `primary`. |
 | `Dialog`, `Popover`, `Tooltip` | `overlay` surface + `shadow-lg`; tooltips are inverse (`bg-fg text-canvas`). |
 | `Tabs` | Underline style: active is `border-fg text-fg`. |
-| `Skeleton` | `bg-muted` pulse. |
+| `Skeleton` | `bg-muted` pulse. Page and list placeholders follow "Loading skeletons" below. |
 
 ### Patterns
 
@@ -280,6 +280,59 @@ visibility), not colour, radius, border or shadow.
 - **Media viewers** (lightbox, attachment preview) stay dark in every theme:
   `bg-black` with `white/NN` overlays. They are the only place raw
   black/white is expected.
+
+## Loading skeletons
+
+A skeleton is a promise about layout: when data arrives, **content changes and
+nothing moves**. Every skeleton is sized against the loaded UI it stands in
+for, at desktop (1440×900) and mobile (390×844), in all three themes.
+
+**Where they live**
+
+| Loading state | Component |
+| ------------- | --------- |
+| Cold load / route guards (with the app shell) | `PageSkeleton withShell` in `components/ui/page-skeleton.tsx` |
+| Lazy page chunk inside the shell | `PageSkeleton variant=…` (App `LazyPage`) |
+| Inbox list rows and toolbar | `components/chat/ChatListSkeleton.tsx` |
+| Conversation header, canvas, composer | `components/chat/ConversationMessagesSkeleton.tsx` |
+| ServerDataTable pages, page headers | `components/ui/table-skeleton.tsx`; tables take `loadingRowHeight` |
+| Notifications, contact profile, group rows, stat cards, chart panels | next to the real component |
+| Auth routes | the onboarding frame (`OnboardingLoadingScreen`) |
+
+**Rules**
+
+- **Copy the real classes, not numbers.** A skeleton band uses the same
+  container classes as its real counterpart (padding, height, border,
+  radius, `list-row`, inset classes). Share a component when the real UI and
+  its placeholder can use one (`ComposerSkeleton`, `ChatListRowSkeleton`).
+- **One text line = one line box.** Text is a bar centred in a box exactly as
+  tall as the real line (`SkeletonLine className="h-5"` for `text-sm`,
+  `h-4` for `text-xs`). A bare `h-3` bar is 4–8px shorter than the text it
+  replaces and shifts everything below it.
+- **Content-sized rows use measured heights.** Table rows depend on their
+  cells; pass the measured height (`loadingRowHeight`) instead of guessing
+  padding.
+- **Match responsive behaviour.** If the real header wraps, stacks or hides
+  an element at a breakpoint, the skeleton does the same.
+- **Mark landmarks with `data-sk`.** Real components and skeletons put the
+  same `data-sk="<landmark>"` on the boxes that define layout (rail, list
+  rows, thread header, composer, page header, card, toolbar, table head/rows/
+  footer, …). `src/components/ui/skeleton-landmarks.test.ts` fails when a
+  skeleton landmark has no real counterpart or a measured landmark loses its
+  marker.
+
+**When you change a layout, update its skeleton in the same change.** Then
+measure, from `apps/web`, against a running stack:
+
+```sh
+PLAYWRIGHT=<path to playwright/index.mjs> SK_EMAIL=<user> SK_PASSWORD=<pw> \
+SK_THEME=whatsapp SK_OUT=../../tmp/skeleton/run \
+node scripts/measure-skeletons.mjs
+```
+
+It loads each route three ways (loaded, cold-load shell, page data held),
+compares every `data-sk` box and exits non-zero beyond 3px. Run it for
+`light`, `dark` and `whatsapp`. Screenshots land in `SK_OUT` for a visual pass.
 
 ## Hard rules (enforced by tests)
 
@@ -304,5 +357,8 @@ brand tiles and SVG icons. Google's logo colours are allow-listed in the test.
 2. Check the change in **Light, Dark and WhatsApp** (Settings → Appearance,
    or the theme menu in the rail), on desktop and at 390px wide.
 3. Text contrast is at least 4.5:1 (3:1 for large text and icons) in every theme.
-4. Run from `apps/web`: `bun test src/styles/design-system.test.ts
-   src/components/ui/select-policy.test.ts` and `bun run build`.
+4. Changed a layout? Update its loading skeleton too and run
+   `scripts/measure-skeletons.mjs` (see "Loading skeletons").
+5. Run from `apps/web`: `bun test src/styles/design-system.test.ts
+   src/components/ui/select-policy.test.ts
+   src/components/ui/skeleton-landmarks.test.ts` and `bun run build`.
