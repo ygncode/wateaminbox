@@ -101,6 +101,7 @@ type (
 	SyncStatusPayload       = sharednats.SyncStatusPayload
 	DownloadRequest         = sharednats.DownloadRequest
 	DownloadResponsePayload = sharednats.DownloadResponsePayload
+	QuotedMessagePayload    = sharednats.QuotedMessagePayload
 	// Internal event types
 	QRCodeEvent           = sharednats.QRCodeEvent
 	ConnectionStatusEvent = sharednats.ConnectionStatusEvent
@@ -404,6 +405,7 @@ func (p *Publisher) PublishMessage(msg MessageEvent) error {
 			Timestamp:          msg.Timestamp.Format(time.RFC3339),
 			MediaURL:           msg.MediaURL,
 			QuotedMessageID:    msg.QuotedMessageID,
+			QuotedMessage:      msg.QuotedMessage,
 			IsGroup:            msg.IsGroup,
 			GroupID:            msg.GroupID,
 			SenderName:         msg.SenderName,

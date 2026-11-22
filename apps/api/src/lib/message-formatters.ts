@@ -84,6 +84,11 @@ export interface QuotedMessageData {
   status: string;
   createdAt: Date;
   updatedAt: Date;
+  /**
+   * Built from WhatsApp's copy carried on the reply, not from a stored row:
+   * `id` is the WhatsApp message id, so clients navigate by reference.
+   */
+  isSnapshot?: boolean;
 }
 
 /**

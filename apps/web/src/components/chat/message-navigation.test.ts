@@ -28,6 +28,15 @@ describe("reply message navigation", () => {
     });
   });
 
+  test("a snapshot quote navigates by WhatsApp reference, not database id", () => {
+    expect(
+      getReplyNavigationTarget(
+        message({ id: "whatsapp-stanza-id", isSnapshot: true }),
+        "whatsapp-stanza-id",
+      ),
+    ).toEqual({ kind: "reference", messageId: "whatsapp-stanza-id" });
+  });
+
   test("keeps an unavailable WhatsApp quote actionable", () => {
     expect(getReplyNavigationTarget(undefined, "whatsapp-stanza-id")).toEqual({
       kind: "reference",

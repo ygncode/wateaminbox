@@ -15,6 +15,14 @@ export function getReplyNavigationTarget(
   replyToMessageId: string | undefined,
 ): MessageNavigationTarget | null {
   if (replyToMessage?.isDeleted) return null;
+  // A snapshot quote is WhatsApp's copy of an original we do not store: its id
+  // is the WhatsApp message id, so search (and ask the phone) by reference.
+  if (replyToMessage?.isSnapshot) {
+    return {
+      kind: "reference",
+      messageId: replyToMessageId || replyToMessage.id,
+    };
+  }
   if (replyToMessage) {
     return { kind: "database", messageId: replyToMessage.id };
   }

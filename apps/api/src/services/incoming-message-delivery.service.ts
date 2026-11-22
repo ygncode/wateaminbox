@@ -8,6 +8,10 @@ import {
   buildQuotedMessageData,
   type MessageDbRow,
 } from "../lib/message-formatters.js";
+import {
+  buildSnapshotQuote,
+  loadSnapshotSenders,
+} from "../lib/quoted-snapshots.js";
 import { broadcastAutoUnassignment } from "./assignment-broadcast.service.js";
 import { broadcastToContactViewers } from "./message-broadcast.service.js";
 import type { MessageDeliveryJob } from "./message-delivery-outbox.service.js";
@@ -88,7 +92,17 @@ export async function deliverIncomingMessage(
         await loadAlbumQuoteRows(tenantDb, [reply], new Set()),
         reply,
       );
-      if (album) replyToMessage = buildQuotedMessageData(album);
+      if (album) {
+        replyToMessage = buildQuotedMessageData(album);
+      } else {
+        // Last resort: WhatsApp's own copy of the quote, carried on the reply.
+        const reply = message as unknown as MessageDbRow;
+        replyToMessage =
+          buildSnapshotQuote(
+            reply,
+            await loadSnapshotSenders(tenantDb, [reply]),
+          ) ?? undefined;
+      }
     }
   }
 

@@ -27,6 +27,10 @@ import {
   buildSendMessageCommand,
   MEDIA_MESSAGE_TYPES,
 } from "../../lib/nats/index.js";
+import {
+  buildSnapshotQuote,
+  loadSnapshotSenders,
+} from "../../lib/quoted-snapshots.js";
 import { successData, successWithMessage } from "../../lib/response.js";
 import {
   listConversationMessagesQuerySchema,
@@ -281,6 +285,23 @@ messageRoutes.get(
         const album = pickAlbumQuote(albumRows, message);
         if (album) {
           quotedMessagesMap.set(key, buildQuotedMessageData(album, userNames));
+        }
+      }
+
+      // Last resort: WhatsApp's own copy of the quote, carried on the reply.
+      const snapshotReplies = (messages as MessageDbRow[]).filter(
+        (message) =>
+          message.quoted_message_id &&
+          !quotedMessagesMap.has(message.quoted_message_id),
+      );
+      const snapshotSenders = await loadSnapshotSenders(
+        tenantDb,
+        snapshotReplies,
+      );
+      for (const message of snapshotReplies) {
+        const snapshot = buildSnapshotQuote(message, snapshotSenders);
+        if (snapshot && message.quoted_message_id) {
+          quotedMessagesMap.set(message.quoted_message_id, snapshot);
         }
       }
     }

@@ -175,20 +175,24 @@ type ConnectionPayload struct {
 
 // MessagePayload is the payload for message events (matches API MessageEvent.payload).
 type MessagePayload struct {
-	MessageID       string         `json:"messageId"`
-	From            string         `json:"from"`
-	To              string         `json:"to"`
-	FromMe          bool           `json:"fromMe"`
-	Content         string         `json:"content"`
-	MessageType     string         `json:"messageType"`
-	Status          string         `json:"status,omitempty"`
-	Timestamp       string         `json:"timestamp"`
-	MediaURL        string         `json:"mediaUrl,omitempty"`
-	QuotedMessageID string         `json:"quotedMessageId,omitempty"`
-	IsGroup         bool           `json:"isGroup,omitempty"`
-	GroupID         string         `json:"groupId,omitempty"`
-	SenderName      string         `json:"senderName,omitempty"`
-	GroupMentions   []GroupMention `json:"groupMentions,omitempty"`
+	MessageID       string `json:"messageId"`
+	From            string `json:"from"`
+	To              string `json:"to"`
+	FromMe          bool   `json:"fromMe"`
+	Content         string `json:"content"`
+	MessageType     string `json:"messageType"`
+	Status          string `json:"status,omitempty"`
+	Timestamp       string `json:"timestamp"`
+	MediaURL        string `json:"mediaUrl,omitempty"`
+	QuotedMessageID string `json:"quotedMessageId,omitempty"`
+	// QuotedMessage is WhatsApp's own copy of the message being replied to,
+	// carried in the reply's context info. Lets the inbox show the quote when
+	// the original was never synced.
+	QuotedMessage *QuotedMessagePayload `json:"quotedMessage,omitempty"`
+	IsGroup       bool                  `json:"isGroup,omitempty"`
+	GroupID       string                `json:"groupId,omitempty"`
+	SenderName    string                `json:"senderName,omitempty"`
+	GroupMentions []GroupMention        `json:"groupMentions,omitempty"`
 	// ProtocolSenderJID preserves the participant identity used in WhatsApp's
 	// message key (often a LID in modern groups), while From remains the
 	// user-facing phone-number identity when one is available.
@@ -207,6 +211,15 @@ type MessagePayload struct {
 	MediaFileSHA256    []byte `json:"mediaFileSha256,omitempty"`
 	MediaFileEncSHA256 []byte `json:"mediaFileEncSha256,omitempty"`
 	IsHistorySync      bool   `json:"isHistorySync,omitempty"`
+}
+
+// QuotedMessagePayload is a text-only snapshot of a quoted message. Media is
+// never downloaded for it; only its type and caption are kept.
+type QuotedMessagePayload struct {
+	// SenderJID is the quoted author (phone JID when resolvable).
+	SenderJID   string `json:"senderJid,omitempty"`
+	MessageType string `json:"messageType"`
+	Content     string `json:"content,omitempty"`
 }
 
 // ContactCardPayload carries the vCard WhatsApp attached to a shared contact.
@@ -510,29 +523,30 @@ type GroupMention struct {
 
 // MessageEvent represents an incoming WhatsApp message (internal use).
 type MessageEvent struct {
-	MessageID         string               `json:"message_id"`
-	From              string               `json:"from"`
-	To                string               `json:"to"`
-	FromMe            bool                 `json:"from_me"`
-	Type              string               `json:"type"` // "text", "image", "video", "audio", "document"
-	Status            string               `json:"status,omitempty"`
-	Content           string               `json:"content,omitempty"`
-	MediaURL          string               `json:"media_url,omitempty"`
-	MediaType         string               `json:"media_type,omitempty"`
-	MediaSize         int64                `json:"media_size,omitempty"`
-	MediaAlbumID      string               `json:"media_album_id,omitempty"`
-	MediaAlbumIndex   int                  `json:"media_album_index,omitempty"`
-	MediaAlbumCount   int                  `json:"media_album_count,omitempty"`
-	FileName          string               `json:"file_name,omitempty"`
-	ContactCards      []ContactCardPayload `json:"contact_cards,omitempty"`
-	Caption           string               `json:"caption,omitempty"`
-	IsGroup           bool                 `json:"is_group"`
-	GroupID           string               `json:"group_id,omitempty"`
-	SenderName        string               `json:"sender_name,omitempty"`
-	GroupMentions     []GroupMention       `json:"group_mentions,omitempty"`
-	ProtocolSenderJID string               `json:"protocol_sender_jid,omitempty"`
-	QuotedMessageID   string               `json:"quoted_message_id,omitempty"`
-	Timestamp         time.Time            `json:"timestamp"`
+	MessageID         string                `json:"message_id"`
+	From              string                `json:"from"`
+	To                string                `json:"to"`
+	FromMe            bool                  `json:"from_me"`
+	Type              string                `json:"type"` // "text", "image", "video", "audio", "document"
+	Status            string                `json:"status,omitempty"`
+	Content           string                `json:"content,omitempty"`
+	MediaURL          string                `json:"media_url,omitempty"`
+	MediaType         string                `json:"media_type,omitempty"`
+	MediaSize         int64                 `json:"media_size,omitempty"`
+	MediaAlbumID      string                `json:"media_album_id,omitempty"`
+	MediaAlbumIndex   int                   `json:"media_album_index,omitempty"`
+	MediaAlbumCount   int                   `json:"media_album_count,omitempty"`
+	FileName          string                `json:"file_name,omitempty"`
+	ContactCards      []ContactCardPayload  `json:"contact_cards,omitempty"`
+	Caption           string                `json:"caption,omitempty"`
+	IsGroup           bool                  `json:"is_group"`
+	GroupID           string                `json:"group_id,omitempty"`
+	SenderName        string                `json:"sender_name,omitempty"`
+	GroupMentions     []GroupMention        `json:"group_mentions,omitempty"`
+	ProtocolSenderJID string                `json:"protocol_sender_jid,omitempty"`
+	QuotedMessageID   string                `json:"quoted_message_id,omitempty"`
+	QuotedMessage     *QuotedMessagePayload `json:"quoted_message,omitempty"`
+	Timestamp         time.Time             `json:"timestamp"`
 	// Deferred media download fields
 	MediaDirectPath    string `json:"media_direct_path,omitempty"`
 	MediaKey           []byte `json:"media_key,omitempty"`
