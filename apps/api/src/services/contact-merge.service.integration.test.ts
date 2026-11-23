@@ -8,6 +8,7 @@ import { sql } from "kysely";
 import { ConflictError, ValidationError } from "../lib/errors.js";
 import { resolveWorkflowIdentity } from "./channel-workflow.service.js";
 import {
+  listMergeHistory,
   mergeContacts,
   resolveCanonicalContactId,
   suggestContactMerges,
@@ -533,6 +534,67 @@ describe("unmergeContacts", () => {
             reason: "no such event",
           }),
         ).rejects.toBeInstanceOf(ValidationError);
+
+        // #378: merge A, unmerge A, merge B over the same pair. Both events
+        // name the same survivor, so the survivor alone cannot tell them
+        // apart; only B is in effect and only B may be reversed.
+        await tenantDb
+          .updateTable("contact_endpoints")
+          .set({ contact_id: source.id })
+          .where("id", "=", sourceEndpoint.id)
+          .execute();
+        const third = await mergeContacts(tenantDb, {
+          sourceContactId: source.id,
+          targetContactId: target.id,
+          actorUserId: ownerId,
+          reason: "merged a third time",
+        });
+        const history = await listMergeHistory(tenantDb, target.id);
+        expect(
+          history.map(({ mergeEventId, reversible }) => [
+            mergeEventId,
+            reversible,
+          ]),
+        ).toEqual([
+          [third.mergeEventId, true],
+          [second.mergeEventId, false],
+          [merge.mergeEventId, false],
+        ]);
+        for (const stale of [merge.mergeEventId, second.mergeEventId]) {
+          await expect(
+            unmergeContacts(tenantDb, {
+              mergeEventId: stale,
+              actorUserId: ownerId,
+              reason: "reverse an old merge",
+            }),
+          ).rejects.toBeInstanceOf(ValidationError);
+        }
+        // The refused attempts changed nothing: the source is still merged,
+        // and the endpoint is still where the in-effect merge put it.
+        expect(
+          (
+            await tenantDb
+              .selectFrom("contacts")
+              .select("merged_into_contact_id")
+              .where("id", "=", source.id)
+              .executeTakeFirstOrThrow()
+          ).merged_into_contact_id,
+        ).toBe(target.id);
+        expect(
+          (
+            await tenantDb
+              .selectFrom("contact_endpoints")
+              .select("contact_id")
+              .where("id", "=", sourceEndpoint.id)
+              .executeTakeFirstOrThrow()
+          ).contact_id,
+        ).toBe(target.id);
+        const current = await unmergeContacts(tenantDb, {
+          mergeEventId: third.mergeEventId,
+          actorUserId: ownerId,
+          reason: "reverse the merge in effect",
+        });
+        expect(current.restoredEndpoints).toBe(1);
       } finally {
         clearTenantConnection(companyId);
         await sql

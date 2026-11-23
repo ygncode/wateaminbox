@@ -191,7 +191,11 @@ export async function purgeArchivedChannelAccount(
         .execute();
       separatedContacts = await trx
         .updateTable("contacts")
-        .set({ merged_into_contact_id: null, updated_at: new Date() })
+        .set({
+          merged_into_contact_id: null,
+          active_merge_event_id: null,
+          updated_at: new Date(),
+        })
         .where("merged_into_contact_id", "in", contactIds)
         // A customer that is itself being purged is deleted, not separated.
         // Reporting it would tell an operator a customer came back when the
