@@ -125,6 +125,8 @@ export interface MessageMetadata {
   mediaAlbumIndex?: number;
   mediaAlbumCount?: number;
   contactCards?: ContactCardData[];
+  /** Why a send failed or is unconfirmed, e.g. "send_outcome_unknown". */
+  error?: string;
 }
 
 function optionalAlbumString(
@@ -315,6 +317,14 @@ export function buildMessageMetadata(msg: MessageDbRow): MessageMetadata {
     mediaAlbumIndex: optionalAlbumInteger(msg.metadata, "mediaAlbumIndex"),
     mediaAlbumCount: optionalAlbumInteger(msg.metadata, "mediaAlbumCount"),
     ...(contactCards.length > 0 ? { contactCards } : {}),
+    // The status icon reads this to tell an unconfirmed or failed send from
+    // one that is still sending. Without it a reload turned the amber
+    // "unconfirmed" mark back into a spinner, since the stored marker never
+    // reached the client. Only the code: the stored error_message can be an
+    // internal provider code, and the client translates the code itself.
+    ...(typeof msg.metadata?.error === "string" && msg.metadata.error
+      ? { error: msg.metadata.error }
+      : {}),
   };
 }
 

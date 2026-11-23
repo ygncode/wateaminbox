@@ -149,6 +149,38 @@ describe("incoming reply formatting", () => {
   });
 });
 
+describe("send error formatting", () => {
+  test("hands the stored error code to the client, without the internal detail", () => {
+    const formatted = formatMessageForConversation(
+      baseMessage({
+        from_me: true,
+        status: "pending",
+        metadata: {
+          error: "send_outcome_unknown",
+          error_message: "telegram_send_outcome_unknown",
+        },
+      }),
+      new Map(),
+      new Map(),
+    );
+
+    expect(formatted.metadata.error).toBe("send_outcome_unknown");
+    expect(JSON.stringify(formatted)).not.toContain(
+      "telegram_send_outcome_unknown",
+    );
+  });
+
+  test("adds no error to a message that has none", () => {
+    const formatted = formatMessageForConversation(
+      baseMessage({ metadata: { fileName: "a.pdf" } }),
+      new Map(),
+      new Map(),
+    );
+
+    expect("error" in formatted.metadata).toBe(false);
+  });
+});
+
 describe("outbound media formatting", () => {
   test("persists album metadata alongside the media filename", () => {
     expect(
