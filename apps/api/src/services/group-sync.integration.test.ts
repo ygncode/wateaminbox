@@ -1131,6 +1131,130 @@ describe("group synchronization", () => {
     },
     30_000,
   );
+
+  integrationTest(
+    "does not let a stored name that restates the LID digits bypass the mask (#382)",
+    async () => {
+      const companyId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const schema = getSchemaName(companyId);
+      const groupJid = `${randomNumericId()}@g.us`;
+      const ownNumber = randomNumericId();
+      // Migration 034 backfilled messages.sender_name with the bare local part
+      // for unmapped LID senders; a contact row can carry the same shape.
+      const backfilledLid = "6585719494172749";
+      const contactNamedLid = "77665544332211";
+      // A real name on a LID member is information, not a leak, and stays.
+      const namedLid = "55443322110099";
+
+      try {
+        await createTenantSchema(companyId);
+        const tenantDb = getTenantConnection(companyId);
+        await tenantDb
+          .insertInto("whatsapp_connections")
+          .values({
+            id: connectionId,
+            name: "Primary",
+            jid: `${ownNumber}@s.whatsapp.net`,
+            status: "connected",
+          })
+          .execute();
+        await handleContactEvent({
+          contractVersion: 1,
+          type: "contact",
+          companyId,
+          connectionId,
+          timestamp: new Date().toISOString(),
+          payload: {
+            jid: groupJid,
+            displayName: "LID Backfill Group",
+            isGroup: true,
+            participants: [
+              { jid: `${backfilledLid}@lid`, isAdmin: false },
+              { jid: `${contactNamedLid}@lid`, isAdmin: false },
+              { jid: `${namedLid}@lid`, isAdmin: false },
+              { jid: `${ownNumber}@s.whatsapp.net`, isAdmin: true },
+            ],
+          },
+        } satisfies ContactEvent);
+
+        const groupContact = await tenantDb
+          .selectFrom("contacts")
+          .select(["id"])
+          .where("jid", "=", groupJid)
+          .executeTakeFirstOrThrow();
+        const groupRecord = await tenantDb
+          .selectFrom("groups")
+          .select("id")
+          .where("contact_id", "=", groupContact.id)
+          .executeTakeFirstOrThrow();
+        await tenantDb
+          .insertInto("contacts")
+          .values({
+            whatsapp_connection_id: connectionId,
+            jid: `${contactNamedLid}@lid`,
+            push_name: contactNamedLid,
+          })
+          .execute();
+        await tenantDb
+          .insertInto("messages")
+          .values([
+            {
+              whatsapp_connection_id: connectionId,
+              contact_id: groupContact.id,
+              message_id: "lid-backfill-1",
+              from_me: false,
+              sender_jid: `${backfilledLid}@lid`,
+              sender_name: backfilledLid,
+              message_type: "text",
+              content: "from before the mapping existed",
+              timestamp: new Date("2026-01-01T00:00:00Z"),
+            },
+            {
+              whatsapp_connection_id: connectionId,
+              contact_id: groupContact.id,
+              message_id: "lid-named-1",
+              from_me: false,
+              sender_jid: `${namedLid}@lid`,
+              sender_name: "Mya Mya",
+              message_type: "text",
+              content: "hello",
+              timestamp: new Date("2026-01-01T00:00:00Z"),
+            },
+          ])
+          .execute();
+
+        const participants = await getEnrichedGroupParticipants(tenantDb, {
+          groupId: groupRecord.id,
+          contactId: groupContact.id,
+          connectionId,
+          connectionJid: `${ownNumber}@s.whatsapp.net`,
+        });
+        const displayNameByJid = new Map(
+          participants.map((participant) => [
+            participant.jid,
+            participant.displayName,
+          ]),
+        );
+
+        expect(displayNameByJid.get(`${backfilledLid}@lid`)).toBe(
+          `WhatsApp user (ID …${backfilledLid.slice(-4)})`,
+        );
+        expect(displayNameByJid.get(`${contactNamedLid}@lid`)).toBe(
+          `WhatsApp user (ID …${contactNamedLid.slice(-4)})`,
+        );
+        expect(displayNameByJid.get(`${namedLid}@lid`)).toBe("Mya Mya");
+        for (const participant of participants) {
+          expect(participant.displayName).not.toContain(backfilledLid);
+          expect(participant.displayName).not.toContain(contactNamedLid);
+        }
+      } finally {
+        await clearTenantConnection(companyId);
+        await sql.raw(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`).execute(db);
+      }
+    },
+    30_000,
+  );
 });
 
 /**
