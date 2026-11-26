@@ -1716,7 +1716,9 @@
       "openBotFather": "Buka @BotFather",
       "connecting": "Menghubungkan",
       "connect": "Hubungkan",
-      "groupRestricted": "Pesan grup terbatas: bot ini menggunakan mode privasi Telegram yang aktif, sehingga di grup hanya menerima perintah dan balasan. Kirim <code>/setprivacy</code> ke @BotFather, pilih bot ini, pilih Disable, lalu keluarkan dan tambahkan kembali ke setiap grup. Obrolan langsung tidak terpengaruh."
+      "groupRestricted": "Pesan grup terbatas: bot ini menggunakan mode privasi Telegram yang aktif, sehingga di grup hanya menerima perintah dan balasan. Kirim <code>/setprivacy</code> ke @BotFather, pilih bot ini, pilih Disable, lalu keluarkan dan tambahkan kembali ke setiap grup. Obrolan langsung tidak terpengaruh.",
+      "webhookTakenOver": "Tidak menerima pesan: aplikasi lain mendaftarkan webhook-nya sendiri dengan token bot ini, jadi Telegram mengirim pesan ke sana. Buat bot tersendiri untuk aplikasi itu, lalu pilih Hubungkan ulang. Pesan yang dikirim selama itu tidak sampai ke sini.",
+      "webhookMissing": "Tidak menerima pesan: webhook bot ini dihapus dari Telegram. Pilih Hubungkan ulang untuk menerima pesan lagi. Pesan yang dikirim selama itu tidak sampai ke sini."
     },
     "archived": "Diarsipkan",
     "identityRetained": "Identitas dipertahankan untuk riwayat kotak masuk",

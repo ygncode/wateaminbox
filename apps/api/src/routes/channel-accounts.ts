@@ -11,7 +11,7 @@ import { sql, type Transaction } from "kysely";
 import { z } from "zod";
 import { resolveAdapterCapabilities } from "../channel-spine/application/adapter-registry.js";
 import { channelAdapterRegistry } from "../channel-spine/registry.js";
-import { env } from "../lib/env.js";
+import { channelIngressBaseUrl } from "../lib/channel-ingress-url.js";
 import { conflict, forbidden, notFound } from "../lib/errors.js";
 import { createLogger, formatError } from "../lib/logger.js";
 import { successData } from "../lib/response.js";
@@ -39,19 +39,6 @@ import { countUsedConnectionSlots } from "../services/connection-quota.service.j
 import { getMaxConnections } from "../services/whatsapp/connection.js";
 
 const logger = createLogger("ChannelAccounts");
-
-/**
- * The base a provider calls back on.
- *
- * Separate from `APP_URL` because the two answer different questions: a
- * webhook needs a publicly routable HTTPS address, while `APP_URL` is where a
- * person opens the app - in local development a tunnel and localhost
- * respectively. Sending invite or OAuth links to the tunnel would be wrong,
- * and pointing a webhook at localhost simply never arrives.
- */
-function channelIngressBaseUrl(): string {
-  return (env.CHANNEL_INGRESS_PUBLIC_URL || env.APP_URL).replace(/\/$/, "");
-}
 
 export const channelAccountRoutes = new Hono();
 channelAccountRoutes.use("/*", authMiddleware);
