@@ -31,6 +31,16 @@ const PER_CYCLE_LIMIT = 25;
 
 const END_REASON = "QR pairing expired without a scan";
 
+/**
+ * Reapable pairing attempts:
+ * - first setups never scanned, and
+ * - re-pairs after a WhatsApp logout, whose session connected once but whose
+ *   credentials whatsmeow deleted, so the worker can only show QR codes.
+ *   Reconnect reuses that session row, and every worker restart (node drain,
+ *   image roll) shows a fresh QR batch to nobody. Three production accounts
+ *   held workers and slots this way for weeks (2026-11).
+ */
+
 let timer: ReturnType<typeof setInterval> | null = null;
 let inFlight: Promise<void> | null = null;
 let stopping = false;
@@ -76,14 +86,37 @@ export async function reapAbandonedPairingSessions(
         const session = await trx
           .selectFrom("whatsapp_connection_sessions")
           .select(["id", "whatsapp_connection_id"])
-          // Never scanned, never closed, and old enough that no one is still
-          // looking at the code.
-          .where("connected_at", "is", null)
+          // Never closed, not live, and quiet long enough that no one is
+          // still looking at a code. `updated_at` (not `started_at`) is the
+          // clock: a reconnect reuses the session row and bumps it, so a
+          // re-pair someone is scanning right now is never swept.
           .where("ended_at", "is", null)
+          .where("status", "!=", "connected")
           .where(
-            "started_at",
+            "updated_at",
             "<",
             sql<Date>`now() - ${abandonedAfterMs} * interval '1 millisecond'`,
+          )
+          // Either never scanned, or scanned once and later logged out by
+          // WhatsApp: whatsmeow deleted the credentials, so the worker can
+          // only show QR codes. A session that connected and merely dropped
+          // still owns credentials and is left to recover.
+          .where((eb) =>
+            eb.or([
+              eb("connected_at", "is", null),
+              eb.exists(
+                eb
+                  .selectFrom("whatsapp_connections as logged_out")
+                  .select("logged_out.id")
+                  .whereRef(
+                    "logged_out.id",
+                    "=",
+                    "whatsapp_connection_sessions.whatsapp_connection_id",
+                  )
+                  .where("logged_out.logged_out_at", "is not", null)
+                  .where("logged_out.archived_at", "is", null),
+              ),
+            ]),
           )
           // A connection that is serving traffic is never disturbed by this
           // sweep. Someone can abandon a re-pair on an account that is still
