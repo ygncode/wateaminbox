@@ -1716,7 +1716,9 @@
       "openBotFather": "打开 @BotFather",
       "connecting": "正在连接",
       "connect": "连接",
-      "groupRestricted": "群消息受限：此机器人开启了 Telegram 隐私模式，在群里只能收到命令和回复。请向 @BotFather 发送 <code>/setprivacy</code>，选择此机器人并选择 Disable，然后在每个群中移除并重新添加。私聊不受影响。"
+      "groupRestricted": "群消息受限：此机器人开启了 Telegram 隐私模式，在群里只能收到命令和回复。请向 @BotFather 发送 <code>/setprivacy</code>，选择此机器人并选择 Disable，然后在每个群中移除并重新添加。私聊不受影响。",
+      "webhookTakenOver": "未在接收消息：另一个应用使用此机器人的令牌注册了自己的 Webhook，Telegram 会把消息发到那里。请为该应用单独创建一个机器人，然后选择“重新连接”。在此期间发送的消息不会送达这里。",
+      "webhookMissing": "未在接收消息：此机器人的 Webhook 已从 Telegram 移除。选择“重新连接”即可重新接收消息。在此期间发送的消息不会送达这里。"
     },
     "archived": "已归档",
     "identityRetained": "已保留身份，用于历史收件箱",

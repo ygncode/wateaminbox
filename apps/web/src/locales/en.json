@@ -1740,7 +1740,9 @@
       "openBotFather": "Open @BotFather",
       "connecting": "Connecting",
       "connect": "Connect",
-      "groupRestricted": "Group messages are limited: this bot has Telegram's privacy mode on, so it only receives commands and replies in groups. Send <code>/setprivacy</code> to @BotFather, choose this bot, select Disable, then remove and re-add it to each group. Direct chats are unaffected."
+      "groupRestricted": "Group messages are limited: this bot has Telegram's privacy mode on, so it only receives commands and replies in groups. Send <code>/setprivacy</code> to @BotFather, choose this bot, select Disable, then remove and re-add it to each group. Direct chats are unaffected.",
+      "webhookTakenOver": "Not receiving messages: another app registered its own webhook with this bot's token, so Telegram sends the messages there. Give that app its own bot, then choose Reconnect. Messages sent in the meantime are not delivered here.",
+      "webhookMissing": "Not receiving messages: this bot's webhook was removed from Telegram. Choose Reconnect to receive messages again. Messages sent in the meantime are not delivered here."
     },
     "archived": "Archived",
     "identityRetained": "Identity retained for historical inbox",

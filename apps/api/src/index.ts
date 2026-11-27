@@ -11,6 +11,10 @@ import {
   shutdownAbandonedPairingSessions,
 } from "./services/abandoned-pairing-session.service.js";
 import {
+  initializeTelegramWebhookWatch,
+  shutdownTelegramWebhookWatch,
+} from "./services/telegram-webhook-watch.service.js";
+import {
   initializeChannelAttachmentFetch,
   shutdownChannelAttachmentFetch,
 } from "./services/channel-attachment-fetch.service.js";
@@ -112,6 +116,7 @@ if (!isTestEnvironment) {
   initializeConnectionPurgeCleanup();
   initializeConnectionEmailAlerts();
   initializeAbandonedPairingSessions();
+  initializeTelegramWebhookWatch();
   initializeChannelSpineReconciler();
 
   logger.info(
@@ -160,6 +165,7 @@ function shutdownSteps(): ShutdownStep[] {
       name: "abandoned-pairing-sessions",
       run: shutdownAbandonedPairingSessions,
     },
+    { name: "telegram-webhook-watch", run: shutdownTelegramWebhookWatch },
     { name: "channel-outbound", run: shutdownChannelOutbound },
     { name: "channel-event-retry", run: shutdownChannelEventRetry },
     {

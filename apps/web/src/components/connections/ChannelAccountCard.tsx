@@ -59,6 +59,14 @@ export function ChannelAccountCard({
   // Paused by an operator, as opposed to knocked offline by the provider: the
   // difference decides whether the menu offers Resume or Disconnect.
   const isPaused = account.status === "disabled";
+  // Set by the server's webhook watch: Telegram is delivering this bot's
+  // updates somewhere else, or nowhere. Reconnecting registers ours again,
+  // and it is the same call as resuming a paused account.
+  const webhookLost =
+    account.status === "error" &&
+    (account.providerStatus === "webhook_taken_over" ||
+      account.providerStatus === "webhook_missing");
+  const canResume = isPaused || webhookLost;
   const isBusy = isPausing || isResuming;
   const name = account.displayName?.trim() || entry?.name || account.channel;
   const [showMenu, setShowMenu] = useState(false);
@@ -170,7 +178,7 @@ export function ChannelAccountCard({
                 : ""}
           </p>
           {/* A provider status is the only clue when a webhook half-registered. */}
-          {account.providerStatus && !isLive && (
+          {account.providerStatus && !isLive && !webhookLost && (
             <p className="truncate text-xs text-warning">
               {account.providerStatus.split("_").join(" ")}
             </p>
@@ -222,7 +230,7 @@ export function ChannelAccountCard({
                   <Edit2 className="h-4 w-4 text-fg-subtle" />
                   {t("connections.rename", "Rename")}
                 </button>
-                {isPaused ? (
+                {canResume ? (
                   <button
                     type="button"
                     disabled={isBusy}
@@ -237,7 +245,9 @@ export function ChannelAccountCard({
                     ) : (
                       <Power className="h-4 w-4" />
                     )}
-                    {t("connections.resume", "Resume")}
+                    {webhookLost
+                      ? t("connections.reconnect", "Reconnect")
+                      : t("connections.resume", "Resume")}
                   </button>
                 ) : (
                   <button
@@ -277,6 +287,14 @@ export function ChannelAccountCard({
           )}
         </div>
       </div>
+
+      {webhookLost && (
+        <p className="border-t border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs leading-5 text-warning">
+          {account.providerStatus === "webhook_taken_over"
+            ? t("connections.telegram.webhookTakenOver")
+            : t("connections.telegram.webhookMissing")}
+        </p>
+      )}
 
       {groupMessagesRestricted && (
         <p className="border-t border-warning/30 bg-warning-soft px-3.5 py-2.5 text-xs leading-5 text-warning">

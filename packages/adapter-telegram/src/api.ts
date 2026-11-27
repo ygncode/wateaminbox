@@ -123,6 +123,39 @@ export async function downloadTelegramFile(
   };
 }
 
+/** Where Telegram is currently delivering this bot's updates. */
+export interface TelegramWebhookInfo {
+  /** Empty when no webhook is registered. */
+  url: string;
+  pendingUpdateCount: number;
+}
+
+/**
+ * A bot has exactly one webhook, and anything holding its token can replace
+ * it. Nothing tells the previous owner, so this is the only way to notice.
+ */
+export async function getTelegramWebhookInfo(
+  token: string,
+): Promise<TelegramWebhookInfo> {
+  const info = await telegramBotRequest<{
+    url?: unknown;
+    pending_update_count?: unknown;
+  }>(token, "getWebhookInfo", {});
+  if (
+    !info ||
+    typeof info.url !== "string" ||
+    (info.pending_update_count !== undefined &&
+      (typeof info.pending_update_count !== "number" ||
+        !Number.isSafeInteger(info.pending_update_count)))
+  ) {
+    throw new Error("Telegram Bot API returned an invalid webhook info");
+  }
+  return {
+    url: info.url,
+    pendingUpdateCount: (info.pending_update_count as number | undefined) ?? 0,
+  };
+}
+
 export async function removeTelegramWebhook(token: string): Promise<void> {
   await telegramBotRequest(token, "deleteWebhook", {
     drop_pending_updates: false,

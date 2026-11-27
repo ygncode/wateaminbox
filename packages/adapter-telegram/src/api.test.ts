@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { downloadTelegramFile, getTelegramBotIdentity } from "./api";
+import {
+  downloadTelegramFile,
+  getTelegramBotIdentity,
+  getTelegramWebhookInfo,
+} from "./api";
 
 const originalFetch = globalThis.fetch;
 const token = `12345:${"a".repeat(30)}`;
@@ -24,6 +28,47 @@ describe("Telegram Bot API validation", () => {
       Response.json({ ok: "yes", result: {} })) as unknown as typeof fetch;
     await expect(getTelegramBotIdentity(token)).rejects.toThrow(
       "invalid response",
+    );
+  });
+});
+
+describe("Telegram webhook info", () => {
+  test("returns the registered URL and pending count", async () => {
+    let method = "";
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      method = String(input).split("/").pop() ?? "";
+      return Response.json({
+        ok: true,
+        result: { url: "https://example.com/hook", pending_update_count: 3 },
+      });
+    }) as unknown as typeof fetch;
+    expect(await getTelegramWebhookInfo(token)).toEqual({
+      url: "https://example.com/hook",
+      pendingUpdateCount: 3,
+    });
+    expect(method).toBe("getWebhookInfo");
+  });
+
+  test("reports an empty URL when no webhook is registered", async () => {
+    globalThis.fetch = (async () =>
+      Response.json({
+        ok: true,
+        result: { url: "" },
+      })) as unknown as typeof fetch;
+    expect(await getTelegramWebhookInfo(token)).toEqual({
+      url: "",
+      pendingUpdateCount: 0,
+    });
+  });
+
+  test("rejects a malformed webhook info", async () => {
+    globalThis.fetch = (async () =>
+      Response.json({
+        ok: true,
+        result: { url: 42 },
+      })) as unknown as typeof fetch;
+    await expect(getTelegramWebhookInfo(token)).rejects.toThrow(
+      "invalid webhook info",
     );
   });
 });
